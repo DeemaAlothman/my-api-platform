@@ -1,4 +1,4 @@
-name: my-api-platform-prod
+version: '3.8'
 
 services:
   postgres:
@@ -36,13 +36,9 @@ services:
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL:-30}
       NODE_ENV: production
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     networks:
       - app-network
-    # لا نفتح port للخارج - فقط Gateway يصل للخدمات
-    # ports:
-    #   - "4001:4001"
 
   users:
     build:
@@ -55,8 +51,7 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       NODE_ENV: production
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     networks:
       - app-network
     # لا نفتح port للخارج
