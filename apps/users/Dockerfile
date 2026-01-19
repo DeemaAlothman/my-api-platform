@@ -17,8 +17,8 @@ RUN npm install
 WORKDIR /app/apps/users
 RUN npm run build
 
-# Generate Prisma Client
-RUN npx prisma generate
+# Generate Prisma Client (with dummy DATABASE_URL for build time)
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 
 # Production stage
 FROM node:20-alpine AS production
@@ -37,7 +37,7 @@ COPY --from=builder /app/apps/users/prisma ./prisma
 RUN npm install --omit=dev
 
 # Generate Prisma Client in production stage
-RUN npx prisma generate
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 
 # Expose the port
 EXPOSE 4002
