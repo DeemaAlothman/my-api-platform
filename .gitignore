@@ -1,4 +1,28 @@
+# Dependencies
 node_modules/
+
+# Environment
 .env
+.env.local
+.env.*.local
+
+# Build
 dist/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Docker volumes (local data)
+pgdata/

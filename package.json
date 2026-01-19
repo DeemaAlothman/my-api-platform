@@ -1,0 +1,14 @@
+{
+  "name": "my-api-platform",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "echo \"Use service-level dev scripts\"",
+    "lint": "echo \"Add lint later\""
+  }
+}

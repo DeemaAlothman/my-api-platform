@@ -1,0 +1,101 @@
+name: my-api-platform
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: myapiplatform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: myapiplatform-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  auth:
+    build:
+      context: .
+      dockerfile: apps/auth/Dockerfile
+    container_name: myapiplatform-auth
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=auth
+      JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
+      JWT_REFRESH_SECRET: your-jwt-refresh-secret-change-in-production
+      ACCESS_TOKEN_TTL_SECONDS: 900
+      REFRESH_TOKEN_TTL_DAYS: 30
+      NODE_ENV: production
+    ports:
+      - "4001:4001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  users:
+    build:
+      context: .
+      dockerfile: apps/users/Dockerfile
+    container_name: myapiplatform-users
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=users
+      JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
+      NODE_ENV: production
+    ports:
+      - "4002:4002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    container_name: myapiplatform-gateway
+    restart: unless-stopped
+    environment:
+      AUTH_SERVICE_URL: http://auth:4001
+      USERS_SERVICE_URL: http://users:4002
+      NODE_ENV: development
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - auth
+      - users
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pgdata:

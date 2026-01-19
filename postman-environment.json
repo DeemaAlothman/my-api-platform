@@ -1,0 +1,55 @@
+{
+  "name": "My API Platform - Local",
+  "values": [
+    {
+      "key": "gateway_url",
+      "value": "http://localhost:8000/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "auth_url",
+      "value": "http://localhost:4001/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "users_url",
+      "value": "http://localhost:4002/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "employee_id",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "department_id",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "role_id",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "permission_id",
+      "value": "",
+      "enabled": true
+    }
+  ]
+}

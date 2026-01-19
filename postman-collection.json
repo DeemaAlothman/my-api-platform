@@ -1,0 +1,766 @@
+{
+  "info": {
+    "name": "My API Platform - Complete",
+    "description": "Complete API collection for My API Platform microservices",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Auth Service",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('access_token', jsonData.accessToken);",
+                  "    pm.environment.set('refresh_token', jsonData.refreshToken);",
+                  "    console.log('Access token saved:', jsonData.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/auth/login",
+              "host": ["{{gateway_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/auth/refresh",
+              "host": ["{{gateway_url}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/auth/logout",
+              "host": ["{{gateway_url}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/users?page=1&limit=10",
+              "host": ["{{gateway_url}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/users/{{user_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["users", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('user_id', jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john.doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePass123\",\n  \"fullName\": \"John Doe\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/users",
+              "host": ["{{gateway_url}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.updated@example.com\",\n  \"fullName\": \"John Doe Updated\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/users/{{user_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["users", "{{user_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Assign Roles to User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleIds\": [\"{{role_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/users/{{user_id}}/roles",
+              "host": ["{{gateway_url}}"],
+              "path": ["users", "{{user_id}}", "roles"]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/users/{{user_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["users", "{{user_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Employees",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/employees?page=1&limit=10",
+              "host": ["{{gateway_url}}"],
+              "path": ["employees"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "departmentId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Employee by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/employees/{{employee_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["employees", "{{employee_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Employee",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('employee_id', jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstNameAr\": \"أحمد\",\n  \"lastNameAr\": \"محمد\",\n  \"firstNameEn\": \"Ahmed\",\n  \"lastNameEn\": \"Mohammed\",\n  \"email\": \"ahmed.mohammed@example.com\",\n  \"phone\": \"+963-11-1234567\",\n  \"mobile\": \"+963-999-123456\",\n  \"gender\": \"MALE\",\n  \"dateOfBirth\": \"1990-01-15\",\n  \"nationality\": \"Syrian\",\n  \"maritalStatus\": \"MARRIED\",\n  \"departmentId\": \"{{department_id}}\",\n  \"hireDate\": \"2024-01-01\",\n  \"contractType\": \"PERMANENT\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/employees",
+              "host": ["{{gateway_url}}"],
+              "path": ["employees"]
+            }
+          }
+        },
+        {
+          "name": "Update Employee",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+963-11-9999999\",\n  \"employmentStatus\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/employees/{{employee_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["employees", "{{employee_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Employees by Department",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/employees/department/{{department_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["employees", "department", "{{department_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Manager Subordinates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/employees/manager/{{employee_id}}/subordinates",
+              "host": ["{{gateway_url}}"],
+              "path": ["employees", "manager", "{{employee_id}}", "subordinates"]
+            }
+          }
+        },
+        {
+          "name": "Link Employee to User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{user_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/employees/{{employee_id}}/link-user",
+              "host": ["{{gateway_url}}"],
+              "path": ["employees", "{{employee_id}}", "link-user"]
+            }
+          }
+        },
+        {
+          "name": "Delete Employee",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/employees/{{employee_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["employees", "{{employee_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Departments",
+      "item": [
+        {
+          "name": "Get Department Tree",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/departments/tree",
+              "host": ["{{gateway_url}}"],
+              "path": ["departments", "tree"]
+            }
+          }
+        },
+        {
+          "name": "List Departments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/departments?page=1&limit=10",
+              "host": ["{{gateway_url}}"],
+              "path": ["departments"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Department by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/departments/{{department_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["departments", "{{department_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Department",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('department_id', jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"HR\",\n  \"nameAr\": \"قسم الموارد البشرية\",\n  \"nameEn\": \"Human Resources Department\",\n  \"nameTr\": \"İnsan Kaynakları Departmanı\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/departments",
+              "host": ["{{gateway_url}}"],
+              "path": ["departments"]
+            }
+          }
+        },
+        {
+          "name": "Update Department",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameAr\": \"قسم الموارد البشرية المحدث\",\n  \"nameEn\": \"Updated HR Department\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/departments/{{department_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["departments", "{{department_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Department",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/departments/{{department_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["departments", "{{department_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Roles & Permissions",
+      "item": [
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/roles",
+              "host": ["{{gateway_url}}"],
+              "path": ["roles"]
+            }
+          }
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/roles/{{role_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["roles", "{{role_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('role_id', jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"department_manager\",\n  \"displayNameAr\": \"مدير قسم\",\n  \"displayNameEn\": \"Department Manager\",\n  \"description\": \"Department level manager\",\n  \"permissionIds\": []\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/roles",
+              "host": ["{{gateway_url}}"],
+              "path": ["roles"]
+            }
+          }
+        },
+        {
+          "name": "Update Role Permissions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissionIds\": [\"{{permission_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/roles/{{role_id}}/permissions",
+              "host": ["{{gateway_url}}"],
+              "path": ["roles", "{{role_id}}", "permissions"]
+            }
+          }
+        },
+        {
+          "name": "List All Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gateway_url}}/permissions",
+              "host": ["{{gateway_url}}"],
+              "path": ["permissions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Health Checks",
+      "item": [
+        {
+          "name": "Gateway Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/health",
+              "host": ["{{gateway_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Users Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{users_url}}/health",
+              "host": ["{{users_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Auth Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{auth_url}}/health",
+              "host": ["{{auth_url}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(uuid())
+  username  String     @unique
+  email     String     @unique
+  fullName  String?
+  password  String
+  status    UserStatus @default(ACTIVE)
+
+  employee  Employee?
+  roles     UserRole[]
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Employee {
+  id             String    @id @default(uuid())
+  employeeNumber String    @unique
+  firstNameAr    String
+  lastNameAr     String
+  firstNameEn    String?
+  lastNameEn     String?
+  email          String    @unique
+  phone          String?
+  mobile         String?
+  nationalId     String?
+  gender         Gender
+  dateOfBirth    DateTime?
+  nationality    String?
+  maritalStatus  MaritalStatus?
+
+  // Relations
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id])
+
+  jobTitleId     String?
+  jobTitle       JobTitle?  @relation(fields: [jobTitleId], references: [id])
+
+  managerId      String?
+  manager        Employee?  @relation("EmployeeManager", fields: [managerId], references: [id])
+  subordinates   Employee[] @relation("EmployeeManager")
+
+  userId         String?    @unique
+  user           User?      @relation(fields: [userId], references: [id])
+
+  // Employment
+  hireDate       DateTime
+  contractType   ContractType
+  contractEndDate DateTime?
+  employmentStatus EmploymentStatus @default(ACTIVE)
+
+  // Biometric
+  fingerprintId  String?
+
+  deletedAt      DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([departmentId])
+  @@index([managerId])
+  @@index([employeeNumber])
+  @@map("employees")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum ContractType {
+  PERMANENT
+  TEMPORARY
+  CONTRACT
+  INTERNSHIP
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  nameAr    String
+  nameEn    String?
+  nameTr    String?
+
+  parentId  String?
+  parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children  Department[] @relation("DepartmentHierarchy")
+
+  managerId String?
+
+  employees Employee[]
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+  @@index([code])
+  @@map("departments")
+}
+
+model JobTitle {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  nameAr    String
+  nameEn    String?
+  nameTr    String?
+
+  employees Employee[]
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("job_titles")
+}
+
+model Role {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  displayNameAr  String
+  displayNameEn  String?
+  description    String?
+
+  users          UserRole[]
+  permissions    RolePermission[]
+
+  deletedAt      DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  displayName String
+  description String?
+  module      String
+
+  roles       RolePermission[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  roleId    String
+  role      Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  assignedAt DateTime @default(now())
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  assignedAt   DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}

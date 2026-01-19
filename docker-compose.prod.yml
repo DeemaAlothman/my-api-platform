@@ -1,0 +1,90 @@
+name: my-api-platform-prod
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: myapiplatform-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_in_production}
+      POSTGRES_DB: ${DB_NAME:-platform}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # لا نفتح port للخارج في Production
+    # ports:
+    #   - "5432:5432"
+
+  auth:
+    build:
+      context: .
+      dockerfile: apps/auth/Dockerfile
+    container_name: myapiplatform-auth
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=auth
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_this_refresh_secret_in_production}
+      ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL:-900}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL:-30}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    # لا نفتح port للخارج - فقط Gateway يصل للخدمات
+    # ports:
+    #   - "4001:4001"
+
+  users:
+    build:
+      context: .
+      dockerfile: apps/users/Dockerfile
+    container_name: myapiplatform-users
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=users
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    # لا نفتح port للخارج
+    # ports:
+    #   - "4002:4002"
+
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    container_name: myapiplatform-gateway
+    restart: always
+    environment:
+      AUTH_SERVICE_URL: http://auth:4001
+      USERS_SERVICE_URL: http://users:4002
+      NODE_ENV: production
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - auth
+      - users
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  pgdata:
