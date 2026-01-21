@@ -23,6 +23,11 @@ export class ProxyService {
       url: process.env.USERS_SERVICE_URL || 'http://localhost:4002',
       prefix: '/users',
     });
+
+    this.services.set('leave', {
+      url: process.env.LEAVE_SERVICE_URL || 'http://localhost:4003',
+      prefix: '/leave',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

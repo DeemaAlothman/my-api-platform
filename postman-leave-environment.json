@@ -1,0 +1,55 @@
+{
+  "name": "Leave Service - Local",
+  "values": [
+    {
+      "key": "gateway_url",
+      "value": "http://localhost:8000/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "employee_id",
+      "value": "b0e1c442-c950-4de1-ab14-620283794298",
+      "enabled": true
+    },
+    {
+      "key": "leave_type_id",
+      "value": "9ab1050f-cc3f-4d35-a065-15b60132d0df",
+      "enabled": true
+    },
+    {
+      "key": "leave_type_annual",
+      "value": "9ab1050f-cc3f-4d35-a065-15b60132d0df",
+      "enabled": true
+    },
+    {
+      "key": "leave_type_sick",
+      "value": "17e740a7-0939-47e1-be62-f67a7d62eba9",
+      "enabled": true
+    },
+    {
+      "key": "leave_type_emergency",
+      "value": "5de7a506-11fd-4ea0-b6a5-c7c74a53e524",
+      "enabled": true
+    },
+    {
+      "key": "leave_request_id",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "balance_id",
+      "value": "",
+      "enabled": true
+    }
+  ]
+}

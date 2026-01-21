@@ -91,3 +91,63 @@ export class PermissionsProxyController {
     return this.proxy.forward(req, res, 'users');
   }
 }
+
+@Controller('leave-requests')
+export class LeaveRequestsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+}
+
+@Controller('leave-balances')
+export class LeaveBalancesProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+}
+
+@Controller('leave-types')
+export class LeaveTypesProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+}
+
+@Controller('holidays')
+export class HolidaysProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+}

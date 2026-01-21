@@ -99,6 +99,43 @@ npx prisma migrate deploy
 npm run prisma:seed
 ```
 
+### Leave Service Database
+
+```bash
+cd apps/leave
+
+# Run migrations
+npx prisma migrate deploy
+
+# Seed initial data (leave types, holidays)
+npm run prisma:seed
+```
+
+**أو باستخدام Docker:**
+
+```bash
+# تنفيذ migrations
+docker compose exec leave npx prisma migrate deploy
+
+# تنفيذ seed
+docker compose exec leave npx tsx prisma/seed.ts
+```
+
+**البيانات اللي رح تتضاف:**
+- 10 أنواع إجازات (سنوية، مرضية، طارئة، إلخ)
+- 5 عطلات رسمية
+
+**التحقق من البيانات:**
+```bash
+# عرض أنواع الإجازات
+docker compose exec postgres psql -U postgres -d platform -c \
+  "SELECT code, \"nameAr\", \"defaultDays\" FROM leaves.leave_types;"
+
+# عرض العطلات
+docker compose exec postgres psql -U postgres -d platform -c \
+  "SELECT \"nameAr\", date FROM leaves.holidays ORDER BY date;"
+```
+
 ---
 
 ## 🧪 اختبار الخدمات

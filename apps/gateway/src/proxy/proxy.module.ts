@@ -8,6 +8,10 @@ import {
   DepartmentsProxyController,
   RolesProxyController,
   PermissionsProxyController,
+  LeaveRequestsProxyController,
+  LeaveBalancesProxyController,
+  LeaveTypesProxyController,
+  HolidaysProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -19,6 +23,10 @@ import {
     DepartmentsProxyController,
     RolesProxyController,
     PermissionsProxyController,
+    LeaveRequestsProxyController,
+    LeaveBalancesProxyController,
+    LeaveTypesProxyController,
+    HolidaysProxyController,
   ],
   providers: [ProxyService],
 })

@@ -1,0 +1,126 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["leaves"]
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Leave Types (أنواع الإجازات)
+model LeaveType {
+  id                   String         @id @default(uuid())
+  code                 String         @unique
+  nameAr               String
+  nameEn               String?
+  defaultDays          Int
+  isPaid               Boolean        @default(true)
+  requiresApproval     Boolean        @default(true)
+  requiresAttachment   Boolean        @default(false)
+  maxDaysPerRequest    Int?
+  minDaysNotice        Int?
+  allowHalfDay         Boolean        @default(false)
+  color                String?
+  isActive             Boolean        @default(true)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  leaveRequests        LeaveRequest[]
+  leaveBalances        LeaveBalance[]
+
+  @@map("leave_types")
+  @@schema("leaves")
+}
+
+// Leave Balances (أرصدة الإجازات)
+model LeaveBalance {
+  id                String     @id @default(uuid())
+  employeeId        String
+  leaveTypeId       String
+  year              Int
+  totalDays         Float
+  usedDays          Float      @default(0)
+  pendingDays       Float      @default(0)
+  remainingDays     Float      @default(0)
+  carriedOverDays   Float      @default(0)
+  adjustmentDays    Float      @default(0)
+  adjustmentReason  String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  leaveType         LeaveType  @relation(fields: [leaveTypeId], references: [id])
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@map("leave_balances")
+  @@schema("leaves")
+}
+
+// Leave Requests (طلبات الإجازة)
+model LeaveRequest {
+  id                String                @id @default(uuid())
+  employeeId        String
+  leaveTypeId       String
+  startDate         DateTime
+  endDate           DateTime
+  totalDays         Float
+  reason            String?
+  isHalfDay         Boolean               @default(false)
+  halfDayPeriod     String?
+  substituteId      String?
+  contactDuring     String?
+  status            String                @default("DRAFT")
+  managerStatus     String?
+  managerApprovedBy String?
+  managerApprovedAt DateTime?
+  managerNotes      String?
+  hrStatus          String?
+  hrApprovedBy      String?
+  hrApprovedAt      DateTime?
+  hrNotes           String?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  cancelledBy       String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  leaveType         LeaveType             @relation(fields: [leaveTypeId], references: [id])
+  history           LeaveRequestHistory[]
+
+  @@map("leave_requests")
+  @@schema("leaves")
+}
+
+// Leave Request History
+model LeaveRequestHistory {
+  id             String       @id @default(uuid())
+  leaveRequestId String
+  action         String
+  fromStatus     String?
+  toStatus       String
+  performedBy    String
+  notes          String?
+  createdAt      DateTime     @default(now())
+
+  leaveRequest   LeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@map("leave_request_history")
+  @@schema("leaves")
+}
+
+// Holidays (العطل الرسمية)
+model Holiday {
+  id          String   @id @default(uuid())
+  nameAr      String
+  nameEn      String?
+  date        DateTime
+  endDate     DateTime?
+  type        String   @default("PUBLIC")
+  isRecurring Boolean  @default(false)
+  year        Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("holidays")
+  @@schema("leaves")
+}

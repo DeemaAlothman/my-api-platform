@@ -46,6 +46,17 @@ export class AuthService {
           'departments:read', 'departments:create', 'departments:update', 'departments:delete',
           // Roles
           'roles:read', 'roles:create', 'roles:update',
+          // Leave Types
+          'leave_types:read', 'leave_types:create', 'leave_types:update', 'leave_types:delete',
+          // Leave Requests
+          'leave_requests:read', 'leave_requests:read_all', 'leave_requests:create', 'leave_requests:update',
+          'leave_requests:submit', 'leave_requests:delete', 'leave_requests:approve_manager',
+          'leave_requests:approve_hr', 'leave_requests:cancel',
+          // Leave Balances
+          'leave_balances:read', 'leave_balances:read_all', 'leave_balances:create', 'leave_balances:adjust',
+          'leave_balances:initialize', 'leave_balances:delete', 'leave_balances:carry_over',
+          // Holidays
+          'holidays:read', 'holidays:create', 'holidays:update', 'holidays:delete',
         ]
       : ['users:read'];
 

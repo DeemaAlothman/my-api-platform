@@ -31,6 +31,38 @@ async function main() {
     { name: 'roles:read', displayName: 'قراءة الأدوار', module: 'roles' },
     { name: 'roles:create', displayName: 'إنشاء أدوار', module: 'roles' },
     { name: 'roles:update', displayName: 'تعديل الأدوار', module: 'roles' },
+
+    // Leave Types
+    { name: 'leave_types:read', displayName: 'عرض أنواع الإجازات', module: 'leaves' },
+    { name: 'leave_types:create', displayName: 'إنشاء نوع إجازة', module: 'leaves' },
+    { name: 'leave_types:update', displayName: 'تعديل نوع إجازة', module: 'leaves' },
+    { name: 'leave_types:delete', displayName: 'حذف نوع إجازة', module: 'leaves' },
+
+    // Leave Requests
+    { name: 'leave_requests:read', displayName: 'عرض طلبات الإجازة', module: 'leaves' },
+    { name: 'leave_requests:read_all', displayName: 'عرض جميع الطلبات', module: 'leaves' },
+    { name: 'leave_requests:create', displayName: 'إنشاء طلب إجازة', module: 'leaves' },
+    { name: 'leave_requests:update', displayName: 'تعديل طلب إجازة', module: 'leaves' },
+    { name: 'leave_requests:submit', displayName: 'تقديم طلب إجازة', module: 'leaves' },
+    { name: 'leave_requests:delete', displayName: 'حذف طلب إجازة', module: 'leaves' },
+    { name: 'leave_requests:approve_manager', displayName: 'موافقة المدير', module: 'leaves' },
+    { name: 'leave_requests:approve_hr', displayName: 'موافقة HR', module: 'leaves' },
+    { name: 'leave_requests:cancel', displayName: 'إلغاء طلب إجازة', module: 'leaves' },
+
+    // Leave Balances
+    { name: 'leave_balances:read', displayName: 'عرض رصيد الإجازات', module: 'leaves' },
+    { name: 'leave_balances:read_all', displayName: 'عرض جميع الأرصدة', module: 'leaves' },
+    { name: 'leave_balances:create', displayName: 'إنشاء رصيد', module: 'leaves' },
+    { name: 'leave_balances:adjust', displayName: 'تعديل رصيد', module: 'leaves' },
+    { name: 'leave_balances:initialize', displayName: 'تهيئة أرصدة', module: 'leaves' },
+    { name: 'leave_balances:delete', displayName: 'حذف رصيد', module: 'leaves' },
+    { name: 'leave_balances:carry_over', displayName: 'ترحيل الأرصدة', module: 'leaves' },
+
+    // Holidays
+    { name: 'holidays:read', displayName: 'عرض العطل الرسمية', module: 'leaves' },
+    { name: 'holidays:create', displayName: 'إنشاء عطلة', module: 'leaves' },
+    { name: 'holidays:update', displayName: 'تعديل عطلة', module: 'leaves' },
+    { name: 'holidays:delete', displayName: 'حذف عطلة', module: 'leaves' },
   ];
 
   console.log('Creating permissions...');

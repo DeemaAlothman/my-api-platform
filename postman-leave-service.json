@@ -1,0 +1,648 @@
+{
+  "info": {
+    "name": "Leave Service API",
+    "description": "مجموعة كاملة لاختبار Leave Service endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.environment.set('access_token', response.data.accessToken);",
+                  "    pm.environment.set('refresh_token', response.data.refreshToken);",
+                  "    console.log('Token saved:', response.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/auth/login",
+              "host": ["{{gateway_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Leave Types",
+      "item": [
+        {
+          "name": "Get All Leave Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-types",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-types"]
+            }
+          }
+        },
+        {
+          "name": "Get Active Leave Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-types?active=true",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-types"],
+              "query": [
+                {
+                  "key": "active",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Leave Type by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-types/{{leave_type_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-types", "{{leave_type_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Leave Type by Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-types/code/ANNUAL",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-types", "code", "ANNUAL"]
+            }
+          }
+        },
+        {
+          "name": "Create Leave Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CUSTOM\",\n  \"nameAr\": \"إجازة مخصصة\",\n  \"nameEn\": \"Custom Leave\",\n  \"defaultDays\": 5,\n  \"isPaid\": true,\n  \"requiresApproval\": true,\n  \"allowHalfDay\": true,\n  \"color\": \"#FF5733\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-types",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-types"]
+            }
+          }
+        },
+        {
+          "name": "Update Leave Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameAr\": \"إجازة مخصصة محدثة\",\n  \"defaultDays\": 7\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-types/{{leave_type_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-types", "{{leave_type_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Holidays",
+      "item": [
+        {
+          "name": "Get All Holidays",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/holidays",
+              "host": ["{{gateway_url}}"],
+              "path": ["holidays"]
+            }
+          }
+        },
+        {
+          "name": "Get Holidays by Year",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/holidays?year=2024",
+              "host": ["{{gateway_url}}"],
+              "path": ["holidays"],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2024"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Upcoming Holidays",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/holidays/upcoming/list",
+              "host": ["{{gateway_url}}"],
+              "path": ["holidays", "upcoming", "list"]
+            }
+          }
+        },
+        {
+          "name": "Get Holidays in Range",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/holidays/range/2024-01-01/2024-12-31",
+              "host": ["{{gateway_url}}"],
+              "path": ["holidays", "range", "2024-01-01", "2024-12-31"]
+            }
+          }
+        },
+        {
+          "name": "Create Holiday",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameAr\": \"عطلة مخصصة\",\n  \"nameEn\": \"Custom Holiday\",\n  \"date\": \"2024-03-15\",\n  \"type\": \"PUBLIC\",\n  \"isRecurring\": false\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/holidays",
+              "host": ["{{gateway_url}}"],
+              "path": ["holidays"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Leave Balances",
+      "item": [
+        {
+          "name": "Get My Balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-balances/my?year=2024",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-balances", "my"],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2024"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Employee Balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-balances/employee/{{employee_id}}?year=2024",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-balances", "employee", "{{employee_id}}"],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2024"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Balance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"{{employee_id}}\",\n  \"leaveTypeId\": \"{{leave_type_id}}\",\n  \"year\": 2024,\n  \"totalDays\": 21\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-balances",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-balances"]
+            }
+          }
+        },
+        {
+          "name": "Adjust Balance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adjustmentDays\": 3,\n  \"reason\": \"إضافة أيام بسبب أداء متميز\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-balances/{{balance_id}}/adjust",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-balances", "{{balance_id}}", "adjust"]
+            }
+          }
+        },
+        {
+          "name": "Initialize Employee Balances",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-balances/employee/{{employee_id}}/initialize?year=2024",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-balances", "employee", "{{employee_id}}", "initialize"],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2024"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Carry Over Balance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromYear\": 2023,\n  \"toYear\": 2024,\n  \"carryOverDays\": 5\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-balances/employee/{{employee_id}}/carry-over",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-balances", "employee", "{{employee_id}}", "carry-over"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Leave Requests",
+      "item": [
+        {
+          "name": "Get My Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/my/requests",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "my", "requests"]
+            }
+          }
+        },
+        {
+          "name": "Get All Requests (HR)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests?status=PENDING_MANAGER",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING_MANAGER"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Request Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Leave Request",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.environment.set('leave_request_id', response.data.id);",
+                  "    console.log('Leave Request ID:', response.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveTypeId\": \"{{leave_type_id}}\",\n  \"startDate\": \"2024-02-15\",\n  \"endDate\": \"2024-02-20\",\n  \"reason\": \"إجازة سنوية للراحة\",\n  \"isHalfDay\": false\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests"]
+            }
+          }
+        },
+        {
+          "name": "Create Half-Day Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveTypeId\": \"{{leave_type_id}}\",\n  \"startDate\": \"2024-02-10\",\n  \"endDate\": \"2024-02-10\",\n  \"reason\": \"موعد طبي\",\n  \"isHalfDay\": true,\n  \"halfDayPeriod\": \"MORNING\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests"]
+            }
+          }
+        },
+        {
+          "name": "Update Leave Request",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startDate\": \"2024-02-16\",\n  \"endDate\": \"2024-02-21\",\n  \"reason\": \"تحديث سبب الإجازة\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Submit Leave Request",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}/submit",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Approve Manager",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"موافق عليها\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}/approve-manager",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}", "approve-manager"]
+            }
+          }
+        },
+        {
+          "name": "Reject Manager",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"لا يمكن الموافقة في هذا الوقت\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}/reject-manager",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}", "reject-manager"]
+            }
+          }
+        },
+        {
+          "name": "Approve HR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"موافقة نهائية من HR\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}/approve-hr",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}", "approve-hr"]
+            }
+          }
+        },
+        {
+          "name": "Reject HR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"رفض من HR\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}/reject-hr",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}", "reject-hr"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Leave Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"تغيير في الخطط\"\n}"
+            },
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}/cancel",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}", "cancel"]
+            }
+          }
+        },
+        {
+          "name": "Delete Leave Request",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{gateway_url}}/leave-requests/{{leave_request_id}}",
+              "host": ["{{gateway_url}}"],
+              "path": ["leave-requests", "{{leave_request_id}}"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "gateway_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "leave_type_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employee_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "leave_request_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "balance_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
