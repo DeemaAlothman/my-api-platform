@@ -8,14 +8,28 @@ cd /path/to/my-api-platform
 git pull origin main
 ```
 
-### 2️⃣ إضافة Leave Permissions إلى Database
+### 2️⃣ تثبيت Dependencies وإعادة بناء Users Service
 ```bash
-docker compose exec postgres psql -U postgres -d platform < add-leave-permissions.sql
+# تثبيت tsx في Users Service
+cd apps/users
+npm install tsx --save
+npm install
+
+# إعادة بناء
+npm run build
+
+# نسخ إلى Container
+cd ../..
+docker cp apps/users/dist myapiplatform-users:/app/
+docker cp apps/users/node_modules myapiplatform-users:/app/
+
+# إعادة تشغيل
+docker compose restart users
 ```
 
-**أو يدوياً:**
+### 3️⃣ تشغيل Users Seed (إضافة Leave Permissions)
 ```bash
-cat add-leave-permissions.sql | docker compose exec -T postgres psql -U postgres -d platform
+docker compose exec users npm run prisma:seed
 ```
 
 **التحقق من إضافة Permissions:**
@@ -25,7 +39,7 @@ docker compose exec postgres psql -U postgres -d platform -c \
 ```
 يجب أن ترى: **24 permission**
 
-### 3️⃣ تنفيذ Database Migration (تصحيح البيانات الموجودة)
+### 4️⃣ تنفيذ Database Migration (تصحيح البيانات الموجودة)
 ```bash
 docker compose exec postgres psql -U postgres -d platform << 'EOF'
 UPDATE leaves.leave_requests lr
@@ -39,17 +53,17 @@ WHERE lr."employeeId" = e."userId"::text
 EOF
 ```
 
-### 3️⃣ تنفيذ Prisma Migrations (إنشاء الجداول)
+### 5️⃣ تنفيذ Prisma Migrations (إنشاء الجداول)
 ```bash
 docker compose exec leave npx prisma migrate deploy
 ```
 
-### 4️⃣ تنفيذ Seed (إضافة البيانات الأولية)
+### 6️⃣ تنفيذ Seed (إضافة البيانات الأولية)
 ```bash
 docker compose exec leave npx tsx prisma/seed.ts
 ```
 
-### 5️⃣ إعادة بناء ونشر Leave Service
+### 7️⃣ إعادة بناء ونشر Leave Service
 
 **الطريقة الأسرع:**
 ```bash
@@ -66,7 +80,7 @@ docker compose build leave
 docker compose up -d leave
 ```
 
-### 6️⃣ إعادة بناء Auth Service (إذا لزم)
+### 8️⃣ إعادة بناء Auth Service (إذا لزم)
 ```bash
 cd apps/auth
 npm install
@@ -75,10 +89,9 @@ docker cp dist myapiplatform-auth:/app/
 docker compose restart auth
 ```
 
-### 7️⃣ مراقبة Logs
+### 9️⃣ مراقبة Logs
 ```bash
-docker compose logs -f leave
-docker compose logs -f auth
+docker compose logs -f leave users auth
 ```
 
 ---
