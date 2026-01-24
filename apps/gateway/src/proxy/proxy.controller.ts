@@ -151,3 +151,48 @@ export class HolidaysProxyController {
     return this.proxy.forward(req, res, 'leave');
   }
 }
+
+@Controller('work-schedules')
+export class WorkSchedulesProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+}
+
+@Controller('attendance-records')
+export class AttendanceRecordsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+}
+
+@Controller('attendance-alerts')
+export class AttendanceAlertsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+}

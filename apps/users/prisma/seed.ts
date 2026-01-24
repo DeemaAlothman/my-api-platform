@@ -63,6 +63,29 @@ async function main() {
     { name: 'holidays:create', displayName: 'إنشاء عطلة', module: 'leaves' },
     { name: 'holidays:update', displayName: 'تعديل عطلة', module: 'leaves' },
     { name: 'holidays:delete', displayName: 'حذف عطلة', module: 'leaves' },
+
+    // Work Schedules
+    { name: 'attendance.work-schedules.read', displayName: 'عرض جداول العمل', module: 'attendance' },
+    { name: 'attendance.work-schedules.create', displayName: 'إنشاء جدول عمل', module: 'attendance' },
+    { name: 'attendance.work-schedules.update', displayName: 'تعديل جدول عمل', module: 'attendance' },
+    { name: 'attendance.work-schedules.delete', displayName: 'حذف جدول عمل', module: 'attendance' },
+
+    // Attendance Records
+    { name: 'attendance.records.read', displayName: 'عرض سجلات الحضور', module: 'attendance' },
+    { name: 'attendance.records.read-own', displayName: 'عرض حضوري الخاص', module: 'attendance' },
+    { name: 'attendance.records.create', displayName: 'إنشاء سجل حضور', module: 'attendance' },
+    { name: 'attendance.records.update', displayName: 'تعديل سجل حضور', module: 'attendance' },
+    { name: 'attendance.records.delete', displayName: 'حذف سجل حضور', module: 'attendance' },
+    { name: 'attendance.records.check-in', displayName: 'تسجيل حضور', module: 'attendance' },
+    { name: 'attendance.records.check-out', displayName: 'تسجيل انصراف', module: 'attendance' },
+
+    // Attendance Alerts
+    { name: 'attendance.alerts.read', displayName: 'عرض تنبيهات الحضور', module: 'attendance' },
+    { name: 'attendance.alerts.read-own', displayName: 'عرض تنبيهاتي الخاصة', module: 'attendance' },
+    { name: 'attendance.alerts.create', displayName: 'إنشاء تنبيه حضور', module: 'attendance' },
+    { name: 'attendance.alerts.update', displayName: 'تعديل تنبيه حضور', module: 'attendance' },
+    { name: 'attendance.alerts.delete', displayName: 'حذف تنبيه حضور', module: 'attendance' },
+    { name: 'attendance.alerts.resolve', displayName: 'حل تنبيه حضور', module: 'attendance' },
   ];
 
   console.log('Creating permissions...');

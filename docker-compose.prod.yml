@@ -73,6 +73,21 @@ services:
     networks:
       - app-network
 
+  attendance:
+    build:
+      context: .
+      dockerfile: apps/attendance/Dockerfile
+    container_name: myapiplatform-attendance
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=attendance
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -83,6 +98,7 @@ services:
       AUTH_SERVICE_URL: http://auth:4001
       USERS_SERVICE_URL: http://users:4002
       LEAVE_SERVICE_URL: http://leave:4003
+      ATTENDANCE_SERVICE_URL: http://attendance:4004
       NODE_ENV: production
       PORT: 5000
     ports:
@@ -91,6 +107,7 @@ services:
       - auth
       - users
       - leave
+      - attendance
     networks:
       - app-network
 

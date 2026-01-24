@@ -57,6 +57,16 @@ export class AuthService {
           'leave_balances:initialize', 'leave_balances:delete', 'leave_balances:carry_over',
           // Holidays
           'holidays:read', 'holidays:create', 'holidays:update', 'holidays:delete',
+          // Attendance - Work Schedules
+          'attendance.work-schedules.read', 'attendance.work-schedules.create',
+          'attendance.work-schedules.update', 'attendance.work-schedules.delete',
+          // Attendance - Records
+          'attendance.records.read', 'attendance.records.read-own', 'attendance.records.create',
+          'attendance.records.update', 'attendance.records.delete', 'attendance.records.check-in',
+          'attendance.records.check-out',
+          // Attendance - Alerts
+          'attendance.alerts.read', 'attendance.alerts.read-own', 'attendance.alerts.create',
+          'attendance.alerts.update', 'attendance.alerts.delete', 'attendance.alerts.resolve',
         ]
       : ['users:read'];
 

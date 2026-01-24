@@ -28,6 +28,11 @@ export class ProxyService {
       url: process.env.LEAVE_SERVICE_URL || 'http://localhost:4003',
       prefix: '/leave',
     });
+
+    this.services.set('attendance', {
+      url: process.env.ATTENDANCE_SERVICE_URL || 'http://localhost:4004',
+      prefix: '/attendance',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

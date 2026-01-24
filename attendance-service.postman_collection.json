@@ -1,0 +1,520 @@
+{
+  "info": {
+    "name": "Attendance Service API",
+    "description": "اختبار Attendance Service endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://217.76.53.136:5000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.accessToken) {",
+                  "        pm.collectionVariables.set('token', jsonData.data.accessToken);",
+                  "        console.log('Token saved:', jsonData.data.accessToken);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Work Schedules",
+      "item": [
+        {
+          "name": "Get All Work Schedules",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/work-schedules",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-schedules"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Work Schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WS004\",\n  \"nameAr\": \"دوام اختبار\",\n  \"nameEn\": \"Test Schedule\",\n  \"workStartTime\": \"10:00\",\n  \"workEndTime\": \"18:00\",\n  \"workDays\": \"[0,1,2,3,4]\",\n  \"lateToleranceMin\": 20,\n  \"earlyLeaveToleranceMin\": 20,\n  \"overtimeAfterMin\": 480,\n  \"requireCheckIn\": true,\n  \"requireCheckOut\": true,\n  \"isActive\": true,\n  \"description\": \"جدول عمل للاختبار\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/work-schedules",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-schedules"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Work Schedule by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/work-schedules/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-schedules", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "SCHEDULE_ID_HERE"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Work Schedule",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameAr\": \"دوام معدل\",\n  \"lateToleranceMin\": 30\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/work-schedules/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-schedules", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "SCHEDULE_ID_HERE"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Work Schedule",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/work-schedules/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["work-schedules", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "SCHEDULE_ID_HERE"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Attendance Records",
+      "item": [
+        {
+          "name": "Check In",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"Office - Main Building\",\n  \"notes\": \"تسجيل حضور صباحي\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance-records/check-in",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-records", "check-in"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Check Out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location\": \"Office - Main Building\",\n  \"notes\": \"تسجيل انصراف\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance-records/check-out",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-records", "check-out"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Attendance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance-records/my-attendance?dateFrom=2026-01-01&dateTo=2026-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-records", "my-attendance"],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-12-31"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Attendance Records",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance-records?dateFrom=2026-01-01&dateTo=2026-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-records"],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "employeeId",
+                  "value": "EMPLOYEE_ID_HERE",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "PRESENT",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Attendance Record (Manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMPLOYEE_ID_HERE\",\n  \"date\": \"2026-01-22\",\n  \"checkInTime\": \"2026-01-22T09:00:00.000Z\",\n  \"checkOutTime\": \"2026-01-22T17:00:00.000Z\",\n  \"status\": \"PRESENT\",\n  \"workMinutes\": 480,\n  \"checkInLocation\": \"Office\",\n  \"checkOutLocation\": \"Office\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance-records",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-records"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Attendance Record",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"LATE\",\n  \"lateMinutes\": 15\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance-records/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-records", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "RECORD_ID_HERE"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Attendance Record",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance-records/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-records", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "RECORD_ID_HERE"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Attendance Alerts",
+      "item": [
+        {
+          "name": "Get My Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance-alerts/my-alerts?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-alerts", "my-alerts"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "type",
+                  "value": "LATE",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance-alerts?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-alerts"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "employeeId",
+                  "value": "EMPLOYEE_ID_HERE",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "LATE",
+                  "disabled": true
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-12-31",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMPLOYEE_ID_HERE\",\n  \"date\": \"2026-01-22\",\n  \"type\": \"LATE\",\n  \"status\": \"PENDING\",\n  \"severity\": 2,\n  \"description\": \"تأخير 30 دقيقة عن موعد الحضور\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance-alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-alerts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Alert",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolvedNotes\": \"تم التعامل مع التنبيه\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance-alerts/:id/resolve",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-alerts", ":id", "resolve"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "ALERT_ID_HERE"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Alert",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACKNOWLEDGED\",\n  \"description\": \"تم الإحاطة بالتنبيه\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance-alerts/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-alerts", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "ALERT_ID_HERE"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Alert",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/attendance-alerts/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-alerts", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "ALERT_ID_HERE"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
