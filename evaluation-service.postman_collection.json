@@ -1,0 +1,1158 @@
+{
+	"info": {
+		"_postman_id": "evaluation-service-collection",
+		"name": "Evaluation Service API",
+		"description": "Complete API collection for testing the Evaluation Service with automated token and ID extraction",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "POST Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set('TOKEN', jsonData.token);",
+									"        console.log('Token saved:', jsonData.token);",
+									"    } else if (jsonData.data && jsonData.data.token) {",
+									"        pm.collectionVariables.set('TOKEN', jsonData.data.token);",
+									"        console.log('Token saved:', jsonData.data.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/auth/login",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login to get authentication token"
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for obtaining access tokens"
+		},
+		{
+			"name": "Evaluation Periods",
+			"item": [
+				{
+					"name": "GET List Periods",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    let periods = jsonData;",
+									"    if (jsonData.data) {",
+									"        periods = jsonData.data;",
+									"    }",
+									"    if (Array.isArray(periods) && periods.length > 0) {",
+									"        pm.collectionVariables.set('periodId', periods[0].id);",
+									"        console.log('Period ID saved:', periods[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-periods",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-periods"
+							]
+						},
+						"description": "Get list of all evaluation periods"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Single Period",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-periods/{{periodId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-periods",
+								"{{periodId}}"
+							]
+						},
+						"description": "Get details of a specific evaluation period"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Create Period",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    let period = jsonData;",
+									"    if (jsonData.data) {",
+									"        period = jsonData.data;",
+									"    }",
+									"    if (period.id) {",
+									"        pm.collectionVariables.set('periodId', period.id);",
+									"        console.log('New Period ID saved:', period.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"EVAL2026\",\n  \"nameAr\": \"تقييم 2026\",\n  \"nameEn\": \"Evaluation 2026\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2026-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-periods",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-periods"
+							]
+						},
+						"description": "Create a new evaluation period"
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH Update Period",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nameAr\": \"تقييم 2026 - محدث\",\n  \"nameEn\": \"Evaluation 2026 - Updated\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-periods/{{periodId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-periods",
+								"{{periodId}}"
+							]
+						},
+						"description": "Update an existing evaluation period"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Open Period",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-periods/{{periodId}}/open",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-periods",
+								"{{periodId}}",
+								"open"
+							]
+						},
+						"description": "Open an evaluation period for submissions"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Close Period",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-periods/{{periodId}}/close",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-periods",
+								"{{periodId}}",
+								"close"
+							]
+						},
+						"description": "Close an evaluation period"
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE Delete Period",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-periods/{{periodId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-periods",
+								"{{periodId}}"
+							]
+						},
+						"description": "Delete an evaluation period"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing evaluation periods"
+		},
+		{
+			"name": "Evaluation Criteria",
+			"item": [
+				{
+					"name": "GET List Criteria",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    let criteria = jsonData;",
+									"    if (jsonData.data) {",
+									"        criteria = jsonData.data;",
+									"    }",
+									"    if (Array.isArray(criteria) && criteria.length > 0) {",
+									"        pm.collectionVariables.set('criteriaId', criteria[0].id);",
+									"        console.log('Criteria ID saved:', criteria[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-criteria",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-criteria"
+							]
+						},
+						"description": "Get list of all evaluation criteria"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Filter by Category",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-criteria?category=PERFORMANCE",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-criteria"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "PERFORMANCE"
+								}
+							]
+						},
+						"description": "Get evaluation criteria filtered by category"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Single Criteria",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-criteria/{{criteriaId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-criteria",
+								"{{criteriaId}}"
+							]
+						},
+						"description": "Get details of a specific evaluation criteria"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Create Criteria",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    let criteria = jsonData;",
+									"    if (jsonData.data) {",
+									"        criteria = jsonData.data;",
+									"    }",
+									"    if (criteria.id) {",
+									"        pm.collectionVariables.set('criteriaId', criteria.id);",
+									"        console.log('New Criteria ID saved:', criteria.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"PERF001\",\n  \"nameAr\": \"جودة العمل\",\n  \"nameEn\": \"Work Quality\",\n  \"descriptionAr\": \"مستوى جودة الأعمال المنجزة\",\n  \"weight\": 2.0,\n  \"maxScore\": 5,\n  \"category\": \"PERFORMANCE\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-criteria",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-criteria"
+							]
+						},
+						"description": "Create a new evaluation criteria"
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH Update Criteria",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nameAr\": \"جودة العمل - محدث\",\n  \"nameEn\": \"Work Quality - Updated\",\n  \"weight\": 2.5\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-criteria/{{criteriaId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-criteria",
+								"{{criteriaId}}"
+							]
+						},
+						"description": "Update an existing evaluation criteria"
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE Delete Criteria",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-criteria/{{criteriaId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-criteria",
+								"{{criteriaId}}"
+							]
+						},
+						"description": "Delete an evaluation criteria"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing evaluation criteria"
+		},
+		{
+			"name": "Evaluation Forms",
+			"item": [
+				{
+					"name": "GET My Evaluation",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    let forms = jsonData;",
+									"    if (jsonData.data) {",
+									"        forms = jsonData.data;",
+									"    }",
+									"    if (Array.isArray(forms) && forms.length > 0) {",
+									"        pm.collectionVariables.set('formId', forms[0].id);",
+									"        console.log('Form ID saved:', forms[0].id);",
+									"    } else if (forms.id) {",
+									"        pm.collectionVariables.set('formId', forms.id);",
+									"        console.log('Form ID saved:', forms.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/my",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"my"
+							]
+						},
+						"description": "Get current user's evaluation forms"
+					},
+					"response": []
+				},
+				{
+					"name": "GET My Evaluation for Period",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/my?periodId={{periodId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"my"
+							],
+							"query": [
+								{
+									"key": "periodId",
+									"value": "{{periodId}}"
+								}
+							]
+						},
+						"description": "Get current user's evaluation forms for a specific period"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Pending My Review",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/pending-my-review",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"pending-my-review"
+							]
+						},
+						"description": "Get evaluation forms pending current user's review (as manager)"
+					},
+					"response": []
+				},
+				{
+					"name": "GET All Forms (HR)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms"
+							]
+						},
+						"description": "Get all evaluation forms (HR access)"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Single Form",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/{{formId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"{{formId}}"
+							]
+						},
+						"description": "Get details of a specific evaluation form"
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH Save Self Evaluation",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"selfComments\": \"أشعر أن أدائي كان جيداً خلال هذه الفترة. قمت بتحقيق معظم الأهداف المحددة وعملت على تطوير مهاراتي.\",\n  \"sections\": [\n    {\n      \"criteriaId\": \"{{criteriaId}}\",\n      \"selfScore\": 4,\n      \"selfComments\": \"قمت بتحسين جودة العمل بشكل ملحوظ وحرصت على تسليم المهام في المواعيد المحددة.\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/{{formId}}/self",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"{{formId}}",
+								"self"
+							]
+						},
+						"description": "Save self-evaluation (draft mode)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Submit Self Evaluation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/{{formId}}/self/submit",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"{{formId}}",
+								"self",
+								"submit"
+							]
+						},
+						"description": "Submit self-evaluation (final submission)"
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH Save Manager Evaluation",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"managerComments\": \"الموظف يؤدي بشكل جيد ويظهر التزاماً في العمل. هناك مجال للتحسين في بعض المجالات.\",\n  \"managerStrengths\": \"دقيق في العمل، ملتزم بالمواعيد، يتعاون مع الفريق بشكل جيد.\",\n  \"managerWeaknesses\": \"يحتاج إلى تحسين مهارات التواصل والقيادة.\",\n  \"managerRecommendations\": \"أوصي بمنح زيادة راتب بنسبة 5% وتوفير دورات تدريبية في مهارات القيادة.\",\n  \"sections\": [\n    {\n      \"criteriaId\": \"{{criteriaId}}\",\n      \"managerScore\": 4,\n      \"managerComments\": \"جودة العمل ممتازة ويحرص على التفاصيل.\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/{{formId}}/manager",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"{{formId}}",
+								"manager"
+							]
+						},
+						"description": "Save manager evaluation (draft mode)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Submit Manager Evaluation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/{{formId}}/manager/submit",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"{{formId}}",
+								"manager",
+								"submit"
+							]
+						},
+						"description": "Submit manager evaluation (final submission)"
+					},
+					"response": []
+				},
+				{
+					"name": "POST HR Review",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"hrComments\": \"التقييم مناسب ويعكس أداء الموظف بشكل دقيق. التوصيات معقولة.\",\n  \"hrRecommendation\": \"SALARY_INCREASE\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/{{formId}}/hr-review",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"{{formId}}",
+								"hr-review"
+							]
+						},
+						"description": "Submit HR review and recommendation"
+					},
+					"response": []
+				},
+				{
+					"name": "POST GM Approval",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"gmStatus\": \"APPROVED\",\n  \"gmComments\": \"موافق على التوصية. يُرجى تنفيذ الزيادة المقترحة.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/evaluation-forms/{{formId}}/gm-approval",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"evaluation-forms",
+								"{{formId}}",
+								"gm-approval"
+							]
+						},
+						"description": "Submit General Manager approval or rejection"
+					},
+					"response": []
+				}
+			],
+			"description": "Main evaluation forms endpoints for managing the evaluation lifecycle"
+		},
+		{
+			"name": "Peer Evaluations",
+			"item": [
+				{
+					"name": "POST Submit Peer Evaluation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rating\": \"VERY_GOOD\",\n  \"strengths\": \"متعاون جداً ومفيد، دائماً على استعداد لمساعدة الآخرين.\",\n  \"improvements\": \"يحتاج إلى تحسين إدارة الوقت وتنظيم المهام.\",\n  \"comments\": \"زميل ممتاز ومحترف في التعامل.\",\n  \"isAnonymous\": true\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/peer-evaluations/forms/{{formId}}/peer",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"peer-evaluations",
+								"forms",
+								"{{formId}}",
+								"peer"
+							]
+						},
+						"description": "Submit a peer evaluation for a colleague"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Get Peer Evaluations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/peer-evaluations/forms/{{formId}}/peers",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"peer-evaluations",
+								"forms",
+								"{{formId}}",
+								"peers"
+							]
+						},
+						"description": "Get all peer evaluations for a specific evaluation form"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for peer-to-peer evaluations"
+		},
+		{
+			"name": "Employee Goals",
+			"item": [
+				{
+					"name": "GET Get Goals for Form",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    let goals = jsonData;",
+									"    if (jsonData.data) {",
+									"        goals = jsonData.data;",
+									"    }",
+									"    if (Array.isArray(goals) && goals.length > 0) {",
+									"        pm.collectionVariables.set('goalId', goals[0].id);",
+									"        console.log('Goal ID saved:', goals[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/employee-goals/forms/{{formId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"employee-goals",
+								"forms",
+								"{{formId}}"
+							]
+						},
+						"description": "Get all goals for a specific evaluation form"
+					},
+					"response": []
+				},
+				{
+					"name": "POST Create Goal",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    let goal = jsonData;",
+									"    if (jsonData.data) {",
+									"        goal = jsonData.data;",
+									"    }",
+									"    if (goal.id) {",
+									"        pm.collectionVariables.set('goalId', goal.id);",
+									"        console.log('New Goal ID saved:', goal.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"تحسين سرعة الأداء\",\n  \"description\": \"زيادة الإنتاجية بنسبة 20% من خلال تحسين العمليات وتقليل الوقت المستغرق في المهام الروتينية.\",\n  \"targetDate\": \"2026-06-30\",\n  \"weight\": 1.5\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/employee-goals/forms/{{formId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"employee-goals",
+								"forms",
+								"{{formId}}"
+							]
+						},
+						"description": "Create a new goal for an evaluation form"
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH Update Goal (Self Assessment)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"selfAchievement\": 80,\n  \"selfComments\": \"تم تحقيق 80% من الهدف المحدد. تمكنت من تحسين العمليات بشكل كبير لكن ما زال هناك مجال للتحسين.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/employee-goals/{{goalId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"employee-goals",
+								"{{goalId}}"
+							]
+						},
+						"description": "Update goal with self-assessment"
+					},
+					"response": []
+				},
+				{
+					"name": "PATCH Update Goal (Manager Assessment)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"managerAchievement\": 75,\n  \"managerComments\": \"تحسن ملحوظ في الأداء. أرى أن نسبة الإنجاز تقارب 75%. ما زال هناك مجال للتطوير لتحقيق الهدف بالكامل.\"\n}"
+						},
+						"url": {
+							"raw": "{{BASE_URL}}/employee-goals/{{goalId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"employee-goals",
+								"{{goalId}}"
+							]
+						},
+						"description": "Update goal with manager assessment"
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE Delete Goal",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{TOKEN}}"
+							}
+						],
+						"url": {
+							"raw": "{{BASE_URL}}/employee-goals/{{goalId}}",
+							"host": [
+								"{{BASE_URL}}"
+							],
+							"path": [
+								"employee-goals",
+								"{{goalId}}"
+							]
+						},
+						"description": "Delete a goal"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for managing employee goals within evaluations"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "BASE_URL",
+			"value": "http://localhost:5000/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "TOKEN",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "periodId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "criteriaId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "formId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "goalId",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

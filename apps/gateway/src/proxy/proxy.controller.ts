@@ -196,3 +196,78 @@ export class AttendanceAlertsProxyController {
     return this.proxy.forward(req, res, 'attendance');
   }
 }
+
+@Controller('evaluation-periods')
+export class EvaluationPeriodsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+}
+
+@Controller('evaluation-criteria')
+export class EvaluationCriteriaProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+}
+
+@Controller('evaluation-forms')
+export class EvaluationFormsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+}
+
+@Controller('peer-evaluations')
+export class PeerEvaluationsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+}
+
+@Controller('employee-goals')
+export class EmployeeGoalsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+}

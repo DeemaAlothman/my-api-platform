@@ -34,43 +34,33 @@ export class AuthService {
       });
     }
 
-    // TODO: جيب الـ permissions الحقيقية من Users Service عبر HTTP call
-    // مؤقتاً: جميع الصلاحيات لـ admin
-    const permissions = user.username === 'admin'
-      ? [
-          // Users
-          'users:read', 'users:create', 'users:update', 'users:delete', 'users:assign_roles',
-          // Employees
-          'employees:read', 'employees:create', 'employees:update', 'employees:delete',
-          // Departments
-          'departments:read', 'departments:create', 'departments:update', 'departments:delete',
-          // Roles
-          'roles:read', 'roles:create', 'roles:update',
-          // Leave Types
-          'leave_types:read', 'leave_types:create', 'leave_types:update', 'leave_types:delete',
-          // Leave Requests
-          'leave_requests:read', 'leave_requests:read_all', 'leave_requests:create', 'leave_requests:update',
-          'leave_requests:submit', 'leave_requests:delete', 'leave_requests:approve_manager',
-          'leave_requests:approve_hr', 'leave_requests:cancel',
-          // Leave Balances
-          'leave_balances:read', 'leave_balances:read_all', 'leave_balances:create', 'leave_balances:adjust',
-          'leave_balances:initialize', 'leave_balances:delete', 'leave_balances:carry_over',
-          // Holidays
-          'holidays:read', 'holidays:create', 'holidays:update', 'holidays:delete',
-          // Attendance - Work Schedules
-          'attendance.work-schedules.read', 'attendance.work-schedules.create',
-          'attendance.work-schedules.update', 'attendance.work-schedules.delete',
-          // Attendance - Records
-          'attendance.records.read', 'attendance.records.read-own', 'attendance.records.create',
-          'attendance.records.update', 'attendance.records.delete', 'attendance.records.check-in',
-          'attendance.records.check-out',
-          // Attendance - Alerts
-          'attendance.alerts.read', 'attendance.alerts.read-own', 'attendance.alerts.create',
-          'attendance.alerts.update', 'attendance.alerts.delete', 'attendance.alerts.resolve',
-        ]
-      : ['users:read'];
+    // جيب الـ roles و permissions الحقيقية من users schema
+    const userWithRoles = await this.prisma.$queryRaw<Array<{
+      role_name: string;
+      permissions: string[];
+    }>>`
+      SELECT
+        r.name as role_name,
+        ARRAY_AGG(DISTINCT p.code) as permissions
+      FROM users.users u
+      LEFT JOIN users.user_roles ur ON u.id = ur.user_id
+      LEFT JOIN users.roles r ON ur.role_id = r.id
+      LEFT JOIN users.role_permissions rp ON r.id = rp.role_id
+      LEFT JOIN users.permissions p ON rp.permission_id = p.id
+      WHERE u.id = ${user.id}::uuid
+        AND ur.deleted_at IS NULL
+        AND r.deleted_at IS NULL
+      GROUP BY r.name
+    `;
 
-    const accessToken = this.signAccessToken(user.id, user.username, permissions);
+    const roles = userWithRoles.map(r => r.role_name).filter(Boolean);
+    const permissions = [...new Set(userWithRoles.flatMap(r => r.permissions || []))].filter(Boolean);
+
+    // إذا ما في roles أو permissions، نعطي صلاحيات افتراضية
+    const finalRoles = roles.length > 0 ? roles : ['user'];
+    const finalPermissions = permissions.length > 0 ? permissions : ['users:read'];
+
+    const accessToken = this.signAccessToken(user.id, user.username, finalPermissions);
     const refreshToken = this.signRefreshToken(user.id);
 
     const expiresAt = new Date(Date.now() + this.refreshTtlDays * 24 * 60 * 60 * 1000);
@@ -91,8 +81,8 @@ export class AuthService {
         username: user.username,
         email: user.email,
         fullName: user.fullName,
-        roles: user.username === 'admin' ? ['super_admin'] : ['user'],
-        permissions,
+        roles: finalRoles,
+        permissions: finalPermissions,
       },
       accessToken,
       refreshToken,

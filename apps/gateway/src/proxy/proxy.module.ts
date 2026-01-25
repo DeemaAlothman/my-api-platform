@@ -15,6 +15,11 @@ import {
   WorkSchedulesProxyController,
   AttendanceRecordsProxyController,
   AttendanceAlertsProxyController,
+  EvaluationPeriodsProxyController,
+  EvaluationCriteriaProxyController,
+  EvaluationFormsProxyController,
+  PeerEvaluationsProxyController,
+  EmployeeGoalsProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -33,6 +38,11 @@ import {
     WorkSchedulesProxyController,
     AttendanceRecordsProxyController,
     AttendanceAlertsProxyController,
+    EvaluationPeriodsProxyController,
+    EvaluationCriteriaProxyController,
+    EvaluationFormsProxyController,
+    PeerEvaluationsProxyController,
+    EmployeeGoalsProxyController,
   ],
   providers: [ProxyService],
 })

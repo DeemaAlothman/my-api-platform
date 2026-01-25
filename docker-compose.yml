@@ -110,6 +110,24 @@ services:
     networks:
       - app-network
 
+  evaluation:
+    build:
+      context: .
+      dockerfile: apps/evaluation/Dockerfile
+    container_name: myapiplatform-evaluation
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=evaluation
+      JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
+      NODE_ENV: production
+    ports:
+      - "4005:4005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -121,6 +139,7 @@ services:
       USERS_SERVICE_URL: http://users:4002
       LEAVE_SERVICE_URL: http://leave:4003
       ATTENDANCE_SERVICE_URL: http://host.docker.internal:4004
+      EVALUATION_SERVICE_URL: http://host.docker.internal:4005
       NODE_ENV: development
       PORT: 8000
     ports:

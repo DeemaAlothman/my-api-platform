@@ -12,13 +12,21 @@ export class AttendanceRecordsService {
   async checkIn(employeeId: string, dto: CheckInDto) {
     const now = new Date();
     const dateObj = dto.date ? new Date(dto.date) : now;
-    dateObj.setHours(0, 0, 0, 0); // Start of day
+
+    const startOfDay = new Date(dateObj);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(dateObj);
+    endOfDay.setHours(23, 59, 59, 999);
 
     // Check if already checked in today
     const existing = await this.prisma.attendanceRecord.findFirst({
       where: {
         employeeId,
-        date: dateObj,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
         clockInTime: { not: null },
         clockOutTime: null,
       },
@@ -37,7 +45,7 @@ export class AttendanceRecordsService {
     return this.prisma.attendanceRecord.create({
       data: {
         employeeId,
-        date: dateObj,
+        date: startOfDay,
         clockInTime,
         clockInLocation: dto.location,
         notes: dto.notes,
@@ -49,13 +57,21 @@ export class AttendanceRecordsService {
   async checkOut(employeeId: string, dto: CheckOutDto) {
     const now = new Date();
     const dateObj = dto.date ? new Date(dto.date) : now;
-    dateObj.setHours(0, 0, 0, 0); // Start of day
+
+    const startOfDay = new Date(dateObj);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(dateObj);
+    endOfDay.setHours(23, 59, 59, 999);
 
     // Find today's check-in record
     const record = await this.prisma.attendanceRecord.findFirst({
       where: {
         employeeId,
-        date: dateObj,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
         clockInTime: { not: null },
         clockOutTime: null,
       },

@@ -86,6 +86,31 @@ async function main() {
     { name: 'attendance.alerts.update', displayName: 'تعديل تنبيه حضور', module: 'attendance' },
     { name: 'attendance.alerts.delete', displayName: 'حذف تنبيه حضور', module: 'attendance' },
     { name: 'attendance.alerts.resolve', displayName: 'حل تنبيه حضور', module: 'attendance' },
+
+    // Evaluation - Periods
+    { name: 'evaluation:periods:read', displayName: 'عرض دورات التقييم', module: 'evaluation' },
+    { name: 'evaluation:periods:create', displayName: 'إنشاء دورة تقييم', module: 'evaluation' },
+    { name: 'evaluation:periods:update', displayName: 'تعديل دورة تقييم', module: 'evaluation' },
+    { name: 'evaluation:periods:delete', displayName: 'حذف دورة تقييم', module: 'evaluation' },
+    { name: 'evaluation:periods:manage', displayName: 'إدارة دورات التقييم', module: 'evaluation' },
+
+    // Evaluation - Criteria
+    { name: 'evaluation:criteria:read', displayName: 'عرض معايير التقييم', module: 'evaluation' },
+    { name: 'evaluation:criteria:create', displayName: 'إنشاء معيار تقييم', module: 'evaluation' },
+    { name: 'evaluation:criteria:update', displayName: 'تعديل معيار تقييم', module: 'evaluation' },
+    { name: 'evaluation:criteria:delete', displayName: 'حذف معيار تقييم', module: 'evaluation' },
+
+    // Evaluation - Forms
+    { name: 'evaluation:forms:view-own', displayName: 'عرض تقييمي الخاص', module: 'evaluation' },
+    { name: 'evaluation:forms:view-all', displayName: 'عرض جميع التقييمات', module: 'evaluation' },
+    { name: 'evaluation:forms:self-evaluate', displayName: 'التقييم الذاتي', module: 'evaluation' },
+    { name: 'evaluation:forms:manager-evaluate', displayName: 'تقييم المرؤوسين', module: 'evaluation' },
+    { name: 'evaluation:forms:hr-review', displayName: 'مراجعة HR', module: 'evaluation' },
+    { name: 'evaluation:forms:gm-approval', displayName: 'موافقة المدير العام', module: 'evaluation' },
+
+    // Evaluation - Peer & Goals
+    { name: 'evaluation:peer:submit', displayName: 'تقديم تقييم الأقران', module: 'evaluation' },
+    { name: 'evaluation:goals:manage', displayName: 'إدارة الأهداف', module: 'evaluation' },
   ];
 
   console.log('Creating permissions...');
@@ -232,6 +257,43 @@ async function main() {
     },
   });
   console.log('✅ Created Developer job title');
+
+  // 7. Create Employee record for admin user
+  await prisma.employee.upsert({
+    where: { userId: adminUser.id },
+    update: {
+      employeeCode: 'EMP001',
+      firstNameAr: 'مدير',
+      lastNameAr: 'النظام',
+      firstNameEn: 'System',
+      lastNameEn: 'Admin',
+      nationalId: '1000000001',
+      phoneNumber: '+966500000001',
+      hireDate: new Date('2024-01-01'),
+      departmentId: itDept.id,
+      jobTitleId: devJobTitle.id,
+      employmentType: 'FULL_TIME',
+      workSchedule: 'FULL_TIME',
+      status: 'ACTIVE',
+    },
+    create: {
+      userId: adminUser.id,
+      employeeCode: 'EMP001',
+      firstNameAr: 'مدير',
+      lastNameAr: 'النظام',
+      firstNameEn: 'System',
+      lastNameEn: 'Admin',
+      nationalId: '1000000001',
+      phoneNumber: '+966500000001',
+      hireDate: new Date('2024-01-01'),
+      departmentId: itDept.id,
+      jobTitleId: devJobTitle.id,
+      employmentType: 'FULL_TIME',
+      workSchedule: 'FULL_TIME',
+      status: 'ACTIVE',
+    },
+  });
+  console.log('✅ Created Employee record for admin user');
 
   console.log('🎉 Seeding completed!');
 }

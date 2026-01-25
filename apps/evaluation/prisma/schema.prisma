@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["evaluation"]
+}
+
+// دورات التقييم
+model EvaluationPeriod {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  nameAr      String
+  nameEn      String?
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  status      PeriodStatus @default(DRAFT)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  forms       EvaluationForm[]
+
+  @@schema("evaluation")
+}
+
+enum PeriodStatus {
+  DRAFT
+  OPEN
+  CLOSED
+
+  @@schema("evaluation")
+}
+
+// معايير التقييم
+model EvaluationCriteria {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  nameAr          String
+  nameEn          String?
+  descriptionAr   String?
+  descriptionEn   String?
+  weight          Float    @default(1.0) // وزن المعيار في النتيجة النهائية
+  maxScore        Int      @default(5)
+  category        CriteriaCategory
+  isActive        Boolean  @default(true)
+  displayOrder    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sections        EvaluationSection[]
+
+  @@schema("evaluation")
+}
+
+enum CriteriaCategory {
+  PERFORMANCE      // الأداء الوظيفي
+  BEHAVIOR         // السلوك المهني
+  SKILLS           // المهارات
+  ACHIEVEMENT      // الإنجازات
+  DEVELOPMENT      // التطوير الذاتي
+
+  @@schema("evaluation")
+}
+
+// نماذج التقييم
+model EvaluationForm {
+  id                    String   @id @default(uuid())
+  periodId              String
+  employeeId            String   // Reference to Users Service
+  evaluatorId           String?  // المقيّم (Manager)
+
+  // Self Evaluation
+  selfStatus            FormStatus @default(NOT_STARTED)
+  selfScore             Float?
+  selfSubmittedAt       DateTime?
+  selfComments          String?
+
+  // Manager Evaluation
+  managerStatus         FormStatus @default(NOT_STARTED)
+  managerScore          Float?
+  managerSubmittedAt    DateTime?
+  managerComments       String?
+  managerStrengths      String?
+  managerWeaknesses     String?
+  managerRecommendations String?
+
+  // HR Review
+  hrReviewedBy          String?
+  hrReviewedAt          DateTime?
+  hrComments            String?
+  hrRecommendation      HRRecommendation?
+
+  // GM Approval
+  gmApprovedBy          String?
+  gmApprovedAt          DateTime?
+  gmStatus              ApprovalStatus?
+  gmComments            String?
+
+  // Final
+  finalScore            Float?
+  finalRating           FinalRating?
+  status                EvaluationStatus @default(PENDING_SELF)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  period                EvaluationPeriod @relation(fields: [periodId], references: [id])
+  sections              EvaluationSection[]
+  peerEvaluations       PeerEvaluation[]
+  goals                 EmployeeGoal[]
+
+  @@unique([periodId, employeeId])
+  @@schema("evaluation")
+}
+
+enum FormStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+
+  @@schema("evaluation")
+}
+
+enum EvaluationStatus {
+  PENDING_SELF
+  SELF_SUBMITTED
+  PENDING_MANAGER
+  MANAGER_SUBMITTED
+  PENDING_HR_REVIEW
+  HR_REVIEWED
+  PENDING_GM_APPROVAL
+  COMPLETED
+
+  @@schema("evaluation")
+}
+
+enum HRRecommendation {
+  PROMOTION           // ترقية
+  SALARY_INCREASE     // زيادة راتب
+  BONUS               // مكافأة
+  TRAINING            // تدريب
+  WARNING             // إنذار
+  TERMINATION         // إنهاء خدمة
+  NO_ACTION           // لا إجراء
+
+  @@schema("evaluation")
+}
+
+enum ApprovalStatus {
+  APPROVED
+  REJECTED
+  NEEDS_REVISION
+
+  @@schema("evaluation")
+}
+
+enum FinalRating {
+  EXCELLENT           // ممتاز (90-100)
+  VERY_GOOD           // جيد جداً (80-89)
+  GOOD                // جيد (70-79)
+  SATISFACTORY        // مقبول (60-69)
+  NEEDS_IMPROVEMENT   // يحتاج تحسين (أقل من 60)
+
+  @@schema("evaluation")
+}
+
+// أقسام التقييم (لكل نموذج)
+model EvaluationSection {
+  id              String   @id @default(uuid())
+  formId          String
+  criteriaId      String
+
+  // Self Evaluation
+  selfScore       Int?
+  selfComments    String?
+
+  // Manager Evaluation
+  managerScore    Int?
+  managerComments String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  form            EvaluationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  criteria        EvaluationCriteria @relation(fields: [criteriaId], references: [id])
+
+  @@unique([formId, criteriaId])
+  @@schema("evaluation")
+}
+
+// تقييم الأقران
+model PeerEvaluation {
+  id              String   @id @default(uuid())
+  formId          String
+  peerId          String   // الموظف الذي يقيّم
+  rating          PeerRating
+  strengths       String?
+  improvements    String?
+  comments        String?
+  isAnonymous     Boolean  @default(true)
+  submittedAt     DateTime @default(now())
+
+  form            EvaluationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@unique([formId, peerId])
+  @@schema("evaluation")
+}
+
+enum PeerRating {
+  EXCELLENT
+  VERY_GOOD
+  GOOD
+  SATISFACTORY
+  NEEDS_IMPROVEMENT
+
+  @@schema("evaluation")
+}
+
+// أهداف الموظف
+model EmployeeGoal {
+  id              String   @id @default(uuid())
+  formId          String
+  title           String
+  description     String?
+  targetDate      DateTime? @db.Date
+  weight          Float    @default(1.0)
+
+  // Self Assessment
+  selfAchievement Float?   // نسبة الإنجاز من وجهة نظر الموظف (0-100)
+  selfComments    String?
+
+  // Manager Assessment
+  managerAchievement Float? // نسبة الإنجاز من وجهة نظر المدير (0-100)
+  managerComments String?
+
+  status          GoalStatus @default(IN_PROGRESS)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  form            EvaluationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  @@schema("evaluation")
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+
+  @@schema("evaluation")
+}
+
+// سجل التغييرات (Audit)
+model EvaluationHistory {
+  id              String   @id @default(uuid())
+  formId          String
+  action          String   // SELF_SUBMITTED, MANAGER_SUBMITTED, HR_REVIEWED, etc.
+  performedBy     String
+  details         String?
+  timestamp       DateTime @default(now())
+
+  @@index([formId])
+  @@schema("evaluation")
+}

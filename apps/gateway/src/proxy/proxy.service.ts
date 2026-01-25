@@ -33,6 +33,11 @@ export class ProxyService {
       url: process.env.ATTENDANCE_SERVICE_URL || 'http://localhost:4004',
       prefix: '/attendance',
     });
+
+    this.services.set('evaluation', {
+      url: process.env.EVALUATION_SERVICE_URL || 'http://localhost:4005',
+      prefix: '/evaluation',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {
