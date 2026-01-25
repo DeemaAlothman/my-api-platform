@@ -39,13 +39,13 @@ export class AuthService {
     let finalPermissions: string[] = ['users:read'];
 
     try {
-      // Check user roles from users schema
+      // Check user roles from users schema (search by username, not id)
       const userRoles = await this.prisma.$queryRaw<Array<{ name: string }>>`
         SELECT r.name
         FROM users.users u
         INNER JOIN users.user_roles ur ON u.id = ur."userId"
         INNER JOIN users.roles r ON ur."roleId" = r.id
-        WHERE u.id::text = ${user.id}
+        WHERE u.username = ${username}
           AND r."deletedAt" IS NULL
       `;
 
@@ -89,7 +89,7 @@ export class AuthService {
           INNER JOIN users.user_roles ur ON u.id = ur."userId"
           INNER JOIN users.role_permissions rp ON ur."roleId" = rp."roleId"
           INNER JOIN users.permissions p ON rp."permissionId" = p.id
-          WHERE u.id::text = ${user.id}
+          WHERE u.username = ${username}
         `;
 
         finalPermissions = userPermissions.map(p => p.code);
