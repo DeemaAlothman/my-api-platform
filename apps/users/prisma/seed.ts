@@ -262,6 +262,7 @@ async function main() {
   await prisma.employee.upsert({
     where: { userId: adminUser.id },
     update: {
+      employeeNumber: 'EMP001',
       employeeCode: 'EMP001',
       firstNameAr: 'مدير',
       lastNameAr: 'النظام',
@@ -278,6 +279,7 @@ async function main() {
     },
     create: {
       userId: adminUser.id,
+      employeeNumber: 'EMP001',
       employeeCode: 'EMP001',
       firstNameAr: 'مدير',
       lastNameAr: 'النظام',
