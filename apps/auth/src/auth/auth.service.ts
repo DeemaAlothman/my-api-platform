@@ -43,13 +43,13 @@ export class AuthService {
         r.name as role_name,
         ARRAY_AGG(DISTINCT p.code) as permissions
       FROM users.users u
-      LEFT JOIN users.user_roles ur ON u.id = ur.user_id
-      LEFT JOIN users.roles r ON ur.role_id = r.id
-      LEFT JOIN users.role_permissions rp ON r.id = rp.role_id
-      LEFT JOIN users.permissions p ON rp.permission_id = p.id
+      LEFT JOIN users.user_roles ur ON u.id = ur."userId"
+      LEFT JOIN users.roles r ON ur."roleId" = r.id
+      LEFT JOIN users.role_permissions rp ON r.id = rp."roleId"
+      LEFT JOIN users.permissions p ON rp."permissionId" = p.id
       WHERE u.id = ${user.id}::uuid
-        AND ur.deleted_at IS NULL
-        AND r.deleted_at IS NULL
+        AND ur."deletedAt" IS NULL
+        AND r."deletedAt" IS NULL
       GROUP BY r.name
     `;
 
