@@ -53,12 +53,12 @@ export class AuthService {
       GROUP BY r.name
     `;
 
-    const roles = userWithRoles.map(r => r.role_name).filter(Boolean);
-    const permissions = [...new Set(userWithRoles.flatMap(r => r.permissions || []))].filter(Boolean);
+    const roles = userWithRoles.map(r => r.role_name).filter(Boolean) as string[];
+    const permissions = [...new Set(userWithRoles.flatMap(r => r.permissions || []))].filter(Boolean) as string[];
 
     // إذا ما في roles أو permissions، نعطي صلاحيات افتراضية
-    const finalRoles = roles.length > 0 ? roles : ['user'];
-    const finalPermissions = permissions.length > 0 ? permissions : ['users:read'];
+    const finalRoles: string[] = roles.length > 0 ? roles : ['user'];
+    const finalPermissions: string[] = permissions.length > 0 ? permissions : ['users:read'];
 
     const accessToken = this.signAccessToken(user.id, user.username, finalPermissions);
     const refreshToken = this.signRefreshToken(user.id);
