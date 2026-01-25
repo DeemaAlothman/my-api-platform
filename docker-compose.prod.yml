@@ -36,7 +36,8 @@ services:
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL:-30}
       NODE_ENV: production
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -51,7 +52,8 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       NODE_ENV: production
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
     # لا نفتح port للخارج
@@ -69,7 +71,8 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       NODE_ENV: production
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -84,7 +87,8 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       NODE_ENV: production
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -99,7 +103,8 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       NODE_ENV: production
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -116,15 +121,12 @@ services:
       ATTENDANCE_SERVICE_URL: http://attendance:4004
       EVALUATION_SERVICE_URL: http://evaluation:4005
       NODE_ENV: production
-      PORT: 5000
+      PORT: 8000
     ports:
-      - "5000:5000"
+      - "8000:8000"
     depends_on:
-      - auth
-      - users
-      - leave
-      - attendance
-      - evaluation
+      postgres:
+        condition: service_healthy
     networks:
       - app-network
 

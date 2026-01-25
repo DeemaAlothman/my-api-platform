@@ -22,13 +22,10 @@ export class AttendanceRecordsService {
     // Check if already checked in today
     const existing = await this.prisma.attendanceRecord.findFirst({
       where: {
-        employeeId,
-        date: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-        clockInTime: { not: null },
-        clockOutTime: null,
+         employeeId,
+    date: startOfDay,  // ✅ استخدام التاريخ مباشرة
+    clockInTime: { not: null },
+    clockOutTime: null,
       },
     });
 
@@ -68,10 +65,7 @@ export class AttendanceRecordsService {
     const record = await this.prisma.attendanceRecord.findFirst({
       where: {
         employeeId,
-        date: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
+        date: startOfDay,
         clockInTime: { not: null },
         clockOutTime: null,
       },

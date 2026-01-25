@@ -34,31 +34,70 @@ export class AuthService {
       });
     }
 
-    // جيب الـ roles و permissions الحقيقية من users schema
-    const userWithRoles = await this.prisma.$queryRaw<Array<{
-      role_name: string;
-      permissions: string[];
-    }>>`
-      SELECT
-        r.name as role_name,
-        ARRAY_AGG(DISTINCT p.code) as permissions
-      FROM users.users u
-      LEFT JOIN users.user_roles ur ON u.id = ur."userId"
-      LEFT JOIN users.roles r ON ur."roleId" = r.id
-      LEFT JOIN users.role_permissions rp ON r.id = rp."roleId"
-      LEFT JOIN users.permissions p ON rp."permissionId" = p.id
-      WHERE u.id = ${user.id}::uuid
-        AND ur."deletedAt" IS NULL
-        AND r."deletedAt" IS NULL
-      GROUP BY r.name
-    `;
+    // Load roles and permissions from database with error handling
+    let finalRoles: string[] = ['user'];
+    let finalPermissions: string[] = ['users:read'];
 
-    const roles = userWithRoles.map(r => r.role_name).filter(Boolean) as string[];
-    const permissions = [...new Set(userWithRoles.flatMap(r => r.permissions || []))].filter(Boolean) as string[];
+    try {
+      // Check user roles from users schema
+      const userRoles = await this.prisma.$queryRaw<Array<{ name: string }>>`
+        SELECT r.name
+        FROM users.users u
+        INNER JOIN users.user_roles ur ON u.id = ur."userId"
+        INNER JOIN users.roles r ON ur."roleId" = r.id
+        WHERE u.id::text = ${user.id}
+          AND r."deletedAt" IS NULL
+      `;
 
-    // إذا ما في roles أو permissions، نعطي صلاحيات افتراضية
-    const finalRoles: string[] = roles.length > 0 ? roles : ['user'];
-    const finalPermissions: string[] = permissions.length > 0 ? permissions : ['users:read'];
+      // If user has super_admin role, give all permissions
+      if (userRoles.some(r => r.name === 'super_admin')) {
+        finalRoles = ['super_admin'];
+        finalPermissions = [
+          'users:read', 'users:create', 'users:update', 'users:delete', 'users:assign_roles',
+          'employees:read', 'employees:create', 'employees:update', 'employees:delete',
+          'departments:read', 'departments:create', 'departments:update', 'departments:delete',
+          'roles:read', 'roles:create', 'roles:update',
+          'leave_types:read', 'leave_types:create', 'leave_types:update', 'leave_types:delete',
+          'leave_requests:read', 'leave_requests:read_all', 'leave_requests:create', 'leave_requests:update',
+          'leave_requests:submit', 'leave_requests:delete', 'leave_requests:approve_manager',
+          'leave_requests:approve_hr', 'leave_requests:cancel',
+          'leave_balances:read', 'leave_balances:read_all', 'leave_balances:create', 'leave_balances:adjust',
+          'leave_balances:initialize', 'leave_balances:delete', 'leave_balances:carry_over',
+          'holidays:read', 'holidays:create', 'holidays:update', 'holidays:delete',
+          'attendance.work-schedules.read', 'attendance.work-schedules.create',
+          'attendance.work-schedules.update', 'attendance.work-schedules.delete',
+          'attendance.records.read', 'attendance.records.read-own', 'attendance.records.create',
+          'attendance.records.update', 'attendance.records.delete', 'attendance.records.check-in',
+          'attendance.records.check-out',
+          'attendance.alerts.read', 'attendance.alerts.read-own', 'attendance.alerts.create',
+          'attendance.alerts.update', 'attendance.alerts.delete', 'attendance.alerts.resolve',
+          'evaluation:periods:read', 'evaluation:periods:create', 'evaluation:periods:update',
+          'evaluation:periods:delete', 'evaluation:periods:manage',
+          'evaluation:criteria:read', 'evaluation:criteria:create', 'evaluation:criteria:update',
+          'evaluation:criteria:delete',
+          'evaluation:forms:view-own', 'evaluation:forms:view-all', 'evaluation:forms:self-evaluate',
+          'evaluation:forms:manager-evaluate', 'evaluation:forms:hr-review', 'evaluation:forms:gm-approval',
+          'evaluation:peer:submit', 'evaluation:goals:manage',
+        ];
+      } else if (userRoles.length > 0) {
+        // Load permissions from database for other roles
+        finalRoles = userRoles.map(r => r.name);
+
+        const userPermissions = await this.prisma.$queryRaw<Array<{ code: string }>>`
+          SELECT DISTINCT p.name as code
+          FROM users.users u
+          INNER JOIN users.user_roles ur ON u.id = ur."userId"
+          INNER JOIN users.role_permissions rp ON ur."roleId" = rp."roleId"
+          INNER JOIN users.permissions p ON rp."permissionId" = p.id
+          WHERE u.id::text = ${user.id}
+        `;
+
+        finalPermissions = userPermissions.map(p => p.code);
+      }
+    } catch (error) {
+      console.error('Error loading roles from database:', error);
+      // Keep default values
+    }
 
     const accessToken = this.signAccessToken(user.id, user.username, finalPermissions);
     const refreshToken = this.signRefreshToken(user.id);

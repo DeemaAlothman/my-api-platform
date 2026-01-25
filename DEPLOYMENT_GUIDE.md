@@ -1,401 +1,553 @@
-# دليل النشر على السيرفر - Leave Service
+# دليل النشر على السيرفر (Production Deployment Guide)
 
-## 📋 ملخص التغييرات
+## المتطلبات الأساسية
 
-### المشكلة التي تم حلها:
-- كان النظام يستخدم `userId` من JWT مباشرةً كـ `employeeId`
-- لكن البيانات الحقيقية تحتاج `employeeId` من جدول `users.employees`
-- هذا كان يسبب خطأ "Leave balance not found" عند الموافقة على الإجازات
-
-### الحل المطبق:
-1. **EmployeeInterceptor**: يحول `userId` إلى `employeeId` تلقائياً في كل request
-2. **Employee Decorators**: `@EmployeeId()` و `@UserId()` للوصول المباشر
-3. **Database Migration**: تصحيح البيانات الموجودة في قاعدة البيانات
-4. **Controllers Update**: تحديث جميع controllers لاستخدام النظام الجديد
+- Ubuntu 20.04 LTS أو أحدث
+- Docker 20.10 أو أحدث
+- Docker Compose 2.0 أو أحدث
+- Git
+- 4GB RAM كحد أدنى (8GB موصى به)
+- 20GB مساحة تخزين
 
 ---
 
-## 🚀 خطوات النشر على السيرفر
+## خطوات النشر
 
-### المرحلة 1: التحضير (على جهازك المحلي)
+### 1. تثبيت المتطلبات على السيرفر
 
-#### 1.1 التأكد من اكتمال التغييرات
 ```bash
-# التأكد من أن كل التعديلات موجودة
-cd /c/Users/user/Desktop/wso/my-api-platform
+# تحديث النظام
+sudo apt update && sudo apt upgrade -y
 
-# عرض الملفات المعدلة
-git status
-```
+# تثبيت Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
 
-**الملفات المعدلة:**
-- ✅ `apps/leave/src/common/decorators/employee.decorator.ts` (جديد)
-- ✅ `apps/leave/src/common/interceptors/employee.interceptor.ts` (جديد)
-- ✅ `apps/leave/src/leave-requests/leave-requests.controller.ts` (معدل)
-- ✅ `apps/leave/src/leave-balances/leave-balances.controller.ts` (معدل)
-- ✅ `apps/leave/src/holidays/holidays.service.ts` (معدل - auto-extract year)
-- ✅ `apps/leave/prisma/migrations/fix_employee_ids.sql` (جديد)
-- ✅ `apps/auth/src/auth/auth.service.ts` (معدل - leave permissions)
+# تثبيت Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
 
-#### 1.2 البناء والتأكد من عدم وجود أخطاء
-```bash
-# بناء Leave Service
-cd apps/leave
-npm run build
+# تثبيت Git
+sudo apt install git -y
 
-# بناء Auth Service (إذا تم تعديله)
-cd ../auth
-npm run build
-
-# بناء Gateway (إذا لزم الأمر)
-cd ../gateway
-npm run build
-```
-
-#### 1.3 حفظ التغييرات في Git
-```bash
-cd /c/Users/user/Desktop/wso/my-api-platform
-
-# إضافة جميع الملفات المعدلة
-git add .
-
-# إنشاء commit
-git commit -m "fix: implement proper employee ID mapping in Leave Service
-
-- Add EmployeeInterceptor to auto-resolve employeeId from userId
-- Add @EmployeeId() and @UserId() decorators
-- Update all Leave controllers to use new decorators
-- Add database migration to fix existing leave_requests
-- Fix holidays service to auto-extract year from date
-- Add leave permissions to auth service hardcoded list
-
-This fixes the 'Leave balance not found' error and ensures
-proper employee ID usage across the Leave Service."
-
-# رفع التغييرات إلى GitHub
-git push origin main
+# إعادة تسجيل الدخول لتفعيل Docker group
+logout
 ```
 
 ---
 
-### المرحلة 2: النشر على السيرفر
+### 2. نقل المشروع إلى السيرفر
 
-#### السيناريو A: إذا كان السيرفر يستخدم Docker (موصى به)
+**الطريقة 1: استخدام Git (موصى به)**
 
-##### 2.1 الاتصال بالسيرفر
 ```bash
-ssh user@your-server-ip
+# على السيرفر
+cd /opt
+sudo mkdir -p myapiplatform
+sudo chown $USER:$USER myapiplatform
+cd myapiplatform
+
+# رفع المشروع إلى GitHub/GitLab أولاً من جهازك المحلي
+git clone https://github.com/your-username/my-api-platform.git .
 ```
 
-##### 2.2 سحب التحديثات من GitHub
-```bash
-cd /path/to/my-api-platform
+**الطريقة 2: استخدام rsync**
 
-# سحب آخر التحديثات
-git pull origin main
+```bash
+# من جهازك المحلي
+rsync -avz --progress \
+  --exclude 'node_modules' \
+  --exclude '.git' \
+  --exclude 'dist' \
+  --exclude 'coverage' \
+  c:/Users/user/Desktop/wso/my-api-platform/ \
+  user@your-server-ip:/opt/myapiplatform/
 ```
 
-##### 2.3 تنفيذ Database Migration
+**الطريقة 3: استخدام scp**
+
 ```bash
-# تنفيذ migration لتصحيح البيانات الموجودة
-docker compose exec postgres psql -U postgres -d platform -f /path/to/migrations/fix_employee_ids.sql
+# من جهازك المحلي
+cd c:/Users/user/Desktop/wso
+tar -czf my-api-platform.tar.gz my-api-platform/ \
+  --exclude='node_modules' \
+  --exclude='.git' \
+  --exclude='dist'
 
-# أو يدوياً
-docker compose exec postgres psql -U postgres -d platform << 'EOF'
-UPDATE leaves.leave_requests lr
-SET "employeeId" = e.id
-FROM users.employees e
-WHERE lr."employeeId" = e."userId"::text
-  AND EXISTS (
-    SELECT 1 FROM users.employees
-    WHERE "userId" = lr."employeeId"
-  );
-EOF
-```
+scp my-api-platform.tar.gz user@your-server-ip:/opt/
 
-##### 2.4 إعادة بناء ونشر Services
-
-**الطريقة الأسرع (بدون rebuild كامل):**
-```bash
-# بناء محلي على السيرفر
-cd apps/leave
-npm install
-npm run build
-
-# نسخ الملفات المبنية إلى Container
-docker cp dist myapiplatform-leave:/app/
-
-# إعادة تشغيل Leave Service
-docker compose restart leave
-
-# مراقبة logs للتأكد
-docker compose logs -f leave
-```
-
-**الطريقة الكاملة (rebuild):**
-```bash
-# إعادة بناء Leave Service
-docker compose build leave
-
-# إعادة تشغيل الخدمة
-docker compose up -d leave
-
-# مراقبة logs
-docker compose logs -f leave
-```
-
-##### 2.5 تحديث Auth Service (إذا لزم)
-```bash
-# بناء Auth Service
-cd apps/auth
-npm install
-npm run build
-
-# نسخ إلى Container
-docker cp dist myapiplatform-auth:/app/
-
-# إعادة تشغيل
-docker compose restart auth
+# على السيرفر
+cd /opt
+tar -xzf my-api-platform.tar.gz
+mv my-api-platform myapiplatform
 ```
 
 ---
 
-#### السيناريو B: إذا كان السيرفر يستخدم PM2 أو Node مباشرة
+### 3. إعداد ملف البيئة (Environment Variables)
 
-##### 2.1 سحب التحديثات
 ```bash
-ssh user@your-server-ip
-cd /path/to/my-api-platform
-git pull origin main
+cd /opt/myapiplatform
+
+# نسخ ملف المثال
+cp .env.production.example .env.production
+
+# تعديل الملف بمحرر nano أو vim
+nano .env.production
 ```
 
-##### 2.2 تنفيذ Database Migration
-```bash
-psql -U postgres -d platform << 'EOF'
-UPDATE leaves.leave_requests lr
-SET "employeeId" = e.id
-FROM users.employees e
-WHERE lr."employeeId" = e."userId"::text
-  AND EXISTS (
-    SELECT 1 FROM users.employees
-    WHERE "userId" = lr."employeeId"
-  );
-EOF
+**قم بتغيير القيم التالية:**
+
+```env
+DB_USER=postgres
+DB_PASSWORD=YOUR_VERY_STRONG_PASSWORD_HERE
+DB_NAME=platform
+
+JWT_ACCESS_SECRET=YOUR_ACCESS_SECRET_32_CHARS_MINIMUM
+JWT_REFRESH_SECRET=YOUR_REFRESH_SECRET_32_CHARS_MINIMUM
+
+ACCESS_TOKEN_TTL=900
+REFRESH_TOKEN_TTL=30
 ```
 
-##### 2.3 تحديث Dependencies وإعادة البناء
+**لتوليد أسرار عشوائية قوية:**
+
 ```bash
-# Leave Service
-cd apps/leave
-npm install
-npm run build
+# توليد سر عشوائي
+openssl rand -base64 32
 
-# Auth Service
-cd ../auth
-npm install
-npm run build
-
-# Gateway
-cd ../gateway
-npm install
-npm run build
-```
-
-##### 2.4 إعادة تشغيل Services
-```bash
-# باستخدام PM2
-pm2 restart leave-service
-pm2 restart auth-service
-pm2 restart gateway-service
-
-# أو مباشرة
-# (حسب setup السيرفر)
+# أو
+cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1
 ```
 
 ---
 
-### المرحلة 3: التحقق من النشر
+### 4. إعداد قاعدة البيانات
 
-#### 3.1 التحقق من أن Services تعمل
 ```bash
-# التحقق من Leave Service
-curl http://localhost:4003/health
+cd /opt/myapiplatform
 
-# التحقق من Auth Service
-curl http://localhost:4001/health
+# بناء وتشغيل PostgreSQL فقط أولاً
+docker-compose -f docker-compose.prod.yml up -d postgres
 
-# التحقق من Gateway
+# الانتظار حتى تصبح قاعدة البيانات جاهزة
+docker logs -f myapiplatform-postgres
+# انتظر حتى ترى: "database system is ready to accept connections"
+# اضغط Ctrl+C للخروج
+```
+
+---
+
+### 5. تشغيل Migrations
+
+```bash
+# Auth Service Migration
+docker-compose -f docker-compose.prod.yml run --rm auth npx prisma migrate deploy
+
+# Users Service Migration
+docker-compose -f docker-compose.prod.yml run --rm users npx prisma migrate deploy
+
+# Leave Service Migration
+docker-compose -f docker-compose.prod.yml run --rm leave npx prisma migrate deploy
+
+# Attendance Service Migration
+docker-compose -f docker-compose.prod.yml run --rm attendance npx prisma migrate deploy
+
+# Evaluation Service Migration
+docker-compose -f docker-compose.prod.yml run --rm evaluation npx prisma migrate deploy
+```
+
+---
+
+### 6. تشغيل Seeds (البيانات الأولية)
+
+```bash
+# Users Service Seed (يجب تشغيله أولاً)
+docker-compose -f docker-compose.prod.yml run --rm users npm run prisma:seed
+
+# Leave Service Seed
+docker-compose -f docker-compose.prod.yml run --rm leave npm run prisma:seed
+
+# Attendance Service Seed
+docker-compose -f docker-compose.prod.yml run --rm attendance npm run prisma:seed
+
+# Evaluation Service Seed
+docker-compose -f docker-compose.prod.yml run --rm evaluation npm run prisma:seed
+```
+
+---
+
+### 7. بناء وتشغيل جميع الخدمات
+
+```bash
+cd /opt/myapiplatform
+
+# بناء جميع الصور
+docker-compose -f docker-compose.prod.yml build
+
+# تشغيل جميع الخدمات
+docker-compose -f docker-compose.prod.yml up -d
+
+# التحقق من حالة الخدمات
+docker-compose -f docker-compose.prod.yml ps
+```
+
+---
+
+### 8. التحقق من عمل الخدمات
+
+```bash
+# التحقق من logs
+docker-compose -f docker-compose.prod.yml logs -f
+
+# التحقق من خدمة معينة
+docker logs -f myapiplatform-gateway
+docker logs -f myapiplatform-auth
+docker logs -f myapiplatform-users
+
+# اختبار الـ Gateway
 curl http://localhost:8000/health
 ```
 
-#### 3.2 اختبار Employee ID Mapping
+---
+
+### 9. إعداد Nginx Reverse Proxy (اختياري لكن موصى به)
+
 ```bash
-# تسجيل دخول
+# تثبيت Nginx
+sudo apt install nginx -y
+
+# إنشاء ملف الإعداد
+sudo nano /etc/nginx/sites-available/myapiplatform
+```
+
+**محتوى الملف:**
+
+```nginx
+server {
+    listen 80;
+    server_name api.yourdomain.com;
+
+    client_max_body_size 10M;
+
+    location / {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**تفعيل الإعداد:**
+
+```bash
+# إنشاء رابط رمزي
+sudo ln -s /etc/nginx/sites-available/myapiplatform /etc/nginx/sites-enabled/
+
+# اختبار الإعداد
+sudo nginx -t
+
+# إعادة تحميل Nginx
+sudo systemctl reload nginx
+```
+
+---
+
+### 10. إعداد SSL باستخدام Let's Encrypt (موصى به بشدة)
+
+```bash
+# تثبيت Certbot
+sudo apt install certbot python3-certbot-nginx -y
+
+# الحصول على شهادة SSL
+sudo certbot --nginx -d api.yourdomain.com
+
+# اختبار التجديد التلقائي
+sudo certbot renew --dry-run
+```
+
+---
+
+### 11. إعداد Firewall
+
+```bash
+# تفعيل UFW
+sudo ufw enable
+
+# السماح بـ SSH
+sudo ufw allow 22/tcp
+
+# السماح بـ HTTP و HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# التحقق من الحالة
+sudo ufw status
+```
+
+---
+
+### 12. اختبار النظام
+
+```bash
+# تسجيل الدخول
 curl -X POST http://your-server-ip:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "Admin@123"}'
-
-# احفظ token من الرد
-
-# اختبار الحصول على رصيد الموظف
-curl http://your-server-ip:8000/api/v1/leave-balances/my?year=2024 \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
-
-# يجب أن ترى الرصيد بدون أخطاء
-```
-
-#### 3.3 اختبار سير العمل الكامل
-```bash
-# 1. إنشاء طلب إجازة
-curl -X POST http://your-server-ip:8000/api/v1/leave-requests \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
   -d '{
-    "leaveTypeId": "LEAVE_TYPE_ID",
-    "startDate": "2024-02-15",
-    "endDate": "2024-02-17",
-    "reason": "اختبار النظام",
-    "isHalfDay": false
+    "username": "admin",
+    "password": "password123"
   }'
 
-# 2. تقديم الطلب
-curl -X POST http://your-server-ip:8000/api/v1/leave-requests/REQUEST_ID/submit \
-  -H "Authorization: Bearer YOUR_TOKEN"
-
-# 3. موافقة المدير
-curl -X POST http://your-server-ip:8000/api/v1/leave-requests/REQUEST_ID/approve-manager \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+# أو إذا كنت استخدمت Nginx مع domain
+curl -X POST https://api.yourdomain.com/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"notes": "موافقة المدير"}'
+  -d '{
+    "username": "admin",
+    "password": "password123"
+  }'
+```
 
-# 4. موافقة HR (يجب أن تعمل بدون خطأ!)
-curl -X POST http://your-server-ip:8000/api/v1/leave-requests/REQUEST_ID/approve-hr \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"notes": "موافقة HR"}'
-
-# 5. التحقق من خصم الرصيد
-curl http://your-server-ip:8000/api/v1/leave-balances/my?year=2024 \
-  -H "Authorization: Bearer YOUR_TOKEN"
+**يجب أن ترى:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {...},
+    "accessToken": "...",
+    "refreshToken": "..."
+  }
+}
 ```
 
 ---
 
-## ⚠️ الأخطاء المحتملة وحلولها
+## أوامر مفيدة للصيانة
 
-### خطأ: "Employee record not found"
-**السبب**: المستخدم لا يملك سجل موظف في جدول `users.employees`
-
-**الحل:**
-```sql
--- إنشاء سجل موظف للمستخدم
-INSERT INTO users.employees (
-  id, "employeeNumber", "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn",
-  email, gender, "departmentId", "userId", "hireDate", "contractType",
-  "employmentStatus", "createdAt", "updatedAt"
-)
-VALUES (
-  gen_random_uuid(),
-  'EMP_NUMBER',
-  'الاسم الأول',
-  'الاسم الأخير',
-  'First Name',
-  'Last Name',
-  'user@email.com',
-  'MALE',
-  'DEPARTMENT_ID',
-  'USER_ID_FROM_JWT',
-  NOW(),
-  'PERMANENT',
-  'ACTIVE',
-  NOW(),
-  NOW()
-);
-```
-
-### خطأ: "Leave balance not found" بعد النشر
-**السبب**: لم يتم تنفيذ migration script
-
-**الحل:**
+### عرض حالة الخدمات
 ```bash
-# تنفيذ migration يدوياً
-docker compose exec postgres psql -U postgres -d platform << 'EOF'
-UPDATE leaves.leave_requests lr
-SET "employeeId" = e.id
-FROM users.employees e
-WHERE lr."employeeId" = e."userId"::text;
-EOF
+docker-compose -f docker-compose.prod.yml ps
 ```
 
-### خطأ: Module not found بعد النشر
-**السبب**: Dependencies لم يتم تثبيتها
-
-**الحل:**
+### إيقاف جميع الخدمات
 ```bash
-cd apps/leave
-npm install
-npm run build
-docker compose restart leave
+docker-compose -f docker-compose.prod.yml down
 ```
 
----
-
-## 📊 ملخص التحسينات
-
-### ✅ ما تم إصلاحه:
-1. **Employee ID Mapping** - تحويل تلقائي من userId إلى employeeId
-2. **Leave Balance Access** - الآن يعمل بشكل صحيح مع employee records
-3. **Approval Workflow** - موافقة المدير و HR تعمل بدون أخطاء
-4. **Holiday Creation** - auto-extract year from date
-5. **Code Maintainability** - استخدام decorators و interceptors قياسية
-
-### 🚀 الفوائد للمستقبل:
-- ✅ قابل للتوسع - سهل إضافة موظفين جدد
-- ✅ واضح ومفهوم - الكود self-documenting
-- ✅ آمن - التحقق من وجود employee record تلقائياً
-- ✅ maintainable - سهل التعديل والصيانة
-
----
-
-## 🔒 التحقق الأمني
-
-### قبل النشر على Production:
-1. ✅ التأكد من صحة database backup
-2. ✅ اختبار جميع endpoints في staging environment
-3. ✅ التحقق من صلاحيات المستخدمين
-4. ✅ مراجعة logs للتأكد من عدم وجود أخطاء
-5. ✅ التأكد من أن جميع المستخدمين لديهم employee records
-
----
-
-## 📞 الدعم
-
-إذا واجهت أي مشاكل:
-1. تحقق من Docker logs: `docker compose logs -f leave`
-2. تحقق من Database: الاستعلامات في القسم السابق
-3. تحقق من Git: `git log -n 5` لرؤية آخر commits
-
----
-
-## 📝 Rollback Plan (خطة الرجوع)
-
-إذا حدثت مشاكل بعد النشر:
-
+### إيقاف خدمة واحدة
 ```bash
-# 1. الرجوع إلى الإصدار السابق
-git log  # لمعرفة commit hash السابق
-git revert COMMIT_HASH
+docker-compose -f docker-compose.prod.yml stop gateway
+```
 
-# 2. إعادة البناء
-cd apps/leave && npm run build
+### بدء خدمة واحدة
+```bash
+docker-compose -f docker-compose.prod.yml start gateway
+```
 
-# 3. إعادة النشر
-docker compose restart leave
+### إعادة بناء خدمة بعد تحديث الكود
+```bash
+docker-compose -f docker-compose.prod.yml build --no-cache gateway
+docker-compose -f docker-compose.prod.yml up -d gateway
+```
 
-# 4. أو rollback قاعدة البيانات (إذا لزم الأمر)
-# استخدام backup قبل النشر
+### عرض logs لخدمة معينة
+```bash
+docker-compose -f docker-compose.prod.yml logs -f gateway
+```
+
+### عرض استهلاك الموارد
+```bash
+docker stats
+```
+
+### تنظيف Docker (تحرير مساحة)
+```bash
+# حذف الصور غير المستخدمة
+docker image prune -a
+
+# حذف الـ containers المتوقفة
+docker container prune
+
+# حذف الـ volumes غير المستخدمة (احذر!)
+docker volume prune
 ```
 
 ---
 
-**ملاحظة نهائية:** هذا النظام جاهز للإنتاج ويعمل بشكل صحيح. تم اختباره محلياً وجميع endpoints تعمل بنجاح. 🎉
+## Backup قاعدة البيانات
+
+### إنشاء Backup يدوي
+```bash
+# Backup كامل
+docker exec myapiplatform-postgres pg_dumpall -U postgres > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Backup لقاعدة بيانات واحدة
+docker exec myapiplatform-postgres pg_dump -U postgres platform > platform_backup_$(date +%Y%m%d_%H%M%S).sql
+```
+
+### استعادة Backup
+```bash
+# استعادة من backup
+docker exec -i myapiplatform-postgres psql -U postgres < backup_file.sql
+```
+
+### Backup تلقائي (Cron Job)
+```bash
+# تعديل crontab
+crontab -e
+
+# إضافة السطر التالي (backup يومي الساعة 2 صباحاً)
+0 2 * * * docker exec myapiplatform-postgres pg_dumpall -U postgres > /opt/backups/db_backup_$(date +\%Y\%m\%d).sql
+```
+
+---
+
+## تحديث النظام (Updates)
+
+### تحديث الكود من Git
+```bash
+cd /opt/myapiplatform
+
+# سحب أحدث تحديثات
+git pull origin main
+
+# إعادة بناء الخدمات
+docker-compose -f docker-compose.prod.yml build
+
+# تشغيل migrations إن وجدت
+docker-compose -f docker-compose.prod.yml run --rm users npx prisma migrate deploy
+
+# إعادة تشغيل الخدمات
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+---
+
+## Monitoring وال Logs
+
+### مراقبة Logs في الوقت الفعلي
+```bash
+# جميع الخدمات
+docker-compose -f docker-compose.prod.yml logs -f
+
+# خدمة واحدة
+docker logs -f myapiplatform-gateway
+
+# آخر 100 سطر
+docker logs --tail 100 myapiplatform-gateway
+```
+
+### مراقبة استهلاك الموارد
+```bash
+# عرض استهلاك CPU و Memory
+docker stats
+
+# عرض مساحة القرص
+df -h
+docker system df
+```
+
+---
+
+## حل المشاكل الشائعة
+
+### الخدمة لا تبدأ
+```bash
+# التحقق من الـ logs
+docker logs myapiplatform-gateway
+
+# التحقق من حالة الخدمة
+docker-compose -f docker-compose.prod.yml ps
+
+# إعادة بناء الخدمة
+docker-compose -f docker-compose.prod.yml build --no-cache gateway
+docker-compose -f docker-compose.prod.yml up -d gateway
+```
+
+### قاعدة البيانات لا تستجيب
+```bash
+# التحقق من حالة PostgreSQL
+docker logs myapiplatform-postgres
+
+# إعادة تشغيل PostgreSQL
+docker-compose -f docker-compose.prod.yml restart postgres
+
+# الدخول إلى PostgreSQL
+docker exec -it myapiplatform-postgres psql -U postgres
+```
+
+### نفاد المساحة
+```bash
+# التحقق من المساحة
+df -h
+
+# تنظيف Docker
+docker system prune -a --volumes
+
+# حذف logs قديمة
+sudo truncate -s 0 /var/lib/docker/containers/*/*-json.log
+```
+
+### بطء في الأداء
+```bash
+# التحقق من استهلاك الموارد
+docker stats
+
+# التحقق من الـ connections
+docker exec myapiplatform-postgres psql -U postgres -c "SELECT count(*) FROM pg_stat_activity;"
+
+# إعادة تشغيل الخدمات
+docker-compose -f docker-compose.prod.yml restart
+```
+
+---
+
+## الأمان (Security Checklist)
+
+- [ ] تغيير جميع كلمات المرور الافتراضية
+- [ ] استخدام أسرار JWT قوية (32 حرف على الأقل)
+- [ ] تفعيل SSL/HTTPS
+- [ ] إعداد Firewall (UFW)
+- [ ] إغلاق جميع البورتات غير الضرورية
+- [ ] عمل backup دوري لقاعدة البيانات
+- [ ] مراقبة logs بشكل دوري
+- [ ] تحديث النظام والـ packages بانتظام
+- [ ] استخدام non-root user لتشغيل الخدمات
+- [ ] تفعيل rate limiting في Nginx
+
+---
+
+## معلومات الاتصال
+
+**البورتات:**
+- Gateway: 8000 (أو 80/443 عبر Nginx)
+- Auth Service: 4001 (داخلي فقط)
+- Users Service: 4002 (داخلي فقط)
+- Leave Service: 4003 (داخلي فقط)
+- Attendance Service: 4004 (داخلي فقط)
+- Evaluation Service: 4005 (داخلي فقط)
+- PostgreSQL: 5432 (داخلي فقط)
+
+**المستخدم الافتراضي:**
+- Username: `admin`
+- Password: `password123` (يجب تغييره فوراً!)
+
+---
+
+## الخطوات التالية
+
+1. تغيير كلمة مرور admin من واجهة المستخدم
+2. إنشاء مستخدمين وأدوار جديدة
+3. إعداد الأقسام والموظفين
+4. إعداد أنواع الإجازات وجداول العمل
+5. إعداد فترات ومعايير التقييم
+
+---
+
+**آخر تحديث**: 2026-01-25
