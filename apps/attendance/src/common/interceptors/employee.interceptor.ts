@@ -21,12 +21,16 @@ export class EmployeeInterceptor implements NestInterceptor {
     next: CallHandler,
   ): Promise<Observable<any>> {
     const request = context.switchToHttp().getRequest();
-    const userId = request.user?.userId;
+    const username = request.user?.username;
 
-    if (userId) {
-      // Query the users schema to find the employee record
+    if (username) {
+      // Query the users schema to find the employee record by username
       const result = await this.prisma.$queryRaw<Array<{ id: string }>>`
-        SELECT id FROM users.employees WHERE "userId" = ${userId}::text LIMIT 1
+        SELECT e.id
+        FROM users.employees e
+        INNER JOIN users.users u ON e."userId" = u.id
+        WHERE u.username = ${username}
+        LIMIT 1
       `;
 
       if (result && result.length > 0) {
