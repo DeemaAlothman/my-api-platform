@@ -131,6 +131,46 @@ export class EmployeesService {
     return employee;
   }
 
+  async findByUserId(userId: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+      },
+      include: {
+        department: true,
+        jobTitle: true,
+        manager: {
+          select: {
+            id: true,
+            employeeNumber: true,
+            firstNameAr: true,
+            lastNameAr: true,
+            email: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!employee) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Employee not found',
+        details: [{ field: 'userId', value: userId }],
+      });
+    }
+
+    return employee;
+  }
+
   async create(dto: CreateEmployeeDto) {
     // تحقق من email موجود
     const existingEmail = await this.prisma.employee.findFirst({

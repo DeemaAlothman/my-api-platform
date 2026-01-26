@@ -3,6 +3,8 @@ import { EmployeesService } from './employees.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
+import { User } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../common/interfaces/user.interface';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees.query.dto';
@@ -31,6 +33,12 @@ export class EmployeesController {
   @Get('manager/:managerId/subordinates')
   getSubordinates(@Param('managerId') managerId: string) {
     return this.employees.getSubordinates(managerId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my')
+  getMyEmployee(@User() user: CurrentUser) {
+    return this.employees.findByUserId(user.userId);
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
