@@ -38,7 +38,7 @@ export class EmployeesController {
   @UseGuards(JwtAuthGuard)
   @Get('my')
   getMyEmployee(@User() user: CurrentUser) {
-    return this.employees.findByUserId(user.userId);
+    return this.employees.findByUsername(user.username);
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)

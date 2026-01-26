@@ -131,10 +131,29 @@ export class EmployeesService {
     return employee;
   }
 
-  async findByUserId(userId: string) {
+  async findByUsername(username: string) {
+    // Query using username for cross-schema lookup (auth.User has different ID than users.users)
+    const result = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT e.id
+      FROM users.employees e
+      INNER JOIN users.users u ON e."userId" = u.id
+      WHERE u.username = ${username}
+        AND e."deletedAt" IS NULL
+      LIMIT 1
+    `;
+
+    if (!result || result.length === 0) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Employee not found',
+        details: [{ field: 'username', value: username }],
+      });
+    }
+
+    // Now fetch the full employee record with relations
     const employee = await this.prisma.employee.findFirst({
       where: {
-        userId,
+        id: result[0].id,
         deletedAt: null,
       },
       include: {
@@ -159,14 +178,6 @@ export class EmployeesService {
         },
       },
     });
-
-    if (!employee) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Employee not found',
-        details: [{ field: 'userId', value: userId }],
-      });
-    }
 
     return employee;
   }
