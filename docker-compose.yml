@@ -136,12 +136,12 @@ services:
       AUTH_SERVICE_URL: http://auth:4001
       USERS_SERVICE_URL: http://users:4002
       LEAVE_SERVICE_URL: http://leave:4003
-      ATTENDANCE_SERVICE_URL: http://host.docker.internal:4004
-      EVALUATION_SERVICE_URL: http://host.docker.internal:4005
-      NODE_ENV: development
+      ATTENDANCE_SERVICE_URL: http://attendance:4004
+      EVALUATION_SERVICE_URL: http://evaluation:4005
+      NODE_ENV: production
       PORT: 8000
     ports:
-      - "5000:8000"
+      - "8000:8000"
     depends_on:
       - auth
       - users
