@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
 import { User } from '../common/decorators/current-user.decorator';
-import { CurrentUser } from '../common/interfaces/user.interface';
+import type { CurrentUser } from '../common/interfaces/user.interface';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees.query.dto';
