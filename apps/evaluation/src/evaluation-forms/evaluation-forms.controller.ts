@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { EvaluationFormsService } from './evaluation-forms.service';
+import { CreateEvaluationFormDto } from './dto/create-evaluation-form.dto';
 import { SaveSelfEvaluationDto } from './dto/save-self-evaluation.dto';
 import { SaveManagerEvaluationDto } from './dto/save-manager-evaluation.dto';
 import { HRReviewDto } from './dto/hr-review.dto';
@@ -23,6 +24,12 @@ import { CurrentUser } from '../common/interfaces/user.interface';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class EvaluationFormsController {
   constructor(private readonly formsService: EvaluationFormsService) {}
+
+  @Post()
+  @Permissions('evaluation:forms:view-all')
+  create(@Body() createFormDto: CreateEvaluationFormDto) {
+    return this.formsService.create(createFormDto);
+  }
 
   @Get('my')
   getMyForm(@User() user: CurrentUser, @Query('periodId') periodId?: string) {

@@ -59,4 +59,13 @@ export class EvaluationPeriodsController {
   closePeriod(@Param('id') id: string) {
     return this.periodsService.closePeriod(id);
   }
+
+  @Post(':id/generate-forms')
+  @Permissions('evaluation:periods:manage')
+  generateForms(
+    @Param('id') id: string,
+    @Body() body: { employeeIds: string[] },
+  ) {
+    return this.periodsService.generateForms(id, body.employeeIds);
+  }
 }

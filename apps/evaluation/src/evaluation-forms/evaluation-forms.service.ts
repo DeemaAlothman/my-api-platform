@@ -9,11 +9,68 @@ import { SaveSelfEvaluationDto } from './dto/save-self-evaluation.dto';
 import { SaveManagerEvaluationDto } from './dto/save-manager-evaluation.dto';
 import { HRReviewDto } from './dto/hr-review.dto';
 import { GMApprovalDto } from './dto/gm-approval.dto';
+import { CreateEvaluationFormDto } from './dto/create-evaluation-form.dto';
 import { CurrentUser } from '../common/interfaces/user.interface';
 
 @Injectable()
 export class EvaluationFormsService {
   constructor(private prisma: PrismaService) {}
+
+  async create(dto: CreateEvaluationFormDto) {
+    // Check if period exists
+    const period = await this.prisma.evaluationPeriod.findUnique({
+      where: { id: dto.periodId },
+    });
+
+    if (!period) {
+      throw new NotFoundException(`Period with ID ${dto.periodId} not found`);
+    }
+
+    // Check if form already exists for this employee in this period
+    const existingForm = await this.prisma.evaluationForm.findUnique({
+      where: {
+        periodId_employeeId: {
+          periodId: dto.periodId,
+          employeeId: dto.employeeId,
+        },
+      },
+    });
+
+    if (existingForm) {
+      throw new BadRequestException(
+        `Evaluation form already exists for this employee in this period`,
+      );
+    }
+
+    // Create the form with sections for all active criteria
+    const criteria = await this.prisma.evaluationCriteria.findMany({
+      where: { isActive: true },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    const form = await this.prisma.evaluationForm.create({
+      data: {
+        periodId: dto.periodId,
+        employeeId: dto.employeeId,
+        evaluatorId: dto.evaluatorId,
+        sections: {
+          create: criteria.map((c) => ({
+            criteriaId: c.id,
+          })),
+        },
+      },
+      include: {
+        period: true,
+        sections: {
+          include: {
+            criteria: true,
+          },
+        },
+      },
+    });
+
+    return form;
+  }
 
   async getMyForm(user: CurrentUser, periodId?: string) {
     const where: any = {

@@ -1,0 +1,766 @@
+{
+  "info": {
+    "name": "Evaluation Service API",
+    "description": "Complete test collection for Evaluation Service endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://217.76.53.136:8000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "period_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "form_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "criteria_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employee_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('token', jsonData.data.accessToken);",
+                  "    console.log('Token saved:', jsonData.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Evaluation Periods",
+      "item": [
+        {
+          "name": "Get All Periods",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-periods",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-periods"]
+            }
+          }
+        },
+        {
+          "name": "Create Period",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('period_id', jsonData.data.id);",
+                  "    console.log('Period ID saved:', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"Q1-2026\",\n  \"nameAr\": \"تقييم الربع الأول 2026\",\n  \"nameEn\": \"Q1 2026 Evaluation\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2026-03-31\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-periods",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-periods"]
+            }
+          }
+        },
+        {
+          "name": "Get Period by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-periods/{{period_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-periods", "{{period_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Period",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nameAr\": \"تقييم محدث\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-periods/{{period_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-periods", "{{period_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Open Period",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-periods/{{period_id}}/open",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-periods", "{{period_id}}", "open"]
+            }
+          }
+        },
+        {
+          "name": "Generate Forms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeIds\": [\"{{employee_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-periods/{{period_id}}/generate-forms",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-periods", "{{period_id}}", "generate-forms"]
+            }
+          }
+        },
+        {
+          "name": "Close Period",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-periods/{{period_id}}/close",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-periods", "{{period_id}}", "close"]
+            }
+          }
+        },
+        {
+          "name": "Delete Period",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-periods/{{period_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-periods", "{{period_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Evaluation Criteria",
+      "item": [
+        {
+          "name": "Get All Criteria",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-criteria",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-criteria"]
+            }
+          }
+        },
+        {
+          "name": "Create Criteria",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('criteria_id', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"TEST_CRITERIA\",\n  \"nameAr\": \"معيار اختبار\",\n  \"nameEn\": \"Test Criteria\",\n  \"descriptionAr\": \"وصف المعيار\",\n  \"weight\": 1.5,\n  \"maxScore\": 5,\n  \"category\": \"PERFORMANCE\",\n  \"displayOrder\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-criteria",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-criteria"]
+            }
+          }
+        },
+        {
+          "name": "Get Criteria by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-criteria/{{criteria_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-criteria", "{{criteria_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Criteria",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weight\": 2.0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-criteria/{{criteria_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-criteria", "{{criteria_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Criteria",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-criteria/{{criteria_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-criteria", "{{criteria_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Evaluation Forms",
+      "item": [
+        {
+          "name": "Get All Forms (view-all)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms"]
+            }
+          }
+        },
+        {
+          "name": "Get My Form (view-own)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/my?periodId={{period_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "my"],
+              "query": [
+                {
+                  "key": "periodId",
+                  "value": "{{period_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Form",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('form_id', jsonData.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodId\": \"{{period_id}}\",\n  \"employeeId\": \"{{employee_id}}\",\n  \"evaluatorId\": \"{{employee_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms"]
+            }
+          }
+        },
+        {
+          "name": "Get Form by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/{{form_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "{{form_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Pending My Review",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/pending-my-review",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "pending-my-review"]
+            }
+          }
+        },
+        {
+          "name": "Save Self Evaluation (self-evaluate)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sections\": [\n    {\n      \"criteriaId\": \"{{criteria_id}}\",\n      \"score\": 4,\n      \"comments\": \"Good performance\"\n    }\n  ],\n  \"comments\": \"Overall good self assessment\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/{{form_id}}/self",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "{{form_id}}", "self"]
+            }
+          }
+        },
+        {
+          "name": "Submit Self Evaluation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/{{form_id}}/self/submit",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "{{form_id}}", "self", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Save Manager Evaluation (manager-evaluate)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sections\": [\n    {\n      \"criteriaId\": \"{{criteria_id}}\",\n      \"score\": 4,\n      \"comments\": \"Good work from manager perspective\"\n    }\n  ],\n  \"comments\": \"Overall evaluation\",\n  \"strengths\": \"Strong technical skills\",\n  \"weaknesses\": \"Needs improvement in time management\",\n  \"recommendations\": \"Training recommended\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/{{form_id}}/manager",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "{{form_id}}", "manager"]
+            }
+          }
+        },
+        {
+          "name": "Submit Manager Evaluation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/{{form_id}}/manager/submit",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "{{form_id}}", "manager", "submit"]
+            }
+          }
+        },
+        {
+          "name": "HR Review (hr-review)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comments\": \"HR review completed\",\n  \"recommendation\": \"PROMOTION\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/{{form_id}}/hr-review",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "{{form_id}}", "hr-review"]
+            }
+          }
+        },
+        {
+          "name": "GM Approval (gm-approval)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\",\n  \"comments\": \"Approved by GM\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/evaluation-forms/{{form_id}}/gm-approval",
+              "host": ["{{base_url}}"],
+              "path": ["evaluation-forms", "{{form_id}}", "gm-approval"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Employee Goals (goals:manage)",
+      "item": [
+        {
+          "name": "Get Form Goals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/employee-goals/forms/{{form_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["employee-goals", "forms", "{{form_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Goal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Improve productivity\",\n  \"description\": \"Increase output by 20%\",\n  \"targetDate\": \"2026-06-30\",\n  \"weight\": 1.5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/employee-goals/forms/{{form_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["employee-goals", "forms", "{{form_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Goal",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selfAchievement\": 80,\n  \"selfComments\": \"Making good progress\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/employee-goals/{{goal_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["employee-goals", "{{goal_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Goal",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/employee-goals/{{goal_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["employee-goals", "{{goal_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Peer Evaluations (peer:submit)",
+      "item": [
+        {
+          "name": "Get Peer Evaluations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/peer-evaluations/forms/{{form_id}}/peers",
+              "host": ["{{base_url}}"],
+              "path": ["peer-evaluations", "forms", "{{form_id}}", "peers"]
+            }
+          }
+        },
+        {
+          "name": "Submit Peer Evaluation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": \"VERY_GOOD\",\n  \"strengths\": \"Great team player\",\n  \"improvements\": \"Could improve communication\",\n  \"comments\": \"Overall excellent colleague\",\n  \"isAnonymous\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/peer-evaluations/forms/{{form_id}}/peer",
+              "host": ["{{base_url}}"],
+              "path": ["peer-evaluations", "forms", "{{form_id}}", "peer"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
