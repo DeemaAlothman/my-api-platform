@@ -32,27 +32,51 @@ docker compose up -d --build
 
 يجب تشغيل أوامر الـ Seed لكل خدمة لإنشاء البيانات الأولية بالترتيب الصحيح.
 
+
 ### 1. خدمة المستخدمين (Users Service) - **الأهم**
 هذا الأمر ينشئ:
+- الجداول في قاعدة البيانات (Migrations).
 - جميع الصلاحيات (Permissions) بنظام UUID الموحد.
 - الأدوار الأساسية (Super Admin, HR Manager).
 - المستخدم المدير (admin / password123).
 
 ```bash
+# تطبيق التغييرات على قاعدة البيانات أولاً
+docker compose exec users npx prisma migrate deploy
+
+# إدخال البيانات
 docker compose exec users npm run prisma:seed
 ```
+
 
 ### 2. خدمة الحضور (Attendance Service)
 هذا الأمر ينشئ جداول العمل الافتراضية.
 
 ```bash
+# إنشاء الجداول
+docker compose exec attendance npx prisma migrate deploy
+
+# إدخال البيانات
 docker compose exec attendance npm run prisma:seed
 ```
 
-### 3. خدمة التقييم (Evaluation Service)
+
+### 3. خدمة المصادقة (Auth Service)
+هذا الأمر ينشئ جداول الرموز (Refresh Tokens) ويحدث المخطط.
+
+```bash
+# إنشاء الجداول
+docker compose exec auth npx prisma migrate deploy
+```
+
+### 4. خدمة التقييم (Evaluation Service)
 هذا الأمر ينشئ معايير التقييم ودورات التقييم لعام 2026.
 
 ```bash
+# إنشاء الجداول
+docker compose exec evaluation npx prisma migrate deploy
+
+# إدخال البيانات
 docker compose exec evaluation npm run prisma:seed
 ```
 

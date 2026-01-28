@@ -19,6 +19,8 @@ model User {
   updatedAt DateTime @updatedAt
 
   refreshTokens RefreshToken[]
+
+  @@map("users")
 }
 
 model RefreshToken {
@@ -31,6 +33,8 @@ model RefreshToken {
   expiresAt DateTime
 
   createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
 }
 
 enum UserStatus {
