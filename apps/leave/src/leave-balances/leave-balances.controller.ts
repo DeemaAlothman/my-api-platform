@@ -20,7 +20,15 @@ import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @UseInterceptors(EmployeeInterceptor)
 export class LeaveBalancesController {
-  constructor(private readonly leaveBalancesService: LeaveBalancesService) {}
+  constructor(private readonly leaveBalancesService: LeaveBalancesService) { }
+
+  // الحصول على جميع الأرصدة (HR/Admin)
+  @Get()
+  @Permission('leave_balances:read_all')
+  findAll(@Query('year') year?: string) {
+    const yearNum = year ? parseInt(year, 10) : undefined;
+    return this.leaveBalancesService.findAll(yearNum);
+  }
 
   // الحصول على رصيد الموظف الحالي
   @Get('my')

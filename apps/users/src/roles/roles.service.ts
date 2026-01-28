@@ -5,7 +5,7 @@ import { UpdateRolePermissionsDto } from './dto/update-role-permissions.dto';
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async list() {
     const roles = await this.prisma.role.findMany({
@@ -87,12 +87,12 @@ export class RolesService {
         description: dto.description,
         permissions: dto.permissionIds
           ? {
-              create: dto.permissionIds.map((permissionId) => ({
-                permission: {
-                  connect: { id: permissionId },
-                },
-              })),
-            }
+            create: dto.permissionIds.map((permissionId) => ({
+              permission: {
+                connect: { id: permissionId },
+              },
+            })),
+          }
           : undefined,
       },
       include: {
@@ -142,5 +142,32 @@ export class RolesService {
     });
 
     return permissions;
+  }
+
+
+  async remove(id: string) {
+    // التحقق من وجود الدور
+    await this.findOne(id);
+
+    // التحقق من عدم وجود مستخدمين مرتبطين بهذا الدور
+    const usersCount = await this.prisma.userRole.count({
+      where: { roleId: id },
+    });
+
+    if (usersCount > 0) {
+      throw new ConflictException({
+        code: 'ROLE_IN_USE',
+        message: 'Cannot delete role assigned to users',
+        details: [{ count: usersCount }],
+      });
+    }
+
+    // حذف ناعم (Soft Delete)
+    await this.prisma.role.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
+
+    return { message: 'Role deleted successfully' };
   }
 }

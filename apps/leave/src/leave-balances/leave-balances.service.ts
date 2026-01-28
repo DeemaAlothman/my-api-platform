@@ -3,7 +3,23 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class LeaveBalancesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
+
+  // الحصول على جميع الأرصدة (للمسؤولين)
+  async findAll(year?: number) {
+    const currentYear = year || new Date().getFullYear();
+
+    const balances = await this.prisma.leaveBalance.findMany({
+      where: {
+        year: currentYear,
+      },
+      include: {
+        leaveType: true,
+      },
+    });
+
+    return balances;
+  }
 
   // الحصول على رصيد موظف معين
   async findByEmployee(employeeId: string, year?: number) {
