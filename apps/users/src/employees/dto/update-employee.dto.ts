@@ -4,6 +4,7 @@ import { Gender, MaritalStatus, ContractType } from './create-employee.dto';
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
+  ON_LEAVE = 'ON_LEAVE',
   SUSPENDED = 'SUSPENDED',
   TERMINATED = 'TERMINATED',
 }

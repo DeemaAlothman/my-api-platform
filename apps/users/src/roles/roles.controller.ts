@@ -40,7 +40,7 @@ export class RolesController {
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permission('roles:write')
+  @Permission('roles:delete')
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   remove(@Param('id') id: string) {

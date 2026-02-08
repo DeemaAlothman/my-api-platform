@@ -13,9 +13,29 @@ export class DepartmentsService {
     const departments = await this.prisma.department.findMany({
       where: { deletedAt: null },
       include: {
+        manager: {
+          select: {
+            id: true,
+            employeeNumber: true,
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
+          },
+        },
         children: {
           where: { deletedAt: null },
           include: {
+            manager: {
+              select: {
+                id: true,
+                employeeNumber: true,
+                firstNameAr: true,
+                lastNameAr: true,
+                firstNameEn: true,
+                lastNameEn: true,
+              },
+            },
             children: {
               where: { deletedAt: null },
             },
@@ -69,6 +89,16 @@ export class DepartmentsService {
               nameEn: true,
             },
           },
+          manager: {
+            select: {
+              id: true,
+              employeeNumber: true,
+              firstNameAr: true,
+              lastNameAr: true,
+              firstNameEn: true,
+              lastNameEn: true,
+            },
+          },
           _count: {
             select: {
               children: true,
@@ -104,6 +134,16 @@ export class DepartmentsService {
             code: true,
             nameAr: true,
             nameEn: true,
+          },
+        },
+        manager: {
+          select: {
+            id: true,
+            employeeNumber: true,
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
           },
         },
         children: {
@@ -192,6 +232,16 @@ export class DepartmentsService {
             nameEn: true,
           },
         },
+        manager: {
+          select: {
+            id: true,
+            employeeNumber: true,
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
+          },
+        },
       },
     });
 
@@ -269,6 +319,16 @@ export class DepartmentsService {
             code: true,
             nameAr: true,
             nameEn: true,
+          },
+        },
+        manager: {
+          select: {
+            id: true,
+            employeeNumber: true,
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
           },
         },
       },

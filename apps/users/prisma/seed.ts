@@ -31,6 +31,7 @@ async function main() {
     { name: 'roles:read', displayName: 'قراءة الأدوار', module: 'roles' },
     { name: 'roles:create', displayName: 'إنشاء أدوار', module: 'roles' },
     { name: 'roles:update', displayName: 'تعديل الأدوار', module: 'roles' },
+    { name: 'roles:delete', displayName: 'حذف الأدوار', module: 'roles' },
 
     // Leave Types
     { name: 'leave_types:read', displayName: 'عرض أنواع الإجازات', module: 'leaves' },
