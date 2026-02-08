@@ -75,6 +75,26 @@ export class EmployeesService {
               lastNameAr: true,
             },
           },
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              status: true,
+              roles: {
+                select: {
+                  role: {
+                    select: {
+                      id: true,
+                      name: true,
+                      displayNameAr: true,
+                      displayNameEn: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       }),
       this.prisma.employee.count({ where }),
@@ -115,6 +135,18 @@ export class EmployeesService {
             username: true,
             email: true,
             status: true,
+            roles: {
+              select: {
+                role: {
+                  select: {
+                    id: true,
+                    name: true,
+                    displayNameAr: true,
+                    displayNameEn: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -174,6 +206,18 @@ export class EmployeesService {
             username: true,
             email: true,
             status: true,
+            roles: {
+              select: {
+                role: {
+                  select: {
+                    id: true,
+                    name: true,
+                    displayNameAr: true,
+                    displayNameEn: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -455,6 +499,18 @@ export class EmployeesService {
             username: true,
             email: true,
             status: true,
+            roles: {
+              select: {
+                role: {
+                  select: {
+                    id: true,
+                    name: true,
+                    displayNameAr: true,
+                    displayNameEn: true,
+                  },
+                },
+              },
+            },
           },
         },
         department: true,

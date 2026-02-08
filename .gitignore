@@ -26,3 +26,4 @@ npm-debug.log*
 
 # Docker volumes (local data)
 pgdata/
+apps/*/temp-dist/

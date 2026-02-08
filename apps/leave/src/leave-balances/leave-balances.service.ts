@@ -5,6 +5,25 @@ import { PrismaService } from '../prisma/prisma.service';
 export class LeaveBalancesService {
   constructor(private prisma: PrismaService) { }
 
+  private async getEmployeeNames(employeeIds: string[]) {
+    if (employeeIds.length === 0) return new Map<string, any>();
+
+    const employees = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "employeeNumber", "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn"
+       FROM users.employees
+       WHERE id::text = ANY($1::text[])`,
+      employeeIds,
+    )) as Array<{ id: string; employeeNumber: string; firstNameAr: string; lastNameAr: string; firstNameEn: string | null; lastNameEn: string | null }>;
+
+    return new Map(employees.map(e => [e.id, {
+      employeeNumber: e.employeeNumber,
+      firstNameAr: e.firstNameAr,
+      lastNameAr: e.lastNameAr,
+      firstNameEn: e.firstNameEn,
+      lastNameEn: e.lastNameEn,
+    }]));
+  }
+
   // الحصول على جميع الأرصدة (للمسؤولين)
   async findAll(year?: number) {
     const currentYear = year || new Date().getFullYear();
@@ -18,7 +37,13 @@ export class LeaveBalancesService {
       },
     });
 
-    return balances;
+    const employeeIds = [...new Set(balances.map((b: any) => b.employeeId))] as string[];
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    return balances.map((balance: any) => ({
+      ...balance,
+      employee: employeeMap.get(balance.employeeId) || null,
+    }));
   }
 
   // الحصول على رصيد موظف معين
@@ -35,7 +60,12 @@ export class LeaveBalancesService {
       },
     });
 
-    return balances;
+    const employeeMap = await this.getEmployeeNames([employeeId]);
+
+    return balances.map((balance: any) => ({
+      ...balance,
+      employee: employeeMap.get(balance.employeeId) || null,
+    }));
   }
 
   // الحصول على رصيد محدد

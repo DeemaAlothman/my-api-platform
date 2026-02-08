@@ -9,6 +9,25 @@ import { UpdateAttendanceRecordDto } from './dto/update-attendance-record.dto';
 export class AttendanceRecordsService {
   constructor(private prisma: PrismaService) {}
 
+  private async getEmployeeNames(employeeIds: string[]) {
+    if (employeeIds.length === 0) return new Map<string, any>();
+
+    const employees = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "employeeNumber", "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn"
+       FROM users.employees
+       WHERE id::text = ANY($1::text[])`,
+      employeeIds,
+    )) as Array<{ id: string; employeeNumber: string; firstNameAr: string; lastNameAr: string; firstNameEn: string | null; lastNameEn: string | null }>;
+
+    return new Map(employees.map(e => [e.id, {
+      employeeNumber: e.employeeNumber,
+      firstNameAr: e.firstNameAr,
+      lastNameAr: e.lastNameAr,
+      firstNameEn: e.firstNameEn,
+      lastNameEn: e.lastNameEn,
+    }]));
+  }
+
   async checkIn(employeeId: string, dto: CheckInDto) {
     const now = new Date();
     const dateObj = dto.date ? new Date(dto.date) : now;
@@ -80,12 +99,14 @@ export class AttendanceRecordsService {
     }
 
     const clockOutTime = dto.checkOutTime ? new Date(dto.checkOutTime) : now;
+    const workedMinutes = Math.max(0, Math.round((clockOutTime.getTime() - record.clockInTime.getTime()) / 60000));
 
     return this.prisma.attendanceRecord.update({
       where: { id: record.id },
       data: {
         clockOutTime,
         clockOutLocation: dto.location,
+        workedMinutes,
       },
     });
   }
@@ -134,10 +155,18 @@ export class AttendanceRecordsService {
       where.status = filters.status;
     }
 
-    return this.prisma.attendanceRecord.findMany({
+    const records = await this.prisma.attendanceRecord.findMany({
       where,
       orderBy: { date: 'desc' },
     });
+
+    const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    return records.map((record: any) => ({
+      ...record,
+      employee: employeeMap.get(record.employeeId) || null,
+    }));
   }
 
   async findOne(id: string) {
@@ -153,7 +182,12 @@ export class AttendanceRecordsService {
       });
     }
 
-    return record;
+    const employeeMap = await this.getEmployeeNames([record.employeeId]);
+
+    return {
+      ...record,
+      employee: employeeMap.get(record.employeeId) || null,
+    };
   }
 
   async update(id: string, dto: UpdateAttendanceRecordDto) {

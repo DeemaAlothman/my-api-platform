@@ -7,6 +7,25 @@ import { UpdateAttendanceAlertDto } from './dto/update-attendance-alert.dto';
 export class AttendanceAlertsService {
   constructor(private prisma: PrismaService) {}
 
+  private async getEmployeeNames(employeeIds: string[]) {
+    if (employeeIds.length === 0) return new Map<string, any>();
+
+    const employees = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "employeeNumber", "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn"
+       FROM users.employees
+       WHERE id::text = ANY($1::text[])`,
+      employeeIds,
+    )) as Array<{ id: string; employeeNumber: string; firstNameAr: string; lastNameAr: string; firstNameEn: string | null; lastNameEn: string | null }>;
+
+    return new Map(employees.map(e => [e.id, {
+      employeeNumber: e.employeeNumber,
+      firstNameAr: e.firstNameAr,
+      lastNameAr: e.lastNameAr,
+      firstNameEn: e.firstNameEn,
+      lastNameEn: e.lastNameEn,
+    }]));
+  }
+
   async create(dto: CreateAttendanceAlertDto) {
     const data: any = {
       employeeId: dto.employeeId,
@@ -52,10 +71,18 @@ export class AttendanceAlertsService {
       if (filters.dateTo) where.date.lte = new Date(filters.dateTo);
     }
 
-    return this.prisma.attendanceAlert.findMany({
+    const alerts = await this.prisma.attendanceAlert.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     });
+
+    const employeeIds = [...new Set(alerts.map((a: any) => a.employeeId))] as string[];
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    return alerts.map((alert: any) => ({
+      ...alert,
+      employee: employeeMap.get(alert.employeeId) || null,
+    }));
   }
 
   async findOne(id: string) {
@@ -71,7 +98,12 @@ export class AttendanceAlertsService {
       });
     }
 
-    return alert;
+    const employeeMap = await this.getEmployeeNames([alert.employeeId]);
+
+    return {
+      ...alert,
+      employee: employeeMap.get(alert.employeeId) || null,
+    };
   }
 
   async update(id: string, dto: UpdateAttendanceAlertDto) {
