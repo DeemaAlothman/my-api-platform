@@ -34,7 +34,7 @@ COPY --from=builder /app/apps/users/package*.json ./
 COPY --from=builder /app/apps/users/prisma ./prisma
 
 # Install production dependencies only
-RUN npm install --omit=dev
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Generate Prisma Client in production stage
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
