@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private accessSecret = process.env.JWT_ACCESS_SECRET || 'dev_access_secret_change_me';
   private refreshSecret = process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret_change_me';
@@ -56,7 +56,7 @@ export class AuthService {
           'users:read', 'users:create', 'users:update', 'users:delete', 'users:assign_roles',
           'employees:read', 'employees:create', 'employees:update', 'employees:delete',
           'departments:read', 'departments:create', 'departments:update', 'departments:delete',
-          'roles:read', 'roles:create', 'roles:update',
+          'roles:read', 'roles:create', 'roles:update', 'roles:delete',
           'leave_types:read', 'leave_types:create', 'leave_types:update', 'leave_types:delete',
           'leave_requests:read', 'leave_requests:read_all', 'leave_requests:create', 'leave_requests:update',
           'leave_requests:submit', 'leave_requests:delete', 'leave_requests:approve_manager',
