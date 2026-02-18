@@ -76,6 +76,43 @@ export class WorkSchedulesService {
     });
   }
 
+  async getActiveScheduleForEmployee(employeeId: string, date: Date) {
+    const employeeSchedule = await this.prisma.employeeSchedule.findFirst({
+      where: {
+        employeeId,
+        isActive: true,
+        effectiveFrom: { lte: date },
+        OR: [
+          { effectiveTo: null },
+          { effectiveTo: { gte: date } },
+        ],
+      },
+      include: { schedule: true },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+
+    if (!employeeSchedule) return null;
+
+    // Check for custom schedule override (e.g., Ramadan)
+    const customSchedule = await this.prisma.customWorkSchedule.findFirst({
+      where: {
+        scheduleId: employeeSchedule.scheduleId,
+        isActive: true,
+        startDate: { lte: date },
+        endDate: { gte: date },
+      },
+    });
+
+    const schedule = employeeSchedule.schedule;
+    return {
+      ...schedule,
+      workStartTime: customSchedule?.workStartTime ?? schedule.workStartTime,
+      workEndTime: customSchedule?.workEndTime ?? schedule.workEndTime,
+      breakStartTime: customSchedule?.breakStartTime ?? schedule.breakStartTime,
+      breakEndTime: customSchedule?.breakEndTime ?? schedule.breakEndTime,
+    };
+  }
+
   async remove(id: string) {
     await this.findOne(id);
 

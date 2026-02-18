@@ -197,6 +197,36 @@ export class AttendanceAlertsProxyController {
   }
 }
 
+@Controller('attendance-justifications')
+export class AttendanceJustificationsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+}
+
+@Controller('employee-schedules')
+export class EmployeeSchedulesProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+}
+
 @Controller('evaluation-periods')
 export class EvaluationPeriodsProxyController {
   constructor(private readonly proxy: ProxyService) {}

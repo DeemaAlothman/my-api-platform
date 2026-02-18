@@ -88,6 +88,19 @@ async function main() {
     { name: 'attendance.alerts.delete', displayName: 'حذف تنبيه حضور', module: 'attendance' },
     { name: 'attendance.alerts.resolve', displayName: 'حل تنبيه حضور', module: 'attendance' },
 
+    // Employee Schedules
+    { name: 'attendance.employee-schedules.read', displayName: 'عرض جداول الموظفين', module: 'attendance' },
+    { name: 'attendance.employee-schedules.create', displayName: 'إنشاء جدول موظف', module: 'attendance' },
+    { name: 'attendance.employee-schedules.update', displayName: 'تعديل جدول موظف', module: 'attendance' },
+    { name: 'attendance.employee-schedules.delete', displayName: 'حذف جدول موظف', module: 'attendance' },
+
+    // Attendance Justifications
+    { name: 'attendance.justifications.read', displayName: 'عرض تبريرات الحضور', module: 'attendance' },
+    { name: 'attendance.justifications.read-own', displayName: 'عرض تبريراتي الخاصة', module: 'attendance' },
+    { name: 'attendance.justifications.create-own', displayName: 'تقديم تبرير حضور', module: 'attendance' },
+    { name: 'attendance.justifications.manager-review', displayName: 'مراجعة المدير للتبريرات', module: 'attendance' },
+    { name: 'attendance.justifications.hr-review', displayName: 'مراجعة HR للتبريرات', module: 'attendance' },
+
     // Evaluation - Periods
     { name: 'evaluation:periods:read', displayName: 'عرض دورات التقييم', module: 'evaluation' },
     { name: 'evaluation:periods:create', displayName: 'إنشاء دورة تقييم', module: 'evaluation' },

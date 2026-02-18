@@ -59,6 +59,18 @@ export class UsersService {
           email: true,
           fullName: true,
           status: true,
+          roles: {
+            select: {
+              role: {
+                select: {
+                  id: true,
+                  name: true,
+                  displayNameAr: true,
+                  displayNameEn: true,
+                },
+              },
+            },
+          },
           createdAt: true,
           updatedAt: true,
         },
@@ -89,6 +101,18 @@ export class UsersService {
         email: true,
         fullName: true,
         status: true,
+        roles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+                displayNameAr: true,
+                displayNameEn: true,
+              },
+            },
+          },
+        },
         createdAt: true,
         updatedAt: true,
       },
@@ -155,6 +179,18 @@ export class UsersService {
         email: true,
         fullName: true,
         status: true,
+        roles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+                displayNameAr: true,
+                displayNameEn: true,
+              },
+            },
+          },
+        },
         createdAt: true,
         updatedAt: true,
       },
@@ -195,6 +231,18 @@ export class UsersService {
         email: true,
         fullName: true,
         status: true,
+        roles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+                displayNameAr: true,
+                displayNameEn: true,
+              },
+            },
+          },
+        },
         createdAt: true,
         updatedAt: true,
       },

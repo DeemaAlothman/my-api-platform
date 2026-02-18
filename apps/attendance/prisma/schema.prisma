@@ -144,6 +144,11 @@ model AttendanceRecord {
   approvalNotes  String?
 
   notes     String?
+
+  // Deduction (يُفعَّل عند رفض التبرير أو انتهاء المهلة)
+  deductionApplied Boolean @default(false)
+  deductionMinutes Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -188,11 +193,63 @@ model AttendanceAlert {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  justification AttendanceJustification?
+
   @@index([employeeId])
   @@index([date])
   @@index([status])
   @@index([alertType])
   @@map("attendance_alerts")
+  @@schema("attendance")
+}
+
+/// Attendance Justifications (تبريرات الحضور)
+model AttendanceJustification {
+  id                 String    @id @default(uuid())
+  employeeId         String
+  alertId            String    @unique
+  attendanceRecordId String?
+
+  // نوع التبرير
+  justificationType  String
+  // SICK | EMERGENCY | OFFICIAL_MISSION | TRANSPORTATION | OTHER
+
+  descriptionAr      String
+  descriptionEn      String?
+  attachmentUrl      String?
+
+  // المهلة = alert.createdAt + 24h
+  deadline           DateTime
+
+  // حالة التبرير
+  status             String    @default("PENDING_MANAGER")
+  // PENDING_MANAGER | MANAGER_APPROVED | MANAGER_REJECTED
+  // PENDING_HR | HR_APPROVED | HR_REJECTED | AUTO_REJECTED
+
+  // مراجعة المدير
+  managerReviewedBy  String?
+  managerReviewedAt  DateTime?
+  managerNotes       String?
+  managerNotesAr     String?
+
+  // مراجعة HR
+  hrReviewedBy       String?
+  hrReviewedAt       DateTime?
+  hrNotes            String?
+  hrNotesAr          String?
+
+  // الخصم
+  deductionApplied   Boolean   @default(false)
+  deductionMinutes   Int?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  alert              AttendanceAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("attendance_justifications")
   @@schema("attendance")
 }
 
