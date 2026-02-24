@@ -15,7 +15,13 @@ export class AuthService {
   private refreshTtlDays = parseInt(process.env.REFRESH_TOKEN_TTL_DAYS || '30', 10);
 
   async login(username: string, password: string) {
-    const user = await this.prisma.user.findUnique({ where: { username } });
+    const rows = await this.prisma.$queryRaw<any[]>`
+      SELECT id, username, email, "fullName", password
+      FROM users.users
+      WHERE username = ${username}
+        AND "deletedAt" IS NULL
+    `;
+    const user = rows[0] ?? null;
 
     if (!user) {
       throw new UnauthorizedException({
