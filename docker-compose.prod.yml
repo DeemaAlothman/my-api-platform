@@ -18,9 +18,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # لا نفتح port للخارج في Production
-    # ports:
-    #   - "5432:5432"
 
   auth:
     build:
@@ -56,9 +53,6 @@ services:
         condition: service_healthy
     networks:
       - app-network
-    # لا نفتح port للخارج
-    # ports:
-    #   - "4002:4002"
 
   leave:
     build:
@@ -108,6 +102,22 @@ services:
     networks:
       - app-network
 
+  requests:
+    build:
+      context: .
+      dockerfile: apps/requests/Dockerfile
+    container_name: myapiplatform-requests
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=requests
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -120,6 +130,7 @@ services:
       LEAVE_SERVICE_URL: http://leave:4003
       ATTENDANCE_SERVICE_URL: http://attendance:4004
       EVALUATION_SERVICE_URL: http://evaluation:4005
+      REQUESTS_SERVICE_URL: http://requests:4006
       NODE_ENV: production
       PORT: 8000
     ports:
@@ -127,6 +138,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      auth:
+        condition: service_started
+      users:
+        condition: service_started
+      leave:
+        condition: service_started
+      attendance:
+        condition: service_started
+      evaluation:
+        condition: service_started
+      requests:
+        condition: service_started
     networks:
       - app-network
 

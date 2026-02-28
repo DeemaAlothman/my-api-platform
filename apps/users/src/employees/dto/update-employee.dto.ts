@@ -1,4 +1,5 @@
-import { IsEmail, IsEnum, IsOptional, IsString, IsDateString, IsUUID } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, IsDateString, IsUUID, IsNumber, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Gender, MaritalStatus, ContractType } from './create-employee.dto';
 
 export enum EmploymentStatus {
@@ -68,6 +69,10 @@ export class UpdateEmployeeDto {
 
   @IsOptional()
   @IsUUID()
+  jobGradeId?: string;
+
+  @IsOptional()
+  @IsUUID()
   managerId?: string;
 
   @IsOptional()
@@ -85,4 +90,14 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   fingerprintId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Basic salary must be a number' })
+  @Min(0)
+  basicSalary?: number;
+
+  @IsOptional()
+  @IsString()
+  salaryCurrency?: string;
 }

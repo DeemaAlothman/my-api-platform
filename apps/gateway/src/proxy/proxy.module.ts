@@ -8,6 +8,8 @@ import {
   DepartmentsProxyController,
   RolesProxyController,
   PermissionsProxyController,
+  JobTitlesProxyController,
+  JobGradesProxyController,
   LeaveRequestsProxyController,
   LeaveBalancesProxyController,
   LeaveTypesProxyController,
@@ -22,6 +24,8 @@ import {
   EvaluationFormsProxyController,
   PeerEvaluationsProxyController,
   EmployeeGoalsProxyController,
+  RequestsProxyController,
+  AttendanceReportsProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -33,6 +37,8 @@ import {
     DepartmentsProxyController,
     RolesProxyController,
     PermissionsProxyController,
+    JobTitlesProxyController,
+    JobGradesProxyController,
     LeaveRequestsProxyController,
     LeaveBalancesProxyController,
     LeaveTypesProxyController,
@@ -47,6 +53,8 @@ import {
     EvaluationFormsProxyController,
     PeerEvaluationsProxyController,
     EmployeeGoalsProxyController,
+    RequestsProxyController,
+    AttendanceReportsProxyController,
   ],
   providers: [ProxyService],
 })

@@ -1,0 +1,744 @@
+{
+  "info": {
+    "_postman_id": "wso-hr-platform-2026",
+    "name": "WSO HR Platform - Full API",
+    "description": "Complete API collection for WSO HR Platform. Set baseUrl variable before using.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000/api/v1", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "employeeId", "value": "", "type": "string" },
+    { "key": "requestId", "value": "", "type": "string" },
+    { "key": "jobGradeId", "value": "", "type": "string" },
+    { "key": "jobTitleId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "01 - Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "var json = pm.response.json();",
+                "if (json.success && json.data.accessToken) {",
+                "  pm.collectionVariables.set('token', json.data.accessToken);",
+                "  console.log('Token saved successfully');",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/refresh", "host": ["{{baseUrl}}"], "path": ["auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Departments (incl. Org Chart)",
+      "item": [
+        {
+          "name": "List Departments",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/departments?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["departments"], "query": [{"key": "page", "value": "1"}, {"key": "limit", "value": "20"}] }
+          }
+        },
+        {
+          "name": "Org Chart Tree (Unlimited Depth) [UPDATED]",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/departments/tree", "host": ["{{baseUrl}}"], "path": ["departments", "tree"] }
+          }
+        },
+        {
+          "name": "Create Department",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"code\": \"IT\",\n  \"nameAr\": \"قسم تقنية المعلومات\",\n  \"nameEn\": \"Information Technology\",\n  \"parentId\": null\n}" },
+            "url": { "raw": "{{baseUrl}}/departments", "host": ["{{baseUrl}}"], "path": ["departments"] }
+          }
+        },
+        {
+          "name": "Get Department",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/departments/:id", "host": ["{{baseUrl}}"], "path": ["departments", ":id"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "Update Department",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nameAr\": \"قسم جديد\"\n}" },
+            "url": { "raw": "{{baseUrl}}/departments/:id", "host": ["{{baseUrl}}"], "path": ["departments", ":id"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "Delete Department",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/departments/:id", "host": ["{{baseUrl}}"], "path": ["departments", ":id"], "variable": [{"key": "id", "value": ""}] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Job Grades [NEW]",
+      "item": [
+        {
+          "name": "List Job Grades",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/job-grades?page=1&limit=20&isActive=true", "host": ["{{baseUrl}}"], "path": ["job-grades"], "query": [{"key": "page", "value": "1"}, {"key": "limit", "value": "20"}, {"key": "isActive", "value": "true"}] }
+          }
+        },
+        {
+          "name": "Create Job Grade",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success) { pm.collectionVariables.set('jobGradeId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"code\": \"G3\",\n  \"nameAr\": \"الدرجة الثالثة\",\n  \"nameEn\": \"Grade 3\",\n  \"description\": \"درجة للموظفين المتوسطين\",\n  \"color\": \"#3498db\",\n  \"minSalary\": 5000,\n  \"maxSalary\": 8000,\n  \"isActive\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/job-grades", "host": ["{{baseUrl}}"], "path": ["job-grades"] }
+          }
+        },
+        {
+          "name": "Get Job Grade",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/job-grades/{{jobGradeId}}", "host": ["{{baseUrl}}"], "path": ["job-grades", "{{jobGradeId}}"] }
+          }
+        },
+        {
+          "name": "Update Job Grade",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"وصف محدث للدرجة\",\n  \"maxSalary\": 9000,\n  \"isActive\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/job-grades/{{jobGradeId}}", "host": ["{{baseUrl}}"], "path": ["job-grades", "{{jobGradeId}}"] }
+          }
+        },
+        {
+          "name": "Delete Job Grade",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/job-grades/{{jobGradeId}}", "host": ["{{baseUrl}}"], "path": ["job-grades", "{{jobGradeId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Job Titles [UPDATED: description + gradeId]",
+      "item": [
+        {
+          "name": "List Job Titles (with grade)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/job-titles?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["job-titles"], "query": [{"key": "page", "value": "1"}, {"key": "limit", "value": "20"}] }
+          }
+        },
+        {
+          "name": "Create Job Title",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success) { pm.collectionVariables.set('jobTitleId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"code\": \"DEV\",\n  \"nameAr\": \"مطور برمجيات\",\n  \"nameEn\": \"Software Developer\",\n  \"description\": \"مسؤول عن تطوير التطبيقات\",\n  \"gradeId\": \"{{jobGradeId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/job-titles", "host": ["{{baseUrl}}"], "path": ["job-titles"] }
+          }
+        },
+        {
+          "name": "Get Job Title (with grade details)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/job-titles/{{jobTitleId}}", "host": ["{{baseUrl}}"], "path": ["job-titles", "{{jobTitleId}}"] }
+          }
+        },
+        {
+          "name": "Update Job Title",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"وصف محدث\",\n  \"gradeId\": \"{{jobGradeId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/job-titles/{{jobTitleId}}", "host": ["{{baseUrl}}"], "path": ["job-titles", "{{jobTitleId}}"] }
+          }
+        },
+        {
+          "name": "Delete Job Title",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/job-titles/{{jobTitleId}}", "host": ["{{baseUrl}}"], "path": ["job-titles", "{{jobTitleId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Employees [UPDATED: basicSalary + jobGradeId]",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/employees?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["employees"], "query": [{"key": "page", "value": "1"}, {"key": "limit", "value": "20"}] }
+          }
+        },
+        {
+          "name": "Create Employee",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success) { pm.collectionVariables.set('employeeId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"firstNameAr\": \"محمد\",\n  \"lastNameAr\": \"أحمد\",\n  \"firstNameEn\": \"Mohammed\",\n  \"lastNameEn\": \"Ahmed\",\n  \"email\": \"m.ahmed@example.com\",\n  \"phone\": \"+966501234567\",\n  \"nationalId\": \"1234567890\",\n  \"departmentId\": \"\",\n  \"jobTitleId\": \"{{jobTitleId}}\",\n  \"jobGradeId\": \"{{jobGradeId}}\",\n  \"basicSalary\": 6000,\n  \"hireDate\": \"2026-01-01\"\n}" },
+            "url": { "raw": "{{baseUrl}}/employees", "host": ["{{baseUrl}}"], "path": ["employees"] }
+          }
+        },
+        {
+          "name": "Get Employee",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/employees/{{employeeId}}", "host": ["{{baseUrl}}"], "path": ["employees", "{{employeeId}}"] }
+          }
+        },
+        {
+          "name": "Update Employee",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"basicSalary\": 7000,\n  \"jobGradeId\": \"{{jobGradeId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/employees/{{employeeId}}", "host": ["{{baseUrl}}"], "path": ["employees", "{{employeeId}}"] }
+          }
+        },
+        {
+          "name": "Delete Employee",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/employees/{{employeeId}}", "host": ["{{baseUrl}}"], "path": ["employees", "{{employeeId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Users & Roles",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/users?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["users"] }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"newuser\",\n  \"email\": \"newuser@example.com\",\n  \"password\": \"Pass@1234\",\n  \"fullName\": \"مستخدم جديد\",\n  \"roles\": [\"employee\"]\n}" },
+            "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] }
+          }
+        },
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/roles", "host": ["{{baseUrl}}"], "path": ["roles"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Leave Management",
+      "item": [
+        {
+          "name": "List Leave Types",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/leave-types", "host": ["{{baseUrl}}"], "path": ["leave-types"] }
+          }
+        },
+        {
+          "name": "List Leave Requests",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/leave-requests?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["leave-requests"] }
+          }
+        },
+        {
+          "name": "Create Leave Request",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"leaveTypeId\": \"\",\n  \"startDate\": \"2026-03-01\",\n  \"endDate\": \"2026-03-03\",\n  \"reason\": \"إجازة سنوية\"\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-requests", "host": ["{{baseUrl}}"], "path": ["leave-requests"] }
+          }
+        },
+        {
+          "name": "Submit Leave Request",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/leave-requests/:id/submit", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "submit"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "Manager Approve Leave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"موافق\"\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-requests/:id/manager-approve", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "manager-approve"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "Manager Reject Leave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"سبب الرفض\"\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-requests/:id/manager-reject", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "manager-reject"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "HR Approve Leave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"اعتماد HR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-requests/:id/hr-approve", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "hr-approve"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "HR Reject Leave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"سبب رفض HR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-requests/:id/hr-reject", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "hr-reject"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "Leave Balances",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/leave-balances?employeeId={{employeeId}}", "host": ["{{baseUrl}}"], "path": ["leave-balances"] }
+          }
+        },
+        {
+          "name": "List Holidays",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/holidays", "host": ["{{baseUrl}}"], "path": ["holidays"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Attendance Records",
+      "item": [
+        {
+          "name": "Check In",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"date\": \"2026-02-28\",\n  \"checkInTime\": \"2026-02-28T08:00:00.000Z\",\n  \"notes\": \"حضور منتظم\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-records/check-in", "host": ["{{baseUrl}}"], "path": ["attendance-records", "check-in"] }
+          }
+        },
+        {
+          "name": "Check Out",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"date\": \"2026-02-28\",\n  \"checkOutTime\": \"2026-02-28T17:00:00.000Z\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-records/check-out", "host": ["{{baseUrl}}"], "path": ["attendance-records", "check-out"] }
+          }
+        },
+        {
+          "name": "My Attendance",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/attendance-records/my-attendance?dateFrom=2026-02-01&dateTo=2026-02-28", "host": ["{{baseUrl}}"], "path": ["attendance-records", "my-attendance"], "query": [{"key": "dateFrom", "value": "2026-02-01"}, {"key": "dateTo", "value": "2026-02-28"}] }
+          }
+        },
+        {
+          "name": "All Attendance Records (Admin)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/attendance-records?dateFrom=2026-02-01&dateTo=2026-02-28", "host": ["{{baseUrl}}"], "path": ["attendance-records"], "query": [{"key": "dateFrom", "value": "2026-02-01"}, {"key": "dateTo", "value": "2026-02-28"}] }
+          }
+        },
+        {
+          "name": "Create Attendance Record (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"date\": \"2026-02-28\",\n  \"clockInTime\": \"2026-02-28T08:00:00.000Z\",\n  \"clockOutTime\": \"2026-02-28T17:00:00.000Z\",\n  \"status\": \"PRESENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-records", "host": ["{{baseUrl}}"], "path": ["attendance-records"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 - Attendance Reports [NEW]",
+      "item": [
+        {
+          "name": "Daily Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendance-reports/daily?date=2026-02-28",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-reports", "daily"],
+              "query": [
+                {"key": "date", "value": "2026-02-28"},
+                {"key": "departmentId", "value": "", "disabled": true},
+                {"key": "employeeId", "value": "", "disabled": true}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Monthly Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendance-reports/monthly?year=2026&month=2",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-reports", "monthly"],
+              "query": [
+                {"key": "year", "value": "2026"},
+                {"key": "month", "value": "2"},
+                {"key": "employeeId", "value": "", "disabled": true},
+                {"key": "departmentId", "value": "", "disabled": true}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Summary Report (Period)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendance-reports/summary?dateFrom=2026-02-01&dateTo=2026-02-28",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-reports", "summary"],
+              "query": [
+                {"key": "dateFrom", "value": "2026-02-01"},
+                {"key": "dateTo", "value": "2026-02-28"},
+                {"key": "employeeId", "value": "", "disabled": true},
+                {"key": "departmentId", "value": "", "disabled": true}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Breaks Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/attendance-reports/breaks?dateFrom=2026-02-01&dateTo=2026-02-28",
+              "host": ["{{baseUrl}}"],
+              "path": ["attendance-reports", "breaks"],
+              "query": [
+                {"key": "dateFrom", "value": "2026-02-01"},
+                {"key": "dateTo", "value": "2026-02-28"},
+                {"key": "employeeId", "value": "", "disabled": true},
+                {"key": "departmentId", "value": "", "disabled": true}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 - Work Schedules",
+      "item": [
+        {
+          "name": "List Work Schedules",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/work-schedules", "host": ["{{baseUrl}}"], "path": ["work-schedules"] }
+          }
+        },
+        {
+          "name": "Create Work Schedule",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"code\": \"STANDARD\",\n  \"nameAr\": \"الدوام الرسمي\",\n  \"nameEn\": \"Standard Schedule\",\n  \"workStartTime\": \"08:00\",\n  \"workEndTime\": \"17:00\",\n  \"breakStartTime\": \"12:00\",\n  \"breakEndTime\": \"13:00\",\n  \"workDays\": \"[0,1,2,3,4]\",\n  \"lateToleranceMin\": 15,\n  \"earlyLeaveToleranceMin\": 15,\n  \"allowOvertime\": false,\n  \"isDefault\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/work-schedules", "host": ["{{baseUrl}}"], "path": ["work-schedules"] }
+          }
+        },
+        {
+          "name": "List Employee Schedules",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/employee-schedules?employeeId={{employeeId}}", "host": ["{{baseUrl}}"], "path": ["employee-schedules"] }
+          }
+        },
+        {
+          "name": "Assign Schedule to Employee",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"scheduleId\": \"\",\n  \"effectiveFrom\": \"2026-01-01\"\n}" },
+            "url": { "raw": "{{baseUrl}}/employee-schedules", "host": ["{{baseUrl}}"], "path": ["employee-schedules"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 - Attendance Alerts & Justifications",
+      "item": [
+        {
+          "name": "List Attendance Alerts",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/attendance-alerts?page=1&limit=20&status=OPEN", "host": ["{{baseUrl}}"], "path": ["attendance-alerts"] }
+          }
+        },
+        {
+          "name": "List Attendance Justifications",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/attendance-justifications?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["attendance-justifications"] }
+          }
+        },
+        {
+          "name": "Create Justification",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"alertId\": \"\",\n  \"justificationType\": \"SICK\",\n  \"descriptionAr\": \"مريض\",\n  \"descriptionEn\": \"Sick leave\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-justifications", "host": ["{{baseUrl}}"], "path": ["attendance-justifications"] }
+          }
+        },
+        {
+          "name": "Manager Review Justification",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"approved\": true,\n  \"notes\": \"مقبول\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-justifications/:id/manager-review", "host": ["{{baseUrl}}"], "path": ["attendance-justifications", ":id", "manager-review"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "HR Review Justification",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"approved\": true,\n  \"notes\": \"اعتماد HR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-justifications/:id/hr-review", "host": ["{{baseUrl}}"], "path": ["attendance-justifications", ":id", "hr-review"], "variable": [{"key": "id", "value": ""}] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 - Administrative Requests [NEW]",
+      "item": [
+        {
+          "name": "List All Requests (Admin/HR)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/requests?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["requests"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "status", "value": "", "disabled": true},
+                {"key": "type", "value": "", "disabled": true},
+                {"key": "employeeId", "value": "", "disabled": true}
+              ]
+            }
+          }
+        },
+        {
+          "name": "My Requests (Employee)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/requests/my?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["requests", "my"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"},
+                {"key": "status", "value": "", "disabled": true}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Request Details",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/requests/{{requestId}}", "host": ["{{baseUrl}}"], "path": ["requests", "{{requestId}}"] }
+          }
+        },
+        {
+          "name": "Create Request (DRAFT)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success) { pm.collectionVariables.set('requestId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"PERMISSION\",\n  \"reason\": \"حاجة عائلية طارئة\",\n  \"notes\": \"أحتاج ليوم إجازة طارئة\",\n  \"attachmentUrl\": null,\n  \"details\": {\n    \"fromDate\": \"2026-03-01\",\n    \"toDate\": \"2026-03-01\"\n  }\n}" },
+            "url": { "raw": "{{baseUrl}}/requests", "host": ["{{baseUrl}}"], "path": ["requests"] }
+          }
+        },
+        {
+          "name": "Submit Request (DRAFT → PENDING_MANAGER)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/requests/{{requestId}}/submit", "host": ["{{baseUrl}}"], "path": ["requests", "{{requestId}}", "submit"] }
+          }
+        },
+        {
+          "name": "Cancel Request",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"تم حل المشكلة\"\n}" },
+            "url": { "raw": "{{baseUrl}}/requests/{{requestId}}/cancel", "host": ["{{baseUrl}}"], "path": ["requests", "{{requestId}}", "cancel"] }
+          }
+        },
+        {
+          "name": "Manager Approve (PENDING_MANAGER → PENDING_HR)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"موافق على الطلب\"\n}" },
+            "url": { "raw": "{{baseUrl}}/requests/{{requestId}}/manager-approve", "host": ["{{baseUrl}}"], "path": ["requests", "{{requestId}}", "manager-approve"] }
+          }
+        },
+        {
+          "name": "Manager Reject (PENDING_MANAGER → REJECTED)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"سبب الرفض من المدير\"\n}" },
+            "url": { "raw": "{{baseUrl}}/requests/{{requestId}}/manager-reject", "host": ["{{baseUrl}}"], "path": ["requests", "{{requestId}}", "manager-reject"] }
+          }
+        },
+        {
+          "name": "HR Approve (PENDING_HR → APPROVED)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"اعتماد HR - تمت الموافقة\"\n}" },
+            "url": { "raw": "{{baseUrl}}/requests/{{requestId}}/hr-approve", "host": ["{{baseUrl}}"], "path": ["requests", "{{requestId}}", "hr-approve"] }
+          }
+        },
+        {
+          "name": "HR Reject (PENDING_HR → REJECTED)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"سبب رفض HR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/requests/{{requestId}}/hr-reject", "host": ["{{baseUrl}}"], "path": ["requests", "{{requestId}}", "hr-reject"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 - Evaluation",
+      "item": [
+        {
+          "name": "List Evaluation Periods",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/evaluation-periods", "host": ["{{baseUrl}}"], "path": ["evaluation-periods"] }
+          }
+        },
+        {
+          "name": "List Evaluation Criteria",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/evaluation-criteria", "host": ["{{baseUrl}}"], "path": ["evaluation-criteria"] }
+          }
+        },
+        {
+          "name": "List Evaluation Forms",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/evaluation-forms", "host": ["{{baseUrl}}"], "path": ["evaluation-forms"] }
+          }
+        },
+        {
+          "name": "My Evaluation Forms",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/my", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "my"] }
+          }
+        },
+        {
+          "name": "List Employee Goals",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/employee-goals?employeeId={{employeeId}}", "host": ["{{baseUrl}}"], "path": ["employee-goals"] }
+          }
+        }
+      ]
+    }
+  ]
+}

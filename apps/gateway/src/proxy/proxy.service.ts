@@ -38,6 +38,11 @@ export class ProxyService {
       url: process.env.EVALUATION_SERVICE_URL || 'http://localhost:4005',
       prefix: '/evaluation',
     });
+
+    this.services.set('requests', {
+      url: process.env.REQUESTS_SERVICE_URL || 'http://localhost:4006',
+      prefix: '/requests',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

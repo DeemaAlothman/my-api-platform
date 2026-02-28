@@ -126,6 +126,24 @@ services:
     networks:
       - app-network
 
+  requests:
+    build:
+      context: .
+      dockerfile: apps/requests/Dockerfile
+    container_name: myapiplatform-requests
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=requests
+      JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
+      NODE_ENV: production
+    ports:
+      - "4006:4006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -138,6 +156,7 @@ services:
       LEAVE_SERVICE_URL: http://leave:4003
       ATTENDANCE_SERVICE_URL: http://attendance:4004
       EVALUATION_SERVICE_URL: http://evaluation:4005
+      REQUESTS_SERVICE_URL: http://requests:4006
       NODE_ENV: production
       PORT: 8000
     ports:
@@ -146,6 +165,7 @@ services:
       - auth
       - users
       - leave
+      - requests
     networks:
       - app-network
 

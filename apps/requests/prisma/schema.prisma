@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RequestType {
+  TRANSFER
+  PERMISSION
+  ADVANCE
+  RESIGNATION
+  JOB_CHANGE
+  RIGHTS
+  REWARD
+  SPONSORSHIP
+  OTHER
+}
+
+enum RequestStatus {
+  DRAFT
+  PENDING_MANAGER
+  PENDING_HR
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Request {
+  id              String        @id @default(uuid())
+  requestNumber   String        @unique
+  employeeId      String
+  type            RequestType
+  status          RequestStatus @default(DRAFT)
+  reason          String?
+  notes           String?
+  attachmentUrl   String?
+  details         Json?
+
+  managerStatus     ApprovalStatus?
+  managerReviewedBy String?
+  managerReviewedAt DateTime?
+  managerNotes      String?
+
+  hrStatus      ApprovalStatus?
+  hrReviewedBy  String?
+  hrReviewedAt  DateTime?
+  hrNotes       String?
+
+  cancelReason String?
+  cancelledAt  DateTime?
+  cancelledBy  String?
+
+  history   RequestHistory[]
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([type])
+  @@index([status])
+  @@map("requests")
+}
+
+model RequestHistory {
+  id          String   @id @default(uuid())
+  requestId   String
+  action      String
+  fromStatus  String?
+  toStatus    String
+  performedBy String
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("request_history")
+}

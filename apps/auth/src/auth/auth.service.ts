@@ -89,6 +89,10 @@ export class AuthService {
           'evaluation:forms:view-own', 'evaluation:forms:view-all', 'evaluation:forms:self-evaluate',
           'evaluation:forms:manager-evaluate', 'evaluation:forms:hr-review', 'evaluation:forms:gm-approval',
           'evaluation:peer:submit', 'evaluation:goals:manage',
+          'job-titles:read', 'job-titles:create', 'job-titles:update', 'job-titles:delete',
+          'job-grades:read', 'job-grades:create', 'job-grades:update', 'job-grades:delete',
+          'requests:read', 'requests:manager-approve', 'requests:manager-reject', 'requests:hr-approve', 'requests:hr-reject',
+          'attendance.reports.read',
         ];
       } else if (userRoles.length > 0) {
         // Load permissions from database for other roles

@@ -9,8 +9,8 @@ export class DepartmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getTree() {
-    // جلب كل الأقسام مع العلاقات
-    const departments = await this.prisma.department.findMany({
+    // جلب كل الأقسام دفعة واحدة ثم بناء الشجرة في الذاكرة (يدعم أي عمق)
+    const all = await this.prisma.department.findMany({
       where: { deletedAt: null },
       include: {
         manager: {
@@ -23,30 +23,24 @@ export class DepartmentsService {
             lastNameEn: true,
           },
         },
-        children: {
-          where: { deletedAt: null },
-          include: {
-            manager: {
-              select: {
-                id: true,
-                employeeNumber: true,
-                firstNameAr: true,
-                lastNameAr: true,
-                firstNameEn: true,
-                lastNameEn: true,
-              },
-            },
-            children: {
-              where: { deletedAt: null },
-            },
-          },
-        },
       },
       orderBy: { code: 'asc' },
     });
 
-    // إرجاع فقط الأقسام الجذرية (بدون parent)
-    return departments.filter((d) => !d.parentId);
+    // بناء map للوصول السريع
+    const map = new Map<string, any>();
+    all.forEach((d) => map.set(d.id, { ...d, children: [] }));
+
+    const roots: any[] = [];
+    map.forEach((node) => {
+      if (node.parentId && map.has(node.parentId)) {
+        map.get(node.parentId).children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    return roots;
   }
 
   async list(query: ListDepartmentsQueryDto) {

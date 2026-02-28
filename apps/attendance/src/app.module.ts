@@ -7,6 +7,7 @@ import { AttendanceRecordsModule } from './attendance-records/attendance-records
 import { AttendanceAlertsModule } from './attendance-alerts/attendance-alerts.module';
 import { EmployeeSchedulesModule } from './employee-schedules/employee-schedules.module';
 import { AttendanceJustificationsModule } from './attendance-justifications/attendance-justifications.module';
+import { ReportsModule } from './reports/reports.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -18,6 +19,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     AttendanceAlertsModule,
     EmployeeSchedulesModule,
     AttendanceJustificationsModule,
+    ReportsModule,
   ],
   providers: [
     PrismaService,

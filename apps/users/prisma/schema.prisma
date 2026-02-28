@@ -54,6 +54,9 @@ model Employee {
   jobTitleId     String?
   jobTitle       JobTitle?  @relation(fields: [jobTitleId], references: [id])
 
+  jobGradeId     String?
+  jobGrade       JobGrade?  @relation(fields: [jobGradeId], references: [id])
+
   managerId      String?
   manager        Employee?  @relation("EmployeeManager", fields: [managerId], references: [id])
   subordinates   Employee[] @relation("EmployeeManager")
@@ -68,6 +71,10 @@ model Employee {
   contractType   ContractType
   contractEndDate DateTime?
   employmentStatus EmploymentStatus @default(ACTIVE)
+
+  // Salary
+  basicSalary    Decimal?  @db.Decimal(15, 2)
+  salaryCurrency String?   @default("SYP")
 
   // Biometric
   fingerprintId  String?
@@ -136,14 +143,39 @@ model Department {
   @@map("departments")
 }
 
-model JobTitle {
-  id        String   @id @default(uuid())
-  code      String   @unique
-  nameAr    String
-  nameEn    String?
-  nameTr    String?
+model JobGrade {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  nameAr      String
+  nameEn      String?
+  color       String?
+  minSalary   Decimal? @db.Decimal(15, 2)
+  maxSalary   Decimal? @db.Decimal(15, 2)
+  description String?
+  isActive    Boolean  @default(true)
 
-  employees Employee[]
+  jobTitles   JobTitle[]
+  employees   Employee[]
+
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("job_grades")
+}
+
+model JobTitle {
+  id          String    @id @default(uuid())
+  code        String    @unique
+  nameAr      String
+  nameEn      String?
+  nameTr      String?
+  description String?
+
+  gradeId     String?
+  grade       JobGrade? @relation(fields: [gradeId], references: [id])
+
+  employees   Employee[]
 
   deletedAt DateTime?
 
