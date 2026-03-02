@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { ApproveRequestDto } from './dto/approve-request.dto';
@@ -18,15 +17,17 @@ export class RequestsService {
     employeeNumber: string;
   }>> {
     if (employeeIds.length === 0) return new Map();
-    const employees = await this.prisma.$queryRaw<Array<{
+    const placeholders = employeeIds.map((_, i) => `$${i + 1}`).join(', ');
+    const employees = await this.prisma.$queryRawUnsafe<Array<{
       id: string; firstNameAr: string; lastNameAr: string;
       firstNameEn: string | null; lastNameEn: string | null; employeeNumber: string;
-    }>>`
-      SELECT id, "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn", "employeeNumber"
-      FROM users.employees
-      WHERE id IN (${Prisma.join(employeeIds)})
-      AND "deletedAt" IS NULL
-    `;
+    }>>(
+      `SELECT id, "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn", "employeeNumber"
+       FROM users.employees
+       WHERE id IN (${placeholders})
+       AND "deletedAt" IS NULL`,
+      ...employeeIds
+    );
     return new Map(employees.map(e => [e.id, e]));
   }
 
@@ -246,9 +247,9 @@ export class RequestsService {
       this.prisma.request.count({ where }),
     ]);
 
-    const employeeIds = [...new Set(items.map(r => r.employeeId as string))];
+    const employeeIds = [...new Set((items as any[]).map(r => r.employeeId as string))];
     const employeeMap = await this.fetchEmployeeNames(employeeIds);
-    const itemsWithEmployee = items.map(r => ({ ...r, employee: employeeMap.get(r.employeeId) ?? null }));
+    const itemsWithEmployee = (items as any[]).map(r => ({ ...r, employee: employeeMap.get(r.employeeId) ?? null }));
 
     return { items: itemsWithEmployee, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
