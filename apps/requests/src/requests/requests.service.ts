@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { ApproveRequestDto } from './dto/approve-request.dto';
@@ -9,6 +10,25 @@ import { ListRequestsQueryDto } from './dto/list-requests.query.dto';
 @Injectable()
 export class RequestsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // جلب بيانات الموظفين بـ bulk query عبر cross-schema
+  private async fetchEmployeeNames(employeeIds: string[]): Promise<Map<string, {
+    firstNameAr: string; lastNameAr: string;
+    firstNameEn: string | null; lastNameEn: string | null;
+    employeeNumber: string;
+  }>> {
+    if (employeeIds.length === 0) return new Map();
+    const employees = await this.prisma.$queryRaw<Array<{
+      id: string; firstNameAr: string; lastNameAr: string;
+      firstNameEn: string | null; lastNameEn: string | null; employeeNumber: string;
+    }>>`
+      SELECT id, "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn", "employeeNumber"
+      FROM users.employees
+      WHERE id IN (${Prisma.join(employeeIds)})
+      AND "deletedAt" IS NULL
+    `;
+    return new Map(employees.map(e => [e.id, e]));
+  }
 
   // جلب employeeId من userId عبر cross-schema query
   private async getEmployeeIdByUserId(userId: string): Promise<string | null> {
@@ -226,7 +246,11 @@ export class RequestsService {
       this.prisma.request.count({ where }),
     ]);
 
-    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    const employeeIds = [...new Set(items.map(r => r.employeeId as string))];
+    const employeeMap = await this.fetchEmployeeNames(employeeIds);
+    const itemsWithEmployee = items.map(r => ({ ...r, employee: employeeMap.get(r.employeeId) ?? null }));
+
+    return { items: itemsWithEmployee, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   async myRequests(userId: string, query: ListRequestsQueryDto) {
@@ -248,7 +272,8 @@ export class RequestsService {
       throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Request not found', details: [{ field: 'id', value: id }] });
     }
 
-    return request;
+    const employeeMap = await this.fetchEmployeeNames([request.employeeId]);
+    return { ...request, employee: employeeMap.get(request.employeeId) ?? null };
   }
 
   private async findRequestOrFail(id: string) {

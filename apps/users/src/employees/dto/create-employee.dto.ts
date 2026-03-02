@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString, IsUUID, IsNumber, Min } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 
@@ -19,6 +19,36 @@ export enum ContractType {
   TEMPORARY = 'TEMPORARY',
   CONTRACT = 'CONTRACT',
   INTERNSHIP = 'INTERNSHIP',
+}
+
+export enum BloodType {
+  A_POSITIVE = 'A_POSITIVE',
+  A_NEGATIVE = 'A_NEGATIVE',
+  B_POSITIVE = 'B_POSITIVE',
+  B_NEGATIVE = 'B_NEGATIVE',
+  AB_POSITIVE = 'AB_POSITIVE',
+  AB_NEGATIVE = 'AB_NEGATIVE',
+  O_POSITIVE = 'O_POSITIVE',
+  O_NEGATIVE = 'O_NEGATIVE',
+}
+
+export enum EducationLevel {
+  ILLITERATE = 'ILLITERATE',
+  PRIMARY = 'PRIMARY',
+  SECONDARY = 'SECONDARY',
+  DIPLOMA = 'DIPLOMA',
+  UNIVERSITY = 'UNIVERSITY',
+  POSTGRADUATE = 'POSTGRADUATE',
+}
+
+export class EmployeeAttachmentDto {
+  @IsNotEmpty()
+  @IsString()
+  fileUrl: string;
+
+  @IsNotEmpty()
+  @IsString()
+  fileName: string;
 }
 
 export class CreateEmployeeDto {
@@ -115,4 +145,52 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   salaryCurrency?: string;
+
+  // Personal Info (extra)
+  @IsOptional()
+  @IsString()
+  profilePhoto?: string;
+
+  @IsOptional()
+  @IsEnum(BloodType)
+  bloodType?: BloodType;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  familyMembersCount?: number;
+
+  @IsOptional()
+  @IsString()
+  chronicDiseases?: string;
+
+  @IsOptional()
+  @IsString()
+  currentAddress?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isSmoker?: boolean;
+
+  @IsOptional()
+  @IsEnum(EducationLevel)
+  educationLevel?: EducationLevel;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(7)
+  @Type(() => Number)
+  universityYear?: number;
+
+  @IsOptional()
+  @IsString()
+  religion?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmployeeAttachmentDto)
+  attachments?: EmployeeAttachmentDto[];
 }

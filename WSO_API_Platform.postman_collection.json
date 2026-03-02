@@ -12,10 +12,22 @@
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8000/api/v1", "type": "string" },
     { "key": "token", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
     { "key": "employeeId", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "roleId", "value": "", "type": "string" },
     { "key": "requestId", "value": "", "type": "string" },
     { "key": "jobGradeId", "value": "", "type": "string" },
-    { "key": "jobTitleId", "value": "", "type": "string" }
+    { "key": "jobTitleId", "value": "", "type": "string" },
+    { "key": "leaveTypeId", "value": "", "type": "string" },
+    { "key": "leaveRequestId", "value": "", "type": "string" },
+    { "key": "leaveBalanceId", "value": "", "type": "string" },
+    { "key": "alertId", "value": "", "type": "string" },
+    { "key": "workScheduleId", "value": "", "type": "string" },
+    { "key": "attendanceRecordId", "value": "", "type": "string" },
+    { "key": "evaluationPeriodId", "value": "", "type": "string" },
+    { "key": "evaluationFormId", "value": "", "type": "string" },
+    { "key": "goalId", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -30,6 +42,7 @@
                 "var json = pm.response.json();",
                 "if (json.success && json.data.accessToken) {",
                 "  pm.collectionVariables.set('token', json.data.accessToken);",
+                "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
                 "  console.log('Token saved successfully');",
                 "}"
               ],
@@ -65,6 +78,14 @@
             "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
             "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] }
           }
+        },
+        {
+          "name": "Auth Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/auth/health", "host": ["{{baseUrl}}"], "path": ["auth", "health"] }
+          }
         }
       ]
     },
@@ -79,7 +100,7 @@
           }
         },
         {
-          "name": "Org Chart Tree (Unlimited Depth) [UPDATED]",
+          "name": "Org Chart Tree (Unlimited Depth)",
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/departments/tree", "host": ["{{baseUrl}}"], "path": ["departments", "tree"] }
@@ -243,7 +264,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"firstNameAr\": \"محمد\",\n  \"lastNameAr\": \"أحمد\",\n  \"firstNameEn\": \"Mohammed\",\n  \"lastNameEn\": \"Ahmed\",\n  \"email\": \"m.ahmed@example.com\",\n  \"phone\": \"+966501234567\",\n  \"nationalId\": \"1234567890\",\n  \"departmentId\": \"\",\n  \"jobTitleId\": \"{{jobTitleId}}\",\n  \"jobGradeId\": \"{{jobGradeId}}\",\n  \"basicSalary\": 6000,\n  \"hireDate\": \"2026-01-01\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"firstNameAr\": \"محمد\",\n  \"lastNameAr\": \"أحمد\",\n  \"firstNameEn\": \"Mohammed\",\n  \"lastNameEn\": \"Ahmed\",\n  \"email\": \"m.ahmed@example.com\",\n  \"phone\": \"+966501234567\",\n  \"nationalId\": \"1234567890\",\n  \"gender\": \"MALE\",\n  \"dateOfBirth\": \"1990-01-01\",\n  \"departmentId\": \"\",\n  \"jobTitleId\": \"{{jobTitleId}}\",\n  \"jobGradeId\": \"{{jobGradeId}}\",\n  \"contractType\": \"PERMANENT\",\n  \"basicSalary\": 6000,\n  \"hireDate\": \"2026-01-01\"\n}" },
             "url": { "raw": "{{baseUrl}}/employees", "host": ["{{baseUrl}}"], "path": ["employees"] }
           }
         },
@@ -269,6 +290,29 @@
             "method": "DELETE",
             "url": { "raw": "{{baseUrl}}/employees/{{employeeId}}", "host": ["{{baseUrl}}"], "path": ["employees", "{{employeeId}}"] }
           }
+        },
+        {
+          "name": "Get Employees by Department",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/employees/department/:departmentId", "host": ["{{baseUrl}}"], "path": ["employees", "department", ":departmentId"], "variable": [{"key": "departmentId", "value": ""}] }
+          }
+        },
+        {
+          "name": "Get Manager Subordinates",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/employees/manager/{{employeeId}}/subordinates", "host": ["{{baseUrl}}"], "path": ["employees", "manager", "{{employeeId}}", "subordinates"] }
+          }
+        },
+        {
+          "name": "Link Employee to User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{userId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/employees/{{employeeId}}/link-user", "host": ["{{baseUrl}}"], "path": ["employees", "{{employeeId}}", "link-user"] }
+          }
         }
       ]
     },
@@ -284,6 +328,13 @@
         },
         {
           "name": "Create User",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success) { pm.collectionVariables.set('userId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -292,16 +343,87 @@
           }
         },
         {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"اسم محدث\"\n}" },
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] }
+          }
+        },
+        {
+          "name": "Assign Roles to User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"roleIds\": [\"{{roleId}}\"]\n}" },
+            "url": { "raw": "{{baseUrl}}/users/{{userId}}/roles", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}", "roles"] }
+          }
+        },
+        {
           "name": "List Roles",
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/roles", "host": ["{{baseUrl}}"], "path": ["roles"] }
           }
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/roles/{{roleId}}", "host": ["{{baseUrl}}"], "path": ["roles", "{{roleId}}"] }
+          }
+        },
+        {
+          "name": "Create Role",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success) { pm.collectionVariables.set('roleId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"accountant\",\n  \"displayNameAr\": \"محاسب\",\n  \"displayNameEn\": \"Accountant\",\n  \"description\": \"دور المحاسب\"\n}" },
+            "url": { "raw": "{{baseUrl}}/roles", "host": ["{{baseUrl}}"], "path": ["roles"] }
+          }
+        },
+        {
+          "name": "Update Role Permissions",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"permissionIds\": []\n}" },
+            "url": { "raw": "{{baseUrl}}/roles/{{roleId}}/permissions", "host": ["{{baseUrl}}"], "path": ["roles", "{{roleId}}", "permissions"] }
+          }
+        },
+        {
+          "name": "List Permissions",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/permissions", "host": ["{{baseUrl}}"], "path": ["permissions"] }
+          }
         }
       ]
     },
     {
-      "name": "07 - Leave Management",
+      "name": "07 - Leave Types",
       "item": [
         {
           "name": "List Leave Types",
@@ -311,6 +433,50 @@
           }
         },
         {
+          "name": "Create Leave Type",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.id) { pm.collectionVariables.set('leaveTypeId', json.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"code\": \"ANNUAL\",\n  \"nameAr\": \"إجازة سنوية\",\n  \"nameEn\": \"Annual Leave\",\n  \"defaultDays\": 21,\n  \"isPaid\": true,\n  \"requiresApproval\": true,\n  \"allowHalfDay\": true,\n  \"isActive\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-types", "host": ["{{baseUrl}}"], "path": ["leave-types"] }
+          }
+        },
+        {
+          "name": "Get Leave Type by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/leave-types/{{leaveTypeId}}", "host": ["{{baseUrl}}"], "path": ["leave-types", "{{leaveTypeId}}"] }
+          }
+        },
+        {
+          "name": "Get Leave Type by Code",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/leave-types/code/ANNUAL", "host": ["{{baseUrl}}"], "path": ["leave-types", "code", "ANNUAL"] }
+          }
+        },
+        {
+          "name": "Update Leave Type",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nameAr\": \"إجازة سنوية محدثة\",\n  \"defaultDays\": 25\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-types/{{leaveTypeId}}", "host": ["{{baseUrl}}"], "path": ["leave-types", "{{leaveTypeId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Leave Requests",
+      "item": [
+        {
           "name": "List Leave Requests",
           "request": {
             "method": "GET",
@@ -319,18 +485,50 @@
         },
         {
           "name": "Create Leave Request",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.id) { pm.collectionVariables.set('leaveRequestId', json.id); }"],
+              "type": "text/javascript"
+            }
+          }],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"leaveTypeId\": \"\",\n  \"startDate\": \"2026-03-01\",\n  \"endDate\": \"2026-03-03\",\n  \"reason\": \"إجازة سنوية\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"startDate\": \"2026-04-01\",\n  \"endDate\": \"2026-04-03\",\n  \"reason\": \"إجازة سنوية\"\n}" },
             "url": { "raw": "{{baseUrl}}/leave-requests", "host": ["{{baseUrl}}"], "path": ["leave-requests"] }
+          }
+        },
+        {
+          "name": "Create Leave Request (Half Day)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"startDate\": \"2026-04-05\",\n  \"endDate\": \"2026-04-05\",\n  \"isHalfDay\": true,\n  \"halfDayPeriod\": \"MORNING\",\n  \"reason\": \"نصف يوم صباحي\"\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-requests", "host": ["{{baseUrl}}"], "path": ["leave-requests"] }
+          }
+        },
+        {
+          "name": "Update Leave Request",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"سبب محدث\"\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-requests/{{leaveRequestId}}", "host": ["{{baseUrl}}"], "path": ["leave-requests", "{{leaveRequestId}}"] }
+          }
+        },
+        {
+          "name": "Delete Leave Request",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/leave-requests/{{leaveRequestId}}", "host": ["{{baseUrl}}"], "path": ["leave-requests", "{{leaveRequestId}}"] }
           }
         },
         {
           "name": "Submit Leave Request",
           "request": {
             "method": "POST",
-            "url": { "raw": "{{baseUrl}}/leave-requests/:id/submit", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "submit"], "variable": [{"key": "id", "value": ""}] }
+            "url": { "raw": "{{baseUrl}}/leave-requests/{{leaveRequestId}}/submit", "host": ["{{baseUrl}}"], "path": ["leave-requests", "{{leaveRequestId}}", "submit"] }
           }
         },
         {
@@ -339,7 +537,7 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"notes\": \"موافق\"\n}" },
-            "url": { "raw": "{{baseUrl}}/leave-requests/:id/manager-approve", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "manager-approve"], "variable": [{"key": "id", "value": ""}] }
+            "url": { "raw": "{{baseUrl}}/leave-requests/{{leaveRequestId}}/manager-approve", "host": ["{{baseUrl}}"], "path": ["leave-requests", "{{leaveRequestId}}", "manager-approve"] }
           }
         },
         {
@@ -348,7 +546,7 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"notes\": \"سبب الرفض\"\n}" },
-            "url": { "raw": "{{baseUrl}}/leave-requests/:id/manager-reject", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "manager-reject"], "variable": [{"key": "id", "value": ""}] }
+            "url": { "raw": "{{baseUrl}}/leave-requests/{{leaveRequestId}}/manager-reject", "host": ["{{baseUrl}}"], "path": ["leave-requests", "{{leaveRequestId}}", "manager-reject"] }
           }
         },
         {
@@ -357,7 +555,7 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"notes\": \"اعتماد HR\"\n}" },
-            "url": { "raw": "{{baseUrl}}/leave-requests/:id/hr-approve", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "hr-approve"], "variable": [{"key": "id", "value": ""}] }
+            "url": { "raw": "{{baseUrl}}/leave-requests/{{leaveRequestId}}/hr-approve", "host": ["{{baseUrl}}"], "path": ["leave-requests", "{{leaveRequestId}}", "hr-approve"] }
           }
         },
         {
@@ -366,34 +564,131 @@
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"notes\": \"سبب رفض HR\"\n}" },
-            "url": { "raw": "{{baseUrl}}/leave-requests/:id/hr-reject", "host": ["{{baseUrl}}"], "path": ["leave-requests", ":id", "hr-reject"], "variable": [{"key": "id", "value": ""}] }
+            "url": { "raw": "{{baseUrl}}/leave-requests/{{leaveRequestId}}/hr-reject", "host": ["{{baseUrl}}"], "path": ["leave-requests", "{{leaveRequestId}}", "hr-reject"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 - Leave Balances",
+      "item": [
+        {
+          "name": "My Leave Balances",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/leave-balances/my", "host": ["{{baseUrl}}"], "path": ["leave-balances", "my"] }
           }
         },
         {
-          "name": "Leave Balances",
+          "name": "Get Employee Leave Balances",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/leave-balances/employee/{{employeeId}}", "host": ["{{baseUrl}}"], "path": ["leave-balances", "employee", "{{employeeId}}"] }
+          }
+        },
+        {
+          "name": "List All Leave Balances",
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/leave-balances?employeeId={{employeeId}}", "host": ["{{baseUrl}}"], "path": ["leave-balances"] }
           }
         },
         {
+          "name": "Create Leave Balance",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.id) { pm.collectionVariables.set('leaveBalanceId', json.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"year\": 2026,\n  \"totalDays\": 21\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-balances", "host": ["{{baseUrl}}"], "path": ["leave-balances"] }
+          }
+        },
+        {
+          "name": "Adjust Leave Balance",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"adjustmentDays\": 2,\n  \"adjustmentReason\": \"تعديل يدوي من HR\"\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-balances/{{leaveBalanceId}}/adjust", "host": ["{{baseUrl}}"], "path": ["leave-balances", "{{leaveBalanceId}}", "adjust"] }
+          }
+        },
+        {
+          "name": "Initialize Employee Balances",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"year\": 2026\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-balances/employee/{{employeeId}}/initialize", "host": ["{{baseUrl}}"], "path": ["leave-balances", "employee", "{{employeeId}}", "initialize"] }
+          }
+        },
+        {
+          "name": "Carry Over Employee Balances",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fromYear\": 2025,\n  \"toYear\": 2026\n}" },
+            "url": { "raw": "{{baseUrl}}/leave-balances/employee/{{employeeId}}/carry-over", "host": ["{{baseUrl}}"], "path": ["leave-balances", "employee", "{{employeeId}}", "carry-over"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 - Holidays",
+      "item": [
+        {
           "name": "List Holidays",
           "request": {
             "method": "GET",
+            "url": { "raw": "{{baseUrl}}/holidays", "host": ["{{baseUrl}}"], "path": ["holidays"] }
+          }
+        },
+        {
+          "name": "List Holidays by Year",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/holidays?year=2026", "host": ["{{baseUrl}}"], "path": ["holidays"], "query": [{"key": "year", "value": "2026"}] }
+          }
+        },
+        {
+          "name": "Upcoming Holidays",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/holidays/upcoming/list", "host": ["{{baseUrl}}"], "path": ["holidays", "upcoming", "list"] }
+          }
+        },
+        {
+          "name": "Holidays in Range",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/holidays/range/2026-01-01/2026-12-31", "host": ["{{baseUrl}}"], "path": ["holidays", "range", "2026-01-01", "2026-12-31"] }
+          }
+        },
+        {
+          "name": "Create Holiday",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nameAr\": \"عيد الفطر\",\n  \"nameEn\": \"Eid Al-Fitr\",\n  \"date\": \"2026-03-31\",\n  \"isRecurring\": true\n}" },
             "url": { "raw": "{{baseUrl}}/holidays", "host": ["{{baseUrl}}"], "path": ["holidays"] }
           }
         }
       ]
     },
     {
-      "name": "08 - Attendance Records",
+      "name": "11 - Attendance Records",
       "item": [
         {
           "name": "Check In",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"date\": \"2026-02-28\",\n  \"checkInTime\": \"2026-02-28T08:00:00.000Z\",\n  \"notes\": \"حضور منتظم\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"date\": \"2026-03-01\",\n  \"notes\": \"حضور منتظم\"\n}" },
             "url": { "raw": "{{baseUrl}}/attendance-records/check-in", "host": ["{{baseUrl}}"], "path": ["attendance-records", "check-in"] }
           }
         },
@@ -402,7 +697,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"date\": \"2026-02-28\",\n  \"checkOutTime\": \"2026-02-28T17:00:00.000Z\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"date\": \"2026-03-01\"\n}" },
             "url": { "raw": "{{baseUrl}}/attendance-records/check-out", "host": ["{{baseUrl}}"], "path": ["attendance-records", "check-out"] }
           }
         },
@@ -422,17 +717,47 @@
         },
         {
           "name": "Create Attendance Record (Admin)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success && json.data) { pm.collectionVariables.set('attendanceRecordId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"date\": \"2026-02-28\",\n  \"clockInTime\": \"2026-02-28T08:00:00.000Z\",\n  \"clockOutTime\": \"2026-02-28T17:00:00.000Z\",\n  \"status\": \"PRESENT\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"date\": \"2026-03-01\",\n  \"clockInTime\": \"2026-03-01T08:00:00.000Z\",\n  \"clockOutTime\": \"2026-03-01T17:00:00.000Z\",\n  \"status\": \"PRESENT\"\n}" },
             "url": { "raw": "{{baseUrl}}/attendance-records", "host": ["{{baseUrl}}"], "path": ["attendance-records"] }
+          }
+        },
+        {
+          "name": "Get Attendance Record by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/attendance-records/{{attendanceRecordId}}", "host": ["{{baseUrl}}"], "path": ["attendance-records", "{{attendanceRecordId}}"] }
+          }
+        },
+        {
+          "name": "Update Attendance Record",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"notes\": \"ملاحظة محدثة\",\n  \"status\": \"PRESENT\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-records/{{attendanceRecordId}}", "host": ["{{baseUrl}}"], "path": ["attendance-records", "{{attendanceRecordId}}"] }
+          }
+        },
+        {
+          "name": "Delete Attendance Record",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/attendance-records/{{attendanceRecordId}}", "host": ["{{baseUrl}}"], "path": ["attendance-records", "{{attendanceRecordId}}"] }
           }
         }
       ]
     },
     {
-      "name": "09 - Attendance Reports [NEW]",
+      "name": "12 - Attendance Reports [NEW]",
       "item": [
         {
           "name": "Daily Report",
@@ -504,7 +829,7 @@
       ]
     },
     {
-      "name": "10 - Work Schedules",
+      "name": "13 - Work Schedules & Employee Schedules",
       "item": [
         {
           "name": "List Work Schedules",
@@ -515,11 +840,41 @@
         },
         {
           "name": "Create Work Schedule",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success && json.data) { pm.collectionVariables.set('workScheduleId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"code\": \"STANDARD\",\n  \"nameAr\": \"الدوام الرسمي\",\n  \"nameEn\": \"Standard Schedule\",\n  \"workStartTime\": \"08:00\",\n  \"workEndTime\": \"17:00\",\n  \"breakStartTime\": \"12:00\",\n  \"breakEndTime\": \"13:00\",\n  \"workDays\": \"[0,1,2,3,4]\",\n  \"lateToleranceMin\": 15,\n  \"earlyLeaveToleranceMin\": 15,\n  \"allowOvertime\": false,\n  \"isDefault\": true\n}" },
             "url": { "raw": "{{baseUrl}}/work-schedules", "host": ["{{baseUrl}}"], "path": ["work-schedules"] }
+          }
+        },
+        {
+          "name": "Get Work Schedule by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/work-schedules/{{workScheduleId}}", "host": ["{{baseUrl}}"], "path": ["work-schedules", "{{workScheduleId}}"] }
+          }
+        },
+        {
+          "name": "Update Work Schedule",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nameEn\": \"Updated Standard Schedule\",\n  \"lateToleranceMin\": 10\n}" },
+            "url": { "raw": "{{baseUrl}}/work-schedules/{{workScheduleId}}", "host": ["{{baseUrl}}"], "path": ["work-schedules", "{{workScheduleId}}"] }
+          }
+        },
+        {
+          "name": "Delete Work Schedule",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/work-schedules/{{workScheduleId}}", "host": ["{{baseUrl}}"], "path": ["work-schedules", "{{workScheduleId}}"] }
           }
         },
         {
@@ -534,20 +889,68 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"scheduleId\": \"\",\n  \"effectiveFrom\": \"2026-01-01\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"scheduleId\": \"{{workScheduleId}}\",\n  \"effectiveFrom\": \"2026-01-01\"\n}" },
             "url": { "raw": "{{baseUrl}}/employee-schedules", "host": ["{{baseUrl}}"], "path": ["employee-schedules"] }
           }
         }
       ]
     },
     {
-      "name": "11 - Attendance Alerts & Justifications",
+      "name": "14 - Attendance Alerts & Justifications",
       "item": [
         {
           "name": "List Attendance Alerts",
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/attendance-alerts?page=1&limit=20&status=OPEN", "host": ["{{baseUrl}}"], "path": ["attendance-alerts"] }
+          }
+        },
+        {
+          "name": "My Alerts",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/attendance-alerts/my-alerts", "host": ["{{baseUrl}}"], "path": ["attendance-alerts", "my-alerts"] }
+          }
+        },
+        {
+          "name": "Create Attendance Alert",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success && json.data) { pm.collectionVariables.set('alertId', json.data.id); } else if (json.id) { pm.collectionVariables.set('alertId', json.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"alertType\": \"LATE\",\n  \"severity\": \"LOW\",\n  \"message\": \"تأخر عن الدوام\",\n  \"date\": \"2026-03-01\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-alerts", "host": ["{{baseUrl}}"], "path": ["attendance-alerts"] }
+          }
+        },
+        {
+          "name": "Update Alert",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"ACKNOWLEDGED\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-alerts/{{alertId}}", "host": ["{{baseUrl}}"], "path": ["attendance-alerts", "{{alertId}}"] }
+          }
+        },
+        {
+          "name": "Resolve Alert",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"resolutionNotes\": \"تم حل المشكلة\"\n}" },
+            "url": { "raw": "{{baseUrl}}/attendance-alerts/{{alertId}}/resolve", "host": ["{{baseUrl}}"], "path": ["attendance-alerts", "{{alertId}}", "resolve"] }
+          }
+        },
+        {
+          "name": "Delete Alert",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/attendance-alerts/{{alertId}}", "host": ["{{baseUrl}}"], "path": ["attendance-alerts", "{{alertId}}"] }
           }
         },
         {
@@ -562,7 +965,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"alertId\": \"\",\n  \"justificationType\": \"SICK\",\n  \"descriptionAr\": \"مريض\",\n  \"descriptionEn\": \"Sick leave\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"alertId\": \"{{alertId}}\",\n  \"justificationType\": \"SICK\",\n  \"descriptionAr\": \"مريض\",\n  \"descriptionEn\": \"Sick leave\"\n}" },
             "url": { "raw": "{{baseUrl}}/attendance-justifications", "host": ["{{baseUrl}}"], "path": ["attendance-justifications"] }
           }
         },
@@ -587,7 +990,7 @@
       ]
     },
     {
-      "name": "12 - Administrative Requests [NEW]",
+      "name": "15 - Administrative Requests [NEW]",
       "item": [
         {
           "name": "List All Requests (Admin/HR)",
@@ -615,11 +1018,7 @@
               "raw": "{{baseUrl}}/requests/my?page=1&limit=20",
               "host": ["{{baseUrl}}"],
               "path": ["requests", "my"],
-              "query": [
-                {"key": "page", "value": "1"},
-                {"key": "limit", "value": "20"},
-                {"key": "status", "value": "", "disabled": true}
-              ]
+              "query": [{"key": "page", "value": "1"}, {"key": "limit", "value": "20"}, {"key": "status", "value": "", "disabled": true}]
             }
           }
         },
@@ -701,7 +1100,7 @@
       ]
     },
     {
-      "name": "13 - Evaluation",
+      "name": "16 - Evaluation Periods",
       "item": [
         {
           "name": "List Evaluation Periods",
@@ -711,12 +1110,102 @@
           }
         },
         {
+          "name": "Create Evaluation Period",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success) { pm.collectionVariables.set('evaluationPeriodId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"code\": \"Q1-2026\",\n  \"nameAr\": \"تقييم الربع الأول 2026\",\n  \"nameEn\": \"Q1 2026 Evaluation\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2026-03-31\"\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-periods", "host": ["{{baseUrl}}"], "path": ["evaluation-periods"] }
+          }
+        },
+        {
+          "name": "Update Evaluation Period",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nameEn\": \"Q1 2026 Evaluation Updated\"\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-periods/{{evaluationPeriodId}}", "host": ["{{baseUrl}}"], "path": ["evaluation-periods", "{{evaluationPeriodId}}"] }
+          }
+        },
+        {
+          "name": "Open Period",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/evaluation-periods/{{evaluationPeriodId}}/open", "host": ["{{baseUrl}}"], "path": ["evaluation-periods", "{{evaluationPeriodId}}", "open"] }
+          }
+        },
+        {
+          "name": "Generate Forms",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeIds\": [\"{{employeeId}}\"]\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-periods/{{evaluationPeriodId}}/generate-forms", "host": ["{{baseUrl}}"], "path": ["evaluation-periods", "{{evaluationPeriodId}}", "generate-forms"] }
+          }
+        },
+        {
+          "name": "Close Period",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/evaluation-periods/{{evaluationPeriodId}}/close", "host": ["{{baseUrl}}"], "path": ["evaluation-periods", "{{evaluationPeriodId}}", "close"] }
+          }
+        },
+        {
+          "name": "Delete Evaluation Period",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/evaluation-periods/{{evaluationPeriodId}}", "host": ["{{baseUrl}}"], "path": ["evaluation-periods", "{{evaluationPeriodId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 - Evaluation Criteria",
+      "item": [
+        {
           "name": "List Evaluation Criteria",
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/evaluation-criteria", "host": ["{{baseUrl}}"], "path": ["evaluation-criteria"] }
           }
         },
+        {
+          "name": "Create Evaluation Criteria",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"code\": \"PERF001\",\n  \"nameAr\": \"الأداء الوظيفي\",\n  \"nameEn\": \"Job Performance\",\n  \"weight\": 30,\n  \"maxScore\": 10,\n  \"category\": \"PERFORMANCE\",\n  \"displayOrder\": 1,\n  \"isActive\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-criteria", "host": ["{{baseUrl}}"], "path": ["evaluation-criteria"] }
+          }
+        },
+        {
+          "name": "Update Evaluation Criteria",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"weight\": 25\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-criteria/:id", "host": ["{{baseUrl}}"], "path": ["evaluation-criteria", ":id"], "variable": [{"key": "id", "value": ""}] }
+          }
+        },
+        {
+          "name": "Delete Evaluation Criteria",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/evaluation-criteria/:id", "host": ["{{baseUrl}}"], "path": ["evaluation-criteria", ":id"], "variable": [{"key": "id", "value": ""}] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 - Evaluation Forms",
+      "item": [
         {
           "name": "List Evaluation Forms",
           "request": {
@@ -732,10 +1221,148 @@
           }
         },
         {
+          "name": "Pending My Review",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/pending-my-review", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "pending-my-review"] }
+          }
+        },
+        {
+          "name": "Get Evaluation Form by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/{{evaluationFormId}}", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "{{evaluationFormId}}"] }
+          }
+        },
+        {
+          "name": "Save Self Evaluation",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sections\": [\n    { \"criteriaId\": \"\", \"score\": 8, \"comments\": \"أداء جيد\" }\n  ],\n  \"comments\": \"تعليق التقييم الذاتي\"\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/{{evaluationFormId}}/self", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "{{evaluationFormId}}", "self"] }
+          }
+        },
+        {
+          "name": "Submit Self Evaluation",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/{{evaluationFormId}}/self/submit", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "{{evaluationFormId}}", "self", "submit"] }
+          }
+        },
+        {
+          "name": "Save Manager Evaluation",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sections\": [\n    { \"criteriaId\": \"\", \"score\": 9, \"comments\": \"أداء ممتاز\" }\n  ],\n  \"comments\": \"تعليق تقييم المدير\",\n  \"strengths\": \"يتميز بالمبادرة والإبداع\",\n  \"weaknesses\": \"يحتاج تطوير مهارات التواصل\",\n  \"recommendations\": \"يُنصح بالترقية\"\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/{{evaluationFormId}}/manager", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "{{evaluationFormId}}", "manager"] }
+          }
+        },
+        {
+          "name": "Submit Manager Evaluation",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/{{evaluationFormId}}/manager/submit", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "{{evaluationFormId}}", "manager", "submit"] }
+          }
+        },
+        {
+          "name": "HR Review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"recommendation\": \"PROMOTION\",\n  \"comments\": \"مراجعة HR - يستحق الترقية\"\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/{{evaluationFormId}}/hr-review", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "{{evaluationFormId}}", "hr-review"] }
+          }
+        },
+        {
+          "name": "GM Approval",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"APPROVED\",\n  \"comments\": \"اعتماد المدير العام\"\n}" },
+            "url": { "raw": "{{baseUrl}}/evaluation-forms/{{evaluationFormId}}/gm-approval", "host": ["{{baseUrl}}"], "path": ["evaluation-forms", "{{evaluationFormId}}", "gm-approval"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "19 - Employee Goals & Peer Evaluations",
+      "item": [
+        {
           "name": "List Employee Goals",
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/employee-goals?employeeId={{employeeId}}", "host": ["{{baseUrl}}"], "path": ["employee-goals"] }
+          }
+        },
+        {
+          "name": "Create Employee Goal",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": ["var json = pm.response.json();", "if (json.success) { pm.collectionVariables.set('goalId', json.data.id); }"],
+              "type": "text/javascript"
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"title\": \"تحسين مهارات البرمجة\",\n  \"description\": \"إتقان لغة TypeScript\",\n  \"targetDate\": \"2026-12-31\",\n  \"weight\": 20\n}" },
+            "url": { "raw": "{{baseUrl}}/employee-goals", "host": ["{{baseUrl}}"], "path": ["employee-goals"] }
+          }
+        },
+        {
+          "name": "Update Employee Goal",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"selfAchievement\": 80,\n  \"selfComments\": \"تحقيق جيد للهدف\"\n}" },
+            "url": { "raw": "{{baseUrl}}/employee-goals/{{goalId}}", "host": ["{{baseUrl}}"], "path": ["employee-goals", "{{goalId}}"] }
+          }
+        },
+        {
+          "name": "Delete Employee Goal",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/employee-goals/{{goalId}}", "host": ["{{baseUrl}}"], "path": ["employee-goals", "{{goalId}}"] }
+          }
+        },
+        {
+          "name": "Get My Peers (for evaluation)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/peer-evaluations/peers", "host": ["{{baseUrl}}"], "path": ["peer-evaluations", "peers"] }
+          }
+        },
+        {
+          "name": "Submit Peer Evaluation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"evaluationFormId\": \"{{evaluationFormId}}\",\n  \"evaluateeId\": \"{{employeeId}}\",\n  \"scores\": [\n    { \"criteriaId\": \"\", \"score\": 8, \"comments\": \"زميل متعاون\" }\n  ],\n  \"isAnonymous\": true,\n  \"overallComments\": \"زميل ممتاز\"\n}" },
+            "url": { "raw": "{{baseUrl}}/peer-evaluations", "host": ["{{baseUrl}}"], "path": ["peer-evaluations"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 - Health Checks",
+      "item": [
+        {
+          "name": "Gateway Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          }
+        },
+        {
+          "name": "Auth Service Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/auth/health", "host": ["{{baseUrl}}"], "path": ["auth", "health"] }
           }
         }
       ]

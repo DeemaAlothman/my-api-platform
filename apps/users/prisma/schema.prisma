@@ -79,6 +79,20 @@ model Employee {
   // Biometric
   fingerprintId  String?
 
+  // Personal Info (extra)
+  profilePhoto       String?
+  bloodType          BloodType?
+  familyMembersCount Int?
+  chronicDiseases    String?
+  currentAddress     String?
+  isSmoker           Boolean?
+  educationLevel     EducationLevel?
+  universityYear     Int?
+  religion           String?
+
+  // Attachments
+  attachments    EmployeeAttachment[]
+
   deletedAt      DateTime?
 
   createdAt      DateTime @default(now())
@@ -88,6 +102,20 @@ model Employee {
   @@index([managerId])
   @@index([employeeNumber])
   @@map("employees")
+}
+
+model EmployeeAttachment {
+  id         String   @id @default(uuid())
+  employeeId String
+  fileUrl    String
+  fileName   String
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId])
+  @@map("employee_attachments")
 }
 
 enum Gender {
@@ -115,6 +143,26 @@ enum EmploymentStatus {
   ON_LEAVE
   SUSPENDED
   TERMINATED
+}
+
+enum BloodType {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+enum EducationLevel {
+  ILLITERATE
+  PRIMARY
+  SECONDARY
+  DIPLOMA
+  UNIVERSITY
+  POSTGRADUATE
 }
 
 model Department {

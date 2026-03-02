@@ -95,6 +95,7 @@ export class EmployeesService {
               },
             },
           },
+          attachments: true,
         },
       }),
       this.prisma.employee.count({ where }),
@@ -149,6 +150,7 @@ export class EmployeesService {
             },
           },
         },
+        attachments: true,
       },
     });
 
@@ -220,6 +222,7 @@ export class EmployeesService {
             },
           },
         },
+        attachments: true,
       },
     });
 
@@ -279,13 +282,16 @@ export class EmployeesService {
       });
     }
 
+    const { attachments, ...employeeData } = dto;
+
     const employee = await this.prisma.employee.create({
       data: {
-        ...dto,
+        ...employeeData,
         employeeNumber,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
         hireDate: new Date(dto.hireDate),
         contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : null,
+        ...(attachments?.length ? { attachments: { create: attachments } } : {}),
       },
       include: {
         department: true,
@@ -298,6 +304,7 @@ export class EmployeesService {
             lastNameAr: true,
           },
         },
+        attachments: true,
       },
     });
 
@@ -342,12 +349,17 @@ export class EmployeesService {
       }
     }
 
+    const { attachments, ...employeeData } = dto;
+
     const employee = await this.prisma.employee.update({
       where: { id },
       data: {
-        ...dto,
+        ...employeeData,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
         contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : undefined,
+        ...(attachments !== undefined ? {
+          attachments: { deleteMany: {}, create: attachments },
+        } : {}),
       },
       include: {
         department: true,
@@ -360,6 +372,7 @@ export class EmployeesService {
             lastNameAr: true,
           },
         },
+        attachments: true,
       },
     });
 

@@ -1,6 +1,6 @@
-import { IsEmail, IsEnum, IsOptional, IsString, IsDateString, IsUUID, IsNumber, Min } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Gender, MaritalStatus, ContractType } from './create-employee.dto';
+import { Gender, MaritalStatus, ContractType, BloodType, EducationLevel, EmployeeAttachmentDto } from './create-employee.dto';
 
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',
@@ -100,4 +100,52 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   salaryCurrency?: string;
+
+  // Personal Info (extra)
+  @IsOptional()
+  @IsString()
+  profilePhoto?: string;
+
+  @IsOptional()
+  @IsEnum(BloodType)
+  bloodType?: BloodType;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  familyMembersCount?: number;
+
+  @IsOptional()
+  @IsString()
+  chronicDiseases?: string;
+
+  @IsOptional()
+  @IsString()
+  currentAddress?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isSmoker?: boolean;
+
+  @IsOptional()
+  @IsEnum(EducationLevel)
+  educationLevel?: EducationLevel;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(7)
+  @Type(() => Number)
+  universityYear?: number;
+
+  @IsOptional()
+  @IsString()
+  religion?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmployeeAttachmentDto)
+  attachments?: EmployeeAttachmentDto[];
 }
