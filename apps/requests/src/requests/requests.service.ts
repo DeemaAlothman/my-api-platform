@@ -18,16 +18,13 @@ export class RequestsService {
   }>> {
     if (employeeIds.length === 0) return new Map();
     const placeholders = employeeIds.map((_, i) => `$${i + 1}`).join(', ');
-    const employees = await this.prisma.$queryRawUnsafe<Array<{
-      id: string; firstNameAr: string; lastNameAr: string;
-      firstNameEn: string | null; lastNameEn: string | null; employeeNumber: string;
-    }>>(
+    const employees = (await this.prisma.$queryRawUnsafe(
       `SELECT id, "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn", "employeeNumber"
        FROM users.employees
        WHERE id IN (${placeholders})
        AND "deletedAt" IS NULL`,
       ...employeeIds
-    );
+    )) as Array<{ id: string; firstNameAr: string; lastNameAr: string; firstNameEn: string | null; lastNameEn: string | null; employeeNumber: string }>;
     return new Map(employees.map(e => [e.id, e]));
   }
 
