@@ -43,8 +43,15 @@ export class EvaluationFormsController {
 
   @Get()
   @Permissions('evaluation:forms:view-all')
-  findAll(@User() user: CurrentUser) {
-    return this.formsService.findAll(user);
+  findAll(
+    @User() user: CurrentUser,
+    @Query('periodId') periodId?: string,
+    @Query('status') status?: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.formsService.findAll(user, { periodId, status, employeeId, page, limit });
   }
 
   @Get(':id')

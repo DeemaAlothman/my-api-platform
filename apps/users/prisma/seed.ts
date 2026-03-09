@@ -125,6 +125,16 @@ async function main() {
     // Evaluation - Peer & Goals
     { name: 'evaluation:peer:submit', displayName: 'تقديم تقييم الأقران', module: 'evaluation' },
     { name: 'evaluation:goals:manage', displayName: 'إدارة الأهداف', module: 'evaluation' },
+
+    // Administrative Requests
+    { name: 'requests:read', displayName: 'عرض الطلبات الإدارية', module: 'requests' },
+    { name: 'requests:manager-approve', displayName: 'موافقة المدير على الطلبات', module: 'requests' },
+    { name: 'requests:manager-reject', displayName: 'رفض المدير للطلبات', module: 'requests' },
+    { name: 'requests:hr-approve', displayName: 'موافقة HR على الطلبات', module: 'requests' },
+    { name: 'requests:hr-reject', displayName: 'رفض HR للطلبات', module: 'requests' },
+
+    // Attendance Reports
+    { name: 'attendance.reports.read', displayName: 'عرض تقارير الحضور', module: 'attendance' },
   ];
 
   console.log('Creating permissions...');

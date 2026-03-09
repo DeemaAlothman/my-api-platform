@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { EvaluationPeriodsService } from './evaluation-periods.service';
@@ -21,8 +22,12 @@ export class EvaluationPeriodsController {
   constructor(private readonly periodsService: EvaluationPeriodsService) {}
 
   @Get()
-  findAll() {
-    return this.periodsService.findAll();
+  findAll(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.periodsService.findAll({ status, page, limit });
   }
 
   @Get(':id')
@@ -64,8 +69,8 @@ export class EvaluationPeriodsController {
   @Permissions('evaluation:periods:manage')
   generateForms(
     @Param('id') id: string,
-    @Body() body: { employeeIds: string[] },
+    @Body() body: { employeeIds?: string[] },
   ) {
-    return this.periodsService.generateForms(id, body.employeeIds);
+    return this.periodsService.generateForms(id, body?.employeeIds);
   }
 }

@@ -507,52 +507,61 @@ export class LeaveRequestsService {
   async findByEmployee(employeeId: string, filters?: any) {
     const where: any = { employeeId };
 
-    if (filters?.status) {
-      where.status = filters.status;
+    if (filters?.status) where.status = filters.status;
+    if (filters?.leaveTypeId) where.leaveTypeId = filters.leaveTypeId;
+    if (filters?.dateFrom || filters?.dateTo) {
+      where.startDate = {};
+      if (filters.dateFrom) where.startDate.gte = new Date(filters.dateFrom);
+      if (filters.dateTo) where.startDate.lte = new Date(filters.dateTo);
     }
 
-    if (filters?.year) {
-      where.startDate = {
-        gte: new Date(`${filters.year}-01-01`),
-        lte: new Date(`${filters.year}-12-31`),
-      };
-    }
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
 
-    return this.prisma.leaveRequest.findMany({
-      where,
-      include: {
-        leaveType: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [items, total] = await Promise.all([
+      this.prisma.leaveRequest.findMany({
+        where,
+        include: { leaveType: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.leaveRequest.count({ where }),
+    ]);
+
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   // قائمة جميع الطلبات (للمدراء و HR)
   async findAll(filters?: any) {
     const where: any = {};
 
-    if (filters?.status) {
-      where.status = filters.status;
+    if (filters?.status) where.status = filters.status;
+    if (filters?.employeeId) where.employeeId = filters.employeeId;
+    if (filters?.leaveTypeId) where.leaveTypeId = filters.leaveTypeId;
+    if (filters?.dateFrom || filters?.dateTo) {
+      where.startDate = {};
+      if (filters.dateFrom) where.startDate.gte = new Date(filters.dateFrom);
+      if (filters.dateTo) where.startDate.lte = new Date(filters.dateTo);
     }
 
-    if (filters?.employeeId) {
-      where.employeeId = filters.employeeId;
-    }
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
 
-    if (filters?.year) {
-      where.startDate = {
-        gte: new Date(`${filters.year}-01-01`),
-        lte: new Date(`${filters.year}-12-31`),
-      };
-    }
+    const [items, total] = await Promise.all([
+      this.prisma.leaveRequest.findMany({
+        where,
+        include: { leaveType: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.leaveRequest.count({ where }),
+    ]);
 
-    return this.prisma.leaveRequest.findMany({
-      where,
-      include: {
-        leaveType: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   // حذف طلب (فقط DRAFT)

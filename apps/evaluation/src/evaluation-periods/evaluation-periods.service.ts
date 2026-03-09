@@ -11,10 +11,25 @@ import { UpdatePeriodDto } from './dto/update-period.dto';
 export class EvaluationPeriodsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
-    return this.prisma.evaluationPeriod.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(filters?: { status?: string; page?: number | string; limit?: number | string }) {
+    const where: any = {};
+    if (filters?.status) where.status = filters.status;
+
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.prisma.evaluationPeriod.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.evaluationPeriod.count({ where }),
+    ]);
+
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   async findOne(id: string) {
@@ -122,11 +137,26 @@ export class EvaluationPeriodsService {
     });
   }
 
-  async generateForms(id: string, employeeIds: string[]) {
+  async generateForms(id: string, employeeIds?: string[]) {
     const period = await this.findOne(id);
 
     if (period.status === 'CLOSED') {
       throw new BadRequestException('Cannot generate forms for closed period');
+    }
+
+    // If no employeeIds provided, fetch all active employees
+    let targetEmployeeIds: string[] = Array.isArray(employeeIds) ? employeeIds : [];
+    if (targetEmployeeIds.length === 0) {
+      try {
+        const employees = (await this.prisma.$queryRawUnsafe(
+          `SELECT id FROM users.employees WHERE "deletedAt" IS NULL`,
+        )) as Array<{ id: string }>;
+        targetEmployeeIds = Array.isArray(employees) ? employees.map((e) => e.id) : [];
+        console.log(`[generateForms] fetched ${targetEmployeeIds.length} employees`);
+      } catch (err) {
+        console.error('[generateForms] failed to fetch employees:', err?.message);
+        throw new BadRequestException(`Failed to fetch employees: ${err?.message}`);
+      }
     }
 
     // Get active criteria
@@ -141,7 +171,7 @@ export class EvaluationPeriodsService {
       errors: [] as string[],
     };
 
-    for (const employeeId of employeeIds) {
+    for (const employeeId of targetEmployeeIds) {
       try {
         // Check if form already exists
         const existingForm = await this.prisma.evaluationForm.findUnique({
@@ -180,7 +210,7 @@ export class EvaluationPeriodsService {
     return {
       periodId: id,
       ...results,
-      total: employeeIds.length,
+      total: targetEmployeeIds.length,
     };
   }
 }

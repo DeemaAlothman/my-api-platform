@@ -15,6 +15,7 @@ import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
 import { UpdateLeaveRequestDto } from './dto/update-leave-request.dto';
 import { ApproveLeaveRequestDto, RejectLeaveRequestDto } from './dto/approve-leave-request.dto';
 import { CancelLeaveRequestDto } from './dto/cancel-leave-request.dto';
+import { ListLeaveRequestsQueryDto } from './dto/list-leave-requests.query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
@@ -117,15 +118,15 @@ export class LeaveRequestsController {
   // قائمة طلبات الموظف الحالي
   @Get('my/requests')
   @Permission('leave_requests:read')
-  findMyRequests(@EmployeeId() employeeId: string, @Query() filters: any) {
-    return this.leaveRequestsService.findByEmployee(employeeId, filters);
+  findMyRequests(@EmployeeId() employeeId: string, @Query() query: ListLeaveRequestsQueryDto) {
+    return this.leaveRequestsService.findByEmployee(employeeId, query);
   }
 
   // قائمة جميع الطلبات (للمدراء و HR)
   @Get()
   @Permission('leave_requests:read_all')
-  findAll(@Query() filters: any) {
-    return this.leaveRequestsService.findAll(filters);
+  findAll(@Query() query: ListLeaveRequestsQueryDto) {
+    return this.leaveRequestsService.findAll(query);
   }
 
   // حذف طلب (فقط DRAFT)

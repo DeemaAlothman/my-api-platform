@@ -114,6 +114,8 @@ export class AttendanceJustificationsService {
     status?: string;
     dateFrom?: string;
     dateTo?: string;
+    page?: number | string;
+    limit?: number | string;
   }) {
     const where: any = {};
     if (filters?.employeeId) where.employeeId = filters.employeeId;
@@ -124,16 +126,27 @@ export class AttendanceJustificationsService {
       if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
     }
 
-    const records = await this.prisma.attendanceJustification.findMany({
-      where,
-      include: { alert: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const [records, total] = await Promise.all([
+      this.prisma.attendanceJustification.findMany({
+        where,
+        include: { alert: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.attendanceJustification.count({ where }),
+    ]);
 
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
 
-    return records.map((r: any) => ({ ...r, employee: employeeMap.get(r.employeeId) || null }));
+    const items = records.map((r: any) => ({ ...r, employee: employeeMap.get(r.employeeId) || null }));
+
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   async findOne(id: string) {
@@ -154,7 +167,7 @@ export class AttendanceJustificationsService {
     return { ...record, employee: employeeMap.get(record.employeeId) || null };
   }
 
-  async findMine(employeeId: string, filters?: { status?: string }) {
+  async findMine(employeeId: string, filters?: { status?: string; page?: number | string; limit?: number | string }) {
     return this.findAll({ employeeId, ...filters });
   }
 

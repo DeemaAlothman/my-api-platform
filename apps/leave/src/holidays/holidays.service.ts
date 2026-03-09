@@ -78,21 +78,27 @@ export class HolidaysService {
   }
 
   // الحصول على جميع العطل
-  async findAll(year?: number, type?: string) {
+  async findAll(filters?: any) {
     const where: any = {};
 
-    if (year) {
-      where.year = year;
-    }
+    if (filters?.year) where.year = Number(filters.year);
+    if (filters?.type) where.type = filters.type;
 
-    if (type) {
-      where.type = type;
-    }
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
 
-    return this.prisma.holiday.findMany({
-      where,
-      orderBy: { date: 'asc' },
-    });
+    const [items, total] = await Promise.all([
+      this.prisma.holiday.findMany({
+        where,
+        orderBy: { date: 'asc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.holiday.count({ where }),
+    ]);
+
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   // الحصول على عطلة واحدة

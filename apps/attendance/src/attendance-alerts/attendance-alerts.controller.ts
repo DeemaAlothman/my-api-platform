@@ -7,6 +7,7 @@ import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
 import { EmployeeId, UserId } from '../common/decorators/employee.decorator';
+import { ListAttendanceAlertsQueryDto } from './dto/list-attendance-alerts.query.dto';
 
 @Controller('attendance-alerts')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -18,10 +19,9 @@ export class AttendanceAlertsController {
   @Permission('attendance.alerts.read-own')
   getMyAlerts(
     @EmployeeId() employeeId: string,
-    @Query('status') status?: string,
-    @Query('type') type?: string,
+    @Query() query: ListAttendanceAlertsQueryDto,
   ) {
-    return this.service.getMyAlerts(employeeId, { status, type });
+    return this.service.getMyAlerts(employeeId, query);
   }
 
   @Post()
@@ -32,14 +32,8 @@ export class AttendanceAlertsController {
 
   @Get()
   @Permission('attendance.alerts.read')
-  findAll(
-    @Query('employeeId') employeeId?: string,
-    @Query('type') type?: string,
-    @Query('status') status?: string,
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.service.findAll({ employeeId, type, status, dateFrom, dateTo });
+  findAll(@Query() query: ListAttendanceAlertsQueryDto) {
+    return this.service.findAll(query);
   }
 
   @Get(':id')

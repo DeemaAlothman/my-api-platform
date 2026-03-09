@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { HolidaysService, CreateHolidayDto, UpdateHolidayDto } from './holidays.service';
+import { ListHolidaysQueryDto } from './dto/list-holidays.query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
@@ -36,9 +37,8 @@ export class HolidaysController {
   // الحصول على جميع العطل
   @Get()
   @Permission('holidays:read')
-  findAll(@Query('year') year?: string, @Query('type') type?: string) {
-    const yearNum = year ? parseInt(year, 10) : undefined;
-    return this.holidaysService.findAll(yearNum, type);
+  findAll(@Query() query: ListHolidaysQueryDto) {
+    return this.holidaysService.findAll(query);
   }
 
   // الحصول على عطلة واحدة

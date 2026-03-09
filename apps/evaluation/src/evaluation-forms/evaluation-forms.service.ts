@@ -73,9 +73,19 @@ export class EvaluationFormsService {
   }
 
   async getMyForm(user: CurrentUser, periodId?: string) {
-    const where: any = {
-      employeeId: user.userId,
-    };
+    // Resolve employee ID from user ID (JWT contains userId, forms use employeeId)
+    const employees = (await this.prisma.$queryRawUnsafe(
+      `SELECT id FROM users.employees WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      user.userId,
+    )) as Array<{ id: string }>;
+
+    if (employees.length === 0) {
+      throw new NotFoundException('No employee record found for your account');
+    }
+
+    const employeeId = employees[0].id;
+
+    const where: any = { employeeId };
 
     if (periodId) {
       where.periodId = periodId;
@@ -109,7 +119,7 @@ export class EvaluationFormsService {
     return form;
   }
 
-  async findAll(user: CurrentUser) {
+  async findAll(user: CurrentUser, filters?: { periodId?: string; status?: string; employeeId?: string; page?: number | string; limit?: number | string }) {
     // Only HR can view all forms
     if (!user.permissions.includes('evaluation:forms:view-all')) {
       throw new ForbiddenException(
@@ -117,14 +127,27 @@ export class EvaluationFormsService {
       );
     }
 
-    return this.prisma.evaluationForm.findMany({
-      include: {
-        period: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    const where: any = {};
+    if (filters?.periodId) where.periodId = filters.periodId;
+    if (filters?.status) where.status = filters.status;
+    if (filters?.employeeId) where.employeeId = filters.employeeId;
+
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      this.prisma.evaluationForm.findMany({
+        where,
+        include: { period: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.evaluationForm.count({ where }),
+    ]);
+
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   async findOne(id: string, user: CurrentUser) {

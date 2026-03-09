@@ -242,35 +242,42 @@ export class AttendanceRecordsService {
     dateFrom?: string;
     dateTo?: string;
     status?: string;
+    page?: number | string;
+    limit?: number | string;
   }) {
     const where: any = {};
 
-    if (filters?.employeeId) {
-      where.employeeId = filters.employeeId;
-    }
-
+    if (filters?.employeeId) where.employeeId = filters.employeeId;
+    if (filters?.status) where.status = filters.status;
     if (filters?.dateFrom || filters?.dateTo) {
       where.date = {};
       if (filters.dateFrom) where.date.gte = new Date(filters.dateFrom);
       if (filters.dateTo) where.date.lte = new Date(filters.dateTo);
     }
 
-    if (filters?.status) {
-      where.status = filters.status;
-    }
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
 
-    const records = await this.prisma.attendanceRecord.findMany({
-      where,
-      orderBy: { date: 'desc' },
-    });
+    const [records, total] = await Promise.all([
+      this.prisma.attendanceRecord.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.attendanceRecord.count({ where }),
+    ]);
 
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
 
-    return records.map((record: any) => ({
+    const items = records.map((record: any) => ({
       ...record,
       employee: employeeMap.get(record.employeeId) || null,
     }));
+
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   async findOne(id: string) {

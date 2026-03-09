@@ -3,6 +3,7 @@ import { AttendanceJustificationsService } from './attendance-justifications.ser
 import { CreateAttendanceJustificationDto } from './dto/create-attendance-justification.dto';
 import { ManagerReviewDto } from './dto/manager-review.dto';
 import { HrReviewDto } from './dto/hr-review.dto';
+import { ListAttendanceJustificationsQueryDto } from './dto/list-attendance-justifications.query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
@@ -27,9 +28,9 @@ export class AttendanceJustificationsController {
   @Permission('attendance.justifications.read-own')
   findMine(
     @EmployeeId() employeeId: string,
-    @Query('status') status?: string,
+    @Query() query: ListAttendanceJustificationsQueryDto,
   ) {
-    return this.service.findMine(employeeId, { status });
+    return this.service.findMine(employeeId, query);
   }
 
   // الإدارة: معالجة التنبيهات المنتهية مهلتها
@@ -42,13 +43,8 @@ export class AttendanceJustificationsController {
   // الإدارة: قائمة كل التبريرات
   @Get()
   @Permission('attendance.justifications.read')
-  findAll(
-    @Query('employeeId') employeeId?: string,
-    @Query('status') status?: string,
-    @Query('dateFrom') dateFrom?: string,
-    @Query('dateTo') dateTo?: string,
-  ) {
-    return this.service.findAll({ employeeId, status, dateFrom, dateTo });
+  findAll(@Query() query: ListAttendanceJustificationsQueryDto) {
+    return this.service.findAll(query);
   }
 
   // تفاصيل تبرير واحد
