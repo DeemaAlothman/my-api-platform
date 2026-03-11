@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
@@ -6,15 +6,19 @@ import jwt from 'jsonwebtoken';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(private readonly prisma: PrismaService) { }
 
-  private accessSecret = process.env.JWT_ACCESS_SECRET || 'dev_access_secret_change_me';
-  private refreshSecret = process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret_change_me';
+  private accessSecret = process.env.JWT_ACCESS_SECRET!;
+  private refreshSecret = process.env.JWT_REFRESH_SECRET!;
 
   private accessTtlSeconds = parseInt(process.env.ACCESS_TOKEN_TTL_SECONDS || '900', 10);
   private refreshTtlDays = parseInt(process.env.REFRESH_TOKEN_TTL_DAYS || '30', 10);
 
   async login(username: string, password: string) {
+    this.logger.log(`Login attempt for user: ${username}`);
+
     const rows = await this.prisma.$queryRaw<any[]>`
       SELECT id, username, email, "fullName", password
       FROM users.users
@@ -24,6 +28,7 @@ export class AuthService {
     const user = rows[0] ?? null;
 
     if (!user) {
+      this.logger.warn(`Login failed - user not found: ${username}`);
       throw new UnauthorizedException({
         code: 'AUTH_INVALID_CREDENTIALS',
         message: 'Invalid username or password',
@@ -33,6 +38,7 @@ export class AuthService {
 
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) {
+      this.logger.warn(`Login failed - wrong password for user: ${username}`);
       throw new UnauthorizedException({
         code: 'AUTH_INVALID_CREDENTIALS',
         message: 'Invalid username or password',
@@ -110,10 +116,10 @@ export class AuthService {
         finalPermissions = userPermissions.map(p => p.code);
       }
     } catch (error) {
-      console.error('Error loading roles from database:', error);
-      // Keep default values
+      this.logger.error(`Error loading roles for user ${username}: ${error.message}`);
     }
 
+    this.logger.log(`Login successful for user: ${username} roles=[${finalRoles.join(',')}]`);
     const accessToken = this.signAccessToken(user.id, user.username, finalPermissions);
     const refreshToken = this.signRefreshToken(user.id);
 
@@ -184,9 +190,36 @@ export class AuthService {
 
     const userId = payload.sub as string;
 
-    // TODO: جيب الـ permissions الحقيقية من الـ DB
-    const permissions = ['users:read', 'users:create', 'users:update', 'users:delete'];
+    // جلب الصلاحيات الحقيقية من DB (نفس منطق login)
+    let permissions: string[] = [];
+    try {
+      const userRoles = await this.prisma.$queryRaw<Array<{ name: string }>>`
+        SELECT r.name
+        FROM users.users u
+        INNER JOIN users.user_roles ur ON u.id = ur."userId"
+        INNER JOIN users.roles r ON ur."roleId" = r.id
+        WHERE u.id = ${userId}
+          AND r."deletedAt" IS NULL
+      `;
 
+      if (userRoles.some(r => r.name === 'super_admin')) {
+        permissions = this.getSuperAdminPermissions();
+      } else if (userRoles.length > 0) {
+        const userPermissions = await this.prisma.$queryRaw<Array<{ code: string }>>`
+          SELECT DISTINCT p.name as code
+          FROM users.users u
+          INNER JOIN users.user_roles ur ON u.id = ur."userId"
+          INNER JOIN users.role_permissions rp ON ur."roleId" = rp."roleId"
+          INNER JOIN users.permissions p ON rp."permissionId" = p.id
+          WHERE u.id = ${userId}
+        `;
+        permissions = userPermissions.map(p => p.code);
+      }
+    } catch (error) {
+      this.logger.error(`Error loading permissions on refresh for userId=${userId}: ${error.message}`);
+    }
+
+    this.logger.log(`Token refreshed for userId: ${userId}`);
     const newAccessToken = this.signAccessToken(userId, payload.username, permissions);
     const newRefreshToken = this.signRefreshToken(userId);
 
@@ -244,6 +277,45 @@ export class AuthService {
       this.accessSecret,
       { expiresIn: this.accessTtlSeconds },
     );
+  }
+
+  private getSuperAdminPermissions(): string[] {
+    return [
+      'users:read', 'users:create', 'users:update', 'users:delete', 'users:assign_roles',
+      'employees:read', 'employees:create', 'employees:update', 'employees:delete',
+      'departments:read', 'departments:create', 'departments:update', 'departments:delete',
+      'roles:read', 'roles:create', 'roles:update', 'roles:delete',
+      'leave_types:read', 'leave_types:create', 'leave_types:update', 'leave_types:delete',
+      'leave_requests:read', 'leave_requests:read_all', 'leave_requests:create', 'leave_requests:update',
+      'leave_requests:submit', 'leave_requests:delete', 'leave_requests:approve_manager',
+      'leave_requests:approve_hr', 'leave_requests:cancel',
+      'leave_balances:read', 'leave_balances:read_all', 'leave_balances:create', 'leave_balances:adjust',
+      'leave_balances:initialize', 'leave_balances:delete', 'leave_balances:carry_over',
+      'holidays:read', 'holidays:create', 'holidays:update', 'holidays:delete',
+      'attendance.work-schedules.read', 'attendance.work-schedules.create',
+      'attendance.work-schedules.update', 'attendance.work-schedules.delete',
+      'attendance.employee-schedules.read', 'attendance.employee-schedules.create',
+      'attendance.employee-schedules.update', 'attendance.employee-schedules.delete',
+      'attendance.records.read', 'attendance.records.read-own', 'attendance.records.create',
+      'attendance.records.update', 'attendance.records.delete', 'attendance.records.check-in',
+      'attendance.records.check-out',
+      'attendance.alerts.read', 'attendance.alerts.read-own', 'attendance.alerts.create',
+      'attendance.alerts.update', 'attendance.alerts.delete', 'attendance.alerts.resolve',
+      'attendance.justifications.read', 'attendance.justifications.read-own',
+      'attendance.justifications.create-own', 'attendance.justifications.manager-review',
+      'attendance.justifications.hr-review',
+      'evaluation:periods:read', 'evaluation:periods:create', 'evaluation:periods:update',
+      'evaluation:periods:delete', 'evaluation:periods:manage',
+      'evaluation:criteria:read', 'evaluation:criteria:create', 'evaluation:criteria:update',
+      'evaluation:criteria:delete',
+      'evaluation:forms:view-own', 'evaluation:forms:view-all', 'evaluation:forms:self-evaluate',
+      'evaluation:forms:manager-evaluate', 'evaluation:forms:hr-review', 'evaluation:forms:gm-approval',
+      'evaluation:peer:submit', 'evaluation:goals:manage',
+      'job-titles:read', 'job-titles:create', 'job-titles:update', 'job-titles:delete',
+      'job-grades:read', 'job-grades:create', 'job-grades:update', 'job-grades:delete',
+      'requests:read', 'requests:manager-approve', 'requests:manager-reject', 'requests:hr-approve', 'requests:hr-reject',
+      'attendance.reports.read',
+    ];
   }
 
   private signRefreshToken(userId: string) {

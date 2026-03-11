@@ -1,13 +1,17 @@
 {
   "name": "@my/shared",
   "version": "1.0.0",
-  "description": "",
+  "description": "Shared utilities for WSO API Platform services",
   "main": "./src/index.js",
+  "types": "./src/index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"No tests\" && exit 0"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module"
+  "peerDependencies": {
+    "@nestjs/common": ">=10",
+    "@nestjs/core": ">=10"
+  }
 }

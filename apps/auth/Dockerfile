@@ -3,15 +3,25 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy root package files
+# Step 1: Copy ONLY package.json files (enables Docker layer caching).
+# node_modules is cached as long as package.json files don't change.
 COPY package*.json ./
-COPY packages ./packages
+COPY packages/shared/package*.json ./packages/shared/
+COPY apps/auth/package*.json       ./apps/auth/
+COPY apps/users/package*.json      ./apps/users/
+COPY apps/leave/package*.json      ./apps/leave/
+COPY apps/attendance/package*.json ./apps/attendance/
+COPY apps/evaluation/package*.json ./apps/evaluation/
+COPY apps/requests/package*.json   ./apps/requests/
+COPY apps/gateway/package*.json    ./apps/gateway/
 
-# Copy auth service files
-COPY apps/auth ./apps/auth
-
-# Install dependencies
+# Step 2: Install all workspace deps (CACHED if no package.json changed)
 RUN npm install
+
+# Step 3: Copy source code (won't bust npm cache above)
+COPY packages ./packages
+COPY apps/auth ./apps/auth
+COPY tsconfig*.json ./
 
 # Build the auth service
 WORKDIR /app/apps/auth
@@ -25,22 +35,18 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Copy root package files
-COPY package*.json ./
-
-# Copy built application from builder
-COPY --from=builder /app/apps/auth/dist ./dist
+# Copy only auth package.json (standalone, no workspace resolution needed)
 COPY --from=builder /app/apps/auth/package*.json ./
-COPY --from=builder /app/apps/auth/prisma ./prisma
 
 # Install production dependencies only
 RUN npm install --omit=dev
 
-# Generate Prisma Client in production stage
+# Copy built app and prisma schema
+COPY --from=builder /app/apps/auth/dist   ./dist
+COPY --from=builder /app/apps/auth/prisma ./prisma
+
+# Generate Prisma client
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 
-# Expose the port
 EXPOSE 4001
-
-# Start the application
 CMD ["node", "dist/src/main.js"]

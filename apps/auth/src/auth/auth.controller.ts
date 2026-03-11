@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 
@@ -6,17 +7,20 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  @SkipThrottle()
   @Get('health')
   health() {
     return { service: 'auth', status: 'ok', timestamp: new Date().toISOString() };
   }
 
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
   @Post('login')
   async login(@Body() body: { username: string; password: string }) {
     const data = await this.auth.login(body.username, body.password);
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };
   }
 
+  @Throttle({ short: { limit: 3, ttl: 60000 } })
   @Post('refresh')
   async refresh(@Body() body: { refreshToken: string }) {
     const data = await this.auth.refresh(body.refreshToken);
