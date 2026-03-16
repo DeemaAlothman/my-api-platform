@@ -90,8 +90,19 @@ model Employee {
   universityYear     Int?
   religion           String?
 
+  // Education & Experience
+  yearsOfExperience      Int?
+  certificate1           String?
+  specialization1        String?
+  certificateAttachment1 String?
+  certificate2           String?
+  specialization2        String?
+  certificateAttachment2 String?
+
   // Attachments
-  attachments    EmployeeAttachment[]
+  attachments          EmployeeAttachment[]
+  trainingCertificates TrainingCertificate[]
+  allowances           EmployeeAllowance[]
 
   deletedAt      DateTime?
 
@@ -118,6 +129,35 @@ model EmployeeAttachment {
   @@map("employee_attachments")
 }
 
+model TrainingCertificate {
+  id            String   @id @default(uuid())
+  employeeId    String
+  name          String
+  attachmentUrl String?
+
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+
+  @@index([employeeId])
+  @@map("training_certificates")
+}
+
+model EmployeeAllowance {
+  id         String        @id @default(uuid())
+  employeeId String
+  type       AllowanceType
+  amount     Decimal       @db.Decimal(15, 2)
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([employeeId])
+  @@map("employee_allowances")
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -131,10 +171,18 @@ enum MaritalStatus {
 }
 
 enum ContractType {
-  PERMANENT
+  FIXED_TERM
+  INDEFINITE
   TEMPORARY
-  CONTRACT
-  INTERNSHIP
+  TRAINEE
+}
+
+enum AllowanceType {
+  MEDICAL
+  EXPERIENCE
+  HIGHER_DEGREE
+  WORK_NATURE
+  RESPONSIBILITY
 }
 
 enum EmploymentStatus {

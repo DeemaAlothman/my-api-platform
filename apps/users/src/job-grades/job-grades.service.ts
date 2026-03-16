@@ -68,6 +68,10 @@ export class JobGradesService {
   }
 
   async create(dto: CreateJobGradeDto) {
+    if (!dto.code) {
+      const count = await this.prisma.jobGrade.count();
+      dto.code = `VTX-GRD-${String(count + 1).padStart(6, '0')}`;
+    }
     const existing = await this.prisma.jobGrade.findFirst({
       where: { code: dto.code, deletedAt: null },
     });
@@ -80,7 +84,7 @@ export class JobGradesService {
       });
     }
 
-    return this.prisma.jobGrade.create({ data: dto });
+    return this.prisma.jobGrade.create({ data: { ...dto, code: dto.code! } });
   }
 
   async update(id: string, dto: UpdateJobGradeDto) {

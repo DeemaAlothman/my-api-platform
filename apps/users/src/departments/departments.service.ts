@@ -169,6 +169,12 @@ export class DepartmentsService {
   }
 
   async create(dto: CreateDepartmentDto) {
+        // توليد code تلقائي إذا لم يُحدد
+    if (!dto.code) {
+      const count = await this.prisma.department.count();
+      dto.code = `VTX-DEP-${String(count + 1).padStart(6, '0')}`;
+    }
+
     // تحقق من code موجود
     const existingCode = await this.prisma.department.findFirst({
       where: {
@@ -216,7 +222,7 @@ export class DepartmentsService {
     }
 
     const department = await this.prisma.department.create({
-      data: dto,
+      data: dto as any,
       include: {
         parent: {
           select: {

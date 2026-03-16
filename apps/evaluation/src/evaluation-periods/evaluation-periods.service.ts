@@ -53,6 +53,10 @@ export class EvaluationPeriodsService {
   }
 
   async create(createPeriodDto: CreatePeriodDto) {
+    if (!createPeriodDto.code) {
+      const count = await this.prisma.evaluationPeriod.count();
+      createPeriodDto.code = `VTX-EVL-${String(count + 1).padStart(6, '0')}`;
+    }
     // Check if code already exists
     const existing = await this.prisma.evaluationPeriod.findUnique({
       where: { code: createPeriodDto.code },

@@ -2,9 +2,9 @@ import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, Min } from 'clas
 import { Type } from 'class-transformer';
 
 export class CreateJobGradeDto {
-  @IsNotEmpty({ message: 'Grade code is required' })
+  @IsOptional()
   @IsString()
-  code: string;
+  code?: string;
 
   @IsNotEmpty({ message: 'Arabic name is required' })
   @IsString()

@@ -1,9 +1,9 @@
 import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateJobTitleDto {
-  @IsNotEmpty({ message: 'Job title code is required' })
+  @IsOptional()
   @IsString()
-  code: string;
+  code?: string;
 
   @IsNotEmpty({ message: 'Arabic name is required' })
   @IsString()

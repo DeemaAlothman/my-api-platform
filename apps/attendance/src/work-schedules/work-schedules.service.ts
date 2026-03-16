@@ -8,6 +8,12 @@ export class WorkSchedulesService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateWorkScheduleDto) {
+    // Auto-generate code if not provided
+    if (!dto.code) {
+      const count = await this.prisma.workSchedule.count();
+      dto.code = `VTX-ATT-${String(count + 1).padStart(6, '0')}`;
+    }
+
     // Check if code already exists
     const existing = await this.prisma.workSchedule.findUnique({
       where: { code: dto.code },
@@ -22,7 +28,7 @@ export class WorkSchedulesService {
     }
 
     return this.prisma.workSchedule.create({
-      data: dto,
+      data: { ...dto, code: dto.code! },
     });
   }
 

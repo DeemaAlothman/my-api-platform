@@ -1,6 +1,6 @@
 import { IsEmail, IsEnum, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Gender, MaritalStatus, ContractType, BloodType, EducationLevel, EmployeeAttachmentDto } from './create-employee.dto';
+import { Gender, MaritalStatus, ContractType, BloodType, EducationLevel, EmployeeAttachmentDto, TrainingCertificateDto, EmployeeAllowanceDto } from './create-employee.dto';
 
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',
@@ -148,4 +148,48 @@ export class UpdateEmployeeDto {
   @ValidateNested({ each: true })
   @Type(() => EmployeeAttachmentDto)
   attachments?: EmployeeAttachmentDto[];
+
+  // Education & Experience
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  yearsOfExperience?: number;
+
+  @IsOptional()
+  @IsString()
+  certificate1?: string;
+
+  @IsOptional()
+  @IsString()
+  specialization1?: string;
+
+  @IsOptional()
+  @IsString()
+  certificateAttachment1?: string;
+
+  @IsOptional()
+  @IsString()
+  certificate2?: string;
+
+  @IsOptional()
+  @IsString()
+  specialization2?: string;
+
+  @IsOptional()
+  @IsString()
+  certificateAttachment2?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TrainingCertificateDto)
+  trainingCertificates?: TrainingCertificateDto[];
+
+  // Allowances
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmployeeAllowanceDto)
+  allowances?: EmployeeAllowanceDto[];
 }

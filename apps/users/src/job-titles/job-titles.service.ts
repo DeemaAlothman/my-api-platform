@@ -66,6 +66,10 @@ export class JobTitlesService {
   }
 
   async create(dto: CreateJobTitleDto) {
+    if (!dto.code) {
+      const count = await this.prisma.jobTitle.count();
+      dto.code = `VTX-JTL-${String(count + 1).padStart(6, '0')}`;
+    }
     const existing = await this.prisma.jobTitle.findFirst({
       where: { code: dto.code, deletedAt: null },
     });
@@ -78,7 +82,7 @@ export class JobTitlesService {
       });
     }
 
-    return this.prisma.jobTitle.create({ data: dto });
+    return this.prisma.jobTitle.create({ data: { ...dto, code: dto.code!, gradeId: dto.gradeId } });
   }
 
   async update(id: string, dto: UpdateJobTitleDto) {

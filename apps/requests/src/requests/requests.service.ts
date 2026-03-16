@@ -38,10 +38,9 @@ export class RequestsService {
 
   // توليد رقم طلب تسلسلي
   private async generateRequestNumber(): Promise<string> {
-    const year = new Date().getFullYear();
     const count = await this.prisma.request.count();
     const seq = String(count + 1).padStart(6, '0');
-    return `REQ-${year}-${seq}`;
+    return `VTX-LRQ-${seq}`;
   }
 
   async create(dto: CreateRequestDto, userId: string) {

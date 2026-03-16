@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray, IsDecimal } from 'class-validator';
 import { Type } from 'class-transformer';
 
 
@@ -15,10 +15,40 @@ export enum MaritalStatus {
 }
 
 export enum ContractType {
-  PERMANENT = 'PERMANENT',
+  FIXED_TERM = 'FIXED_TERM',
+  INDEFINITE = 'INDEFINITE',
   TEMPORARY = 'TEMPORARY',
-  CONTRACT = 'CONTRACT',
-  INTERNSHIP = 'INTERNSHIP',
+  TRAINEE = 'TRAINEE',
+}
+
+export enum AllowanceType {
+  MEDICAL = 'MEDICAL',
+  EXPERIENCE = 'EXPERIENCE',
+  HIGHER_DEGREE = 'HIGHER_DEGREE',
+  WORK_NATURE = 'WORK_NATURE',
+  RESPONSIBILITY = 'RESPONSIBILITY',
+}
+
+export class EmployeeAllowanceDto {
+  @IsNotEmpty()
+  @IsEnum(AllowanceType)
+  type: AllowanceType;
+
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Amount must be a number' })
+  @Min(0)
+  amount: number;
+}
+
+export class TrainingCertificateDto {
+  @IsNotEmpty()
+  @IsString()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  attachmentUrl?: string;
 }
 
 export enum BloodType {
@@ -193,4 +223,48 @@ export class CreateEmployeeDto {
   @ValidateNested({ each: true })
   @Type(() => EmployeeAttachmentDto)
   attachments?: EmployeeAttachmentDto[];
+
+  // Education & Experience
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Type(() => Number)
+  yearsOfExperience?: number;
+
+  @IsOptional()
+  @IsString()
+  certificate1?: string;
+
+  @IsOptional()
+  @IsString()
+  specialization1?: string;
+
+  @IsOptional()
+  @IsString()
+  certificateAttachment1?: string;
+
+  @IsOptional()
+  @IsString()
+  certificate2?: string;
+
+  @IsOptional()
+  @IsString()
+  specialization2?: string;
+
+  @IsOptional()
+  @IsString()
+  certificateAttachment2?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TrainingCertificateDto)
+  trainingCertificates?: TrainingCertificateDto[];
+
+  // Allowances
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EmployeeAllowanceDto)
+  allowances?: EmployeeAllowanceDto[];
 }

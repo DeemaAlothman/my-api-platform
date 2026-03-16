@@ -2,8 +2,8 @@ import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsBoolean, IsNumber } fro
 
 export class CreateWorkScheduleDto {
   @IsString()
-  @IsNotEmpty()
-  code: string;
+  @IsOptional()
+  code?: string;
 
   @IsString()
   @IsNotEmpty()

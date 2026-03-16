@@ -1,8 +1,8 @@
-import { IsString, IsDateString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsDateString, IsOptional, IsBoolean, Allow } from 'class-validator';
 
 export class CreatePeriodDto {
-  @IsString()
-  code: string;
+  @Allow()
+  code?: string;
 
   @IsString()
   nameAr: string;

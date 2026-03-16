@@ -96,6 +96,8 @@ export class EmployeesService {
             },
           },
           attachments: true,
+          trainingCertificates: true,
+          allowances: true,
         },
       }),
       this.prisma.employee.count({ where }),
@@ -151,6 +153,8 @@ export class EmployeesService {
           },
         },
         attachments: true,
+        trainingCertificates: true,
+        allowances: true,
       },
     });
 
@@ -223,6 +227,8 @@ export class EmployeesService {
           },
         },
         attachments: true,
+        trainingCertificates: true,
+        allowances: true,
       },
     });
 
@@ -263,7 +269,7 @@ export class EmployeesService {
     let employeeNumber = dto.employeeNumber;
     if (!employeeNumber) {
       const count = await this.prisma.employee.count();
-      employeeNumber = `EMP${String(count + 1).padStart(6, '0')}`;
+      employeeNumber = `VTX-EMP-${String(count + 1).padStart(6, '0')}`;
     }
 
     // تحقق من employeeNumber مو مكرر
@@ -282,7 +288,12 @@ export class EmployeesService {
       });
     }
 
-    const { attachments, ...employeeData } = dto;
+    // التحقق من الراتب ضمن حدود الدرجة الوظيفية
+    if (dto.jobGradeId && dto.basicSalary !== undefined) {
+      await this.validateSalaryRange(dto.jobGradeId, dto.basicSalary);
+    }
+
+    const { attachments, trainingCertificates, allowances, ...employeeData } = dto;
 
     const employee = await this.prisma.employee.create({
       data: {
@@ -292,6 +303,8 @@ export class EmployeesService {
         hireDate: new Date(dto.hireDate),
         contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : null,
         ...(attachments?.length ? { attachments: { create: attachments } } : {}),
+        ...(trainingCertificates?.length ? { trainingCertificates: { create: trainingCertificates } } : {}),
+        ...(allowances?.length ? { allowances: { create: allowances } } : {}),
       },
       include: {
         department: true,
@@ -305,6 +318,8 @@ export class EmployeesService {
           },
         },
         attachments: true,
+        trainingCertificates: true,
+        allowances: true,
       },
     });
 
@@ -349,9 +364,17 @@ export class EmployeesService {
       }
     }
 
-    const { attachments, ...employeeData } = dto;
+    // التحقق من الراتب ضمن حدود الدرجة الوظيفية
+    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
+    const gradeId = dto.jobGradeId ?? employee?.jobGradeId;
+    const salary = dto.basicSalary ?? (employee?.basicSalary ? Number(employee.basicSalary) : undefined);
+    if (gradeId && salary !== undefined) {
+      await this.validateSalaryRange(gradeId, salary);
+    }
 
-    const employee = await this.prisma.employee.update({
+    const { attachments, trainingCertificates, allowances, ...employeeData } = dto;
+
+    const updated = await this.prisma.employee.update({
       where: { id },
       data: {
         ...employeeData,
@@ -359,6 +382,12 @@ export class EmployeesService {
         contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : undefined,
         ...(attachments !== undefined ? {
           attachments: { deleteMany: {}, create: attachments },
+        } : {}),
+        ...(trainingCertificates !== undefined ? {
+          trainingCertificates: { deleteMany: {}, create: trainingCertificates },
+        } : {}),
+        ...(allowances !== undefined ? {
+          allowances: { deleteMany: {}, create: allowances },
         } : {}),
       },
       include: {
@@ -373,10 +402,31 @@ export class EmployeesService {
           },
         },
         attachments: true,
+        trainingCertificates: true,
+        allowances: true,
       },
     });
 
-    return employee;
+    return updated;
+  }
+
+  private async validateSalaryRange(jobGradeId: string, salary: number) {
+    const grade = await this.prisma.jobGrade.findFirst({ where: { id: jobGradeId } });
+    if (!grade) return;
+    if (grade.minSalary !== null && salary < Number(grade.minSalary)) {
+      throw new BadRequestException({
+        code: 'SALARY_OUT_OF_RANGE',
+        message: `Salary ${salary} is below the minimum ${grade.minSalary} for job grade "${grade.nameAr}"`,
+        details: [{ field: 'basicSalary', min: grade.minSalary, max: grade.maxSalary }],
+      });
+    }
+    if (grade.maxSalary !== null && salary > Number(grade.maxSalary)) {
+      throw new BadRequestException({
+        code: 'SALARY_OUT_OF_RANGE',
+        message: `Salary ${salary} exceeds the maximum ${grade.maxSalary} for job grade "${grade.nameAr}"`,
+        details: [{ field: 'basicSalary', min: grade.minSalary, max: grade.maxSalary }],
+      });
+    }
   }
 
   async remove(id: string) {
