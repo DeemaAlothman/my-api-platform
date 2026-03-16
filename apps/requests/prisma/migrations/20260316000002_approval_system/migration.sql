@@ -24,7 +24,15 @@ ALTER TYPE "RequestStatus" ADD VALUE IF NOT EXISTS 'IN_APPROVAL';
 BEGIN;
 SET search_path TO requests;
 
--- 1. ApproverRole enum
+-- 1. ApprovalStatus enum
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON t.typnamespace = n.oid
+                 WHERE t.typname = 'ApprovalStatus' AND n.nspname = 'requests') THEN
+    CREATE TYPE "ApprovalStatus" AS ENUM ('PENDING','APPROVED','REJECTED');
+  END IF;
+END $$;
+
+-- 2. ApproverRole enum
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON t.typnamespace = n.oid
                  WHERE t.typname = 'ApproverRole' AND n.nspname = 'requests') THEN
@@ -32,12 +40,12 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- 2. New columns on requests
+-- 3. New columns on requests
 ALTER TABLE requests
   ADD COLUMN IF NOT EXISTS "currentStepOrder" INTEGER,
   ADD COLUMN IF NOT EXISTS "targetEmployeeId"  TEXT;
 
--- 3. approval_workflows table
+-- 4. approval_workflows table
 CREATE TABLE IF NOT EXISTS approval_workflows (
   "id"          TEXT    NOT NULL,
   "requestType" "RequestType" NOT NULL,
@@ -50,7 +58,7 @@ CREATE TABLE IF NOT EXISTS approval_workflows (
   CONSTRAINT "approval_workflows_requestType_stepOrder_key" UNIQUE ("requestType", "stepOrder")
 );
 
--- 4. approval_steps table
+-- 5. approval_steps table
 CREATE TABLE IF NOT EXISTS approval_steps (
   "id"           TEXT    NOT NULL,
   "requestId"    TEXT    NOT NULL,
@@ -72,7 +80,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- 5. Seed approval_workflows
+-- 6. Seed approval_workflows
 INSERT INTO approval_workflows (id, "requestType", "stepOrder", "approverRole") VALUES
   -- RESIGNATION (3 steps)
   (gen_random_uuid()::text, 'RESIGNATION',       1, 'DIRECT_MANAGER'),
