@@ -22,8 +22,8 @@ COPY apps/requests ./apps/requests
 COPY tsconfig*.json ./
 
 WORKDIR /app/apps/requests
-RUN npm run build
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+RUN npm run build
 
 FROM node:20-alpine AS production
 

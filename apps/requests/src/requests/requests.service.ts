@@ -5,10 +5,15 @@ import { ApproveRequestDto } from './dto/approve-request.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
 import { CancelRequestDto } from './dto/cancel-request.dto';
 import { ListRequestsQueryDto } from './dto/list-requests.query.dto';
+import { ApprovalService } from './approval.service';
+import { validateRequestDetails } from './validators/request-details.validator';
 
 @Injectable()
 export class RequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly approvalService: ApprovalService,
+  ) {}
 
   // جلب بيانات الموظفين بـ bulk query عبر cross-schema
   private async fetchEmployeeNames(employeeIds: string[]): Promise<Map<string, {
@@ -80,16 +85,44 @@ export class RequestsService {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Only DRAFT requests can be submitted', details: [] });
     }
 
-    const updated = await this.prisma.request.update({
-      where: { id },
-      data: { status: 'PENDING_MANAGER' },
-    });
+    validateRequestDetails(request.type, request.details);
+
+    const initialized = await this.approvalService.initializeApprovalSteps(id, request.type);
+    const toStatus = initialized ? 'IN_APPROVAL' : 'PENDING_MANAGER';
+
+    if (!initialized) {
+      await this.prisma.request.update({ where: { id }, data: { status: 'PENDING_MANAGER' } });
+    }
 
     await this.prisma.requestHistory.create({
-      data: { requestId: id, action: 'SUBMITTED', fromStatus: 'DRAFT', toStatus: 'PENDING_MANAGER', performedBy: employeeId },
+      data: { requestId: id, action: 'SUBMITTED', fromStatus: 'DRAFT', toStatus, performedBy: employeeId! },
     });
 
-    return updated;
+    return this.prisma.request.findFirst({
+      where: { id },
+      include: {
+        approvalSteps: { orderBy: { stepOrder: 'asc' } },
+        history: { orderBy: { createdAt: 'desc' }, take: 5 },
+      },
+    });
+  }
+
+  // ── نظام الموافقات الجديد ──────────────────────────────────────
+
+  async approveStep(id: string, userId: string, dto: ApproveRequestDto) {
+    return this.approvalService.approve(id, userId, dto.notes);
+  }
+
+  async rejectStep(id: string, userId: string, dto: RejectRequestDto) {
+    return this.approvalService.reject(id, userId, dto.notes);
+  }
+
+  async getApprovalSteps(id: string) {
+    return this.approvalService.getApprovalSteps(id);
+  }
+
+  async getPendingMyApproval(userId: string, page: number, limit: number) {
+    return this.approvalService.getPendingMyApproval(userId, page, limit);
   }
 
   async managerApprove(id: string, userId: string, dto: ApproveRequestDto) {
@@ -199,7 +232,7 @@ export class RequestsService {
     if (request.employeeId !== employeeId) {
       throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'Not your request', details: [] });
     }
-    if (!['DRAFT', 'PENDING_MANAGER'].includes(request.status)) {
+    if (!['DRAFT', 'PENDING_MANAGER', 'IN_APPROVAL'].includes(request.status)) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cannot cancel request at this stage', details: [] });
     }
 
@@ -238,6 +271,7 @@ export class RequestsService {
         take: limit,
         include: {
           history: { orderBy: { createdAt: 'desc' }, take: 5 },
+          approvalSteps: { orderBy: { stepOrder: 'asc' } },
         },
       }),
       this.prisma.request.count({ where }),
@@ -262,6 +296,7 @@ export class RequestsService {
       where: { id, deletedAt: null },
       include: {
         history: { orderBy: { createdAt: 'desc' } },
+        approvalSteps: { orderBy: { stepOrder: 'asc' } },
       },
     });
 

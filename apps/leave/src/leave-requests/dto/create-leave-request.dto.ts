@@ -7,4 +7,5 @@ export class CreateLeaveRequestDto {
   halfDayPeriod?: 'MORNING' | 'AFTERNOON';
   substituteId?: string;
   contactDuring?: string;
+  attachmentUrl?: string;
 }

@@ -4,6 +4,7 @@ import { RequestType } from './create-request.dto';
 
 export enum RequestStatus {
   DRAFT = 'DRAFT',
+  IN_APPROVAL = 'IN_APPROVAL',
   PENDING_MANAGER = 'PENDING_MANAGER',
   PENDING_HR = 'PENDING_HR',
   APPROVED = 'APPROVED',

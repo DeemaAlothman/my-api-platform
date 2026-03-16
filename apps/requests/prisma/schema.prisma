@@ -17,10 +17,18 @@ enum RequestType {
   REWARD
   SPONSORSHIP
   OTHER
+  PENALTY_PROPOSAL
+  OVERTIME_EMPLOYEE
+  OVERTIME_MANAGER
+  BUSINESS_MISSION
+  DELEGATION
+  HIRING_REQUEST
+  COMPLAINT
 }
 
 enum RequestStatus {
   DRAFT
+  IN_APPROVAL
   PENDING_MANAGER
   PENDING_HR
   APPROVED
@@ -34,6 +42,15 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum ApproverRole {
+  DIRECT_MANAGER
+  DEPARTMENT_MANAGER
+  TARGET_MANAGER
+  HR
+  CEO
+  CFO
+}
+
 model Request {
   id              String        @id @default(uuid())
   requestNumber   String        @unique
@@ -44,6 +61,9 @@ model Request {
   notes           String?
   attachmentUrl   String?
   details         Json?
+
+  currentStepOrder  Int?
+  targetEmployeeId  String?
 
   managerStatus     ApprovalStatus?
   managerReviewedBy String?
@@ -59,7 +79,8 @@ model Request {
   cancelledAt  DateTime?
   cancelledBy  String?
 
-  history   RequestHistory[]
+  approvalSteps ApprovalStep[]
+  history       RequestHistory[]
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
@@ -69,6 +90,38 @@ model Request {
   @@index([type])
   @@index([status])
   @@map("requests")
+}
+
+model ApprovalWorkflow {
+  id           String       @id @default(uuid())
+  requestType  RequestType
+  stepOrder    Int
+  approverRole ApproverRole
+  isRequired   Boolean      @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([requestType, stepOrder])
+  @@map("approval_workflows")
+}
+
+model ApprovalStep {
+  id           String         @id @default(uuid())
+  requestId    String
+  stepOrder    Int
+  approverRole ApproverRole
+  status       ApprovalStatus @default(PENDING)
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  notes        String?
+
+  request   Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([requestId, stepOrder])
+  @@index([requestId])
+  @@map("approval_steps")
 }
 
 model RequestHistory {

@@ -29,12 +29,30 @@ export class RequestsController {
     return this.requests.myRequests(user.userId, query);
   }
 
+  // الطلبات التي تنتظر موافقتي (يجب أن يكون قبل :id)
+  @UseGuards(JwtAuthGuard)
+  @Get('pending-my-approval')
+  pendingMyApproval(
+    @CurrentUser() user: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.requests.getPendingMyApproval(user.userId, Number(page) || 1, Number(limit) || 10);
+  }
+
   // طلب واحد
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:read')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.requests.findOne(id);
+  }
+
+  // عرض خطوات الموافقة
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/approvals')
+  getApprovalSteps(@Param('id') id: string) {
+    return this.requests.getApprovalSteps(id);
   }
 
   // إنشاء طلب
@@ -59,7 +77,21 @@ export class RequestsController {
     return this.requests.cancel(id, user.userId, dto);
   }
 
-  // موافقة المدير
+  // موافقة ديناميكية (النظام الجديد)
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/approve')
+  approveStep(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: ApproveRequestDto) {
+    return this.requests.approveStep(id, user.userId, dto);
+  }
+
+  // رفض ديناميكي (النظام الجديد)
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/reject')
+  rejectStep(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: RejectRequestDto) {
+    return this.requests.rejectStep(id, user.userId, dto);
+  }
+
+  // موافقة المدير (deprecated)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:manager-approve')
   @Post(':id/manager-approve')

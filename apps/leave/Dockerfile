@@ -22,12 +22,12 @@ COPY packages ./packages
 COPY apps/leave ./apps/leave
 COPY tsconfig*.json ./
 
-# Build the leave service
+# Generate Prisma Client first (with dummy DATABASE_URL for build time)
 WORKDIR /app/apps/leave
-RUN npm run build
-
-# Generate Prisma Client (with dummy DATABASE_URL for build time)
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+
+# Build the leave service
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS production
