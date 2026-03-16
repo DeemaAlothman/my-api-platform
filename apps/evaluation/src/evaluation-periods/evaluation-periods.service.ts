@@ -71,6 +71,7 @@ export class EvaluationPeriodsService {
     return this.prisma.evaluationPeriod.create({
       data: {
         ...createPeriodDto,
+        code: createPeriodDto.code!,
         startDate: new Date(createPeriodDto.startDate),
         endDate: new Date(createPeriodDto.endDate),
       },
