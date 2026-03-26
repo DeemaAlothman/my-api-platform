@@ -132,6 +132,19 @@ model AttendanceRecord {
   clockInIp  String?
   clockOutIp String?
 
+  // مصدر التسجيل: BIOMETRIC | WEB | MOBILE | MANUAL
+  source            String  @default("MANUAL")
+  deviceSN          String?
+
+  // الخروجات المؤقتة
+  totalBreakMinutes Int     @default(0)
+  netWorkedMinutes  Int?
+
+  // ارتباط الراتب
+  salaryLinked      Boolean @default(true)
+
+  breaks            AttendanceBreak[]
+
   // Manual entry/correction
   isManualEntry     Boolean @default(false)
   manualEntryBy     String?
@@ -263,5 +276,39 @@ model AttendanceSetting {
   updatedAt   DateTime @updatedAt
 
   @@map("attendance_settings")
+  @@schema("attendance")
+}
+
+/// سجلات الخروج المؤقت أثناء الدوام
+model AttendanceBreak {
+  id                 String    @id @default(uuid())
+  attendanceRecordId String
+  breakOut           DateTime
+  breakIn            DateTime?
+  durationMinutes    Int?
+  reason             String?
+  isAuthorized       Boolean   @default(false)
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  record             AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceRecordId])
+  @@map("attendance_breaks")
+  @@schema("attendance")
+}
+
+/// إعدادات ارتباط الحضور بالراتب لكل موظف
+model EmployeeAttendanceConfig {
+  id                   String   @id @default(uuid())
+  employeeId           String   @unique
+  salaryLinked         Boolean  @default(true)
+  allowedBreakMinutes  Int      @default(60)
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("employee_attendance_configs")
   @@schema("attendance")
 }

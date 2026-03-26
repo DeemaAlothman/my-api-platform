@@ -102,6 +102,8 @@ export class AuthService {
           'custodies:read', 'custodies:create', 'custodies:update', 'custodies:delete',
           'biometric.devices.read', 'biometric.devices.create', 'biometric.devices.update', 'biometric.devices.delete',
           'biometric.mappings.read', 'biometric.mappings.create', 'biometric.mappings.update', 'biometric.mappings.delete',
+          'attendance.records.device',
+          'attendance.config.read', 'attendance.config.create', 'attendance.config.update',
         ];
       } else if (userRoles.length > 0) {
         // Load permissions from database for other roles
@@ -321,6 +323,8 @@ export class AuthService {
       'custodies:read', 'custodies:create', 'custodies:update', 'custodies:delete',
       'biometric.devices.read', 'biometric.devices.create', 'biometric.devices.update', 'biometric.devices.delete',
       'biometric.mappings.read', 'biometric.mappings.create', 'biometric.mappings.update', 'biometric.mappings.delete',
+      'attendance.records.device',
+      'attendance.config.read', 'attendance.config.create', 'attendance.config.update',
     ];
   }
 

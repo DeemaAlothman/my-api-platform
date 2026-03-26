@@ -97,6 +97,12 @@ export class AttendanceRecordsService {
       }
     }
 
+    // جلب إعدادات الراتب للموظف
+    const config = await this.prisma.employeeAttendanceConfig.findUnique({
+      where: { employeeId },
+    });
+    const salaryLinked = config?.salaryLinked ?? true;
+
     const record = await this.prisma.attendanceRecord.create({
       data: {
         employeeId,
@@ -106,6 +112,9 @@ export class AttendanceRecordsService {
         notes: dto.notes,
         status,
         lateMinutes,
+        source: (dto as any).source || 'WEB',
+        deviceSN: (dto as any).deviceSN || null,
+        salaryLinked,
       },
     });
 
@@ -187,6 +196,26 @@ export class AttendanceRecordsService {
       }
     }
 
+    // أغلق أي break مفتوح قبل الخروج
+    const openBreak = await this.prisma.attendanceBreak.findFirst({
+      where: { attendanceRecordId: record.id, breakIn: null },
+      orderBy: { breakOut: 'desc' },
+    });
+    if (openBreak) {
+      const breakDuration = Math.max(0, Math.round((clockOutTime.getTime() - openBreak.breakOut.getTime()) / 60000));
+      await this.prisma.attendanceBreak.update({
+        where: { id: openBreak.id },
+        data: { breakIn: clockOutTime, durationMinutes: breakDuration },
+      });
+    }
+
+    // احسب totalBreakMinutes
+    const allBreaks = await this.prisma.attendanceBreak.findMany({
+      where: { attendanceRecordId: record.id },
+    });
+    const totalBreakMinutes = allBreaks.reduce((sum, b) => sum + (b.durationMinutes || 0), 0);
+    const netWorkedMinutes = Math.max(0, workedMinutes - totalBreakMinutes);
+
     const updatedRecord = await this.prisma.attendanceRecord.update({
       where: { id: record.id },
       data: {
@@ -196,6 +225,8 @@ export class AttendanceRecordsService {
         earlyLeaveMinutes,
         overtimeMinutes,
         status,
+        totalBreakMinutes,
+        netWorkedMinutes,
       },
     });
 
@@ -320,5 +351,95 @@ export class AttendanceRecordsService {
 
   async getMyAttendance(employeeId: string, filters?: { dateFrom?: string; dateTo?: string }) {
     return this.findAll({ ...filters, employeeId });
+  }
+
+  async addBreak(employeeId: string, dto: { breakOut: string; breakIn?: string; reason?: string; date?: string }) {
+    const dayDate = dto.date ? new Date(dto.date) : new Date();
+    const startOfDay = new Date(dayDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const record = await this.prisma.attendanceRecord.findFirst({
+      where: { employeeId, date: startOfDay, clockInTime: { not: null }, clockOutTime: null },
+    });
+    if (!record) {
+      throw new NotFoundException({ code: 'NO_CHECK_IN_FOUND', message: 'لا يوجد سجل حضور مفتوح لهذا الموظف اليوم' });
+    }
+
+    const breakOutTime = new Date(dto.breakOut);
+    const breakInTime = dto.breakIn ? new Date(dto.breakIn) : null;
+    const durationMinutes = breakInTime
+      ? Math.max(0, Math.round((breakInTime.getTime() - breakOutTime.getTime()) / 60000))
+      : null;
+
+    const breakRecord = await this.prisma.attendanceBreak.create({
+      data: {
+        attendanceRecordId: record.id,
+        breakOut: breakOutTime,
+        breakIn: breakInTime,
+        durationMinutes,
+        reason: dto.reason,
+      },
+    });
+
+    // أعد حساب totalBreakMinutes
+    const allBreaks = await this.prisma.attendanceBreak.findMany({ where: { attendanceRecordId: record.id } });
+    const totalBreakMinutes = allBreaks.reduce((sum, b) => sum + (b.durationMinutes || 0), 0);
+    const netWorkedMinutes = record.workedMinutes ? Math.max(0, record.workedMinutes - totalBreakMinutes) : null;
+
+    await this.prisma.attendanceRecord.update({
+      where: { id: record.id },
+      data: { totalBreakMinutes, netWorkedMinutes },
+    });
+
+    return breakRecord;
+  }
+
+  async closeBreak(employeeId: string, dto: { breakIn: string; date?: string }) {
+    const dayDate = dto.date ? new Date(dto.date) : new Date();
+    const startOfDay = new Date(dayDate);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const record = await this.prisma.attendanceRecord.findFirst({
+      where: { employeeId, date: startOfDay, clockInTime: { not: null }, clockOutTime: null },
+    });
+    if (!record) {
+      throw new NotFoundException({ code: 'NO_CHECK_IN_FOUND', message: 'لا يوجد سجل حضور مفتوح' });
+    }
+
+    const openBreak = await this.prisma.attendanceBreak.findFirst({
+      where: { attendanceRecordId: record.id, breakIn: null },
+      orderBy: { breakOut: 'desc' },
+    });
+    if (!openBreak) {
+      throw new NotFoundException({ code: 'NO_OPEN_BREAK', message: 'لا يوجد خروج مؤقت مفتوح' });
+    }
+
+    const breakInTime = new Date(dto.breakIn);
+    const durationMinutes = Math.max(0, Math.round((breakInTime.getTime() - openBreak.breakOut.getTime()) / 60000));
+
+    const updated = await this.prisma.attendanceBreak.update({
+      where: { id: openBreak.id },
+      data: { breakIn: breakInTime, durationMinutes },
+    });
+
+    // أعد حساب totalBreakMinutes
+    const allBreaks = await this.prisma.attendanceBreak.findMany({ where: { attendanceRecordId: record.id } });
+    const totalBreakMinutes = allBreaks.reduce((sum, b) => sum + (b.durationMinutes || 0), 0);
+    const netWorkedMinutes = record.workedMinutes ? Math.max(0, record.workedMinutes - totalBreakMinutes) : null;
+
+    await this.prisma.attendanceRecord.update({
+      where: { id: record.id },
+      data: { totalBreakMinutes, netWorkedMinutes },
+    });
+
+    return updated;
+  }
+
+  async getBreaks(recordId: string) {
+    await this.findOne(recordId);
+    return this.prisma.attendanceBreak.findMany({
+      where: { attendanceRecordId: recordId },
+      orderBy: { breakOut: 'asc' },
+    });
   }
 }

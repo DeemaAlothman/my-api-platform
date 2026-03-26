@@ -29,6 +29,7 @@ import {
   CustodiesProxyController,
   BiometricDevicesProxyController,
   EmployeeFingerprintsProxyController,
+  EmployeeAttendanceConfigProxyController,
   IclockProxyController,
 } from './proxy.controller';
 
@@ -62,6 +63,7 @@ import {
     CustodiesProxyController,
     BiometricDevicesProxyController,
     EmployeeFingerprintsProxyController,
+    EmployeeAttendanceConfigProxyController,
     IclockProxyController,
   ],
   providers: [ProxyService],

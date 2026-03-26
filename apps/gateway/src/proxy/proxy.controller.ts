@@ -407,6 +407,21 @@ export class EmployeeFingerprintsProxyController {
   }
 }
 
+@Controller('employee-attendance-config')
+export class EmployeeAttendanceConfigProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+}
+
 @Controller('iclock')
 export class IclockProxyController {
   constructor(private readonly proxy: ProxyService) {}
