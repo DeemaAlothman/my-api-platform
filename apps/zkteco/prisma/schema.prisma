@@ -1,0 +1,75 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["biometric"]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+/// أجهزة البصمة المسجلة
+model BiometricDevice {
+  id           String   @id @default(uuid())
+  serialNumber String   @unique
+  nameAr       String
+  nameEn       String?
+  location     String?
+  ipAddress    String?
+  model        String?
+  isActive     Boolean  @default(true)
+  lastSyncAt   DateTime?
+  apiKey       String   @unique @default(uuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  mappings     EmployeeFingerprint[]
+  rawLogs      RawAttendanceLog[]
+
+  @@map("biometric_devices")
+  @@schema("biometric")
+}
+
+/// ربط بصمة الموظف بالجهاز
+model EmployeeFingerprint {
+  id         String   @id @default(uuid())
+  employeeId String
+  pin        String
+  deviceId   String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  device     BiometricDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([pin, deviceId])
+  @@index([employeeId])
+  @@map("employee_fingerprints")
+  @@schema("biometric")
+}
+
+/// السجلات الخام من جهاز البصمة
+model RawAttendanceLog {
+  id            String    @id @default(uuid())
+  deviceId      String
+  deviceSN      String
+  pin           String
+  employeeId    String?
+  timestamp     DateTime
+  rawType       Int       @default(0)
+  interpretedAs String?
+  pairIndex     Int?
+  synced        Boolean   @default(false)
+  syncedAt      DateTime?
+  syncError     String?
+  createdAt     DateTime  @default(now())
+
+  device        BiometricDevice @relation(fields: [deviceId], references: [id])
+
+  @@index([deviceSN, pin, timestamp])
+  @@index([employeeId, timestamp])
+  @@index([synced])
+  @@map("raw_attendance_logs")
+  @@schema("biometric")
+}

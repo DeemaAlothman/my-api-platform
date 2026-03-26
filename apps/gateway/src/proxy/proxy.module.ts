@@ -27,6 +27,9 @@ import {
   RequestsProxyController,
   AttendanceReportsProxyController,
   CustodiesProxyController,
+  BiometricDevicesProxyController,
+  EmployeeFingerprintsProxyController,
+  IclockProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -57,6 +60,9 @@ import {
     RequestsProxyController,
     AttendanceReportsProxyController,
     CustodiesProxyController,
+    BiometricDevicesProxyController,
+    EmployeeFingerprintsProxyController,
+    IclockProxyController,
   ],
   providers: [ProxyService],
 })

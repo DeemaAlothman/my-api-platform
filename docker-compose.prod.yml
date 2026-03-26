@@ -118,6 +118,22 @@ services:
     networks:
       - app-network
 
+  zkteco:
+    build:
+      context: .
+      dockerfile: apps/zkteco/Dockerfile
+    container_name: myapiplatform-zkteco
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=biometric
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -131,6 +147,7 @@ services:
       ATTENDANCE_SERVICE_URL: http://attendance:4004
       EVALUATION_SERVICE_URL: http://evaluation:4005
       REQUESTS_SERVICE_URL: http://requests:4006
+      ZKTECO_SERVICE_URL: http://zkteco:4007
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012
@@ -150,6 +167,8 @@ services:
       evaluation:
         condition: service_started
       requests:
+        condition: service_started
+      zkteco:
         condition: service_started
     networks:
       - app-network

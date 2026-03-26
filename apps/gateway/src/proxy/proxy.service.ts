@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 interface ServiceConfig {
   url: string;
   prefix: string;
+  noApiPrefix?: boolean; // true = لا يوجد /api/v1 في هذه الخدمة
 }
 
 @Injectable()
@@ -43,6 +44,12 @@ export class ProxyService {
       url: process.env.REQUESTS_SERVICE_URL || 'http://localhost:4006',
       prefix: '/requests',
     });
+
+    this.services.set('zkteco', {
+      url: process.env.ZKTECO_SERVICE_URL || 'http://localhost:4007',
+      prefix: '/zkteco',
+      noApiPrefix: true, // ZKTeco service has no global /api/v1 prefix
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {
@@ -63,7 +70,9 @@ export class ProxyService {
       // بناء الـ URL الكامل
       // إزالة /api/v1 من البداية وإزالة query string
       let targetPath = req.originalUrl.replace(/^\/api\/v1/, '').split('?')[0];
-      const targetUrl = `${service.url}/api/v1${targetPath}`;
+      const targetUrl = service.noApiPrefix
+        ? `${service.url}${targetPath}`
+        : `${service.url}/api/v1${targetPath}`;
 
       // نسخ الـ headers (بدون host)
       const headers = { ...req.headers };
@@ -79,6 +88,7 @@ export class ProxyService {
           data: req.body,
           params: req.query, // query params تُرسل هنا
           validateStatus: () => true, // نقبل كل status codes
+          responseType: 'text', // نقرأ كـ text ثم نحاول parse
         }),
       );
 
@@ -87,9 +97,21 @@ export class ProxyService {
 
       // نسخ الـ headers من الـ response
       Object.keys(response.headers).forEach((key) => {
-        res.setHeader(key, response.headers[key]);
+        if (key !== 'transfer-encoding') {
+          res.setHeader(key, response.headers[key]);
+        }
       });
 
+      // إذا كان الـ response text/plain (مثل iclock) نرجعه مباشرة
+      const contentType = response.headers['content-type'] || '';
+      if (contentType.includes('text/plain') || typeof response.data === 'string') {
+        try {
+          const parsed = JSON.parse(response.data);
+          return res.json(parsed);
+        } catch {
+          return res.send(response.data);
+        }
+      }
       return res.json(response.data);
     } catch (error) {
       console.error(`Error forwarding to ${serviceName}:`, error.message);

@@ -100,6 +100,8 @@ export class AuthService {
           'requests:read', 'requests:manager-approve', 'requests:manager-reject', 'requests:hr-approve', 'requests:hr-reject',
           'attendance.reports.read',
           'custodies:read', 'custodies:create', 'custodies:update', 'custodies:delete',
+          'biometric.devices.read', 'biometric.devices.create', 'biometric.devices.update', 'biometric.devices.delete',
+          'biometric.mappings.read', 'biometric.mappings.create', 'biometric.mappings.update', 'biometric.mappings.delete',
         ];
       } else if (userRoles.length > 0) {
         // Load permissions from database for other roles
@@ -317,6 +319,8 @@ export class AuthService {
       'requests:read', 'requests:manager-approve', 'requests:manager-reject', 'requests:hr-approve', 'requests:hr-reject',
       'attendance.reports.read',
       'custodies:read', 'custodies:create', 'custodies:update', 'custodies:delete',
+      'biometric.devices.read', 'biometric.devices.create', 'biometric.devices.update', 'biometric.devices.delete',
+      'biometric.mappings.read', 'biometric.mappings.create', 'biometric.mappings.update', 'biometric.mappings.delete',
     ];
   }
 
