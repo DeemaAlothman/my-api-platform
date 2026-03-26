@@ -22,12 +22,12 @@ COPY packages ./packages
 COPY apps/users ./apps/users
 COPY tsconfig*.json ./
 
-# Build the users service
+# Generate Prisma Client BEFORE building (types needed at compile time)
 WORKDIR /app/apps/users
-RUN npm run build
-
-# Generate Prisma Client (with dummy DATABASE_URL for build time)
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+
+# Build the users service
+RUN npm run build
 
 # Production stage
 FROM node:20-alpine AS production

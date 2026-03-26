@@ -361,3 +361,18 @@ export class AttendanceReportsProxyController {
     return this.proxy.forward(req, res, 'attendance');
   }
 }
+
+@Controller('custodies')
+export class CustodiesProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'users');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'users');
+  }
+}

@@ -135,6 +135,12 @@ async function main() {
 
     // Attendance Reports
     { name: 'attendance.reports.read', displayName: 'عرض تقارير الحضور', module: 'attendance' },
+
+    // Custodies
+    { name: 'custodies:read', displayName: 'عرض العهد', module: 'custodies' },
+    { name: 'custodies:create', displayName: 'إنشاء عهدة', module: 'custodies' },
+    { name: 'custodies:update', displayName: 'تعديل عهدة', module: 'custodies' },
+    { name: 'custodies:delete', displayName: 'حذف عهدة', module: 'custodies' },
   ];
 
   console.log('Creating permissions...');

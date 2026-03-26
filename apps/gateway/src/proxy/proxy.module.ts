@@ -26,6 +26,7 @@ import {
   EmployeeGoalsProxyController,
   RequestsProxyController,
   AttendanceReportsProxyController,
+  CustodiesProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -55,6 +56,7 @@ import {
     EmployeeGoalsProxyController,
     RequestsProxyController,
     AttendanceReportsProxyController,
+    CustodiesProxyController,
   ],
   providers: [ProxyService],
 })

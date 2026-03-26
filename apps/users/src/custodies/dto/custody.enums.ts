@@ -1,0 +1,16 @@
+export enum CustodyStatus {
+  WITH_EMPLOYEE = 'WITH_EMPLOYEE',
+  RETURNED = 'RETURNED',
+  DAMAGED = 'DAMAGED',
+  LOST = 'LOST',
+}
+
+export enum CustodyCategory {
+  ELECTRONICS = 'ELECTRONICS',
+  FURNITURE = 'FURNITURE',
+  VEHICLE = 'VEHICLE',
+  TOOLS = 'TOOLS',
+  KEYS = 'KEYS',
+  UNIFORM = 'UNIFORM',
+  OTHER = 'OTHER',
+}

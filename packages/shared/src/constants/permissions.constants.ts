@@ -140,6 +140,14 @@ export const PERMISSIONS = {
     MANAGE: 'evaluation:goals:manage',
   },
 
+  // ── Custodies ──────────────────────────────────────────────────────
+  CUSTODIES: {
+    READ:   'custodies:read',
+    CREATE: 'custodies:create',
+    UPDATE: 'custodies:update',
+    DELETE: 'custodies:delete',
+  },
+
   // ── Requests ───────────────────────────────────────────────────────
   REQUESTS: {
     READ:           'requests:read',

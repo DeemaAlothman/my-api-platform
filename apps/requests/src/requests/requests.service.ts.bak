@@ -5,15 +5,10 @@ import { ApproveRequestDto } from './dto/approve-request.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
 import { CancelRequestDto } from './dto/cancel-request.dto';
 import { ListRequestsQueryDto } from './dto/list-requests.query.dto';
-import { ApprovalService } from './approval.service';
-import { validateRequestDetails } from './validators/request-details.validator';
 
 @Injectable()
 export class RequestsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly approvalService: ApprovalService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // جلب بيانات الموظفين بـ bulk query عبر cross-schema
   private async fetchEmployeeNames(employeeIds: string[]): Promise<Map<string, {
@@ -43,13 +38,9 @@ export class RequestsService {
 
   // توليد رقم طلب تسلسلي
   private async generateRequestNumber(): Promise<string> {
-    const last = await this.prisma.request.findFirst({
-      where: { requestNumber: { startsWith: 'VTX-LRQ-' } },
-      orderBy: { requestNumber: 'desc' },
-      select: { requestNumber: true },
-    });
-    const lastNum = last ? parseInt(last.requestNumber.replace('VTX-LRQ-', ''), 10) : 0;
-    return `VTX-LRQ-${String(lastNum + 1).padStart(6, '0')}`;
+    const count = await this.prisma.request.count();
+    const seq = String(count + 1).padStart(6, '0');
+    return `VTX-LRQ-${seq}`;
   }
 
   async create(dto: CreateRequestDto, userId: string) {
@@ -89,61 +80,16 @@ export class RequestsService {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Only DRAFT requests can be submitted', details: [] });
     }
 
-    validateRequestDetails(request.type, request.details);
-
-    // التحقق من تسليم العهد قبل تقديم طلب الاستقالة
-    if (request.type === 'RESIGNATION') {
-      const unreturned = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-        SELECT COUNT(*) as count FROM users.custodies
-        WHERE "employeeId" = ${request.employeeId}
-          AND status = 'WITH_EMPLOYEE'
-          AND "deletedAt" IS NULL
-      `;
-      if (Number(unreturned[0]?.count ?? 0) > 0) {
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          message: 'لا يمكن تقديم طلب استقالة قبل تسليم جميع العهد',
-          details: [],
-        });
-      }
-    }
-
-    const initialized = await this.approvalService.initializeApprovalSteps(id, request.type);
-    const toStatus = initialized ? 'IN_APPROVAL' : 'PENDING_MANAGER';
-
-    if (!initialized) {
-      await this.prisma.request.update({ where: { id }, data: { status: 'PENDING_MANAGER' } });
-    }
+    const updated = await this.prisma.request.update({
+      where: { id },
+      data: { status: 'PENDING_MANAGER' },
+    });
 
     await this.prisma.requestHistory.create({
-      data: { requestId: id, action: 'SUBMITTED', fromStatus: 'DRAFT', toStatus, performedBy: employeeId! },
+      data: { requestId: id, action: 'SUBMITTED', fromStatus: 'DRAFT', toStatus: 'PENDING_MANAGER', performedBy: employeeId },
     });
 
-    return this.prisma.request.findFirst({
-      where: { id },
-      include: {
-        approvalSteps: { orderBy: { stepOrder: 'asc' } },
-        history: { orderBy: { createdAt: 'desc' }, take: 5 },
-      },
-    });
-  }
-
-  // ── نظام الموافقات الجديد ──────────────────────────────────────
-
-  async approveStep(id: string, userId: string, dto: ApproveRequestDto) {
-    return this.approvalService.approve(id, userId, dto.notes);
-  }
-
-  async rejectStep(id: string, userId: string, dto: RejectRequestDto) {
-    return this.approvalService.reject(id, userId, dto.notes);
-  }
-
-  async getApprovalSteps(id: string) {
-    return this.approvalService.getApprovalSteps(id);
-  }
-
-  async getPendingMyApproval(userId: string, page: number, limit: number) {
-    return this.approvalService.getPendingMyApproval(userId, page, limit);
+    return updated;
   }
 
   async managerApprove(id: string, userId: string, dto: ApproveRequestDto) {
@@ -202,23 +148,6 @@ export class RequestsService {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Request is not pending HR approval', details: [] });
     }
 
-    // تحقق مزدوج: منع موافقة HR على الاستقالة إذا ما زال عنده عهد
-    if (request.type === 'RESIGNATION') {
-      const unreturned = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-        SELECT COUNT(*) as count FROM users.custodies
-        WHERE "employeeId" = ${request.employeeId}
-          AND status = 'WITH_EMPLOYEE'
-          AND "deletedAt" IS NULL
-      `;
-      if (Number(unreturned[0]?.count ?? 0) > 0) {
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          message: 'لا يمكن الموافقة على الاستقالة - الموظف لديه عهد غير مسلّمة',
-          details: [],
-        });
-      }
-    }
-
     const reviewerId = (await this.getEmployeeIdByUserId(userId)) ?? userId;
     const updated = await this.prisma.request.update({
       where: { id },
@@ -270,7 +199,7 @@ export class RequestsService {
     if (request.employeeId !== employeeId) {
       throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'Not your request', details: [] });
     }
-    if (!['DRAFT', 'PENDING_MANAGER', 'IN_APPROVAL'].includes(request.status)) {
+    if (!['DRAFT', 'PENDING_MANAGER'].includes(request.status)) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cannot cancel request at this stage', details: [] });
     }
 
@@ -309,7 +238,6 @@ export class RequestsService {
         take: limit,
         include: {
           history: { orderBy: { createdAt: 'desc' }, take: 5 },
-          approvalSteps: { orderBy: { stepOrder: 'asc' } },
         },
       }),
       this.prisma.request.count({ where }),
@@ -334,7 +262,6 @@ export class RequestsService {
       where: { id, deletedAt: null },
       include: {
         history: { orderBy: { createdAt: 'desc' } },
-        approvalSteps: { orderBy: { stepOrder: 'asc' } },
       },
     });
 

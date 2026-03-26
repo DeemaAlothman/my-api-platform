@@ -103,6 +103,7 @@ model Employee {
   attachments          EmployeeAttachment[]
   trainingCertificates TrainingCertificate[]
   allowances           EmployeeAllowance[]
+  custodies            Custody[]
 
   deletedAt      DateTime?
 
@@ -338,4 +339,48 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
+}
+
+model Custody {
+  id           String          @id @default(uuid())
+
+  name         String
+  description  String?
+  serialNumber String?         @unique
+  category     CustodyCategory @default(OTHER)
+
+  employeeId   String
+  employee     Employee        @relation(fields: [employeeId], references: [id])
+  assignedDate DateTime
+  returnedDate DateTime?
+
+  status       CustodyStatus   @default(WITH_EMPLOYEE)
+  notes        String?
+
+  createdBy    String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([serialNumber])
+  @@map("custodies")
+}
+
+enum CustodyStatus {
+  WITH_EMPLOYEE
+  RETURNED
+  DAMAGED
+  LOST
+}
+
+enum CustodyCategory {
+  ELECTRONICS
+  FURNITURE
+  VEHICLE
+  TOOLS
+  KEYS
+  UNIFORM
+  OTHER
 }

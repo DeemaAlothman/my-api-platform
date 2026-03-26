@@ -99,6 +99,7 @@ export class AuthService {
           'job-grades:read', 'job-grades:create', 'job-grades:update', 'job-grades:delete',
           'requests:read', 'requests:manager-approve', 'requests:manager-reject', 'requests:hr-approve', 'requests:hr-reject',
           'attendance.reports.read',
+          'custodies:read', 'custodies:create', 'custodies:update', 'custodies:delete',
         ];
       } else if (userRoles.length > 0) {
         // Load permissions from database for other roles
@@ -315,6 +316,7 @@ export class AuthService {
       'job-grades:read', 'job-grades:create', 'job-grades:update', 'job-grades:delete',
       'requests:read', 'requests:manager-approve', 'requests:manager-reject', 'requests:hr-approve', 'requests:hr-reject',
       'attendance.reports.read',
+      'custodies:read', 'custodies:create', 'custodies:update', 'custodies:delete',
     ];
   }
 
