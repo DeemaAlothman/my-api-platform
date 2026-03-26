@@ -30,6 +30,10 @@ async function bootstrap() {
     logger: createLogger('gateway'),
   });
 
+  // Enable text/plain body parsing for ZKTeco PUSH protocol
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.use(require('express').text({ type: 'text/plain', limit: '1mb' }));
+
   // Base URL from API Guide
   app.setGlobalPrefix('api/v1');
 
