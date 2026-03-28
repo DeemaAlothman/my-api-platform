@@ -142,7 +142,7 @@ services:
     restart: always
     environment:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
-      VITASYR_API_URL: https://vitaxirpro.com/external
+      VITASYR_API_URL: https://vitaxirpro.com/api/external
       VITASYR_API_KEY: ${VITASYR_API_KEY:-8d57edc1234696d504eb9d24187bc5d311aedf70a53ec963e8823eff7e05ae3a}
       NODE_ENV: production
     networks:
