@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -90,6 +90,117 @@ export class ReportsController {
       dateTo: dateTo || defaultTo,
       employeeId,
       departmentId,
+    });
+  }
+
+  /**
+   * GET /attendance-reports/lateness
+   * تقرير التأخيرات
+   */
+  @Get('lateness')
+  @Permission('attendance.reports.read')
+  latenessReport(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('minLateMinutes') minLateMinutes?: string,
+  ) {
+    const now = new Date();
+    const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const defaultTo = now.toISOString().split('T')[0];
+    return this.service.latenessReport({
+      dateFrom: dateFrom || defaultFrom,
+      dateTo: dateTo || defaultTo,
+      employeeId,
+      departmentId,
+      minLateMinutes: minLateMinutes ? parseInt(minLateMinutes) : 1,
+    });
+  }
+
+  /**
+   * GET /attendance-reports/absences
+   * تقرير الغياب
+   */
+  @Get('absences')
+  @Permission('attendance.reports.read')
+  absencesReport(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('justified') justified?: string,
+  ) {
+    const now = new Date();
+    const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const defaultTo = now.toISOString().split('T')[0];
+    const justifiedFilter = justified === 'true' ? true : justified === 'false' ? false : undefined;
+    return this.service.absencesReport({
+      dateFrom: dateFrom || defaultFrom,
+      dateTo: dateTo || defaultTo,
+      employeeId,
+      departmentId,
+      justified: justifiedFilter,
+    });
+  }
+
+  /**
+   * GET /attendance-reports/temp-exits
+   * تقرير الخروجات المؤقتة
+   */
+  @Get('temp-exits')
+  @Permission('attendance.reports.read')
+  tempExitsReport(
+    @Query('dateFrom') dateFrom: string,
+    @Query('dateTo') dateTo: string,
+    @Query('employeeId') employeeId?: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    const now = new Date();
+    const defaultFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const defaultTo = now.toISOString().split('T')[0];
+    return this.service.tempExitsReport({
+      dateFrom: dateFrom || defaultFrom,
+      dateTo: dateTo || defaultTo,
+      employeeId,
+      departmentId,
+    });
+  }
+
+  /**
+   * GET /attendance-reports/monthly-payroll
+   * ملخص شهري للرواتب
+   */
+  @Get('monthly-payroll')
+  @Permission('attendance.reports.read')
+  monthlyPayrollReport(
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    const now = new Date();
+    return this.service.monthlyPayrollReport({
+      year: year ? parseInt(year) : now.getFullYear(),
+      month: month ? parseInt(month) : now.getMonth() + 1,
+      departmentId,
+    });
+  }
+
+  /**
+   * GET /attendance-reports/employee-card/:employeeId
+   * بطاقة حضور الموظف
+   */
+  @Get('employee-card/:employeeId')
+  @Permission('attendance.reports.read')
+  employeeCardReport(
+    @Param('employeeId') employeeId: string,
+    @Query('year') year: string,
+    @Query('month') month: string,
+  ) {
+    const now = new Date();
+    return this.service.employeeCardReport(employeeId, {
+      year: year ? parseInt(year) : now.getFullYear(),
+      month: month ? parseInt(month) : now.getMonth() + 1,
     });
   }
 }
