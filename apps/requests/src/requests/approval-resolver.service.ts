@@ -59,8 +59,8 @@ export class ApprovalResolverService {
     switch (approverRole) {
       case 'DIRECT_MANAGER': {
         const managerId = await this.getEmployeeManagerId(requestEmployeeId);
-        if (managerId) return managerId === approverEmployeeId;
-        // No manager set → fall back to HR permission
+        if (managerId && managerId === approverEmployeeId) return true;
+        // Direct manager OR HR can approve
         return this.hasPermission(approverUserId, 'requests:hr-approve');
       }
       case 'DEPARTMENT_MANAGER': {
