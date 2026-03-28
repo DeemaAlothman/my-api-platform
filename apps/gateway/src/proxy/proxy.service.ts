@@ -50,6 +50,11 @@ export class ProxyService {
       prefix: '/zkteco',
       noApiPrefix: true, // ZKTeco service has no global /api/v1 prefix
     });
+
+    this.services.set('jobs', {
+      url: process.env.JOBS_SERVICE_URL || 'http://localhost:4008',
+      prefix: '/jobs',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

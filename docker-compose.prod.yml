@@ -134,6 +134,20 @@ services:
     networks:
       - app-network
 
+  jobs:
+    build:
+      context: .
+      dockerfile: apps/jobs/Dockerfile
+    container_name: myapiplatform-jobs
+    restart: always
+    environment:
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      VITASYR_API_URL: https://vitaxirpro.com/external
+      VITASYR_API_KEY: ${VITASYR_API_KEY:-8d57edc1234696d504eb9d24187bc5d311aedf70a53ec963e8823eff7e05ae3a}
+      NODE_ENV: production
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -148,6 +162,7 @@ services:
       EVALUATION_SERVICE_URL: http://evaluation:4005
       REQUESTS_SERVICE_URL: http://requests:4006
       ZKTECO_SERVICE_URL: http://zkteco:4007
+      JOBS_SERVICE_URL: http://jobs:4008
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012
@@ -169,6 +184,8 @@ services:
       requests:
         condition: service_started
       zkteco:
+        condition: service_started
+      jobs:
         condition: service_started
     networks:
       - app-network

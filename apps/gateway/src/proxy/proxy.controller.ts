@@ -436,3 +436,18 @@ export class IclockProxyController {
     return this.proxy.forward(req, res, 'zkteco');
   }
 }
+
+@Controller('job-applications')
+export class JobApplicationsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+}

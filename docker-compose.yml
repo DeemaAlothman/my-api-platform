@@ -144,6 +144,22 @@ services:
     networks:
       - app-network
 
+  jobs:
+    build:
+      context: .
+      dockerfile: apps/jobs/Dockerfile
+    container_name: myapiplatform-jobs
+    restart: unless-stopped
+    environment:
+      JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
+      VITASYR_API_URL: https://vitaxirpro.com/external
+      VITASYR_API_KEY: 8d57edc1234696d504eb9d24187bc5d311aedf70a53ec963e8823eff7e05ae3a
+      NODE_ENV: production
+    ports:
+      - "4008:4008"
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -157,6 +173,7 @@ services:
       ATTENDANCE_SERVICE_URL: http://attendance:4004
       EVALUATION_SERVICE_URL: http://evaluation:4005
       REQUESTS_SERVICE_URL: http://requests:4006
+      JOBS_SERVICE_URL: http://jobs:4008
       NODE_ENV: production
       PORT: 8000
     ports:
@@ -166,6 +183,7 @@ services:
       - users
       - leave
       - requests
+      - jobs
     networks:
       - app-network
 
