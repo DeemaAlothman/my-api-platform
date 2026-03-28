@@ -140,6 +140,9 @@ services:
       dockerfile: apps/jobs/Dockerfile
     container_name: myapiplatform-jobs
     restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       VITASYR_API_URL: https://vitaxirpro.com/api/external
