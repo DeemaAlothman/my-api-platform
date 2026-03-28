@@ -77,7 +77,7 @@ export class ApprovalService {
     );
 
     const newStatus = nextStep ? 'IN_APPROVAL' : 'APPROVED';
-    const newStepOrder = nextStep ? nextStep.stepOrder : null;
+    const newStepOrder = nextStep ? nextStep.stepOrder : currentStep.stepOrder;
 
     await this.prisma.request.update({
       where: { id: requestId },
