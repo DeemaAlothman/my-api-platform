@@ -1,5 +1,14 @@
-import { IsString, IsOptional, IsDateString, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsEnum, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { CustodyCategory } from './custody.enums';
+
+export class CustodyAttachmentDto {
+  @IsString()
+  fileUrl: string;
+
+  @IsString()
+  fileName: string;
+}
 
 export class CreateCustodyDto {
   @IsString()
@@ -26,4 +35,10 @@ export class CreateCustodyDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustodyAttachmentDto)
+  attachments?: CustodyAttachmentDto[];
 }

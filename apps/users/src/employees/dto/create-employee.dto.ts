@@ -71,6 +71,20 @@ export enum EducationLevel {
   POSTGRADUATE = 'POSTGRADUATE',
 }
 
+export enum ProbationPeriod {
+  ONE_MONTH = 'ONE_MONTH',
+  TWO_MONTHS = 'TWO_MONTHS',
+  THREE_MONTHS = 'THREE_MONTHS',
+}
+
+export enum InterviewEvaluation {
+  EXCELLENT = 'EXCELLENT',
+  VERY_GOOD = 'VERY_GOOD',
+  GOOD = 'GOOD',
+  ACCEPTABLE = 'ACCEPTABLE',
+  POOR = 'POOR',
+}
+
 export class EmployeeAttachmentDto {
   @IsNotEmpty()
   @IsString()
@@ -165,6 +179,14 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   fingerprintId?: string;
+
+  @IsOptional()
+  @IsEnum(ProbationPeriod)
+  probationPeriod?: ProbationPeriod;
+
+  @IsOptional()
+  @IsEnum(InterviewEvaluation)
+  interviewEvaluation?: InterviewEvaluation;
 
   @IsOptional()
   @Type(() => Number)

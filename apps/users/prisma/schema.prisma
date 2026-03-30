@@ -79,6 +79,10 @@ model Employee {
   // Biometric
   fingerprintId  String?
 
+  // Hiring
+  probationPeriod    ProbationPeriod?
+  interviewEvaluation InterviewEvaluation?
+
   // Personal Info (extra)
   profilePhoto       String?
   bloodType          BloodType?
@@ -212,6 +216,20 @@ enum EducationLevel {
   DIPLOMA
   UNIVERSITY
   POSTGRADUATE
+}
+
+enum ProbationPeriod {
+  ONE_MONTH
+  TWO_MONTHS
+  THREE_MONTHS
+}
+
+enum InterviewEvaluation {
+  EXCELLENT
+  VERY_GOOD
+  GOOD
+  ACCEPTABLE
+  POOR
 }
 
 model Department {
@@ -357,6 +375,8 @@ model Custody {
   status       CustodyStatus   @default(WITH_EMPLOYEE)
   notes        String?
 
+  attachments  CustodyAttachment[]
+
   createdBy    String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
@@ -366,6 +386,20 @@ model Custody {
   @@index([status])
   @@index([serialNumber])
   @@map("custodies")
+}
+
+model CustodyAttachment {
+  id        String   @id @default(uuid())
+  custodyId String
+  fileUrl   String
+  fileName  String
+
+  custody   Custody  @relation(fields: [custodyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([custodyId])
+  @@map("custody_attachments")
 }
 
 enum CustodyStatus {

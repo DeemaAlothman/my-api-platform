@@ -27,14 +27,20 @@ export class CustodiesService {
       }
     }
 
+    const { attachments, ...custodyData } = dto;
+
     return this.prisma.custody.create({
       data: {
-        ...dto,
+        ...custodyData,
         assignedDate: new Date(dto.assignedDate),
         status: CustodyStatus.WITH_EMPLOYEE,
         createdBy: userId,
+        ...(attachments?.length && {
+          attachments: { create: attachments },
+        }),
       },
       include: {
+        attachments: true,
         employee: {
           select: {
             id: true,
@@ -71,6 +77,7 @@ export class CustodiesService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
+          attachments: true,
           employee: {
             select: {
               id: true,
@@ -100,6 +107,7 @@ export class CustodiesService {
     const custody = await this.prisma.custody.findFirst({
       where: { id, deletedAt: null },
       include: {
+        attachments: true,
         employee: {
           select: {
             id: true,
@@ -121,12 +129,22 @@ export class CustodiesService {
 
   async update(id: string, dto: UpdateCustodyDto) {
     await this.findOne(id);
+    const { attachments, ...custodyData } = dto;
+
+    if (attachments !== undefined) {
+      await this.prisma.custodyAttachment.deleteMany({ where: { custodyId: id } });
+    }
+
     return this.prisma.custody.update({
       where: { id },
       data: {
-        ...dto,
+        ...custodyData,
         ...(dto.assignedDate && { assignedDate: new Date(dto.assignedDate) }),
+        ...(attachments !== undefined && attachments.length > 0 && {
+          attachments: { create: attachments },
+        }),
       },
+      include: { attachments: true },
     });
   }
 
