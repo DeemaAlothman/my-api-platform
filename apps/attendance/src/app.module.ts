@@ -9,6 +9,8 @@ import { EmployeeSchedulesModule } from './employee-schedules/employee-schedules
 import { AttendanceJustificationsModule } from './attendance-justifications/attendance-justifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { EmployeeConfigModule } from './employee-config/employee-config.module';
+import { DeductionPoliciesModule } from './deduction-policies/deduction-policies.module';
+import { PayrollModule } from './payroll/payroll.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -22,6 +24,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     AttendanceJustificationsModule,
     ReportsModule,
     EmployeeConfigModule,
+    DeductionPoliciesModule,
+    PayrollModule,
   ],
   providers: [
     PrismaService,

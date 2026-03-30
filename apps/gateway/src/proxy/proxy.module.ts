@@ -32,6 +32,8 @@ import {
   EmployeeAttendanceConfigProxyController,
   IclockProxyController,
   JobApplicationsProxyController,
+  DeductionPoliciesProxyController,
+  PayrollProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -67,6 +69,8 @@ import {
     EmployeeAttendanceConfigProxyController,
     IclockProxyController,
     JobApplicationsProxyController,
+    DeductionPoliciesProxyController,
+    PayrollProxyController,
   ],
   providers: [ProxyService],
 })

@@ -105,6 +105,8 @@ export class AuthService {
           'attendance.records.device',
           'attendance.config.read', 'attendance.config.create', 'attendance.config.update',
           'job-applications:read', 'job-applications:update',
+          'attendance.policies.read', 'attendance.policies.create', 'attendance.policies.update', 'attendance.policies.delete',
+          'attendance.payroll.generate', 'attendance.payroll.read', 'attendance.payroll.confirm', 'attendance.payroll.export',
         ];
       } else if (userRoles.length > 0) {
         // Load permissions from database for other roles
@@ -327,6 +329,8 @@ export class AuthService {
       'attendance.records.device',
       'attendance.config.read', 'attendance.config.create', 'attendance.config.update',
       'job-applications:read', 'job-applications:update',
+      'attendance.policies.read', 'attendance.policies.create', 'attendance.policies.update', 'attendance.policies.delete',
+      'attendance.payroll.generate', 'attendance.payroll.read', 'attendance.payroll.confirm', 'attendance.payroll.export',
     ];
   }
 

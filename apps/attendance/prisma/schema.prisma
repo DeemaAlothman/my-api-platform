@@ -312,3 +312,85 @@ model EmployeeAttendanceConfig {
   @@map("employee_attendance_configs")
   @@schema("attendance")
 }
+
+/// سياسة الحسميات
+model DeductionPolicy {
+  id                      String  @id @default(uuid())
+  nameAr                  String
+  nameEn                  String?
+  isDefault               Boolean @default(false)
+
+  lateToleranceMinutes    Int     @default(15)
+
+  // MINUTE_BY_MINUTE | TIERED
+  lateDeductionType       String  @default("MINUTE_BY_MINUTE")
+  lateDeductionTiers      String?
+
+  // MINUTE_BY_MINUTE | TIERED
+  earlyLeaveDeductionType String  @default("MINUTE_BY_MINUTE")
+
+  absenceDeductionDays    Float   @default(1.0)
+
+  repeatLateThreshold     Int?
+  repeatLatePenaltyDays   Float?
+
+  // MINUTE_BY_MINUTE | IGNORE | DOUBLE
+  breakOverLimitDeduction String  @default("MINUTE_BY_MINUTE")
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payrolls MonthlyPayroll[]
+
+  @@map("deduction_policies")
+  @@schema("attendance")
+}
+
+/// كشف راتب شهري لكل موظف
+model MonthlyPayroll {
+  id                     String   @id @default(uuid())
+  employeeId             String
+  year                   Int
+  month                  Int
+
+  workingDays            Int
+  presentDays            Int
+  absentDays             Int
+  absentUnjustified      Int
+  lateDays               Int
+  totalLateMinutes       Int
+  earlyLeaveDays         Int
+  totalEarlyLeaveMinutes Int
+  breakOverLimitMinutes  Int
+  overtimeMinutes        Int
+  totalWorkedMinutes     Int
+  netWorkedMinutes       Int
+
+  lateDeductionMinutes       Int   @default(0)
+  earlyLeaveDeductionMinutes Int   @default(0)
+  breakDeductionMinutes      Int   @default(0)
+  absenceDeductionDays       Float @default(0)
+  repeatLatePenaltyDays      Float @default(0)
+  totalDeductionMinutes      Int   @default(0)
+
+  salaryLinked Boolean  @default(true)
+  policyId     String?
+  // DRAFT | CONFIRMED | EXPORTED
+  status       String   @default("DRAFT")
+
+  notes       String?
+  generatedAt DateTime @default(now())
+  confirmedBy String?
+  confirmedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  policy DeductionPolicy? @relation(fields: [policyId], references: [id])
+
+  @@unique([employeeId, year, month])
+  @@index([year, month])
+  @@map("monthly_payrolls")
+  @@schema("attendance")
+}

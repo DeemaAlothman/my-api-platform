@@ -144,15 +144,37 @@ services:
     networks:
       - app-network
 
+  zkteco:
+    build:
+      context: .
+      dockerfile: apps/zkteco/Dockerfile
+    container_name: myapiplatform-zkteco
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=biometric
+      ATTENDANCE_SERVICE_URL: http://attendance:4004
+      JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
+      NODE_ENV: production
+    ports:
+      - "4007:4007"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   jobs:
     build:
       context: .
       dockerfile: apps/jobs/Dockerfile
     container_name: myapiplatform-jobs
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
-      VITASYR_API_URL: https://vitaxirpro.com/external
+      VITASYR_API_URL: https://vitaxirpro.com/api/external
       VITASYR_API_KEY: 8d57edc1234696d504eb9d24187bc5d311aedf70a53ec963e8823eff7e05ae3a
       NODE_ENV: production
     ports:
@@ -173,6 +195,7 @@ services:
       ATTENDANCE_SERVICE_URL: http://attendance:4004
       EVALUATION_SERVICE_URL: http://evaluation:4005
       REQUESTS_SERVICE_URL: http://requests:4006
+      ZKTECO_SERVICE_URL: http://zkteco:4007
       JOBS_SERVICE_URL: http://jobs:4008
       NODE_ENV: production
       PORT: 8000
