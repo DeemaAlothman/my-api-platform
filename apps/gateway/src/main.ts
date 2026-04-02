@@ -35,8 +35,9 @@ async function bootstrap() {
   expressApp.use(require('express').text({ type: 'text/plain', limit: '1mb' }));
 
   // Base URL from API Guide
-  app.setGlobalPrefix('api/v1');
-
+ app.setGlobalPrefix('api/v1', {
+  exclude: ['iclock/(.*)'],
+ });
   // Global filters and interceptors
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
