@@ -120,7 +120,7 @@ export class IclockService {
     const timestampStr = parts[1].trim();
     const rawType = parseInt(parts[2] ?? '0', 10) || 0;
 
-    const timestamp = new Date(timestampStr);
+    const timestamp = new Date(timestampStr + '+03:00');
     if (isNaN(timestamp.getTime())) return null;
 
     return { pin, timestamp, rawType };
@@ -142,7 +142,7 @@ export class IclockService {
 
     if (!pin || !timeStr) return null;
 
-    const timestamp = new Date(timeStr);
+    const timestamp = new Date(timeStr + '+03:00');
     if (isNaN(timestamp.getTime())) return null;
 
     return { pin, timestamp, rawType };
