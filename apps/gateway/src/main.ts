@@ -27,11 +27,24 @@ function createLogger(service: string) {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
+    bodyParser: false, // نتحكم نحن بالـ body parser
     logger: createLogger('gateway'),
   });
 
-  // Enable text/plain body parsing for ZKTeco PUSH protocol
   const expressApp = app.getHttpAdapter().getInstance();
+
+  // JSON body parser يتجاهل أخطاء body الفاضي
+  expressApp.use((req: any, res: any, next: any) => {
+    require('express').json({ limit: '10mb' })(req, res, (err: any) => {
+      if (err) return next(); // تجاهل خطأ JSON الفاضي
+      next();
+    });
+  });
+
+  // URL-encoded body parser
+  expressApp.use(require('express').urlencoded({ extended: true, limit: '10mb' }));
+
+  // Enable text/plain body parsing for ZKTeco PUSH protocol
   expressApp.use(require('express').text({ type: 'text/plain', limit: '1mb' }));
 
   // Base URL from API Guide
