@@ -35,6 +35,13 @@ export class EmployeesController {
     return this.employees.getSubordinates(managerId);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('employees:read')
+  @Get(':id/reporting-chain')
+  getReportingChain(@Param('id') id: string) {
+    return this.employees.getReportingChain(id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('my')
   getMyEmployee(@User() user: CurrentUser) {

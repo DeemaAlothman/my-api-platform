@@ -518,6 +518,46 @@ export class EmployeesService {
     return subordinates;
   }
 
+  async getReportingChain(employeeId: string) {
+    const chain: any[] = [];
+    let currentId: string | null = employeeId;
+    const visited = new Set<string>();
+
+    while (currentId) {
+      if (visited.has(currentId)) break; // حماية من الدورات
+      visited.add(currentId);
+
+      const emp = await this.prisma.employee.findFirst({
+        where: { id: currentId, deletedAt: null },
+        select: {
+          id: true,
+          employeeNumber: true,
+          firstNameAr: true,
+          lastNameAr: true,
+          firstNameEn: true,
+          lastNameEn: true,
+          managerId: true,
+          jobTitle: { select: { id: true, nameAr: true, nameEn: true } },
+          department: { select: { id: true, nameAr: true, nameEn: true } },
+        },
+      });
+
+      if (!emp) break;
+      chain.push(emp);
+      currentId = emp.managerId;
+    }
+
+    if (chain.length === 0) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Employee not found',
+        details: [{ field: 'id', value: employeeId }],
+      });
+    }
+
+    return chain;
+  }
+
   async linkUser(id: string, dto: LinkUserDto) {
     // تحقق من الموظف موجود
     const employee = await this.findOne(id);

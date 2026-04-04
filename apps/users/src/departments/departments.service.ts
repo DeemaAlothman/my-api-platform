@@ -23,6 +23,9 @@ export class DepartmentsService {
             lastNameEn: true,
           },
         },
+        _count: {
+          select: { employees: true },
+        },
       },
       orderBy: { code: 'asc' },
     });
