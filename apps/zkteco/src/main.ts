@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -23,6 +24,14 @@ async function bootstrap() {
 
   // NO global prefix - /iclock must be at root
   // JWT-protected routes use their controller paths directly
+
+  const config = new DocumentBuilder()
+    .setTitle('ZKTeco Service')
+    .setDescription('Biometric Devices & Fingerprints API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
 
   const port = process.env.PORT || 4007;
   await app.listen(port);

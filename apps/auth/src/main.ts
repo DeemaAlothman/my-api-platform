@@ -4,6 +4,7 @@ import { GlobalExceptionFilter } from './filters/infrastructure/http-exception.f
 import { validateEnvironment } from './config/env.validation';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   validateEnvironment();
@@ -29,6 +30,14 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  const config = new DocumentBuilder()
+    .setTitle('Auth Service')
+    .setDescription('Authentication & Authorization API')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  SwaggerModule.setup('api/v1/docs', app, SwaggerModule.createDocument(app, config));
 
   await app.listen(4001);
 }
