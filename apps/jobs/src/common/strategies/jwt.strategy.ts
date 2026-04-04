@@ -26,7 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         [payload.jti],
       );
       if (result.rows.length > 0) {
-        throw new UnauthorizedException('Token has been revoked');
+        throw new UnauthorizedException({ code: 'AUTH_TOKEN_REVOKED', message: 'Token has been revoked', details: [] });
       }
     }
 

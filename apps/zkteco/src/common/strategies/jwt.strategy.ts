@@ -32,7 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         SELECT id FROM users.revoked_tokens WHERE jti = ${payload.jti} LIMIT 1
       `;
       if (rows.length > 0) {
-        throw new UnauthorizedException('Token has been revoked');
+        throw new UnauthorizedException({ code: 'AUTH_TOKEN_REVOKED', message: 'Token has been revoked', details: [] });
       }
     }
 
