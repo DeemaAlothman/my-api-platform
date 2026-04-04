@@ -6,7 +6,7 @@ import { ProxyService } from './proxy.service';
 export class AuthProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'auth');
   }
@@ -21,7 +21,7 @@ export class AuthProxyController {
 export class UsersProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'users');
   }
@@ -36,7 +36,7 @@ export class UsersProxyController {
 export class EmployeesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'users');
   }
@@ -51,7 +51,7 @@ export class EmployeesProxyController {
 export class DepartmentsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'users');
   }
@@ -66,7 +66,7 @@ export class DepartmentsProxyController {
 export class RolesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'users');
   }
@@ -81,7 +81,7 @@ export class RolesProxyController {
 export class PermissionsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'users');
   }
@@ -96,7 +96,7 @@ export class PermissionsProxyController {
 export class LeaveRequestsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'leave');
   }
@@ -111,7 +111,7 @@ export class LeaveRequestsProxyController {
 export class LeaveBalancesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'leave');
   }
@@ -126,7 +126,7 @@ export class LeaveBalancesProxyController {
 export class LeaveTypesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'leave');
   }
@@ -141,7 +141,7 @@ export class LeaveTypesProxyController {
 export class HolidaysProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'leave');
   }
@@ -156,7 +156,7 @@ export class HolidaysProxyController {
 export class WorkSchedulesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
@@ -171,7 +171,7 @@ export class WorkSchedulesProxyController {
 export class AttendanceRecordsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
@@ -186,7 +186,7 @@ export class AttendanceRecordsProxyController {
 export class AttendanceAlertsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
@@ -201,7 +201,7 @@ export class AttendanceAlertsProxyController {
 export class AttendanceJustificationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
@@ -216,7 +216,7 @@ export class AttendanceJustificationsProxyController {
 export class EmployeeSchedulesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
@@ -231,7 +231,7 @@ export class EmployeeSchedulesProxyController {
 export class EvaluationPeriodsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'evaluation');
   }
@@ -246,7 +246,7 @@ export class EvaluationPeriodsProxyController {
 export class EvaluationCriteriaProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'evaluation');
   }
@@ -261,7 +261,7 @@ export class EvaluationCriteriaProxyController {
 export class EvaluationFormsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'evaluation');
   }
@@ -276,7 +276,7 @@ export class EvaluationFormsProxyController {
 export class PeerEvaluationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'evaluation');
   }
@@ -291,7 +291,7 @@ export class PeerEvaluationsProxyController {
 export class EmployeeGoalsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'evaluation');
   }
@@ -306,7 +306,7 @@ export class EmployeeGoalsProxyController {
 export class JobTitlesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'users');
   }
@@ -321,7 +321,7 @@ export class JobTitlesProxyController {
 export class JobGradesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'users');
   }
@@ -336,7 +336,7 @@ export class JobGradesProxyController {
 export class RequestsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'requests');
   }
@@ -351,7 +351,7 @@ export class RequestsProxyController {
 export class AttendanceReportsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
@@ -366,7 +366,7 @@ export class AttendanceReportsProxyController {
 export class CustodiesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'users');
   }
@@ -381,7 +381,7 @@ export class CustodiesProxyController {
 export class BiometricDevicesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'zkteco');
   }
@@ -396,7 +396,7 @@ export class BiometricDevicesProxyController {
 export class EmployeeFingerprintsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'zkteco');
   }
@@ -411,7 +411,7 @@ export class EmployeeFingerprintsProxyController {
 export class EmployeeAttendanceConfigProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
@@ -426,7 +426,7 @@ export class EmployeeAttendanceConfigProxyController {
 export class IclockProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'zkteco');
   }
@@ -441,7 +441,7 @@ export class IclockProxyController {
 export class JobApplicationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'jobs');
   }
@@ -456,7 +456,7 @@ export class JobApplicationsProxyController {
 export class DeductionPoliciesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
@@ -471,7 +471,7 @@ export class DeductionPoliciesProxyController {
 export class PayrollProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
-  @All('*')
+  @All('*path')
   forwardWithPath(@Req() req: Request, @Res() res: Response) {
     return this.proxy.forward(req, res, 'attendance');
   }
