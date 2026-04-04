@@ -260,9 +260,9 @@ export class AuthService {
       });
     }
 
-    // تحقق بسيط من صحة الـ access token
+    let payload: any;
     try {
-      jwt.verify(token, this.accessSecret);
+      payload = jwt.verify(token, this.accessSecret);
     } catch {
       throw new UnauthorizedException({
         code: 'AUTH_TOKEN_INVALID',
@@ -271,16 +271,40 @@ export class AuthService {
       });
     }
 
-    // بالمستقبل رح نعمل logout بناءً على refresh token أو session id.
+    // 1) أضف الـ access token للـ blacklist عبر الـ jti
+    if (payload.jti) {
+      const expiresAt = new Date(payload.exp * 1000);
+      await this.prisma.revokedToken.upsert({
+        where: { jti: payload.jti },
+        update: {},
+        create: { jti: payload.jti, expiresAt },
+      });
+    }
+
+    // 2) أبطل كل refresh tokens للمستخدم
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: payload.sub, revoked: false },
+      data: { revoked: true },
+    });
+
+    this.logger.log(`Logout: userId=${payload.sub} — tokens revoked`);
     return { loggedOut: true };
   }
 
+  async isTokenRevoked(jti: string): Promise<boolean> {
+    if (!jti) return false;
+    const revoked = await this.prisma.revokedToken.findUnique({ where: { jti } });
+    return !!revoked;
+  }
+
   private signAccessToken(userId: string, username: string, permissions?: string[]) {
+    const jti = crypto.randomUUID();
     return jwt.sign(
       {
         sub: userId,
         username,
-        permissions: permissions || []
+        permissions: permissions || [],
+        jti,
       },
       this.accessSecret,
       { expiresIn: this.accessTtlSeconds },

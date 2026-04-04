@@ -60,11 +60,4 @@ export class UsersController {
     return this.users.assignRoles(id, dto);
   }
 
-  // keep this for verifying guard behavior
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permission('users:read')
-  @Get('users/_guard-test')
-  guardTest() {
-    return { ok: true };
-  }
 }

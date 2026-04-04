@@ -34,6 +34,16 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+model RevokedToken {
+  id        String   @id @default(uuid())
+  jti       String   @unique
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@map("revoked_tokens")
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
