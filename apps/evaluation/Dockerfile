@@ -8,7 +8,7 @@ COPY apps/evaluation/package*.json ./
 COPY apps/evaluation/prisma ./prisma/
 
 # Install dependencies
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY apps/evaluation/ ./
@@ -31,7 +31,7 @@ WORKDIR /app
 COPY apps/evaluation/package*.json ./
 
 # Install production dependencies only
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy prisma
 COPY apps/evaluation/prisma ./prisma/
