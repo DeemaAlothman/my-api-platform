@@ -9,7 +9,7 @@ export class JobApplicationsService {
   private readonly apiKey: string;
 
   constructor(private readonly http: HttpService) {
-    this.baseUrl = process.env.VITASYR_API_URL || 'https://vitaxirpro.com/external';
+    this.baseUrl = process.env.VITASYR_API_URL || 'https://vitaxirpro.com/api/external';
     this.apiKey = process.env.VITASYR_API_KEY || '';
 
     if (!this.apiKey) {
