@@ -1,18 +1,20 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export interface JwtPayload {
   sub: string;
   username: string;
   permissions: string[];
+  jti?: string;
   iat?: number;
   exp?: number;
 }
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -23,6 +25,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: JwtPayload) {
     if (!payload.sub) {
       throw new UnauthorizedException('Invalid token payload');
+    }
+
+    if (payload.jti) {
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id FROM users.revoked_tokens WHERE jti = ${payload.jti} LIMIT 1
+      `;
+      if (rows.length > 0) {
+        throw new UnauthorizedException('Token has been revoked');
+      }
     }
 
     return {
