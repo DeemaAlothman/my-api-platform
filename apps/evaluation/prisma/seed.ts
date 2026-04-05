@@ -179,6 +179,39 @@ async function main() {
   });
   console.log('Created evaluation period for 2026');
 
+  // Create Probation Criteria (18 core criteria)
+  const probationCriteria = [
+    { nameAr: 'الالتزام بساعات عمل الدوام الرسمي', isCore: true, displayOrder: 1 },
+    { nameAr: 'الموظف كان يتسم بالسلوك المناسب أثناء فترة التجربة', isCore: true, displayOrder: 2 },
+    { nameAr: 'تنفيذ التعليمات بدقة', isCore: true, displayOrder: 3 },
+    { nameAr: 'اهتمام الموظف وجديته في فهم مهامه', isCore: true, displayOrder: 4 },
+    { nameAr: 'التواصل الفعال مع فريق عمله واحترام التسلسل الوظيفي', isCore: true, displayOrder: 5 },
+    { nameAr: 'التعبير الكتابي والصياغة السليمة', isCore: true, displayOrder: 6 },
+    { nameAr: 'التعبير الشفهي المنطوق', isCore: true, displayOrder: 7 },
+    { nameAr: 'إعداد التقارير والمتابعة', isCore: true, displayOrder: 8 },
+    { nameAr: 'القدرة على اتخاذ القرارات وحل المسائل المعقدة', isCore: true, displayOrder: 9 },
+    { nameAr: 'القدرة على الإضافة للوظيفة', isCore: true, displayOrder: 10 },
+    { nameAr: 'القدرة على العمل ضمن فريق', isCore: true, displayOrder: 11 },
+    { nameAr: 'الرغبة في التعلم وطرح التساؤلات العملية', isCore: true, displayOrder: 12 },
+    { nameAr: 'القدرة على تنفيذ مهام متعددة في وقت واحد', isCore: true, displayOrder: 13 },
+    { nameAr: 'القدرة على تسليم المهام في الوقت المحدد', isCore: true, displayOrder: 14 },
+    { nameAr: 'حضور الاجتماعات والالتزام بقواعدها', isCore: true, displayOrder: 15 },
+    { nameAr: 'جودة الأعمال التي يقوم بها', isCore: true, displayOrder: 16 },
+    { nameAr: 'القدرة على إدارة الوقت وتحديد الأولويات', isCore: true, displayOrder: 17 },
+    { nameAr: 'احترام خصوصيات وأسرار العمل والالتزام بقوانين الشركة', isCore: true, displayOrder: 18 },
+  ];
+
+  console.log('Creating probation criteria...');
+  for (const criterion of probationCriteria) {
+    const existing = await prisma.probationCriteria.findFirst({
+      where: { nameAr: criterion.nameAr },
+    });
+    if (!existing) {
+      await prisma.probationCriteria.create({ data: criterion });
+    }
+  }
+  console.log(`Created ${probationCriteria.length} probation criteria`);
+
   console.log('Seed completed successfully!');
 }
 
