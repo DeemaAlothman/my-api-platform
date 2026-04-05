@@ -541,3 +541,18 @@ export class PayrollProxyController {
     return this.proxy.forward(req, res, 'attendance');
   }
 }
+
+@Controller('notifications')
+export class NotificationsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'users');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'users');
+  }
+}

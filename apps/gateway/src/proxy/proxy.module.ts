@@ -38,6 +38,7 @@ import {
   InterviewCriteriaProxyController,
   InterviewEvaluationsProxyController,
   ProbationProxyController,
+  NotificationsProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -79,6 +80,7 @@ import {
     InterviewCriteriaProxyController,
     InterviewEvaluationsProxyController,
     ProbationProxyController,
+    NotificationsProxyController,
   ],
   providers: [ProxyService],
 })

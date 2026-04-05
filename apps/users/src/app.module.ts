@@ -10,6 +10,7 @@ import { RolesModule } from './roles/roles.module';
 import { JobTitlesModule } from './job-titles/job-titles.module';
 import { JobGradesModule } from './job-grades/job-grades.module';
 import { CustodiesModule } from './custodies/custodies.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -27,6 +28,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     JobTitlesModule,
     JobGradesModule,
     CustodiesModule,
+    NotificationsModule,
   ],
   providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })

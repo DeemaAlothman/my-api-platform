@@ -15,8 +15,9 @@ model User {
   password  String
   status    UserStatus @default(ACTIVE)
 
-  employee  Employee?
-  roles     UserRole[]
+  employee      Employee?
+  roles         UserRole[]
+  notifications Notification[]
 
   deletedAt DateTime?
 
@@ -441,4 +442,41 @@ enum CustodyCategory {
   KEYS
   UNIFORM
   OTHER
+}
+
+model Notification {
+  id        String             @id @default(uuid())
+  userId    String
+  type      NotificationType
+  titleAr   String
+  titleEn   String
+  messageAr String
+  messageEn String
+  isRead    Boolean            @default(false)
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  LEAVE_REQUEST_SUBMITTED
+  LEAVE_REQUEST_APPROVED
+  LEAVE_REQUEST_REJECTED
+  LEAVE_REQUEST_CANCELLED
+  ATTENDANCE_ALERT
+  ATTENDANCE_JUSTIFICATION
+  EVALUATION_ASSIGNED
+  EVALUATION_SUBMITTED
+  PROBATION_REMINDER
+  ONBOARDING_TASK
+  OFFBOARDING_TASK
+  DOCUMENT_EXPIRY
+  GENERAL
 }
