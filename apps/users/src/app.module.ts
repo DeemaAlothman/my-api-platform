@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from './prisma/prisma.service';
@@ -10,6 +11,7 @@ import { JobTitlesModule } from './job-titles/job-titles.module';
 import { JobGradesModule } from './job-grades/job-grades.module';
 import { CustodiesModule } from './custodies/custodies.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
   imports: [
@@ -26,6 +28,6 @@ import { JwtStrategy } from './common/strategies/jwt.strategy';
     JobGradesModule,
     CustodiesModule,
   ],
-  providers: [PrismaService, JwtStrategy],
+  providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })
 export class AppModule {}

@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaService } from './prisma/prisma.service';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { WorkSchedulesModule } from './work-schedules/work-schedules.module';
 import { AttendanceRecordsModule } from './attendance-records/attendance-records.module';
 import { AttendanceAlertsModule } from './attendance-alerts/attendance-alerts.module';
@@ -30,10 +31,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
   providers: [
     PrismaService,
     JwtStrategy,
-    {
-      provide: APP_FILTER,
-      useClass: HttpExceptionFilter,
-    },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}

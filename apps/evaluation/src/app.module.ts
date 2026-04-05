@@ -9,6 +9,7 @@ import { PeerEvaluationsModule } from './peer-evaluations/peer-evaluations.modul
 import { EmployeeGoalsModule } from './employee-goals/employee-goals.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
   imports: [
@@ -24,14 +25,9 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     EmployeeGoalsModule,
   ],
   providers: [
-    {
-      provide: APP_INTERCEPTOR,
-      useClass: TransformInterceptor,
-    },
-    {
-      provide: APP_FILTER,
-      useClass: HttpExceptionFilter,
-    },
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
   ],
 })
 export class AppModule {}
