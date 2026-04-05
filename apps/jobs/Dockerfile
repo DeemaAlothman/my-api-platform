@@ -28,6 +28,8 @@ RUN npm run build
 
 FROM node:20-alpine AS production
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 COPY --from=builder /app/apps/jobs/package*.json ./
