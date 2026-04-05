@@ -1,6 +1,6 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { finalize } from 'rxjs/operators';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class AuditInterceptor implements NestInterceptor {
     if (req.method === 'GET') return next.handle();
 
     return next.handle().pipe(
-      tap(() => {
+      finalize(() => {
         const user = req.user;
         const parts = req.path.replace('/api/v1/', '').split('/');
         const resource = parts[0] || null;

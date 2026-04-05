@@ -1,6 +1,6 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { finalize } from 'rxjs/operators';
 import { Pool } from 'pg';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -13,7 +13,7 @@ export class AuditInterceptor implements NestInterceptor {
     if (req.method === 'GET') return next.handle();
 
     return next.handle().pipe(
-      tap(() => {
+      finalize(() => {
         const user = req.user;
         const parts = req.path.replace('/api/v1/', '').split('/');
         const resource = parts[0] || null;
