@@ -34,6 +34,10 @@ import {
   JobApplicationsProxyController,
   DeductionPoliciesProxyController,
   PayrollProxyController,
+  InterviewPositionsProxyController,
+  InterviewCriteriaProxyController,
+  InterviewEvaluationsProxyController,
+  ProbationProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -71,6 +75,10 @@ import {
     JobApplicationsProxyController,
     DeductionPoliciesProxyController,
     PayrollProxyController,
+    InterviewPositionsProxyController,
+    InterviewCriteriaProxyController,
+    InterviewEvaluationsProxyController,
+    ProbationProxyController,
   ],
   providers: [ProxyService],
 })

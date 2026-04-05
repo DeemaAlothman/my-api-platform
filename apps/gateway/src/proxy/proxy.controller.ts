@@ -437,6 +437,66 @@ export class IclockProxyController {
   }
 }
 
+@Controller('interview-positions')
+export class InterviewPositionsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+}
+
+@Controller('interview-criteria')
+export class InterviewCriteriaProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+}
+
+@Controller('interview-evaluations')
+export class InterviewEvaluationsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+}
+
+@Controller('probation')
+export class ProbationProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+}
+
 @Controller('job-applications')
 export class JobApplicationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
