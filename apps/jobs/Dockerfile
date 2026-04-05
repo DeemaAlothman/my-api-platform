@@ -37,4 +37,4 @@ RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma gene
 COPY --from=builder /app/apps/jobs/dist   ./dist
 
 EXPOSE 4008
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
