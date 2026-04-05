@@ -267,3 +267,126 @@ model EvaluationHistory {
   @@index([formId])
   @@schema("evaluation")
 }
+
+// =============================================
+// تقييم فترة التجربة
+// =============================================
+
+model ProbationCriteria {
+  id           String   @id @default(uuid())
+  nameAr       String
+  nameEn       String?
+  isCore       Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  scores       ProbationCriteriaScore[]
+  jobTitleOverrides JobTitleCriteria[]
+
+  @@schema("evaluation")
+}
+
+model JobTitleCriteria {
+  jobTitleId   String
+  criteriaId   String
+  isEnabled    Boolean  @default(true)
+  displayOrder Int?
+
+  criteria ProbationCriteria @relation(fields: [criteriaId], references: [id])
+
+  @@id([jobTitleId, criteriaId])
+  @@schema("evaluation")
+}
+
+model ProbationEvaluation {
+  id                    String              @id @default(uuid())
+  employeeId            String
+  hireDate              DateTime            @db.Date
+  probationEndDate      DateTime            @db.Date
+  evaluationDate        DateTime?           @db.Date
+  evaluatorId           String
+  evaluatorNotes        String?
+  isDelegated           Boolean             @default(false)
+  delegationNote        String?
+  seniorManagerId       String?
+  seniorManagerNotes    String?
+  hrManagerId           String?
+  hrManagerNotes        String?
+  ceoId                 String?
+  ceoRecommendations    String?
+  finalRecommendation   ProbationRecommendation?
+  workAreasNote         String?
+  status                ProbationStatus     @default(DRAFT)
+  employeeAcknowledgedAt DateTime?
+  employeeAcknowledged  Boolean             @default(false)
+  employeeNotes         String?
+  overallRating         ProbationRating?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  scores  ProbationCriteriaScore[]
+  history ProbationEvaluationHistory[]
+
+  @@schema("evaluation")
+}
+
+enum ProbationStatus {
+  DRAFT
+  PENDING_SENIOR_MANAGER
+  PENDING_HR
+  PENDING_CEO
+  PENDING_EMPLOYEE_ACKNOWLEDGMENT
+  COMPLETED
+  REJECTED_BY_SENIOR
+  REJECTED_BY_HR
+  REJECTED_BY_CEO
+
+  @@schema("evaluation")
+}
+
+enum ProbationRecommendation {
+  EXTEND_PROBATION
+  CONFIRM_POSITION
+  TRANSFER_POSITION
+  TERMINATE
+
+  @@schema("evaluation")
+}
+
+enum ProbationRating {
+  UNACCEPTABLE
+  ACCEPTABLE
+  GOOD
+  VERY_GOOD
+  EXCELLENT
+
+  @@schema("evaluation")
+}
+
+model ProbationCriteriaScore {
+  evaluationId String
+  criteriaId   String
+  score        ProbationRating
+
+  evaluation ProbationEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  criteria   ProbationCriteria   @relation(fields: [criteriaId], references: [id])
+
+  @@id([evaluationId, criteriaId])
+  @@schema("evaluation")
+}
+
+model ProbationEvaluationHistory {
+  id           String   @id @default(uuid())
+  evaluationId String
+  action       String
+  performedBy  String
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  evaluation ProbationEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@index([evaluationId])
+  @@schema("evaluation")
+}

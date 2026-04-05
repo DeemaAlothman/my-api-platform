@@ -1,0 +1,259 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateProbationEvaluationDto, WorkflowActionDto } from './dto/create-probation-evaluation.dto';
+
+@Injectable()
+export class ProbationEvaluationsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(dto: CreateProbationEvaluationDto) {
+    const evaluation = await this.prisma.probationEvaluation.create({
+      data: {
+        employeeId: dto.employeeId,
+        hireDate: new Date(dto.hireDate),
+        probationEndDate: new Date(dto.probationEndDate),
+        evaluationDate: dto.evaluationDate ? new Date(dto.evaluationDate) : null,
+        evaluatorId: dto.evaluatorId,
+        evaluatorNotes: dto.evaluatorNotes,
+        isDelegated: dto.isDelegated ?? false,
+        delegationNote: dto.delegationNote,
+        seniorManagerId: dto.seniorManagerId,
+        workAreasNote: dto.workAreasNote,
+        status: 'DRAFT',
+      },
+    });
+
+    if (dto.scores?.length) {
+      await this.prisma.probationCriteriaScore.createMany({
+        data: dto.scores.map(s => ({
+          evaluationId: evaluation.id,
+          criteriaId: s.criteriaId,
+          score: s.score,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    await this.logHistory(evaluation.id, 'CREATE', dto.evaluatorId, 'تم إنشاء التقييم');
+
+    return this.findOne(evaluation.id);
+  }
+
+  async findAll() {
+    return this.prisma.probationEvaluation.findMany({
+      include: {
+        scores: { include: { criteria: true } },
+        history: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findOne(id: string) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({
+      where: { id },
+      include: {
+        scores: { include: { criteria: true } },
+        history: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    return evaluation;
+  }
+
+  async findByEmployee(employeeId: string) {
+    return this.prisma.probationEvaluation.findMany({
+      where: { employeeId },
+      include: {
+        scores: { include: { criteria: true } },
+        history: { orderBy: { createdAt: 'desc' }, take: 3 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async update(id: string, dto: Partial<CreateProbationEvaluationDto>) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'DRAFT') {
+      throw new BadRequestException('لا يمكن تعديل التقييم بعد إرساله');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: {
+        ...(dto.hireDate && { hireDate: new Date(dto.hireDate) }),
+        ...(dto.probationEndDate && { probationEndDate: new Date(dto.probationEndDate) }),
+        ...(dto.evaluationDate !== undefined && { evaluationDate: dto.evaluationDate ? new Date(dto.evaluationDate) : null }),
+        ...(dto.evaluatorNotes !== undefined && { evaluatorNotes: dto.evaluatorNotes }),
+        ...(dto.isDelegated !== undefined && { isDelegated: dto.isDelegated }),
+        ...(dto.delegationNote !== undefined && { delegationNote: dto.delegationNote }),
+        ...(dto.seniorManagerId !== undefined && { seniorManagerId: dto.seniorManagerId }),
+        ...(dto.workAreasNote !== undefined && { workAreasNote: dto.workAreasNote }),
+      },
+    });
+
+    if (dto.scores?.length) {
+      await this.prisma.probationCriteriaScore.deleteMany({ where: { evaluationId: id } });
+      await this.prisma.probationCriteriaScore.createMany({
+        data: dto.scores.map(s => ({
+          evaluationId: id,
+          criteriaId: s.criteriaId,
+          score: s.score,
+        })),
+      });
+    }
+
+    return this.findOne(id);
+  }
+
+  async submit(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'DRAFT') {
+      throw new BadRequestException('التقييم تم إرساله مسبقاً');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: { status: 'PENDING_SENIOR_MANAGER' },
+    });
+
+    await this.logHistory(id, 'SUBMIT', performedBy, dto.notes ?? 'تم إرسال التقييم للمدير المباشر');
+
+    return this.findOne(id);
+  }
+
+  async seniorApprove(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_SENIOR_MANAGER') {
+      throw new BadRequestException('التقييم ليس في مرحلة مراجعة المدير المباشر');
+    }
+
+    const updateData: any = {
+      status: 'PENDING_HR',
+      overallRating: dto.overallRating,
+      finalRecommendation: dto.recommendation,
+    };
+
+    if (dto.scores?.length) {
+      await this.prisma.probationCriteriaScore.deleteMany({ where: { evaluationId: id } });
+      await this.prisma.probationCriteriaScore.createMany({
+        data: dto.scores.map(s => ({
+          evaluationId: id,
+          criteriaId: s.criteriaId,
+          score: s.score,
+        })),
+      });
+    }
+
+    await this.prisma.probationEvaluation.update({ where: { id }, data: updateData });
+    await this.logHistory(id, 'SENIOR_APPROVE', performedBy, dto.notes ?? 'اعتمد المدير المباشر التقييم');
+
+    return this.findOne(id);
+  }
+
+  async seniorReject(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_SENIOR_MANAGER') {
+      throw new BadRequestException('التقييم ليس في مرحلة مراجعة المدير المباشر');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: { status: 'REJECTED_BY_SENIOR' },
+    });
+
+    await this.logHistory(id, 'SENIOR_REJECT', performedBy, dto.notes ?? 'رفض المدير المباشر التقييم');
+
+    return this.findOne(id);
+  }
+
+  async hrDocument(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_HR') {
+      throw new BadRequestException('التقييم ليس في مرحلة توثيق الموارد البشرية');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: {
+        status: 'PENDING_CEO',
+        hrManagerId: performedBy,
+      },
+    });
+
+    await this.logHistory(id, 'HR_DOCUMENT', performedBy, dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية');
+
+    return this.findOne(id);
+  }
+
+  async hrReject(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_HR') {
+      throw new BadRequestException('التقييم ليس في مرحلة توثيق الموارد البشرية');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: { status: 'REJECTED_BY_HR', hrManagerId: performedBy },
+    });
+
+    await this.logHistory(id, 'HR_REJECT', performedBy, dto.notes ?? 'رفضت الموارد البشرية التقييم');
+
+    return this.findOne(id);
+  }
+
+  async ceoDecide(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_CEO') {
+      throw new BadRequestException('التقييم ليس في مرحلة قرار الرئيس التنفيذي');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: {
+        status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT',
+        ceoId: performedBy,
+        finalRecommendation: dto.recommendation ?? evaluation.finalRecommendation,
+        overallRating: dto.overallRating ?? evaluation.overallRating,
+      },
+    });
+
+    await this.logHistory(id, 'CEO_DECIDE', performedBy, dto.notes ?? 'أصدر الرئيس التنفيذي قراره');
+
+    return this.findOne(id);
+  }
+
+  async employeeAcknowledge(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_EMPLOYEE_ACKNOWLEDGMENT') {
+      throw new BadRequestException('التقييم ليس في مرحلة إقرار الموظف');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: {
+        status: 'COMPLETED',
+        employeeAcknowledged: true,
+        employeeAcknowledgedAt: new Date(),
+      },
+    });
+
+    await this.logHistory(id, 'EMPLOYEE_ACKNOWLEDGE', performedBy, dto.notes ?? 'أقرّ الموظف بالتقييم');
+
+    return this.findOne(id);
+  }
+
+  private async logHistory(evaluationId: string, action: string, performedBy: string, notes: string) {
+    await this.prisma.probationEvaluationHistory.create({
+      data: { evaluationId, action, performedBy, notes },
+    });
+  }
+}

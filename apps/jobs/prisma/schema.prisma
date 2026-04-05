@@ -1,0 +1,203 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["jobs"]
+}
+
+// =============================================
+// الشاغر الوظيفي
+// =============================================
+model InterviewPosition {
+  id               String         @id @default(uuid())
+  jobTitle         String
+  department       String
+  sectorName       String?
+  workType         WorkType       @default(FULL_TIME)
+  workMode         WorkMode       @default(ON_SITE)
+  committeeMembers Json           @default("[]")
+  interviewDate    DateTime?
+  status           PositionStatus @default(OPEN)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  technicalQuestions TechnicalQuestion[]
+  evaluations        InterviewEvaluation[]
+
+  @@schema("jobs")
+}
+
+enum WorkType {
+  FULL_TIME
+  PART_TIME
+
+  @@schema("jobs")
+}
+
+enum WorkMode {
+  ON_SITE
+  REMOTE
+  HYBRID
+
+  @@schema("jobs")
+}
+
+enum PositionStatus {
+  OPEN
+  CLOSED
+  SUSPENDED
+
+  @@schema("jobs")
+}
+
+// =============================================
+// معايير الصفات الشخصية (ثابتة)
+// =============================================
+model PersonalCriterion {
+  id           String   @id @default(uuid())
+  nameAr       String
+  description  String?
+  maxScore     Int      @default(5)
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  scores PersonalCriteriaScore[]
+
+  @@schema("jobs")
+}
+
+// =============================================
+// معايير المهارات الحاسوبية (ثابتة)
+// =============================================
+model ComputerCriterion {
+  id           String   @id @default(uuid())
+  nameAr       String
+  description  String?
+  maxScore     Int      @default(5)
+  displayOrder Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  scores ComputerCriteriaScore[]
+
+  @@schema("jobs")
+}
+
+// =============================================
+// الأسئلة التقنية لكل شاغر
+// =============================================
+model TechnicalQuestion {
+  id           String    @id @default(uuid())
+  positionId   String
+  question     String
+  maxScore     Int       @default(10)
+  displayOrder Int       @default(0)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  position InterviewPosition      @relation(fields: [positionId], references: [id])
+  scores   TechnicalQuestionScore[]
+
+  @@schema("jobs")
+}
+
+// =============================================
+// تقييم المقابلة الرئيسي
+// =============================================
+model InterviewEvaluation {
+  id               String              @id @default(uuid())
+  positionId       String
+  jobApplicationId String              @unique
+  candidateName    String
+  residence        String?
+  dateOfBirth      DateTime?           @db.Date
+  maritalStatus    String?
+  contactNumber    String?
+  academicDegree   String?
+  yearsOfExperience Float?
+  expectedSalary   Float?
+  expectedJoinDate DateTime?           @db.Date
+  generalNotes     String?
+  personalScore    Float?
+  technicalScore   Float?
+  computerScore    Float?
+  totalScore       Float?
+  decision         EvaluationDecision?
+  proposedSalary   Float?
+  evaluatorId      String?
+  evaluatedAt      DateTime?
+  isTransferred    Boolean             @default(false)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  position       InterviewPosition       @relation(fields: [positionId], references: [id])
+  personalScores PersonalCriteriaScore[]
+  technicalScores TechnicalQuestionScore[]
+  computerScores ComputerCriteriaScore[]
+
+  @@schema("jobs")
+}
+
+enum EvaluationDecision {
+  ACCEPTED
+  REFERRED_TO_OTHER
+  DEFERRED
+  REJECTED
+
+  @@schema("jobs")
+}
+
+// =============================================
+// درجات الصفات الشخصية
+// =============================================
+model PersonalCriteriaScore {
+  evaluationId String
+  criterionId  String
+  score        Int
+
+  evaluation InterviewEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  criterion  PersonalCriterion   @relation(fields: [criterionId], references: [id])
+
+  @@id([evaluationId, criterionId])
+  @@schema("jobs")
+}
+
+// =============================================
+// درجات الأسئلة التقنية
+// =============================================
+model TechnicalQuestionScore {
+  evaluationId String
+  questionId   String
+  score        Int
+
+  evaluation InterviewEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  question   TechnicalQuestion   @relation(fields: [questionId], references: [id])
+
+  @@id([evaluationId, questionId])
+  @@schema("jobs")
+}
+
+// =============================================
+// درجات المهارات الحاسوبية
+// =============================================
+model ComputerCriteriaScore {
+  evaluationId String
+  criterionId  String
+  score        Int
+
+  evaluation InterviewEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  criterion  ComputerCriterion   @relation(fields: [criterionId], references: [id])
+
+  @@id([evaluationId, criterionId])
+  @@schema("jobs")
+}

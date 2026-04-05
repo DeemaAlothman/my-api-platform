@@ -10,5 +10,8 @@
   "scripts": {
     "dev": "echo \"Use service-level dev scripts\"",
     "lint": "echo \"Add lint later\""
+  },
+  "devDependencies": {
+    "@nestjs/swagger": "^11.2.6"
   }
 }

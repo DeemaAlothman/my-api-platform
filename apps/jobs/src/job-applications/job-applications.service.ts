@@ -1,6 +1,7 @@
 import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class JobApplicationsService {
@@ -8,7 +9,10 @@ export class JobApplicationsService {
   private readonly baseUrl: string;
   private readonly apiKey: string;
 
-  constructor(private readonly http: HttpService) {
+  constructor(
+    private readonly http: HttpService,
+    private readonly prisma: PrismaService,
+  ) {
     this.baseUrl = process.env.VITASYR_API_URL || 'https://vitaxirpro.com/api/external';
     this.apiKey = process.env.VITASYR_API_KEY || '';
 
@@ -65,7 +69,7 @@ export class JobApplicationsService {
   }
 
   /**
-   * جلب طلب واحد بالـ ID
+   * جلب طلب واحد بالـ ID مع تقييم المقابلة المحلي
    */
   async findOne(id: string) {
     try {
@@ -75,7 +79,29 @@ export class JobApplicationsService {
         }),
       );
 
-      return response.data;
+      const data = response.data;
+
+      // ربط تقييم المقابلة المحلي إذا وُجد
+      const interviewEvaluation = await (this.prisma as any).interviewEvaluation.findUnique({
+        where: { jobApplicationId: id },
+        select: {
+          id: true,
+          totalScore: true,
+          personalScore: true,
+          technicalScore: true,
+          computerScore: true,
+          decision: true,
+          proposedSalary: true,
+          evaluatedAt: true,
+          isTransferred: true,
+        },
+      }).catch(() => null);
+
+      if (data?.data) {
+        data.data.interviewEvaluation = interviewEvaluation;
+      }
+
+      return data;
     } catch (error) {
       this.handleError(error, 'فشل في جلب الطلب');
     }

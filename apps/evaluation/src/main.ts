@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -25,7 +26,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addBearerAuth()
     .build();
-  SwaggerModule.setup('api/v1/docs', app, SwaggerModule.createDocument(app, config));
+  SwaggerModule.setup('api/v1/docs', app as any, SwaggerModule.createDocument(app as any, config));
 
   const port = process.env.PORT || 4005;
   await app.listen(port);

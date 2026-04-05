@@ -23,6 +23,7 @@ COPY apps/jobs ./apps/jobs
 COPY tsconfig*.json ./
 
 WORKDIR /app/apps/jobs
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 RUN npm run build
 
 FROM node:20-alpine AS production
@@ -31,6 +32,8 @@ WORKDIR /app
 
 COPY --from=builder /app/apps/jobs/package*.json ./
 RUN npm install --omit=dev
+COPY --from=builder /app/apps/jobs/prisma ./prisma
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 COPY --from=builder /app/apps/jobs/dist   ./dist
 
 EXPOSE 4008
