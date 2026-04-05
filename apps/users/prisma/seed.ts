@@ -219,26 +219,46 @@ async function main() {
   });
   console.log('✅ Created HR Manager role');
 
-  // 4. Create Admin User
+  // 4. Create Admin Users
+  const adminPassword = await bcrypt.hash('Admin@123456', 10);
+
   const adminUser = await prisma.user.upsert({
     where: { username: 'admin' },
     update: {
       email: 'admin@wso.org',
       fullName: 'مدير النظام',
-      password: await bcrypt.hash('password123', 10),
+      password: adminPassword,
       status: 'ACTIVE',
     },
     create: {
       username: 'admin',
       email: 'admin@wso.org',
       fullName: 'مدير النظام',
-      password: await bcrypt.hash('password123', 10),
+      password: adminPassword,
       status: 'ACTIVE',
     },
   });
   console.log('✅ Created admin user');
 
-  // Assign Super Admin role to admin user
+  const admin1User = await prisma.user.upsert({
+    where: { username: 'admin1' },
+    update: {
+      email: 'admin@wso.com',
+      fullName: 'مدير',
+      password: adminPassword,
+      status: 'ACTIVE',
+    },
+    create: {
+      username: 'admin1',
+      email: 'admin@wso.com',
+      fullName: 'مدير',
+      password: adminPassword,
+      status: 'ACTIVE',
+    },
+  });
+  console.log('✅ Created admin1 user');
+
+  // Assign Super Admin role to admin and admin1 users
   await prisma.userRole.upsert({
     where: {
       userId_roleId: {
@@ -252,7 +272,21 @@ async function main() {
       roleId: superAdminRole.id,
     },
   });
-  console.log('✅ Assigned Super Admin role to admin user');
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: admin1User.id,
+        roleId: superAdminRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: admin1User.id,
+      roleId: superAdminRole.id,
+    },
+  });
+  console.log('✅ Assigned Super Admin role to admin and admin1 users');
 
   // 5. Create Sample Department
   const itDept = await prisma.department.upsert({
