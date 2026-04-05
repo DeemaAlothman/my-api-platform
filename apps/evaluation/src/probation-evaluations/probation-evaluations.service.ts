@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProbationEvaluationDto, WorkflowActionDto } from './dto/create-probation-evaluation.dto';
 
 @Injectable()
 export class ProbationEvaluationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly http: HttpService,
+  ) {}
 
   async create(dto: CreateProbationEvaluationDto) {
     const evaluation = await this.prisma.probationEvaluation.create({
@@ -237,18 +241,60 @@ export class ProbationEvaluationsService {
       throw new BadRequestException('التقييم ليس في مرحلة إقرار الموظف');
     }
 
+    const completedAt = new Date();
+
     await this.prisma.probationEvaluation.update({
       where: { id },
       data: {
         status: 'COMPLETED',
         employeeAcknowledged: true,
-        employeeAcknowledgedAt: new Date(),
+        employeeAcknowledgedAt: completedAt,
       },
     });
 
     await this.logHistory(id, 'EMPLOYEE_ACKNOWLEDGE', performedBy, dto.notes ?? 'أقرّ الموظف بالتقييم');
 
+    // إشعار users-service بالنتيجة النهائية
+    if (evaluation.finalRecommendation && evaluation.employeeId) {
+      const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
+      this.http.post(`${usersUrl}/api/v1/employees/internal/probation-result`, {
+        employeeId: evaluation.employeeId,
+        result: evaluation.finalRecommendation,
+        completedAt: completedAt.toISOString(),
+      }).subscribe({ error: () => { /* silent fail */ } });
+    }
+
     return this.findOne(id);
+  }
+
+  async findPendingMyAction(userId: string) {
+    return this.prisma.probationEvaluation.findMany({
+      where: {
+        OR: [
+          {
+            evaluatorId: userId,
+            status: { in: ['DRAFT', 'REJECTED_BY_SENIOR', 'REJECTED_BY_HR', 'REJECTED_BY_CEO'] },
+          },
+          { seniorManagerId: userId, status: 'PENDING_SENIOR_MANAGER' },
+          { employeeId: userId, status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT' },
+        ],
+      },
+      include: {
+        scores: { include: { criteria: true } },
+        history: { orderBy: { createdAt: 'desc' }, take: 1 },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findHistory(id: string) {
+    const exists = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('التقييم غير موجود');
+
+    return this.prisma.probationEvaluationHistory.findMany({
+      where: { evaluationId: id },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 
   private async logHistory(evaluationId: string, action: string, performedBy: string, notes: string) {

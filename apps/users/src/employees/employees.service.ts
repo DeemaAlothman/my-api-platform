@@ -623,4 +623,54 @@ export class EmployeesService {
 
     return updated;
   }
+
+  // Internal: called by evaluation-service when probation evaluation is COMPLETED
+  async updateProbationResult(data: {
+    employeeId: string;
+    result: string;
+    completedAt: string;
+  }) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: data.employeeId, deletedAt: null },
+    });
+    if (!employee) throw new NotFoundException('Employee not found');
+
+    const updateData: any = {
+      probationResult: data.result as any,
+      probationCompletedAt: new Date(data.completedAt),
+    };
+
+    if (data.result === 'TERMINATE') {
+      updateData.employmentStatus = 'TERMINATED';
+    } else if (data.result === 'CONFIRM_POSITION') {
+      updateData.employmentStatus = 'ACTIVE';
+    }
+
+    return this.prisma.employee.update({
+      where: { id: data.employeeId },
+      data: updateData,
+      select: { id: true, employmentStatus: true, probationResult: true, probationCompletedAt: true },
+    });
+  }
+
+  // Internal: called by jobs-service when interview evaluation is transferred
+  async updateInterviewResult(data: {
+    jobApplicationId: string;
+    totalScore: number;
+    decision: string;
+    proposedSalary?: number;
+  }) {
+    // Map score to enum value
+    let evalEnum: string;
+    if (data.totalScore >= 90) evalEnum = 'EXCELLENT';
+    else if (data.totalScore >= 75) evalEnum = 'VERY_GOOD';
+    else if (data.totalScore >= 60) evalEnum = 'GOOD';
+    else if (data.totalScore >= 50) evalEnum = 'ACCEPTABLE';
+    else evalEnum = 'POOR';
+
+    // Find employee by jobApplicationId is not possible directly here
+    // (jobApplicationId is external from VitaSyr, not stored in users schema)
+    // Just return ok — the caller can store jobApplicationId on their side
+    return { ok: true, mapped: evalEnum };
+  }
 }

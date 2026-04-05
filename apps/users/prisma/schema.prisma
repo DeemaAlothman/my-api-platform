@@ -96,6 +96,10 @@ model Employee {
   probationPeriod    ProbationPeriod?
   interviewEvaluation InterviewEvaluation?
 
+  // Probation Evaluation Result (set by evaluation-service when probation is completed)
+  probationResult      ProbationResult?
+  probationCompletedAt DateTime?
+
   // Personal Info (extra)
   profilePhoto       String?
   bloodType          BloodType?
@@ -243,6 +247,13 @@ enum InterviewEvaluation {
   GOOD
   ACCEPTABLE
   POOR
+}
+
+enum ProbationResult {
+  CONFIRM_POSITION
+  EXTEND_PROBATION
+  TRANSFER_POSITION
+  TERMINATE
 }
 
 model Department {

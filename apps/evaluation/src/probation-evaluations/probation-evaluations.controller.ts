@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Body, UseGuards, Request } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProbationEvaluationsService } from './probation-evaluations.service';
 import { CreateProbationEvaluationDto, WorkflowActionDto } from './dto/create-probation-evaluation.dto';
@@ -16,6 +16,11 @@ export class ProbationEvaluationsController {
     return this.service.create(dto);
   }
 
+  @Get('pending-my-action')
+  findPendingMyAction(@Request() req: any) {
+    return this.service.findPendingMyAction(req.user?.userId);
+  }
+
   @Get()
   findAll() {
     return this.service.findAll();
@@ -24,6 +29,11 @@ export class ProbationEvaluationsController {
   @Get('employee/:employeeId')
   findByEmployee(@Param('employeeId') employeeId: string) {
     return this.service.findByEmployee(employeeId);
+  }
+
+  @Get(':id/history')
+  findHistory(@Param('id') id: string) {
+    return this.service.findHistory(id);
   }
 
   @Get(':id')
@@ -37,38 +47,37 @@ export class ProbationEvaluationsController {
   }
 
   @Post(':id/submit')
-  submit(@Param('id') id: string, @Body() dto: WorkflowActionDto) {
-    // TODO: extract performedBy from JWT
-    return this.service.submit(id, 'system', dto);
+  submit(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.submit(id, req.user?.userId ?? 'system', dto);
   }
 
   @Post(':id/senior-approve')
-  seniorApprove(@Param('id') id: string, @Body() dto: WorkflowActionDto) {
-    return this.service.seniorApprove(id, 'system', dto);
+  seniorApprove(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.seniorApprove(id, req.user?.userId ?? 'system', dto);
   }
 
   @Post(':id/senior-reject')
-  seniorReject(@Param('id') id: string, @Body() dto: WorkflowActionDto) {
-    return this.service.seniorReject(id, 'system', dto);
+  seniorReject(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.seniorReject(id, req.user?.userId ?? 'system', dto);
   }
 
   @Post(':id/hr-document')
-  hrDocument(@Param('id') id: string, @Body() dto: WorkflowActionDto) {
-    return this.service.hrDocument(id, 'system', dto);
+  hrDocument(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.hrDocument(id, req.user?.userId ?? 'system', dto);
   }
 
   @Post(':id/hr-reject')
-  hrReject(@Param('id') id: string, @Body() dto: WorkflowActionDto) {
-    return this.service.hrReject(id, 'system', dto);
+  hrReject(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.hrReject(id, req.user?.userId ?? 'system', dto);
   }
 
   @Post(':id/ceo-decide')
-  ceoDecide(@Param('id') id: string, @Body() dto: WorkflowActionDto) {
-    return this.service.ceoDecide(id, 'system', dto);
+  ceoDecide(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.ceoDecide(id, req.user?.userId ?? 'system', dto);
   }
 
   @Post(':id/employee-acknowledge')
-  employeeAcknowledge(@Param('id') id: string, @Body() dto: WorkflowActionDto) {
-    return this.service.employeeAcknowledge(id, 'system', dto);
+  employeeAcknowledge(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.employeeAcknowledge(id, req.user?.userId ?? 'system', dto);
   }
 }

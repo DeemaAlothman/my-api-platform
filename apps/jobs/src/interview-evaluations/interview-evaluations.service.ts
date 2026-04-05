@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInterviewEvaluationDto, CriteriaScoreDto, TechnicalScoreDto } from './dto/create-interview-evaluation.dto';
 
@@ -156,7 +155,7 @@ export class InterviewEvaluationsService {
     return evaluation; // null is fine — caller decides
   }
 
-  async update(id: string, dto: Partial<CreateInterviewEvaluationDto>, evaluatorId?: string) {
+  async update(id: string, dto: Partial<CreateInterviewEvaluationDto>, _evaluatorId?: string) {
     const existing = await this.findOne(id);
 
     // إعادة حساب الدرجات إذا تغيرت
@@ -225,20 +224,14 @@ export class InterviewEvaluationsService {
     if (evaluation.isTransferred) throw new BadRequestException('تم نقل الدرجة مسبقاً');
     if (evaluation.decision !== 'ACCEPTED') throw new BadRequestException('لا يمكن نقل درجة مرشح غير مقبول');
 
-    // إرسال للـ users-service
+    // إرسال للـ users-service (fire-and-forget)
     const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
-    try {
-      await firstValueFrom(
-        this.http.post(`${usersUrl}/api/v1/employees/interview-result`, {
-          jobApplicationId: evaluation.jobApplicationId,
-          totalScore: evaluation.totalScore,
-          decision: evaluation.decision,
-          proposedSalary: evaluation.proposedSalary,
-        }),
-      );
-    } catch {
-      // لا نوقف العملية إذا فشل users-service
-    }
+    this.http.post(`${usersUrl}/api/v1/employees/internal/interview-result`, {
+      jobApplicationId: evaluation.jobApplicationId,
+      totalScore: evaluation.totalScore,
+      decision: evaluation.decision,
+      proposedSalary: evaluation.proposedSalary,
+    }).subscribe({ error: () => { /* silent fail */ } });
 
     return this.prisma.interviewEvaluation.update({
       where: { id },

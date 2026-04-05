@@ -84,4 +84,16 @@ export class EmployeesController {
   linkUser(@Param('id') id: string, @Body() dto: LinkUserDto) {
     return this.employees.linkUser(id, dto);
   }
+
+  // Internal endpoint — called by evaluation-service (no JWT required, service-to-service)
+  @Post('internal/probation-result')
+  updateProbationResult(@Body() dto: { employeeId: string; result: string; completedAt: string }) {
+    return this.employees.updateProbationResult(dto);
+  }
+
+  // Internal endpoint — called by jobs-service (no JWT required, service-to-service)
+  @Post('internal/interview-result')
+  updateInterviewResult(@Body() dto: { jobApplicationId: string; totalScore: number; decision: string; proposedSalary?: number }) {
+    return this.employees.updateInterviewResult(dto);
+  }
 }
