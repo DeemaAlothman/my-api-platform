@@ -20,6 +20,19 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-init:
+    image: postgres:16
+    container_name: myapiplatform-postgres-init
+    restart: "no"
+    command: >
+      psql postgresql://postgres:postgres@postgres:5432/postgres
+      -c "SET password_encryption='md5'; ALTER USER postgres WITH PASSWORD 'postgres';"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: myapiplatform-pgadmin
@@ -50,8 +63,8 @@ services:
     ports:
       - "4001:4001"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -68,8 +81,8 @@ services:
     ports:
       - "4002:4002"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -86,8 +99,8 @@ services:
     ports:
       - "4003:4003"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -104,8 +117,8 @@ services:
     ports:
       - "4004:4004"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -122,8 +135,8 @@ services:
     ports:
       - "4005:4005"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -140,8 +153,8 @@ services:
     ports:
       - "4006:4006"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
@@ -159,8 +172,8 @@ services:
     ports:
       - "4007:4007"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
     networks:
       - app-network
 
