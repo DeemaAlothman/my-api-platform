@@ -20,7 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (payload.jti) {
       const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-        SELECT id FROM users.revoked_tokens WHERE jti = ${payload.jti} LIMIT 1
+        SELECT id FROM auth.revoked_tokens WHERE jti = ${payload.jti} LIMIT 1
       `;
       if (rows.length > 0) {
         throw new UnauthorizedException({ code: 'AUTH_TOKEN_REVOKED', message: 'Token has been revoked', details: [] });

@@ -22,7 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (payload.jti) {
       const result = await pool.query(
-        'SELECT id FROM users.revoked_tokens WHERE jti = $1 LIMIT 1',
+        'SELECT id FROM auth.revoked_tokens WHERE jti = $1 LIMIT 1',
         [payload.jti],
       );
       if (result.rows.length > 0) {
