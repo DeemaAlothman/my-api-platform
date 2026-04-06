@@ -12,6 +12,7 @@
     "lint": "echo \"Add lint later\""
   },
   "devDependencies": {
-    "@nestjs/swagger": "^11.2.6"
+    "@nestjs/swagger": "^11.2.6",
+    "@types/multer": "^2.1.0"
   }
 }

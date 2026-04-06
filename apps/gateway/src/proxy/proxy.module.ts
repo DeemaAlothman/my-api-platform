@@ -40,6 +40,7 @@ import {
   ProbationProxyController,
   NotificationsProxyController,
   OnboardingProxyController,
+  DocumentsProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -83,6 +84,7 @@ import {
     ProbationProxyController,
     NotificationsProxyController,
     OnboardingProxyController,
+    DocumentsProxyController,
   ],
   providers: [ProxyService],
 })

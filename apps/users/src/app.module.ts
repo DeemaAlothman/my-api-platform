@@ -12,6 +12,7 @@ import { JobGradesModule } from './job-grades/job-grades.module';
 import { CustodiesModule } from './custodies/custodies.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { DocumentsModule } from './documents/documents.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -31,6 +32,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     CustodiesModule,
     NotificationsModule,
     OnboardingModule,
+    DocumentsModule,
   ],
   providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })

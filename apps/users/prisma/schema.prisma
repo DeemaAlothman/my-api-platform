@@ -122,6 +122,7 @@ model Employee {
   certificateAttachment2 String?
 
   // Attachments
+  documents            EmployeeDocument[]
   attachments          EmployeeAttachment[]
   trainingCertificates TrainingCertificate[]
   allowances           EmployeeAllowance[]
@@ -137,6 +138,56 @@ model Employee {
   @@index([managerId])
   @@index([employeeNumber])
   @@map("employees")
+}
+
+enum DocumentType {
+  CONTRACT
+  NATIONAL_ID
+  PASSPORT
+  RESIDENCE
+  CERTIFICATE
+  PHOTO
+  MEDICAL
+  BANK_ACCOUNT
+  OTHER
+}
+
+enum DocumentStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model EmployeeDocument {
+  id         String         @id @default(uuid())
+  employeeId String
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  type       DocumentType
+  status     DocumentStatus @default(ACTIVE)
+
+  titleAr    String
+  titleEn    String?
+  notes      String?
+
+  fileUrl    String
+  fileName   String
+  fileSize   Int?
+  mimeType   String?
+
+  issueDate  DateTime?
+  expiryDate DateTime?
+
+  uploadedBy String?
+
+  deletedAt  DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([employeeId])
+  @@index([expiryDate])
+  @@index([status])
+  @@map("employee_documents")
 }
 
 model EmployeeAttachment {
