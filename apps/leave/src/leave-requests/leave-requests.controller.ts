@@ -108,13 +108,6 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.cancel(id, dto, userId);
   }
 
-  // الحصول على طلب واحد
-  @Get(':id')
-  @Permission('leave_requests:read')
-  findOne(@Param('id') id: string) {
-    return this.leaveRequestsService.findOne(id);
-  }
-
   // قائمة طلبات الموظف الحالي
   @Get('my/requests')
   @Permission('leave_requests:read')
@@ -127,6 +120,13 @@ export class LeaveRequestsController {
   @Permission('leave_requests:read_all')
   findAll(@Query() query: ListLeaveRequestsQueryDto) {
     return this.leaveRequestsService.findAll(query);
+  }
+
+  // الحصول على طلب واحد
+  @Get(':id')
+  @Permission('leave_requests:read')
+  findOne(@Param('id') id: string) {
+    return this.leaveRequestsService.findOne(id);
   }
 
   // حذف طلب (فقط DRAFT)

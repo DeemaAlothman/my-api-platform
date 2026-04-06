@@ -40,4 +40,5 @@ lerna-debug.log*
 .env.*.local
 
 # Prisma
-prisma/migrations/
+# migrations are tracked in git
+
