@@ -3,21 +3,12 @@
 -- ============================================================
 SET search_path TO users;
 
--- 1. تعديل ContractType: إضافة القيم الجديدة أولاً
-ALTER TYPE "ContractType" ADD VALUE 'FIXED_TERM';
-ALTER TYPE "ContractType" ADD VALUE 'INDEFINITE';
-ALTER TYPE "ContractType" ADD VALUE 'TRAINEE';
-
--- تحويل البيانات القديمة
-UPDATE employees SET "contractType" = 'INDEFINITE' WHERE "contractType" = 'PERMANENT';
-UPDATE employees SET "contractType" = 'FIXED_TERM'  WHERE "contractType" = 'CONTRACT';
-UPDATE employees SET "contractType" = 'TRAINEE'     WHERE "contractType" = 'INTERNSHIP';
-
--- إعادة إنشاء الـ enum بدون القيم القديمة
-CREATE TYPE "ContractType_new" AS ENUM ('FIXED_TERM', 'INDEFINITE', 'TEMPORARY', 'TRAINEE');
-ALTER TABLE employees ALTER COLUMN "contractType" TYPE "ContractType_new" USING "contractType"::text::"ContractType_new";
+-- 1. تعديل ContractType: إعادة إنشاء الـ enum كاملاً
+-- (لا نستخدم ADD VALUE + use في نفس الـ transaction لتجنب خطأ 55P04)
+ALTER TABLE employees ALTER COLUMN "contractType" TYPE TEXT;
 DROP TYPE "ContractType";
-ALTER TYPE "ContractType_new" RENAME TO "ContractType";
+CREATE TYPE "ContractType" AS ENUM ('FIXED_TERM', 'INDEFINITE', 'TEMPORARY', 'TRAINEE');
+ALTER TABLE employees ALTER COLUMN "contractType" TYPE "ContractType" USING "contractType"::"ContractType";
 
 -- 2. إضافة حقول المؤهلات والشهادات على جدول employees
 ALTER TABLE employees

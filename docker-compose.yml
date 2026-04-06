@@ -8,8 +8,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: platform
-    ports:
-      - "15432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./apps/postgres/entrypoint.sh:/docker-custom-entrypoint.sh
