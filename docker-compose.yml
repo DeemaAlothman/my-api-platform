@@ -3,7 +3,7 @@ services:
     image: postgres:16
     container_name: myapiplatform-postgres
     restart: unless-stopped
-    command: postgres -c password_encryption=md5
+    command: postgres -c password_encryption=md5 -c hba_file=/etc/postgresql/pg_hba.conf
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -12,6 +12,7 @@ services:
       - "15432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf
     networks:
       - app-network
     healthcheck:
