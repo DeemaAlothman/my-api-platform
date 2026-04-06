@@ -3,7 +3,7 @@ services:
     image: postgres:16
     container_name: myapiplatform-postgres
     restart: unless-stopped
-    command: postgres -c password_encryption=md5 -c hba_file=/etc/postgresql/pg_hba.conf
+    entrypoint: ["/bin/bash", "/docker-custom-entrypoint.sh"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -13,6 +13,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./apps/postgres/entrypoint.sh:/docker-custom-entrypoint.sh
     networks:
       - app-network
     healthcheck:
@@ -68,6 +69,8 @@ services:
       NODE_ENV: production
     ports:
       - "4002:4002"
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -220,3 +223,4 @@ networks:
 
 volumes:
   pgdata:
+  uploads_data:
