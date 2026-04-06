@@ -2,9 +2,7 @@
 set -e
 
 # Start postgres in background using the official entrypoint
-/usr/local/bin/docker-entrypoint.sh postgres \
-  -c password_encryption=md5 \
-  -c hba_file=/etc/postgresql/pg_hba.conf &
+/usr/local/bin/docker-entrypoint.sh postgres &
 
 PG_PID=$!
 
@@ -20,11 +18,12 @@ done
 
 echo "[postgres-init] PostgreSQL is ready. Ensuring md5 password..."
 
-# Always set password as md5 — local socket uses trust (no password needed)
+# Always reset password via local socket (trust auth — no password needed)
+# Uses scram-sha-256 (postgres default) — consistent with default pg_hba.conf
 psql --username=postgres --dbname=postgres \
-  -c "SET password_encryption='md5'; ALTER USER postgres WITH PASSWORD 'postgres';" \
-  && echo "[postgres-init] Password set to md5 successfully" \
-  || echo "[postgres-init] Warning: could not set password"
+  -c "ALTER USER postgres WITH PASSWORD 'postgres';" \
+  && echo "[postgres-init] Password reset successfully" \
+  || echo "[postgres-init] Warning: could not reset password"
 
 # Forward signals to postgres for clean shutdown
 trap "kill -TERM $PG_PID 2>/dev/null" SIGTERM SIGINT SIGQUIT

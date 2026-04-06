@@ -12,7 +12,6 @@ services:
       - "15432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf
       - ./apps/postgres/entrypoint.sh:/docker-custom-entrypoint.sh
     networks:
       - app-network
