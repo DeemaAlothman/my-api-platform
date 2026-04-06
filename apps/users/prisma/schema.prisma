@@ -126,6 +126,7 @@ model Employee {
   trainingCertificates TrainingCertificate[]
   allowances           EmployeeAllowance[]
   custodies            Custody[]
+  onboardingWorkflows  OnboardingWorkflow[]
 
   deletedAt      DateTime?
 
@@ -479,4 +480,113 @@ enum NotificationType {
   OFFBOARDING_TASK
   DOCUMENT_EXPIRY
   GENERAL
+}
+
+// ─── Onboarding / Offboarding ───────────────────────────────────────────────
+
+model OnboardingTemplate {
+  id          String                   @id @default(uuid())
+  type        WorkflowType
+  nameAr      String
+  nameEn      String
+  description String?
+  isDefault   Boolean                  @default(false)
+
+  tasks       OnboardingTemplateTask[]
+  workflows   OnboardingWorkflow[]
+
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  deletedAt   DateTime?
+
+  @@index([type])
+  @@map("onboarding_templates")
+}
+
+model OnboardingTemplateTask {
+  id            String              @id @default(uuid())
+  templateId    String
+  titleAr       String
+  titleEn       String
+  descriptionAr String?
+  descriptionEn String?
+  assignedTo    TaskAssignee
+  order         Int                 @default(0)
+  daysFromStart Int                 @default(0)
+
+  template      OnboardingTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  workflowTasks OnboardingWorkflowTask[]
+
+  @@index([templateId])
+  @@map("onboarding_template_tasks")
+}
+
+model OnboardingWorkflow {
+  id           String                   @id @default(uuid())
+  employeeId   String
+  templateId   String
+  type         WorkflowType
+  status       WorkflowStatus           @default(IN_PROGRESS)
+  startDate    DateTime
+  targetDate   DateTime?
+  completedAt  DateTime?
+  notes        String?
+
+  employee     Employee                 @relation(fields: [employeeId], references: [id])
+  template     OnboardingTemplate       @relation(fields: [templateId], references: [id])
+  tasks        OnboardingWorkflowTask[]
+
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("onboarding_workflows")
+}
+
+model OnboardingWorkflowTask {
+  id             String              @id @default(uuid())
+  workflowId     String
+  templateTaskId String
+  titleAr        String
+  titleEn        String
+  assignedTo     TaskAssignee
+  assignedUserId String?
+  status         TaskStatus          @default(PENDING)
+  dueDate        DateTime?
+  completedAt    DateTime?
+  notes          String?
+
+  workflow       OnboardingWorkflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  templateTask   OnboardingTemplateTask @relation(fields: [templateTaskId], references: [id])
+
+  @@index([workflowId])
+  @@index([status])
+  @@map("onboarding_workflow_tasks")
+}
+
+enum WorkflowType {
+  ONBOARDING
+  OFFBOARDING
+}
+
+enum WorkflowStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+enum TaskAssignee {
+  HR
+  IT
+  MANAGER
+  EMPLOYEE
+  OTHER
 }
