@@ -601,3 +601,18 @@ export class DocumentsProxyController {
     return this.proxy.forward(req, res, 'users');
   }
 }
+
+@Controller('reports/hr')
+export class HrReportsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'users');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'users');
+  }
+}
