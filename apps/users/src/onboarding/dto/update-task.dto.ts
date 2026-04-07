@@ -1,6 +1,7 @@
 import { IsEnum, IsOptional, IsString, IsDateString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { TaskStatus } from '@prisma/client';
+
+enum TaskStatus { PENDING = 'PENDING', IN_PROGRESS = 'IN_PROGRESS', COMPLETED = 'COMPLETED', SKIPPED = 'SKIPPED' }
 
 export class UpdateWorkflowTaskDto {
   @ApiPropertyOptional({ enum: TaskStatus }) @IsOptional() @IsEnum(TaskStatus) status?: TaskStatus;

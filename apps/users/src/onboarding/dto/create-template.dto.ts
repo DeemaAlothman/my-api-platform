@@ -1,7 +1,9 @@
 import { IsString, IsEnum, IsBoolean, IsOptional, IsArray, IsInt, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { WorkflowType, TaskAssignee } from '@prisma/client';
+
+enum WorkflowType { ONBOARDING = 'ONBOARDING', OFFBOARDING = 'OFFBOARDING' }
+enum TaskAssignee { HR = 'HR', IT = 'IT', MANAGER = 'MANAGER', EMPLOYEE = 'EMPLOYEE', OTHER = 'OTHER' }
 
 export class CreateTemplateTaskDto {
   @ApiProperty() @IsString() titleAr: string;

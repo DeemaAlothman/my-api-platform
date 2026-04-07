@@ -1,9 +1,11 @@
-import { Controller, Get, Param, Query, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, UseGuards, UseInterceptors } from '@nestjs/common';
+import type { Response } from 'express';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
+import { sendCsv } from '../common/utils/csv.util';
 
 @Controller('attendance-reports')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -210,17 +212,35 @@ export class ReportsController {
    */
   @Get('top-absences')
   @Permission('attendance.reports.read')
-  topAbsences(
+  async topAbsences(
     @Query('year') year?: string,
     @Query('month') month?: string,
     @Query('limit') limit?: string,
+    @Query('format') format?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
     const now = new Date();
-    return this.service.topAbsences(
+    const data = await this.service.topAbsences(
       year ? parseInt(year) : now.getFullYear(),
       month ? parseInt(month) : undefined,
       limit ? parseInt(limit) : 10,
     );
+    if (format === 'csv') {
+      sendCsv(
+        res!,
+        'attendance-top-absences',
+        ['رقم الموظف', 'الاسم', 'أيام الغياب', 'مرات التأخر', 'إجمالي دقائق التأخر'],
+        data.items.map((r: any) => [
+          r.employee?.employeeNumber ?? r.employee?.id ?? '',
+          r.employee ? `${r.employee.firstNameAr} ${r.employee.lastNameAr}` : '',
+          r.absenceCount,
+          r.lateCount,
+          r.totalLateMinutes,
+        ]),
+      );
+      return;
+    }
+    return data;
   }
 
   /**
@@ -229,14 +249,31 @@ export class ReportsController {
    */
   @Get('overtime')
   @Permission('attendance.reports.read')
-  overtime(
+  async overtime(
     @Query('year') year?: string,
     @Query('month') month?: string,
+    @Query('format') format?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
     const now = new Date();
-    return this.service.overtime(
+    const data = await this.service.overtime(
       year ? parseInt(year) : now.getFullYear(),
       month ? parseInt(month) : undefined,
     );
+    if (format === 'csv') {
+      sendCsv(
+        res!,
+        'attendance-overtime',
+        ['رقم الموظف', 'الاسم', 'أيام الأوفرتايم', 'إجمالي الساعات'],
+        data.items.map((r: any) => [
+          r.employee?.employeeNumber ?? r.employee?.id ?? '',
+          r.employee ? `${r.employee.firstNameAr} ${r.employee.lastNameAr}` : '',
+          r.overtimeDays,
+          r.totalOvertimeHours,
+        ]),
+      );
+      return;
+    }
+    return data;
   }
 }

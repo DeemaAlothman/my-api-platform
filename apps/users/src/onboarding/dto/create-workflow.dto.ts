@@ -1,6 +1,7 @@
 import { IsString, IsEnum, IsOptional, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { WorkflowType } from '@prisma/client';
+
+enum WorkflowType { ONBOARDING = 'ONBOARDING', OFFBOARDING = 'OFFBOARDING' }
 
 export class CreateWorkflowDto {
   @ApiProperty() @IsString() employeeId: string;
