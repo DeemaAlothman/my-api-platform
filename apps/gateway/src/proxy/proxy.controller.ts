@@ -602,6 +602,21 @@ export class DocumentsProxyController {
   }
 }
 
+@Controller('reports/leave')
+export class LeaveReportsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'leave');
+  }
+}
+
 @Controller('reports/hr')
 export class HrReportsProxyController {
   constructor(private readonly proxy: ProxyService) {}

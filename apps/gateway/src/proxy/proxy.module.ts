@@ -43,6 +43,7 @@ import {
   OnboardingProxyController,
   DocumentsProxyController,
   HrReportsProxyController,
+  LeaveReportsProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -89,6 +90,7 @@ import {
     OnboardingProxyController,
     DocumentsProxyController,
     HrReportsProxyController,
+    LeaveReportsProxyController,
   ],
   providers: [ProxyService],
 })

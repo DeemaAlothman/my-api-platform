@@ -8,6 +8,7 @@ import { LeaveRequestsModule } from './leave-requests/leave-requests.module';
 import { LeaveBalancesModule } from './leave-balances/leave-balances.module';
 import { LeaveTypesModule } from './leave-types/leave-types.module';
 import { HolidaysModule } from './holidays/holidays.module';
+import { LeaveReportsModule } from './leave-reports/leave-reports.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 
 @Module({
@@ -21,6 +22,7 @@ import { JwtStrategy } from './common/strategies/jwt.strategy';
     LeaveBalancesModule,
     LeaveTypesModule,
     HolidaysModule,
+    LeaveReportsModule,
   ],
   providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })
