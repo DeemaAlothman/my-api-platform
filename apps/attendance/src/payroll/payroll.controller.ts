@@ -58,6 +58,20 @@ export class PayrollController {
   }
 
   /**
+   * GET /payroll/:employeeId/:year/:month/payslip
+   * كشف راتب مفصّل لموظف (Payslip)
+   */
+  @Get(':employeeId/:year/:month/payslip')
+  @Permission('attendance.payroll.read')
+  getPayslip(
+    @Param('employeeId') employeeId: string,
+    @Param('year') year: string,
+    @Param('month') month: string,
+  ) {
+    return this.service.getPayslip(employeeId, parseInt(year), parseInt(month));
+  }
+
+  /**
    * PATCH /payroll/:id/confirm
    * تأكيد الكشف
    */

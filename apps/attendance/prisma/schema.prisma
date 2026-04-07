@@ -379,6 +379,20 @@ model MonthlyPayroll {
   // DRAFT | CONFIRMED | EXPORTED
   status       String   @default("DRAFT")
 
+  // === الحقول المالية ===
+  basicSalary            Decimal? @db.Decimal(15, 2)
+  allowancesTotal        Decimal? @db.Decimal(15, 2) @default(0)
+  allowancesBreakdown    String?  // JSON: {"FOOD": 500, "WORK_NATURE": 1000}
+  overtimePay            Decimal? @db.Decimal(15, 2) @default(0)
+  deductionAmount        Decimal? @db.Decimal(15, 2) @default(0)
+  absenceDeductionAmount Decimal? @db.Decimal(15, 2) @default(0)
+  grossSalary            Decimal? @db.Decimal(15, 2)
+  netSalary              Decimal? @db.Decimal(15, 2)
+  currency               String?  @default("SYP")
+  dailyRate              Decimal? @db.Decimal(15, 2)
+  minuteRate             Decimal? @db.Decimal(15, 4)
+  overtimeRateMultiplier Decimal? @db.Decimal(5, 2) @default(1.5)
+
   notes       String?
   generatedAt DateTime @default(now())
   confirmedBy String?

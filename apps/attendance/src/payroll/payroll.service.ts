@@ -175,6 +175,42 @@ export class PayrollService {
 
     const totalDeductionMinutes = lateDeductionMinutes + earlyLeaveDeductionMinutes + breakDeductionMinutes;
 
+    // === الحسابات المالية ===
+    const empFinancial = await this.prisma.$queryRaw<Array<{
+      basicSalary: string | null;
+      salaryCurrency: string | null;
+    }>>`
+      SELECT "basicSalary", "salaryCurrency"
+      FROM users.employees
+      WHERE id = ${employeeId} AND "deletedAt" IS NULL
+    `;
+
+    const basicSalary = empFinancial[0]?.basicSalary ? parseFloat(empFinancial[0].basicSalary) : 0;
+    const currency = empFinancial[0]?.salaryCurrency || 'SYP';
+
+    const allowancesRaw = await this.prisma.$queryRaw<Array<{ type: string; amount: string }>>`
+      SELECT type, amount FROM users.employee_allowances
+      WHERE "employeeId" = ${employeeId}
+    `;
+
+    const allowancesBreakdownMap: Record<string, number> = {};
+    let allowancesTotal = 0;
+    for (const a of allowancesRaw) {
+      allowancesBreakdownMap[a.type] = parseFloat(a.amount);
+      allowancesTotal += parseFloat(a.amount);
+    }
+
+    const dailyWorkMinutes = 480; // 8 ساعات افتراضي
+    const dailyRate = workingDays > 0 ? basicSalary / workingDays : 0;
+    const minuteRate = dailyRate > 0 ? dailyRate / dailyWorkMinutes : 0;
+    const overtimeRateMultiplier = 1.5;
+
+    const deductionAmount = parseFloat((totalDeductionMinutes * minuteRate).toFixed(2));
+    const absenceDeductionAmount = parseFloat((absenceDeductionDaysCalc * dailyRate).toFixed(2));
+    const overtimePay = parseFloat((overtimeMinutes * minuteRate * overtimeRateMultiplier).toFixed(2));
+    const grossSalary = parseFloat((basicSalary + allowancesTotal + overtimePay).toFixed(2));
+    const netSalary = parseFloat(Math.max(0, grossSalary - deductionAmount - absenceDeductionAmount).toFixed(2));
+
     // أنشئ أو حدّث كشف الراتب
     const data = {
       employeeId,
@@ -202,6 +238,19 @@ export class PayrollService {
       policyId: policy?.id || null,
       status: 'DRAFT',
       generatedAt: new Date(),
+      // الحقول المالية
+      basicSalary,
+      allowancesTotal,
+      allowancesBreakdown: JSON.stringify(allowancesBreakdownMap),
+      overtimePay,
+      deductionAmount,
+      absenceDeductionAmount,
+      grossSalary,
+      netSalary,
+      currency,
+      dailyRate: parseFloat(dailyRate.toFixed(2)),
+      minuteRate: parseFloat(minuteRate.toFixed(4)),
+      overtimeRateMultiplier,
     };
 
     return this.prisma.monthlyPayroll.upsert({
@@ -304,17 +353,119 @@ export class PayrollService {
     });
   }
 
+  // ==================== Payslip ====================
+
+  async getPayslip(employeeId: string, year: number, month: number) {
+    const payroll = await this.prisma.monthlyPayroll.findUnique({
+      where: { employeeId_year_month: { employeeId, year, month } },
+      include: { policy: { select: { nameAr: true, nameEn: true } } },
+    });
+    if (!payroll) throw new NotFoundException('كشف الراتب غير موجود');
+
+    // جلب بيانات الموظف
+    const empData = await this.prisma.$queryRaw<Array<{
+      employeeNumber: string;
+      fullName: string;
+      jobTitle: string | null;
+      departmentName: string | null;
+      hireDate: Date | null;
+    }>>`
+      SELECT e."employeeNumber", e."fullName", jt.name as "jobTitle",
+             d."nameAr" as "departmentName", e."hireDate"
+      FROM users.employees e
+      LEFT JOIN users.job_titles jt ON e."jobTitleId" = jt.id
+      LEFT JOIN users.departments d ON e."departmentId" = d.id
+      WHERE e.id = ${employeeId}
+    `;
+
+    const emp = empData[0] as { employeeNumber: string; fullName: string; jobTitle: string | null; departmentName: string | null; hireDate: Date | null } | undefined;
+    const allowancesBreakdown = payroll.allowancesBreakdown
+      ? JSON.parse(payroll.allowancesBreakdown)
+      : {};
+
+    const monthNames = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
+                        'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+
+    return {
+      payrollId: payroll.id,
+      period: { year, month, monthName: monthNames[month - 1] },
+      employee: {
+        id: employeeId,
+        employeeNumber: emp?.employeeNumber,
+        fullName: emp?.fullName,
+        jobTitle: emp?.jobTitle,
+        department: emp?.departmentName,
+        hireDate: emp?.hireDate,
+      },
+      attendance: {
+        workingDays: payroll.workingDays,
+        presentDays: payroll.presentDays,
+        absentDays: payroll.absentDays,
+        absentUnjustified: payroll.absentUnjustified,
+        lateDays: payroll.lateDays,
+        totalLateMinutes: payroll.totalLateMinutes,
+        overtimeMinutes: payroll.overtimeMinutes,
+      },
+      salary: {
+        currency: payroll.currency || 'SYP',
+        basicSalary: payroll.basicSalary ? Number(payroll.basicSalary) : 0,
+        allowances: {
+          total: payroll.allowancesTotal ? Number(payroll.allowancesTotal) : 0,
+          breakdown: allowancesBreakdown,
+        },
+        overtimePay: payroll.overtimePay ? Number(payroll.overtimePay) : 0,
+        grossSalary: payroll.grossSalary ? Number(payroll.grossSalary) : 0,
+        deductions: {
+          attendanceDeduction: payroll.deductionAmount ? Number(payroll.deductionAmount) : 0,
+          absenceDeduction: payroll.absenceDeductionAmount ? Number(payroll.absenceDeductionAmount) : 0,
+          totalDeduction: (payroll.deductionAmount ? Number(payroll.deductionAmount) : 0)
+                        + (payroll.absenceDeductionAmount ? Number(payroll.absenceDeductionAmount) : 0),
+        },
+        netSalary: payroll.netSalary ? Number(payroll.netSalary) : 0,
+      },
+      status: payroll.status,
+      policy: payroll.policy,
+      generatedAt: payroll.generatedAt,
+      confirmedBy: payroll.confirmedBy,
+      confirmedAt: payroll.confirmedAt,
+    };
+  }
+
   // ==================== Export ====================
 
   async exportMonth(year: number, month: number) {
     const payrolls = await this.prisma.monthlyPayroll.findMany({
       where: { year, month, status: 'CONFIRMED' },
     });
+
+    const summary = payrolls.map(p => ({
+      employeeId: p.employeeId,
+      year: p.year,
+      month: p.month,
+      currency: p.currency,
+      basicSalary: p.basicSalary ? Number(p.basicSalary) : 0,
+      allowancesTotal: p.allowancesTotal ? Number(p.allowancesTotal) : 0,
+      overtimePay: p.overtimePay ? Number(p.overtimePay) : 0,
+      grossSalary: p.grossSalary ? Number(p.grossSalary) : 0,
+      totalDeductions: (p.deductionAmount ? Number(p.deductionAmount) : 0)
+                     + (p.absenceDeductionAmount ? Number(p.absenceDeductionAmount) : 0),
+      netSalary: p.netSalary ? Number(p.netSalary) : 0,
+    }));
+
+    const totalNet = summary.reduce((sum, p) => sum + p.netSalary, 0);
+
     // تحديث الحالة إلى EXPORTED
     await this.prisma.monthlyPayroll.updateMany({
       where: { year, month, status: 'CONFIRMED' },
       data: { status: 'EXPORTED' },
     });
-    return { year, month, exportedCount: payrolls.length, payrolls };
+
+    return {
+      year,
+      month,
+      exportedCount: payrolls.length,
+      totalNetSalary: parseFloat(totalNet.toFixed(2)),
+      payrolls: summary,
+    };
   }
 }
