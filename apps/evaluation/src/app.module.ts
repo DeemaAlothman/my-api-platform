@@ -9,6 +9,7 @@ import { PeerEvaluationsModule } from './peer-evaluations/peer-evaluations.modul
 import { EmployeeGoalsModule } from './employee-goals/employee-goals.module';
 import { ProbationCriteriaModule } from './probation-criteria/probation-criteria.module';
 import { ProbationEvaluationsModule } from './probation-evaluations/probation-evaluations.module';
+import { EvaluationReportsModule } from './evaluation-reports/evaluation-reports.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -27,6 +28,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     EmployeeGoalsModule,
     ProbationCriteriaModule,
     ProbationEvaluationsModule,
+    EvaluationReportsModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
