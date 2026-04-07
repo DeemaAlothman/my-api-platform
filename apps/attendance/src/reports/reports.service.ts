@@ -737,14 +737,7 @@ export class ReportsService {
       ? `AND EXTRACT(MONTH FROM date) = ${month}`
       : '';
 
-    const rows = await this.prisma.$queryRawUnsafe<
-      Array<{
-        employeeId: string;
-        absenceCount: string;
-        lateCount: string;
-        totalLateMinutes: string;
-      }>
-    >(`
+    const rows = (await this.prisma.$queryRawUnsafe(`
       SELECT
         "employeeId",
         COUNT(*) FILTER (WHERE status = 'ABSENT')::text    AS "absenceCount",
@@ -758,7 +751,7 @@ export class ReportsService {
           OR SUM("lateMinutes") > 0
       ORDER BY "absenceCount" DESC, "totalLateMinutes" DESC
       LIMIT ${limit}
-    `);
+    `)) as Array<{ employeeId: string; absenceCount: string; lateCount: string; totalLateMinutes: string }>;
 
     const employeeIds = rows.map((r) => r.employeeId);
     const employeeMap = await this.getEmployeeNames(employeeIds);
@@ -784,13 +777,7 @@ export class ReportsService {
       ? `AND EXTRACT(MONTH FROM date) = ${month}`
       : '';
 
-    const rows = await this.prisma.$queryRawUnsafe<
-      Array<{
-        employeeId: string;
-        overtimeDays: string;
-        totalOvertimeMinutes: string;
-      }>
-    >(`
+    const rows = (await this.prisma.$queryRawUnsafe(`
       SELECT
         "employeeId",
         COUNT(*)::text                       AS "overtimeDays",
@@ -801,7 +788,7 @@ export class ReportsService {
         AND "overtimeMinutes" > 0
       GROUP BY "employeeId"
       ORDER BY "totalOvertimeMinutes" DESC
-    `);
+    `)) as Array<{ employeeId: string; overtimeDays: string; totalOvertimeMinutes: string }>;
 
     const employeeIds = rows.map((r) => r.employeeId);
     const employeeMap = await this.getEmployeeNames(employeeIds);
