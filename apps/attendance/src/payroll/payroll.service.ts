@@ -45,7 +45,7 @@ export class PayrollService {
         generated++;
       } catch (err) {
         errors++;
-        results.push({ employeeId: emp.id, status: 'error', message: err.message });
+        results.push({ employeeId: emp.id, status: 'error', message: (err as any).message });
       }
     }
 
@@ -365,12 +365,13 @@ export class PayrollService {
     // جلب بيانات الموظف
     const empData = await this.prisma.$queryRaw<Array<{
       employeeNumber: string;
-      fullName: string;
+      firstNameAr: string;
+      lastNameAr: string;
       jobTitle: string | null;
       departmentName: string | null;
       hireDate: Date | null;
     }>>`
-      SELECT e."employeeNumber", e."fullName", jt.name as "jobTitle",
+      SELECT e."employeeNumber", e."firstNameAr", e."lastNameAr", jt."nameAr" as "jobTitle",
              d."nameAr" as "departmentName", e."hireDate"
       FROM users.employees e
       LEFT JOIN users.job_titles jt ON e."jobTitleId" = jt.id
@@ -378,7 +379,7 @@ export class PayrollService {
       WHERE e.id = ${employeeId}
     `;
 
-    const emp = empData[0] as { employeeNumber: string; fullName: string; jobTitle: string | null; departmentName: string | null; hireDate: Date | null } | undefined;
+    const emp = empData[0] as { employeeNumber: string; firstNameAr: string; lastNameAr: string; jobTitle: string | null; departmentName: string | null; hireDate: Date | null } | undefined;
     const allowancesBreakdown = payroll.allowancesBreakdown
       ? JSON.parse(payroll.allowancesBreakdown)
       : {};
@@ -392,7 +393,7 @@ export class PayrollService {
       employee: {
         id: employeeId,
         employeeNumber: emp?.employeeNumber,
-        fullName: emp?.fullName,
+        fullName: emp ? `${emp.firstNameAr} ${emp.lastNameAr}` : undefined,
         jobTitle: emp?.jobTitle,
         department: emp?.departmentName,
         hireDate: emp?.hireDate,
