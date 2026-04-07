@@ -84,6 +84,54 @@ export class ProxyService {
       delete headers.host;
       delete headers['content-length'];
 
+      // multipart/form-data: pipe raw stream directly (axios can't reconstruct it)
+      const reqContentType = req.headers['content-type'] || '';
+      if (reqContentType.includes('multipart/form-data')) {
+        return new Promise<void>((resolve, reject) => {
+          const urlObj = new URL(targetUrl);
+          const queryString = new URLSearchParams(req.query as any).toString();
+          const path = urlObj.pathname + (queryString ? '?' + queryString : '');
+
+          const nodeHttp = require('http');
+          const proxyReq = nodeHttp.request(
+            {
+              hostname: urlObj.hostname,
+              port: parseInt(urlObj.port) || 80,
+              path,
+              method: req.method,
+              headers: { ...headers, 'content-type': req.headers['content-type'] },
+            },
+            (proxyRes: any) => {
+              res.status(proxyRes.statusCode);
+              Object.keys(proxyRes.headers).forEach((key) => {
+                if (key !== 'transfer-encoding') {
+                  res.setHeader(key, proxyRes.headers[key]);
+                }
+              });
+              let body = '';
+              proxyRes.on('data', (chunk: any) => (body += chunk));
+              proxyRes.on('end', () => {
+                try {
+                  res.json(JSON.parse(body));
+                } catch {
+                  res.send(body);
+                }
+                resolve();
+              });
+            },
+          );
+          proxyReq.on('error', (err: any) => {
+            console.error(`Multipart proxy error for ${serviceName}:`, err.message);
+            res.status(503).json({
+              success: false,
+              error: { code: 'SERVICE_UNAVAILABLE', message: err.message, details: [] },
+            });
+            resolve();
+          });
+          req.pipe(proxyReq);
+        });
+      }
+
       // إرسال الطلب للخدمة
       const response = await firstValueFrom(
         this.http.request({
