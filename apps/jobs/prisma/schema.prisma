@@ -28,6 +28,7 @@ model InterviewPosition {
 
   technicalQuestions TechnicalQuestion[]
   evaluations        InterviewEvaluation[]
+  candidates         Candidate[]
 
   @@schema("jobs")
 }
@@ -199,5 +200,118 @@ model ComputerCriteriaScore {
   criterion  ComputerCriterion   @relation(fields: [criterionId], references: [id])
 
   @@id([evaluationId, criterionId])
+  @@schema("jobs")
+}
+
+// =============================================
+// Sprint 5 — Candidate Pipeline
+// =============================================
+
+enum CandidateStage {
+  NEW
+  INITIAL_REVIEW
+  PHONE_INTERVIEW
+  TECHNICAL_INTERVIEW
+  FINAL_INTERVIEW
+  OFFER_SENT
+  HIRED
+  REJECTED
+  WITHDRAWN
+
+  @@schema("jobs")
+}
+
+enum CandidateSource {
+  WEBSITE
+  LINKEDIN
+  INTERNAL_REFERRAL
+  RECRUITMENT_AGENCY
+  WALK_IN
+  OTHER
+
+  @@schema("jobs")
+}
+
+enum OfferStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+
+  @@schema("jobs")
+}
+
+model Candidate {
+  id             String          @id @default(uuid())
+  positionId     String?
+  firstNameAr    String
+  lastNameAr     String
+  firstNameEn    String?
+  lastNameEn     String?
+  email          String?
+  phone          String
+  nationalId     String?
+  currentStage   CandidateStage  @default(NEW)
+  source         CandidateSource @default(WEBSITE)
+  cvUrl          String?
+  expectedSalary Decimal?        @db.Decimal(15, 2)
+  notes          String?
+  isTransferred  Boolean         @default(false)
+  transferredEmployeeId String?
+  rejectionReason String?
+  createdBy      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+
+  position  InterviewPosition? @relation(fields: [positionId], references: [id])
+  stageHistory CandidateStageHistory[]
+  offers       JobOffer[]
+
+  @@index([currentStage])
+  @@index([positionId])
+  @@map("candidates")
+  @@schema("jobs")
+}
+
+model CandidateStageHistory {
+  id          String         @id @default(uuid())
+  candidateId String
+  fromStage   CandidateStage?
+  toStage     CandidateStage
+  notes       String?
+  changedBy   String?
+  changedAt   DateTime       @default(now())
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@map("candidate_stage_history")
+  @@schema("jobs")
+}
+
+model JobOffer {
+  id             String      @id @default(uuid())
+  candidateId    String
+  positionId     String?
+  basicSalary    Decimal     @db.Decimal(15, 2)
+  currency       String      @default("SYP")
+  startDate      DateTime?
+  expiresAt      DateTime?
+  status         OfferStatus @default(DRAFT)
+  benefits       String?
+  notes          String?
+  sentAt         DateTime?
+  respondedAt    DateTime?
+  createdBy      String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([status])
+  @@map("job_offers")
   @@schema("jobs")
 }

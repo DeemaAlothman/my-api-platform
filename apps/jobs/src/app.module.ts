@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { InterviewPositionsModule } from './interview-positions/interview-positions.module';
 import { InterviewCriteriaModule } from './interview-criteria/interview-criteria.module';
 import { InterviewEvaluationsModule } from './interview-evaluations/interview-evaluations.module';
+import { CandidatesModule } from './candidates/candidates.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -24,6 +25,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     InterviewPositionsModule,
     InterviewCriteriaModule,
     InterviewEvaluationsModule,
+    CandidatesModule,
   ],
   providers: [JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })

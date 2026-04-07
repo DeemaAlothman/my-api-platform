@@ -512,6 +512,21 @@ export class JobApplicationsProxyController {
   }
 }
 
+@Controller('candidates')
+export class CandidatesProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'jobs');
+  }
+}
+
 @Controller('deduction-policies')
 export class DeductionPoliciesProxyController {
   constructor(private readonly proxy: ProxyService) {}
