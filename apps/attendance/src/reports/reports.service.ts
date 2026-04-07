@@ -729,4 +729,96 @@ export class ReportsService {
       })),
     };
   }
+
+  // ─── تقرير الأكثر غياباً وتأخراً ──────────────────────────────────────────
+
+  async topAbsences(year: number, month?: number, limit = 10) {
+    const monthCondition = month
+      ? `AND EXTRACT(MONTH FROM date) = ${month}`
+      : '';
+
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        employeeId: string;
+        absenceCount: string;
+        lateCount: string;
+        totalLateMinutes: string;
+      }>
+    >(`
+      SELECT
+        "employeeId",
+        COUNT(*) FILTER (WHERE status = 'ABSENT')::text    AS "absenceCount",
+        COUNT(*) FILTER (WHERE "lateMinutes" > 0)::text   AS "lateCount",
+        COALESCE(SUM("lateMinutes"), 0)::text             AS "totalLateMinutes"
+      FROM attendance.attendance_records
+      WHERE EXTRACT(YEAR FROM date) = ${year}
+        ${monthCondition}
+      GROUP BY "employeeId"
+      HAVING COUNT(*) FILTER (WHERE status = 'ABSENT') > 0
+          OR SUM("lateMinutes") > 0
+      ORDER BY "absenceCount" DESC, "totalLateMinutes" DESC
+      LIMIT ${limit}
+    `);
+
+    const employeeIds = rows.map((r) => r.employeeId);
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    return {
+      year,
+      month: month ?? null,
+      limit,
+      items: rows.map((r) => ({
+        employee: employeeMap.get(r.employeeId) ?? { id: r.employeeId },
+        absenceCount: parseInt(r.absenceCount),
+        lateCount: parseInt(r.lateCount),
+        totalLateMinutes: parseInt(r.totalLateMinutes),
+        totalLateHours: +(parseInt(r.totalLateMinutes) / 60).toFixed(2),
+      })),
+    };
+  }
+
+  // ─── تقرير الأوفرتايم المتراكم ────────────────────────────────────────────
+
+  async overtime(year: number, month?: number) {
+    const monthCondition = month
+      ? `AND EXTRACT(MONTH FROM date) = ${month}`
+      : '';
+
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        employeeId: string;
+        overtimeDays: string;
+        totalOvertimeMinutes: string;
+      }>
+    >(`
+      SELECT
+        "employeeId",
+        COUNT(*)::text                       AS "overtimeDays",
+        COALESCE(SUM("overtimeMinutes"), 0)::text AS "totalOvertimeMinutes"
+      FROM attendance.attendance_records
+      WHERE EXTRACT(YEAR FROM date) = ${year}
+        ${monthCondition}
+        AND "overtimeMinutes" > 0
+      GROUP BY "employeeId"
+      ORDER BY "totalOvertimeMinutes" DESC
+    `);
+
+    const employeeIds = rows.map((r) => r.employeeId);
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    const totalMinutes = rows.reduce((s, r) => s + parseInt(r.totalOvertimeMinutes), 0);
+
+    return {
+      year,
+      month: month ?? null,
+      totalOvertimeMinutes: totalMinutes,
+      totalOvertimeHours: +(totalMinutes / 60).toFixed(2),
+      items: rows.map((r) => ({
+        employee: employeeMap.get(r.employeeId) ?? { id: r.employeeId },
+        overtimeDays: parseInt(r.overtimeDays),
+        totalOvertimeMinutes: parseInt(r.totalOvertimeMinutes),
+        totalOvertimeHours: +(parseInt(r.totalOvertimeMinutes) / 60).toFixed(2),
+      })),
+    };
+  }
 }

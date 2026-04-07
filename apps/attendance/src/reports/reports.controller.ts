@@ -203,4 +203,40 @@ export class ReportsController {
       month: month ? parseInt(month) : now.getMonth() + 1,
     });
   }
+
+  /**
+   * GET /attendance-reports/top-absences
+   * الموظفون الأكثر غياباً وتأخراً
+   */
+  @Get('top-absences')
+  @Permission('attendance.reports.read')
+  topAbsences(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const now = new Date();
+    return this.service.topAbsences(
+      year ? parseInt(year) : now.getFullYear(),
+      month ? parseInt(month) : undefined,
+      limit ? parseInt(limit) : 10,
+    );
+  }
+
+  /**
+   * GET /attendance-reports/overtime
+   * الأوفرتايم المتراكم لكل موظف
+   */
+  @Get('overtime')
+  @Permission('attendance.reports.read')
+  overtime(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    const now = new Date();
+    return this.service.overtime(
+      year ? parseInt(year) : now.getFullYear(),
+      month ? parseInt(month) : undefined,
+    );
+  }
 }
