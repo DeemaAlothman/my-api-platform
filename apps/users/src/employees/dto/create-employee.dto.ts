@@ -27,6 +27,7 @@ export enum AllowanceType {
   ACADEMIC_DEGREE = 'ACADEMIC_DEGREE',
   WORK_NATURE = 'WORK_NATURE',
   RESPONSIBILITY = 'RESPONSIBILITY',
+  RESIDENCE = 'RESIDENCE',
 }
 
 export class EmployeeAllowanceDto {
@@ -147,6 +148,10 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsEnum(MaritalStatus)
   maritalStatus?: MaritalStatus;
+
+  @IsOptional()
+  @IsBoolean()
+  hasDrivingLicense?: boolean;
 
   @IsNotEmpty({ message: 'Department is required' })
   @IsUUID()

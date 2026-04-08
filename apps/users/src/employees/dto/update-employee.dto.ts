@@ -60,6 +60,10 @@ export class UpdateEmployeeDto {
   maritalStatus?: MaritalStatus;
 
   @IsOptional()
+  @IsBoolean()
+  hasDrivingLicense?: boolean;
+
+  @IsOptional()
   @IsUUID()
   departmentId?: string;
 

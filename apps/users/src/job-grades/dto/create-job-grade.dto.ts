@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, Min } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateJobGradeDto {
@@ -37,4 +37,9 @@ export class CreateJobGradeDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
 }

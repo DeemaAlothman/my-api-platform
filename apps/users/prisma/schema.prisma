@@ -59,7 +59,8 @@ model Employee {
   gender         Gender
   dateOfBirth    DateTime?
   nationality    String?
-  maritalStatus  MaritalStatus?
+  maritalStatus      MaritalStatus?
+  hasDrivingLicense  Boolean?
 
   // Relations
   departmentId   String
@@ -258,6 +259,7 @@ enum AllowanceType {
   ACADEMIC_DEGREE
   WORK_NATURE
   RESPONSIBILITY
+  RESIDENCE
 }
 
 enum EmploymentStatus {
@@ -345,6 +347,7 @@ model JobGrade {
   maxSalary   Decimal? @db.Decimal(15, 2)
   description String?
   isActive    Boolean  @default(true)
+  order       Int?
 
   jobTitles   JobTitle[]
   employees   Employee[]

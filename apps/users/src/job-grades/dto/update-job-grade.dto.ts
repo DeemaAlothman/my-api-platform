@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsBoolean, Min } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsBoolean, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateJobGradeDto {
@@ -37,4 +37,9 @@ export class UpdateJobGradeDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
 }
