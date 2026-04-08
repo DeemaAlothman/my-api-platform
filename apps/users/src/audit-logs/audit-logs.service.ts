@@ -47,11 +47,11 @@ export class AuditLogsService {
     }
 
     if (query.from) {
-      conditions.push(`"createdAt" >= $${paramIdx++}`);
+      conditions.push(`"createdAt" >= $${paramIdx++}::timestamptz`);
       params.push(query.from);
     }
     if (query.to) {
-      conditions.push(`"createdAt" <= $${paramIdx++}`);
+      conditions.push(`"createdAt" <= $${paramIdx++}::timestamptz`);
       params.push(query.to);
     }
     if (query.resource) {
