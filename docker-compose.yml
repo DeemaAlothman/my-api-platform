@@ -202,7 +202,7 @@ services:
       JOBS_SERVICE_URL: http://jobs:4008
       NODE_ENV: production
       PORT: 8000
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3012,http://217.76.53.136:3012,http://217.76.53.136:3000
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3012,http://159.198.37.52:3000,http://159.198.37.52:3012
     ports:
       - "8000:8000"
     depends_on:
