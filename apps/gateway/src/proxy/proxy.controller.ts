@@ -661,3 +661,18 @@ export class HrReportsProxyController {
     return this.proxy.forward(req, res, 'users');
   }
 }
+
+@Controller("audit-logs")
+export class AuditLogsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All("*path")
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, "users");
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, "users");
+  }
+}

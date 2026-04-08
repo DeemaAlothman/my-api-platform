@@ -14,6 +14,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { DocumentsModule } from './documents/documents.module';
 import { HrReportsModule } from './hr-reports/hr-reports.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -35,6 +36,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     OnboardingModule,
     DocumentsModule,
     HrReportsModule,
+    AuditLogsModule,
   ],
   providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })
