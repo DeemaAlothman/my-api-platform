@@ -2,7 +2,7 @@ import { IsString, IsOptional, IsNumber, IsIn, Min, Max, ValidateIf } from 'clas
 
 export class UpdateJobApplicationDto {
   @IsString()
-  @IsIn(['PENDING', 'INTERVIEW_READY', 'ACCEPTED', 'REJECTED', 'HIRED'])
+  @IsIn(['PENDING', 'INTERVIEW_READY', 'ACCEPTED', 'REJECTED'])
   status: string;
 
   @IsOptional()

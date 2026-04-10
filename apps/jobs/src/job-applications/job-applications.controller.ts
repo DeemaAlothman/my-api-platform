@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Query, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Query, Param, Body, UseGuards } from '@nestjs/common';
 import { JobApplicationsService } from './job-applications.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -40,5 +40,13 @@ export class JobApplicationsController {
   @Put(':id')
   update(@Param('id') id: string, @Body() dto: UpdateJobApplicationDto) {
     return this.jobApplications.update(id, dto);
+  }
+
+  // موافقة المدير التنفيذي — ينقل الحالة إلى HIRED
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('job-applications:ceo-approve')
+  @Patch(':id/ceo-approve')
+  ceoApprove(@Param('id') id: string) {
+    return this.jobApplications.ceoApprove(id);
   }
 }

@@ -104,7 +104,7 @@ export class AuthService {
           'biometric.mappings.read', 'biometric.mappings.create', 'biometric.mappings.update', 'biometric.mappings.delete',
           'attendance.records.device',
           'attendance.config.read', 'attendance.config.create', 'attendance.config.update',
-          'job-applications:read', 'job-applications:update',
+          'job-applications:read', 'job-applications:update', 'job-applications:ceo-approve',
           'attendance.policies.read', 'attendance.policies.create', 'attendance.policies.update', 'attendance.policies.delete',
           'attendance.payroll.generate', 'attendance.payroll.read', 'attendance.payroll.confirm', 'attendance.payroll.export',
         ];
@@ -352,7 +352,7 @@ export class AuthService {
       'biometric.mappings.read', 'biometric.mappings.create', 'biometric.mappings.update', 'biometric.mappings.delete',
       'attendance.records.device',
       'attendance.config.read', 'attendance.config.create', 'attendance.config.update',
-      'job-applications:read', 'job-applications:update',
+      'job-applications:read', 'job-applications:update', 'job-applications:ceo-approve',
       'attendance.policies.read', 'attendance.policies.create', 'attendance.policies.update', 'attendance.policies.delete',
       'attendance.payroll.generate', 'attendance.payroll.read', 'attendance.payroll.confirm', 'attendance.payroll.export',
     ];

@@ -125,6 +125,22 @@ export class JobApplicationsService {
   }
 
   /**
+   * موافقة المدير التنفيذي — ينقل الحالة إلى HIRED
+   */
+  async ceoApprove(id: string) {
+    try {
+      const response = await firstValueFrom(
+        this.http.put(`${this.baseUrl}/job-applications/${id}`, { status: 'HIRED' }, {
+          headers: this.getHeaders(),
+        }),
+      );
+      return response.data;
+    } catch (error) {
+      this.handleError(error, 'فشل في تنفيذ موافقة المدير التنفيذي');
+    }
+  }
+
+  /**
    * معالجة الأخطاء من VitaSyr API
    */
   private handleError(error: any, defaultMessage: string): never {
