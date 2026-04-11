@@ -120,7 +120,7 @@ async function main() {
       firstNameAr: 'عمر', lastNameAr: 'خالد', firstNameEn: 'Omar', lastNameEn: 'Khalid',
       email: 'omar.dev@wso.org', phone: '+966500000005', nationalId: '1000000005',
       gender: 'MALE', maritalStatus: 'SINGLE',
-      hireDate: new Date('2024-06-01'), contractType: 'FIXED', contractEndDate: new Date('2026-06-01'),
+      hireDate: new Date('2024-06-01'), contractType: 'FIXED_TERM', contractEndDate: new Date('2026-06-01'),
       departmentId: itDept?.id ?? D.dept.hr,
       jobTitleId: devTitle?.id ?? D.title.it_mgr,
       jobGradeId: D.grade.g2,
