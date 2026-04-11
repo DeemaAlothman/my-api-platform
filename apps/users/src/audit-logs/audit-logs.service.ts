@@ -86,11 +86,54 @@ export class AuditLogsService {
     ]);
 
     return {
-      data: rows,
+      data: rows.map((r) => ({ ...r, description: this.buildDescription(r) })),
       total: parseInt((countRows as any)[0]?.total ?? '0'),
       page,
       limit,
     };
+  }
+
+  private buildDescription(row: { username?: string | null; method: string; resource?: string | null }): string {
+    const who = row.username ?? 'مستخدم';
+
+    const actionMap: Record<string, string> = {
+      POST:   'أضاف',
+      PUT:    'عدّل',
+      PATCH:  'عدّل',
+      DELETE: 'حذف',
+      GET:    'عرض',
+    };
+
+    const resourceMap: Record<string, string> = {
+      'employees':              'بيانات موظف',
+      'departments':            'قسم',
+      'users':                  'مستخدم',
+      'roles':                  'دور',
+      'leave-requests':         'طلب إجازة',
+      'leave-types':            'نوع إجازة',
+      'leave-balances':         'رصيد إجازة',
+      'holidays':               'إجازة رسمية',
+      'attendance':             'سجل حضور',
+      'attendance-records':     'سجل حضور',
+      'work-schedules':         'جدول عمل',
+      'evaluation':             'تقييم',
+      'evaluation-forms':       'نموذج تقييم',
+      'evaluation-criteria':    'معيار تقييم',
+      'evaluation-periods':     'فترة تقييم',
+      'job-grades':             'درجة وظيفية',
+      'job-titles':             'مسمى وظيفي',
+      'job-applications':       'طلب توظيف',
+      'requests':               'طلب',
+      'custodies':              'عهدة',
+      'documents':              'وثيقة',
+      'auth':                   'تسجيل دخول',
+      'audit-logs':             'سجل النظام',
+    };
+
+    const verb   = actionMap[row.method?.toUpperCase()] ?? 'نفّذ عملية في';
+    const target = row.resource ? (resourceMap[row.resource] ?? row.resource) : 'النظام';
+
+    return `${who} ${verb} ${target}`;
   }
 
   private async getAccessibleUserIds(currentUserId: string): Promise<string[]> {
