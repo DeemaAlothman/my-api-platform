@@ -18,6 +18,8 @@ export class InterviewPositionsService {
         workMode: dto.workMode,
         committeeMembers: dto.committeeMembers ?? [],
         interviewDate: dto.interviewDate ? new Date(dto.interviewDate) : null,
+        requiresLanguage: dto.requiresLanguage ?? true,
+        requiresComputer: dto.requiresComputer ?? true,
       },
     });
   }
@@ -69,6 +71,8 @@ export class InterviewPositionsService {
         ...(dto.committeeMembers && { committeeMembers: dto.committeeMembers }),
         ...(dto.interviewDate !== undefined && { interviewDate: dto.interviewDate ? new Date(dto.interviewDate) : null }),
         ...(dto.status && { status: dto.status }),
+        ...(dto.requiresLanguage !== undefined && { requiresLanguage: dto.requiresLanguage }),
+        ...(dto.requiresComputer !== undefined && { requiresComputer: dto.requiresComputer }),
       },
     });
   }

@@ -16,21 +16,30 @@ export class InterviewEvaluationsService {
     technicalScores: TechnicalScoreDto[],
     computerScores: CriteriaScoreDto[],
     technicalMaxScores: Record<string, number>,
+    requiresComputer = true,
   ) {
-    // القسم الأول: صفات شخصية — 14 معيار × 5 = 70 → وزن 40%
+    // الأوزان تتعدل بناءً على requiresComputer
+    const personalWeight  = requiresComputer ? 40 : 50;
+    const technicalWeight = requiresComputer ? 40 : 50;
+    const computerWeight  = requiresComputer ? 20 : 0;
+
+    // القسم الأول: صفات شخصية (يشمل اللغة أو لا حسب ما أُرسل)
     const personalSum = personalScores.reduce((s, x) => s + x.score, 0);
-    const personalMax = personalScores.length * 5 || 70;
-    const personalScore = personalMax > 0 ? (personalSum / personalMax) * 40 : 0;
+    const personalMax = personalScores.length * 5 || 1;
+    const personalScore = (personalSum / personalMax) * personalWeight;
 
-    // القسم الثاني: أسئلة تقنية → وزن 40%
+    // القسم الثاني: أسئلة تقنية
     const technicalSum = technicalScores.reduce((s, x) => s + x.score, 0);
-    const technicalMax = technicalScores.reduce((s, x) => s + (technicalMaxScores[x.questionId] ?? 10), 0);
-    const technicalScore = technicalMax > 0 ? (technicalSum / technicalMax) * 40 : 0;
+    const technicalMax = technicalScores.reduce((s, x) => s + (technicalMaxScores[x.questionId] ?? 10), 0) || 1;
+    const technicalScore = (technicalSum / technicalMax) * technicalWeight;
 
-    // القسم الثالث: مهارات حاسوبية — 3 معايير × 5 = 15 → وزن 20%
-    const computerSum = computerScores.reduce((s, x) => s + x.score, 0);
-    const computerMax = computerScores.length * 5 || 15;
-    const computerScore = computerMax > 0 ? (computerSum / computerMax) * 20 : 0;
+    // القسم الثالث: مهارات حاسوبية (صفر إذا ما كان مطلوباً)
+    let computerScore = 0;
+    if (requiresComputer && computerScores.length > 0) {
+      const computerSum = computerScores.reduce((s, x) => s + x.score, 0);
+      const computerMax = computerScores.length * 5;
+      computerScore = (computerSum / computerMax) * computerWeight;
+    }
 
     const totalScore = Math.round((personalScore + technicalScore + computerScore) * 100) / 100;
 
@@ -64,6 +73,7 @@ export class InterviewEvaluationsService {
       dto.technicalScores ?? [],
       dto.computerScores ?? [],
       technicalMaxScores,
+      position.requiresComputer,
     );
 
     const evaluation = await this.prisma.interviewEvaluation.create({
@@ -165,6 +175,10 @@ export class InterviewEvaluationsService {
     const newComputer = dto.computerScores ?? existing.computerScores.map(s => ({ criterionId: s.criterionId, score: s.score }));
 
     if (dto.personalScores || dto.technicalScores || dto.computerScores) {
+      const position = await this.prisma.interviewPosition.findFirst({
+        where: { id: existing.positionId },
+        select: { requiresComputer: true },
+      });
       const technicalMaxScores: Record<string, number> = {};
       if (newTechnical.length) {
         const questions = await this.prisma.technicalQuestion.findMany({
@@ -173,7 +187,7 @@ export class InterviewEvaluationsService {
         });
         questions.forEach(q => { technicalMaxScores[q.id] = q.maxScore; });
       }
-      scores = this.calculateScores(newPersonal as any, newTechnical as any, newComputer as any, technicalMaxScores);
+      scores = this.calculateScores(newPersonal as any, newTechnical as any, newComputer as any, technicalMaxScores, position?.requiresComputer ?? true);
     }
 
     return this.prisma.interviewEvaluation.update({

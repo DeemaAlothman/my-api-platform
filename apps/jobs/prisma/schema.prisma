@@ -19,9 +19,11 @@ model InterviewPosition {
   sectorName       String?
   workType         WorkType       @default(FULL_TIME)
   workMode         WorkMode       @default(ON_SITE)
-  committeeMembers Json           @default("[]")
-  interviewDate    DateTime?
-  status           PositionStatus @default(OPEN)
+  committeeMembers  Json           @default("[]")
+  interviewDate     DateTime?
+  status            PositionStatus @default(OPEN)
+  requiresLanguage  Boolean        @default(true)
+  requiresComputer  Boolean        @default(true)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   deletedAt        DateTime?

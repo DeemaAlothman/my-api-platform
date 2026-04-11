@@ -1,0 +1,3 @@
+ALTER TABLE jobs."InterviewPosition"
+  ADD COLUMN IF NOT EXISTS "requiresLanguage" BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "requiresComputer" BOOLEAN NOT NULL DEFAULT true;
