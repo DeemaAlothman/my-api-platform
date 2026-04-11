@@ -2,29 +2,36 @@
 # تشغيل البيانات التجريبية فقط (بعد seed-all.sh)
 echo "✨ Starting demo data seed..."
 
-echo ""
-echo "=== Demo 1/5 Users Service (5 employees + hierarchy) ==="
-docker compose exec users npx --yes tsx prisma/seed-demo.ts
+run_seed() {
+  local service=$1
+  echo ""
+  docker compose exec -T "$service" sh -c \
+    "[ -f node_modules/.bin/tsx ] || npm install tsx --no-save -q 2>/dev/null; node_modules/.bin/tsx prisma/seed-demo.ts"
+}
 
 echo ""
-echo "=== Demo 2/5 Leave Service (balances + requests) ==="
-docker compose exec leave npx --yes tsx prisma/seed-demo.ts
+echo "=== Demo 1/6 Users Service ==="
+run_seed users
 
 echo ""
-echo "=== Demo 3/5 Attendance Service (work schedule + records) ==="
-docker compose exec attendance npx --yes tsx prisma/seed-demo.ts
+echo "=== Demo 2/6 Leave Service ==="
+run_seed leave
 
 echo ""
-echo "=== Demo 4/5 Evaluation Service (forms + sections) ==="
-docker compose exec evaluation npx --yes tsx prisma/seed-demo.ts
+echo "=== Demo 3/6 Attendance Service ==="
+run_seed attendance
 
 echo ""
-echo "=== Demo 5/6 Jobs Service (positions + evaluations) ==="
-docker compose exec jobs npx --yes tsx prisma/seed-demo.ts
+echo "=== Demo 4/6 Evaluation Service ==="
+run_seed evaluation
 
 echo ""
-echo "=== Demo 6/6 ZKTeco Service (biometric device + fingerprints) ==="
-docker compose exec zkteco npx --yes tsx prisma/seed-demo.ts
+echo "=== Demo 5/6 Jobs Service ==="
+run_seed jobs
+
+echo ""
+echo "=== Demo 6/6 ZKTeco Service ==="
+run_seed zkteco
 
 echo ""
 echo "🎉 Demo seed completed!"
