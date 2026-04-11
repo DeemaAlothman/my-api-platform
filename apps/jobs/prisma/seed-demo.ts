@@ -211,12 +211,12 @@ async function main() {
   }
 
   // ===== مرشح تجريبي =====
-  const existingCandidate = await (prisma as any).candidates.findFirst({
+  const existingCandidate = await (prisma as any).candidate.findFirst({
     where: { phone: '+966511111111' },
   }).catch(() => null);
 
   if (!existingCandidate) {
-    await (prisma as any).candidates.create({
+    await (prisma as any).candidate.create({
       data: {
         positionId: POS_ID,
         firstNameAr: 'سلمى',

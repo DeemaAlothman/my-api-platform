@@ -4,10 +4,14 @@ echo "✨ Starting demo data seed..."
 
 run_seed() {
   local service=$1
-  echo ""
+  local file=${2:-prisma/seed-demo.ts}
   docker compose exec -T "$service" sh -c \
-    "[ -f node_modules/.bin/tsx ] || npm install tsx --no-save -q 2>/dev/null; node_modules/.bin/tsx prisma/seed-demo.ts"
+    "npm install -g tsx --prefer-offline --quiet 2>/dev/null; tsx $file"
 }
+
+echo ""
+echo "=== Base: Leave types (required for demo) ==="
+run_seed leave prisma/seed.ts
 
 echo ""
 echo "=== Demo 1/6 Users Service ==="
