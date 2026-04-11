@@ -67,7 +67,7 @@ async function main() {
       totalDays: 7,
       reason: 'إجازة سنوية مخططة',
       status: 'APPROVED',
-      submittedAt: new Date('2026-04-15'),
+      createdAt: new Date('2026-04-15'),
     },
   });
 
@@ -84,7 +84,7 @@ async function main() {
       totalDays: 5,
       reason: 'رحلة عائلية',
       status: 'PENDING',
-      submittedAt: new Date('2026-04-10'),
+      createdAt: new Date('2026-04-10'),
     },
   });
 
@@ -101,7 +101,7 @@ async function main() {
       totalDays: 3,
       reason: 'مراجعة طبية',
       status: 'REJECTED',
-      submittedAt: new Date('2026-03-18'),
+      createdAt: new Date('2026-03-18'),
     },
   });
 
@@ -118,7 +118,7 @@ async function main() {
       totalDays: 2,
       reason: 'ظرف طارئ',
       status: 'APPROVED',
-      submittedAt: new Date('2026-04-01'),
+      createdAt: new Date('2026-04-01'),
     },
   });
 

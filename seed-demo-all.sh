@@ -26,6 +26,10 @@ echo "=== Demo 3/6 Attendance Service ==="
 run_seed attendance
 
 echo ""
+echo "=== Base: Evaluation criteria (required for demo) ==="
+run_seed evaluation prisma/seed.ts
+
+echo ""
 echo "=== Demo 4/6 Evaluation Service ==="
 run_seed evaluation
 
