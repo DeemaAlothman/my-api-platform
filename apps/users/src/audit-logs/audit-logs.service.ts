@@ -93,8 +93,13 @@ export class AuditLogsService {
     };
   }
 
-  private buildDescription(row: { username?: string | null; method: string; resource?: string | null }): string {
+  private buildDescription(row: { username?: string | null; method: string; resource?: string | null; path?: string | null }): string {
     const who = row.username ?? 'مستخدم';
+
+    // حالات خاصة حسب الـ path
+    if (row.path?.includes('/auth/login'))   return `${who} سجّل دخوله`;
+    if (row.path?.includes('/auth/logout'))  return `${who} سجّل خروجه`;
+    if (row.path?.includes('/auth/refresh')) return `${who} جدّد جلسته`;
 
     const actionMap: Record<string, string> = {
       POST:   'أضاف',
