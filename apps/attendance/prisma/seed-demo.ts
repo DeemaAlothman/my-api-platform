@@ -115,12 +115,10 @@ async function main() {
   for (const emp of patterns) {
     for (const dateStr of days) {
       const day = new Date(dateStr);
-      const clockIn  = new Date(`${dateStr}T${
-        String(8 + Math.floor(emp.lateMin / 60)).padStart(2,'0')
-      }:${String(emp.lateMin % 60).padStart(2,'0')}:00Z`);
-      const clockOut = new Date(`${dateStr}T${
-        String(16 - Math.floor(emp.earlyMin / 60)).padStart(2,'0')
-      }:${String(60 - (emp.earlyMin % 60 || 60) === 60 ? 0 : 60 - (emp.earlyMin % 60)).padStart(2,'0')}:00Z`);
+      const inTotal  = 8 * 60 + emp.lateMin;
+      const outTotal = 16 * 60 - emp.earlyMin;
+      const clockIn  = new Date(`${dateStr}T${String(Math.floor(inTotal / 60)).padStart(2,'0')}:${String(inTotal % 60).padStart(2,'0')}:00Z`);
+      const clockOut = new Date(`${dateStr}T${String(Math.floor(outTotal / 60)).padStart(2,'0')}:${String(outTotal % 60).padStart(2,'0')}:00Z`);
       const worked = Math.round((clockOut.getTime() - clockIn.getTime()) / 60000);
 
       await (prisma as any).attendanceRecord.upsert({
