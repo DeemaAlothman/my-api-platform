@@ -160,7 +160,47 @@ async function main() {
 
   console.log('✅ Attendance records (5 employees × 10 days)');
 
-  // ===== 6. تنبيه غياب عمر =====
+  // ===== 6. سجلات ON_LEAVE — مرتبطة بالإجازات المقبولة =====
+  // خالد: إجازة طارئة 1-2 أبريل (مقبولة في leave/seed-demo.ts)
+  for (const dateStr of ['2026-04-01', '2026-04-02']) {
+    await (prisma as any).attendanceRecord.upsert({
+      where: { employeeId_date: { employeeId: EMP.khalid, date: new Date(dateStr) } },
+      update: {},
+      create: {
+        employeeId: EMP.khalid,
+        date: new Date(dateStr),
+        status: 'ON_LEAVE',
+        workedMinutes: 0,
+        lateMinutes: 0,
+        source: 'MANUAL',
+        salaryLinked: false,
+        notes: 'إجازة طارئة مقبولة',
+      },
+    }).catch(() => {});
+  }
+
+  // فاطمة: إجازة سنوية 1-7 مايو (مقبولة في leave/seed-demo.ts)
+  const fatimaLeaveDays = ['2026-05-01','2026-05-03','2026-05-04','2026-05-05','2026-05-06','2026-05-07'];
+  for (const dateStr of fatimaLeaveDays) {
+    await (prisma as any).attendanceRecord.upsert({
+      where: { employeeId_date: { employeeId: EMP.fatima, date: new Date(dateStr) } },
+      update: {},
+      create: {
+        employeeId: EMP.fatima,
+        date: new Date(dateStr),
+        status: 'ON_LEAVE',
+        workedMinutes: 0,
+        lateMinutes: 0,
+        source: 'MANUAL',
+        salaryLinked: false,
+        notes: 'إجازة سنوية مقبولة',
+      },
+    }).catch(() => {});
+  }
+
+  console.log('✅ ON_LEAVE records (Khalid: Apr 1-2, Fatima: May 1-7)');
+
+  // ===== 8. تنبيه غياب عمر =====
   await (prisma as any).attendanceAlert.upsert({
     where: { id: 'al000001-0000-0000-0000-000000000000' },
     update: {},
@@ -178,7 +218,7 @@ async function main() {
   }).catch(() => {});
   console.log('✅ Attendance alert (Omar absent)');
 
-  // ===== 7. كشوف الرواتب — أبريل 2026 =====
+  // ===== 9. كشوف الرواتب — أبريل 2026 =====
   const salaries: Record<string, { basic: number; allowances: number }> = {
     [EMP.sarah]:  { basic: 10000, allowances: 0    },
     [EMP.khalid]: { basic: 15000, allowances: 0    },
