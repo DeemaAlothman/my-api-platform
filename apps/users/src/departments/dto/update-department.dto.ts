@@ -26,6 +26,6 @@ export class UpdateDepartmentDto {
   managerId?: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsString()
   gradeId?: string | null;
 }
