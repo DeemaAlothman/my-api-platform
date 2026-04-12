@@ -3,14 +3,14 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  NotFoundException,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * Interceptor to automatically resolve employeeId from userId in JWT
- * This runs before every request and attaches employeeId to the request object
+ * Attaches employeeId to the request when found; leaves it null otherwise.
+ * Endpoints that require an employeeId (e.g. check-in) should validate it themselves.
  */
 @Injectable()
 export class EmployeeInterceptor implements NestInterceptor {
@@ -24,7 +24,6 @@ export class EmployeeInterceptor implements NestInterceptor {
     const username = request.user?.username;
 
     if (username) {
-      // Query the users schema to find the employee record by username
       const result = await this.prisma.$queryRaw<Array<{ id: string }>>`
         SELECT e.id
         FROM users.employees e
@@ -33,15 +32,7 @@ export class EmployeeInterceptor implements NestInterceptor {
         LIMIT 1
       `;
 
-      if (result && result.length > 0) {
-        // Attach employeeId to the request for use in controllers
-        request.employeeId = result[0].id;
-      } else {
-        // User exists but has no employee record
-        throw new NotFoundException(
-          'Employee record not found. Please contact HR to create your employee profile.',
-        );
-      }
+      request.employeeId = result && result.length > 0 ? result[0].id : null;
     }
 
     return next.handle();
