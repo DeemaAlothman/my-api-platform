@@ -325,6 +325,9 @@ model Department {
   managerId String?
   manager   Employee? @relation("DepartmentManager", fields: [managerId], references: [id])
 
+  gradeId   String?
+  grade     JobGrade? @relation("DepartmentGrade", fields: [gradeId], references: [id])
+
   employees Employee[]
 
   deletedAt DateTime?
@@ -351,6 +354,7 @@ model JobGrade {
 
   jobTitles   JobTitle[]
   employees   Employee[]
+  departments Department[] @relation("DepartmentGrade")
 
   deletedAt   DateTime?
   createdAt   DateTime @default(now())

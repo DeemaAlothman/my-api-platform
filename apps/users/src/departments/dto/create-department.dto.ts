@@ -24,4 +24,8 @@ export class CreateDepartmentDto {
   @IsOptional()
   @IsUUID()
   managerId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  gradeId?: string;
 }

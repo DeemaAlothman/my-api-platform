@@ -23,6 +23,9 @@ export class DepartmentsService {
             lastNameEn: true,
           },
         },
+        grade: {
+          select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
+        },
         _count: {
           select: { employees: true },
         },
@@ -96,6 +99,9 @@ export class DepartmentsService {
               lastNameEn: true,
             },
           },
+          grade: {
+            select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
+          },
           _count: {
             select: {
               children: true,
@@ -142,6 +148,9 @@ export class DepartmentsService {
             firstNameEn: true,
             lastNameEn: true,
           },
+        },
+        grade: {
+          select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
         },
         children: {
           where: { deletedAt: null },
@@ -228,22 +237,16 @@ export class DepartmentsService {
       data: dto as any,
       include: {
         parent: {
-          select: {
-            id: true,
-            code: true,
-            nameAr: true,
-            nameEn: true,
-          },
+          select: { id: true, code: true, nameAr: true, nameEn: true },
         },
         manager: {
           select: {
-            id: true,
-            employeeNumber: true,
-            firstNameAr: true,
-            lastNameAr: true,
-            firstNameEn: true,
-            lastNameEn: true,
+            id: true, employeeNumber: true,
+            firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true,
           },
+        },
+        grade: {
+          select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
         },
       },
     });
@@ -317,22 +320,16 @@ export class DepartmentsService {
       data: dto,
       include: {
         parent: {
-          select: {
-            id: true,
-            code: true,
-            nameAr: true,
-            nameEn: true,
-          },
+          select: { id: true, code: true, nameAr: true, nameEn: true },
         },
         manager: {
           select: {
-            id: true,
-            employeeNumber: true,
-            firstNameAr: true,
-            lastNameAr: true,
-            firstNameEn: true,
-            lastNameEn: true,
+            id: true, employeeNumber: true,
+            firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true,
           },
+        },
+        grade: {
+          select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
         },
       },
     });
