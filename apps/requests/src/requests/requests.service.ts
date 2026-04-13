@@ -34,29 +34,6 @@ export class RequestsService {
   }
 
   // تنفيذ الإجراء الفعلي بعد اعتماد الطلب
-  private async executeApprovedRequest(request: any): Promise<void> {
-    try {
-      const details = request.details as any;
-      if (request.type === 'TRANSFER') {
-        const updates: string[] = [];
-        const values: any[] = [];
-        let idx = 1;
-        if (details?.newDepartmentId) { updates.push(`"departmentId" = $${idx++}`); values.push(details.newDepartmentId); }
-        if (details?.newJobTitleId)   { updates.push(`"jobTitleId" = $${idx++}`);   values.push(details.newJobTitleId); }
-        if (updates.length > 0) {
-          values.push(request.employeeId);
-          await this.prisma.$queryRawUnsafe(
-            `UPDATE users.employees SET ${updates.join(', ')} WHERE id = $${idx}`,
-            ...values,
-          );
-        }
-      }
-      // REWARD/PENALTY_PROPOSAL: يُسجَّل كملاحظة في سجل الطلب — يُدمج مع الراتب عند التوليد
-    } catch (err) {
-      console.error(`[executeApprovedRequest] failed for request ${request.id}:`, (err as any)?.message);
-    }
-  }
-
   // جلب employeeId من userId عبر cross-schema query
   private async getEmployeeIdByUserId(userId: string): Promise<string | null> {
     const result = await this.prisma.$queryRaw<Array<{ id: string }>>`
@@ -180,124 +157,22 @@ export class RequestsService {
     return this.approvalService.getPendingMyApproval(userId, page, limit);
   }
 
+  // deprecated: redirected to ApprovalService to enforce canApprove checks
   async managerApprove(id: string, userId: string, dto: ApproveRequestDto) {
-    const request = await this.findRequestOrFail(id);
-    if (request.status !== 'PENDING_MANAGER') {
-      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Request is not pending manager approval', details: [] });
-    }
-
-    const reviewerId = (await this.getEmployeeIdByUserId(userId)) ?? userId;
-    const updated = await this.prisma.request.update({
-      where: { id },
-      data: {
-        status: 'PENDING_HR',
-        managerStatus: 'APPROVED',
-        managerReviewedBy: reviewerId,
-        managerReviewedAt: new Date(),
-        managerNotes: dto.notes,
-      },
-    });
-
-    await this.prisma.requestHistory.create({
-      data: { requestId: id, action: 'MANAGER_APPROVED', fromStatus: 'PENDING_MANAGER', toStatus: 'PENDING_HR', performedBy: reviewerId, notes: dto.notes },
-    });
-
-    return updated;
+    return this.approvalService.approve(id, userId, dto.notes);
   }
 
   async managerReject(id: string, userId: string, dto: RejectRequestDto) {
-    const request = await this.findRequestOrFail(id);
-    if (request.status !== 'PENDING_MANAGER') {
-      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Request is not pending manager approval', details: [] });
-    }
-
-    const reviewerId = (await this.getEmployeeIdByUserId(userId)) ?? userId;
-    const updated = await this.prisma.request.update({
-      where: { id },
-      data: {
-        status: 'REJECTED',
-        managerStatus: 'REJECTED',
-        managerReviewedBy: reviewerId,
-        managerReviewedAt: new Date(),
-        managerNotes: dto.notes,
-      },
-    });
-
-    await this.prisma.requestHistory.create({
-      data: { requestId: id, action: 'MANAGER_REJECTED', fromStatus: 'PENDING_MANAGER', toStatus: 'REJECTED', performedBy: reviewerId, notes: dto.notes },
-    });
-
-    return updated;
+    return this.approvalService.reject(id, userId, dto.notes);
   }
 
+  // deprecated: redirected to ApprovalService to enforce canApprove checks
   async hrApprove(id: string, userId: string, dto: ApproveRequestDto) {
-    const request = await this.findRequestOrFail(id);
-    if (request.status !== 'PENDING_HR') {
-      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Request is not pending HR approval', details: [] });
-    }
-
-    // تحقق مزدوج: منع موافقة HR على الاستقالة إذا ما زال عنده عهد
-    if (request.type === 'RESIGNATION') {
-      const unreturned = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-        SELECT COUNT(*) as count FROM users.custodies
-        WHERE "employeeId" = ${request.employeeId}
-          AND status = 'WITH_EMPLOYEE'
-          AND "deletedAt" IS NULL
-      `;
-      if (Number(unreturned[0]?.count ?? 0) > 0) {
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          message: 'لا يمكن الموافقة على الاستقالة - الموظف لديه عهد غير مسلّمة',
-          details: [],
-        });
-      }
-    }
-
-    const reviewerId = (await this.getEmployeeIdByUserId(userId)) ?? userId;
-    const updated = await this.prisma.request.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        hrStatus: 'APPROVED',
-        hrReviewedBy: reviewerId,
-        hrReviewedAt: new Date(),
-        hrNotes: dto.notes,
-      },
-    });
-
-    await this.prisma.requestHistory.create({
-      data: { requestId: id, action: 'HR_APPROVED', fromStatus: 'PENDING_HR', toStatus: 'APPROVED', performedBy: reviewerId, notes: dto.notes },
-    });
-
-    // تنفيذ الإجراء الفعلي (TRANSFER → تحديث القسم، REWARD → تسجيل للراتب)
-    await this.executeApprovedRequest(updated);
-
-    return updated;
+    return this.approvalService.approve(id, userId, dto.notes);
   }
 
   async hrReject(id: string, userId: string, dto: RejectRequestDto) {
-    const request = await this.findRequestOrFail(id);
-    if (request.status !== 'PENDING_HR') {
-      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Request is not pending HR approval', details: [] });
-    }
-
-    const reviewerId = (await this.getEmployeeIdByUserId(userId)) ?? userId;
-    const updated = await this.prisma.request.update({
-      where: { id },
-      data: {
-        status: 'REJECTED',
-        hrStatus: 'REJECTED',
-        hrReviewedBy: reviewerId,
-        hrReviewedAt: new Date(),
-        hrNotes: dto.notes,
-      },
-    });
-
-    await this.prisma.requestHistory.create({
-      data: { requestId: id, action: 'HR_REJECTED', fromStatus: 'PENDING_HR', toStatus: 'REJECTED', performedBy: reviewerId, notes: dto.notes },
-    });
-
-    return updated;
+    return this.approvalService.reject(id, userId, dto.notes);
   }
 
   async cancel(id: string, userId: string, dto: CancelRequestDto) {
