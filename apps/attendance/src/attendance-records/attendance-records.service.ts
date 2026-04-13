@@ -282,10 +282,10 @@ export class AttendanceRecordsService {
     dateObj.setHours(0, 0, 0, 0);
 
     // التحقق من أن الموظف غير محذوف
-    const empCheck = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    const empCheck = await this.prisma.$queryRawUnsafe(
       `SELECT id FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
       dto.employeeId,
-    );
+    ) as Array<{ id: string }>;
     if (!empCheck[0]) {
       throw new BadRequestException(`الموظف غير موجود أو تم حذفه`);
     }
