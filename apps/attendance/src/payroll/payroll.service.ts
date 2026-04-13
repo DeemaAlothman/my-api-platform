@@ -76,10 +76,37 @@ export class PayrollService {
       include: { breaks: true },
     });
 
-    // احسب أيام العمل من الجدول الزمني
-    const workingDays = await this.getWorkingDays(employeeId, startDate, endDate);
+    // احسب أيام العمل من الجدول الزمني مع مصفوفة أيام الأسبوع
+    const { count: workingDays, workDaysArray } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
 
-    // إحصاء الأيام
+    // جلب الإجازات المعتمدة من leaves schema (لاستثنائها من الغياب)
+    const approvedLeaves = await this.prisma.$queryRawUnsafe(
+      `SELECT "startDate"::date as "startDate", "endDate"::date as "endDate"
+       FROM leaves.leave_requests
+       WHERE "employeeId" = $1 AND status = 'APPROVED'
+         AND "startDate" <= $2 AND "endDate" >= $3`,
+      employeeId, endDate, startDate,
+    ) as Array<{ startDate: Date; endDate: Date }>;
+
+    const approvedLeaveDates = new Set<string>();
+    for (const leave of approvedLeaves) {
+      const d = new Date(leave.startDate);
+      const end = new Date(leave.endDate);
+      while (d <= end) {
+        if (d >= startDate && d <= endDate)
+          approvedLeaveDates.add(d.toISOString().split('T')[0]);
+        d.setDate(d.getDate() + 1);
+      }
+    }
+
+    // جلب العطل الرسمية من leaves schema
+    const holidays = await this.prisma.$queryRawUnsafe(
+      `SELECT date::date as date FROM leaves.holidays WHERE date >= $1 AND date <= $2`,
+      startDate, endDate,
+    ) as Array<{ date: Date }>;
+    const holidayDates = new Set(holidays.map(h => new Date(h.date).toISOString().split('T')[0]));
+
+    // إحصاء الأيام من السجلات
     let presentDays = 0;
     let absentDays = 0;
     let absentUnjustified = 0;
@@ -92,17 +119,25 @@ export class PayrollService {
     let totalWorkedMinutes = 0;
     let netWorkedMinutes = 0;
 
+    const recordedDates = new Set(records.map(r => r.date.toISOString().split('T')[0]));
+
+    // جلب التبريرات المقبولة دفعة واحدة
+    const absentRecordIds = records.filter(r => r.status === 'ABSENT').map(r => r.id);
+    const justifiedIds = new Set<string>();
+    if (absentRecordIds.length > 0) {
+      const justifications = await this.prisma.attendanceJustification.findMany({
+        where: { attendanceRecordId: { in: absentRecordIds }, status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] } },
+        select: { attendanceRecordId: true },
+      });
+      justifications.forEach(j => justifiedIds.add(j.attendanceRecordId));
+    }
+
     for (const r of records) {
       if (r.status === 'ABSENT') {
         absentDays++;
-        // تحقق هل في تبرير مقبول
-        const justification = await this.prisma.attendanceJustification.findFirst({
-          where: { attendanceRecordId: r.id, status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] } },
-        });
-        if (!justification) absentUnjustified++;
+        if (!justifiedIds.has(r.id)) absentUnjustified++;
         continue;
       }
-
       if (['WEEKEND', 'HOLIDAY', 'ON_LEAVE'].includes(r.status)) continue;
 
       presentDays++;
@@ -110,28 +145,25 @@ export class PayrollService {
       netWorkedMinutes += r.netWorkedMinutes || r.workedMinutes || 0;
       overtimeMinutes += r.overtimeMinutes || 0;
 
-      if (r.lateMinutes > 0) {
-        lateDays++;
-        totalLateMinutes += r.lateMinutes;
-      }
-      if (r.earlyLeaveMinutes > 0) {
-        earlyLeaveDays++;
-        totalEarlyLeaveMinutes += r.earlyLeaveMinutes;
-      }
+      if (r.lateMinutes > 0) { lateDays++; totalLateMinutes += r.lateMinutes; }
+      if (r.earlyLeaveMinutes > 0) { earlyLeaveDays++; totalEarlyLeaveMinutes += r.earlyLeaveMinutes; }
 
-      // حساب الخروج المؤقت الزائد
       const totalBreak = r.totalBreakMinutes || 0;
-      if (totalBreak > allowedBreakMinutes) {
-        breakOverLimitMinutes += totalBreak - allowedBreakMinutes;
-      }
+      if (totalBreak > allowedBreakMinutes) breakOverLimitMinutes += totalBreak - allowedBreakMinutes;
     }
 
-    // حساب أيام الغياب من أيام العمل - أيام الحضور الفعلية
-    const recordedDates = new Set(records.map(r => r.date.toISOString().split('T')[0]));
-    // الغياب الفعلي يُحسب من أيام العمل التي ليس فيها سجل حضور
-    // هذا تقريبي - الحساب الدقيق يحتاج معرفة أيام الدوام الفعلية
-    absentDays = Math.max(0, workingDays - presentDays);
-    absentUnjustified = Math.min(absentUnjustified, absentDays);
+    // أيام العمل بدون سجل حضور → غياب (ما لم تكن إجازة معتمدة أو عطلة)
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const dateStr = current.toISOString().split('T')[0];
+      if (workDaysArray.includes(current.getDay()) && !recordedDates.has(dateStr)) {
+        if (!approvedLeaveDates.has(dateStr) && !holidayDates.has(dateStr)) {
+          absentDays++;
+          absentUnjustified++;
+        }
+      }
+      current.setDate(current.getDate() + 1);
+    }
 
     // تطبيق سياسة الحسم
     let lateDeductionMinutes = 0;
@@ -207,9 +239,10 @@ export class PayrollService {
 
     const deductionAmount = parseFloat((totalDeductionMinutes * minuteRate).toFixed(2));
     const absenceDeductionAmount = parseFloat((absenceDeductionDaysCalc * dailyRate).toFixed(2));
+    const repeatLatePenaltyAmount = parseFloat((repeatLatePenaltyDaysCalc * dailyRate).toFixed(2));
     const overtimePay = parseFloat((overtimeMinutes * minuteRate * overtimeRateMultiplier).toFixed(2));
     const grossSalary = parseFloat((basicSalary + allowancesTotal + overtimePay).toFixed(2));
-    const netSalary = parseFloat(Math.max(0, grossSalary - deductionAmount - absenceDeductionAmount).toFixed(2));
+    const netSalary = parseFloat(Math.max(0, grossSalary - deductionAmount - absenceDeductionAmount - repeatLatePenaltyAmount).toFixed(2));
 
     // أنشئ أو حدّث كشف الراتب
     const data = {
@@ -279,8 +312,7 @@ export class PayrollService {
     return minutes; // fallback
   }
 
-  private async getWorkingDays(employeeId: string, startDate: Date, endDate: Date): Promise<number> {
-    // جيب الجدول الزمني الفعّال للموظف
+  private async getWorkingDaysInfo(employeeId: string, startDate: Date, endDate: Date): Promise<{ count: number; workDaysArray: number[] }> {
     const schedule = await this.prisma.employeeSchedule.findFirst({
       where: {
         employeeId,
@@ -293,19 +325,16 @@ export class PayrollService {
 
     let workDaysArray: number[] = [0, 1, 2, 3, 4]; // افتراضي: أحد-خميس
     if (schedule?.schedule?.workDays) {
-      try {
-        workDaysArray = JSON.parse(schedule.schedule.workDays);
-      } catch {}
+      try { workDaysArray = JSON.parse(schedule.schedule.workDays); } catch {}
     }
 
-    // احسب عدد أيام العمل في الشهر
     let count = 0;
     const current = new Date(startDate);
     while (current <= endDate) {
       if (workDaysArray.includes(current.getDay())) count++;
       current.setDate(current.getDate() + 1);
     }
-    return count;
+    return { count, workDaysArray };
   }
 
   // ==================== Read ====================

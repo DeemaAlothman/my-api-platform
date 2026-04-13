@@ -33,6 +33,31 @@ export class RequestsService {
     return new Map(employees.map(e => [e.id, e]));
   }
 
+  // تنفيذ الإجراء الفعلي بعد اعتماد الطلب
+  private async executeApprovedRequest(request: any): Promise<void> {
+    try {
+      const details = request.details as any;
+      if (request.type === 'TRANSFER') {
+        const updates: string[] = [];
+        const values: any[] = [];
+        let idx = 1;
+        if (details?.newDepartmentId) { updates.push(`"departmentId" = $${idx++}`); values.push(details.newDepartmentId); }
+        if (details?.newJobTitleId)   { updates.push(`"jobTitleId" = $${idx++}`);   values.push(details.newJobTitleId); }
+        if (updates.length > 0) {
+          values.push(request.employeeId);
+          await this.prisma.$queryRawUnsafe(
+            `UPDATE users.employees SET ${updates.join(', ')} WHERE id = $${idx}`,
+            ...values,
+          );
+        }
+      }
+      // REWARD/PENALTY_PROPOSAL: يُسجَّل كملاحظة في سجل الطلب — يُدمج مع الراتب عند التوليد
+    } catch (err) {
+      // لا نوقف الموافقة بسبب خطأ في التنفيذ — نسجّل فقط
+      console.error(`[executeApprovedRequest] failed for request ${request.id}:`, (err as any)?.message);
+    }
+  }
+
   // جلب employeeId من userId عبر cross-schema query
   private async getEmployeeIdByUserId(userId: string): Promise<string | null> {
     const result = await this.prisma.$queryRaw<Array<{ id: string }>>`
@@ -234,6 +259,9 @@ export class RequestsService {
     await this.prisma.requestHistory.create({
       data: { requestId: id, action: 'HR_APPROVED', fromStatus: 'PENDING_HR', toStatus: 'APPROVED', performedBy: reviewerId, notes: dto.notes },
     });
+
+    // تنفيذ الإجراء الفعلي (TRANSFER → تحديث القسم، REWARD → تسجيل للراتب)
+    await this.executeApprovedRequest(updated);
 
     return updated;
   }
