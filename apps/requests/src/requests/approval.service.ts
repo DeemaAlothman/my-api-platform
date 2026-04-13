@@ -95,6 +95,11 @@ export class ApprovalService {
       },
     });
 
+    // تنفيذ الإجراء الفعلي عند اكتمال الاعتماد
+    if (newStatus === 'APPROVED') {
+      await this.executeApprovedRequest(request);
+    }
+
     return this.prisma.request.findFirst({
       where: { id: requestId },
       include: {
@@ -208,5 +213,29 @@ export class ApprovalService {
     const items = myRequests.slice(skip, skip + limit);
 
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  }
+
+  private async executeApprovedRequest(request: any): Promise<void> {
+    try {
+      const details = request.details as any;
+      console.log(`[executeApprovedRequest/approval] type=${request.type} employeeId=${request.employeeId} details=${JSON.stringify(details)}`);
+      if (request.type === 'TRANSFER') {
+        const updates: string[] = [];
+        const values: any[] = [];
+        let idx = 1;
+        if (details?.newDepartmentId) { updates.push(`"departmentId" = $${idx++}`); values.push(details.newDepartmentId); }
+        if (details?.newJobTitleId)   { updates.push(`"jobTitleId" = $${idx++}`);   values.push(details.newJobTitleId); }
+        console.log(`[executeApprovedRequest/approval] updates=${JSON.stringify(updates)} values=${JSON.stringify(values)}`);
+        if (updates.length > 0) {
+          values.push(request.employeeId);
+          const sql = `UPDATE users.employees SET ${updates.join(', ')} WHERE id = $${idx}`;
+          console.log(`[executeApprovedRequest/approval] sql=${sql}`);
+          await this.prisma.$queryRawUnsafe(sql, ...values);
+          console.log(`[executeApprovedRequest/approval] done`);
+        }
+      }
+    } catch (err) {
+      console.error(`[executeApprovedRequest/approval] failed for request ${request.id}:`, (err as any)?.message, (err as any)?.stack);
+    }
   }
 }
