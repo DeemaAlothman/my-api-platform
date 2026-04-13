@@ -268,17 +268,27 @@ export class ProbationEvaluationsService {
   }
 
   async findPendingMyAction(userId: string) {
-    return this.prisma.probationEvaluation.findMany({
-      where: {
-        OR: [
-          {
-            evaluatorId: userId,
-            status: { in: ['DRAFT', 'REJECTED_BY_SENIOR', 'REJECTED_BY_HR', 'REJECTED_BY_CEO'] },
-          },
-          { seniorManagerId: userId, status: 'PENDING_SENIOR_MANAGER' },
-          { employeeId: userId, status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT' },
-        ],
+    // Resolve employeeId from userId (employeeId stores employee record ID, not userId)
+    const empResult = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM users.employees WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      userId,
+    );
+    const employeeId = empResult.length > 0 ? empResult[0].id : null;
+
+    const orConditions: any[] = [
+      {
+        evaluatorId: userId,
+        status: { in: ['DRAFT', 'REJECTED_BY_SENIOR', 'REJECTED_BY_HR', 'REJECTED_BY_CEO'] },
       },
+      { seniorManagerId: userId, status: 'PENDING_SENIOR_MANAGER' },
+    ];
+
+    if (employeeId) {
+      orConditions.push({ employeeId, status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT' });
+    }
+
+    return this.prisma.probationEvaluation.findMany({
+      where: { OR: orConditions },
       include: {
         scores: { include: { criteria: true } },
         history: { orderBy: { createdAt: 'desc' }, take: 1 },

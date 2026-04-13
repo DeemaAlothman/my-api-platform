@@ -16,6 +16,14 @@ import { CurrentUser } from '../common/interfaces/user.interface';
 export class EvaluationFormsService {
   constructor(private prisma: PrismaService) {}
 
+  private async resolveEmployeeId(userId: string): Promise<string | null> {
+    const result = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM users.employees WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      userId,
+    );
+    return result.length > 0 ? result[0].id : null;
+  }
+
   async create(dto: CreateEvaluationFormDto) {
     // Check if period exists
     const period = await this.prisma.evaluationPeriod.findUnique({
@@ -175,8 +183,9 @@ export class EvaluationFormsService {
     }
 
     // Check access: employee, evaluator, or HR
+    const myEmployeeId = await this.resolveEmployeeId(user.userId);
     const hasAccess =
-      form.employeeId === user.userId ||
+      (myEmployeeId !== null && form.employeeId === myEmployeeId) ||
       form.evaluatorId === user.userId ||
       user.permissions.includes('evaluation:forms:view-all');
 
@@ -195,7 +204,8 @@ export class EvaluationFormsService {
     const form = await this.findOne(id, user);
 
     // Verify this is the employee's form
-    if (form.employeeId !== user.userId) {
+    const myEmployeeId = await this.resolveEmployeeId(user.userId);
+    if (!myEmployeeId || form.employeeId !== myEmployeeId) {
       throw new ForbiddenException('You can only edit your own evaluation');
     }
 
@@ -252,7 +262,8 @@ export class EvaluationFormsService {
     const form = await this.findOne(id, user);
 
     // Verify this is the employee's form
-    if (form.employeeId !== user.userId) {
+    const myEmployeeId = await this.resolveEmployeeId(user.userId);
+    if (!myEmployeeId || form.employeeId !== myEmployeeId) {
       throw new ForbiddenException('You can only submit your own evaluation');
     }
 
