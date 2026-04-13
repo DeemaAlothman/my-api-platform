@@ -78,7 +78,7 @@ export class PayrollService {
     });
 
     // احسب أيام العمل من الجدول الزمني مع مصفوفة أيام الأسبوع
-    const { count: workingDays, workDaysArray } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
+    const { count: workingDays, workDaysArray, dailyWorkMinutes } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
 
     // جلب الإجازات المعتمدة من leaves schema (لاستثنائها من الغياب)
     const approvedLeaves = await this.prisma.$queryRawUnsafe(
@@ -233,7 +233,6 @@ export class PayrollService {
       allowancesTotal += parseFloat(a.amount);
     }
 
-    const dailyWorkMinutes = 480; // 8 ساعات افتراضي
     const dailyRate = workingDays > 0 ? basicSalary / workingDays : 0;
     const minuteRate = dailyRate > 0 ? dailyRate / dailyWorkMinutes : 0;
     const overtimeRateMultiplier = 1.5;
@@ -313,7 +312,7 @@ export class PayrollService {
     return minutes; // fallback
   }
 
-  private async getWorkingDaysInfo(employeeId: string, startDate: Date, endDate: Date): Promise<{ count: number; workDaysArray: number[] }> {
+  private async getWorkingDaysInfo(employeeId: string, startDate: Date, endDate: Date): Promise<{ count: number; workDaysArray: number[]; dailyWorkMinutes: number }> {
     const schedule = await this.prisma.employeeSchedule.findFirst({
       where: {
         employeeId,
@@ -329,13 +328,22 @@ export class PayrollService {
       try { workDaysArray = JSON.parse(schedule.schedule.workDays); } catch {}
     }
 
+    // احسب dailyWorkMinutes من الجدول الفعلي
+    let dailyWorkMinutes = 480; // 8 ساعات افتراضي
+    if (schedule?.schedule?.workStartTime && schedule?.schedule?.workEndTime) {
+      const [sh, sm] = schedule.schedule.workStartTime.split(':').map(Number);
+      const [eh, em] = schedule.schedule.workEndTime.split(':').map(Number);
+      const computed = (eh * 60 + em) - (sh * 60 + sm);
+      if (computed > 0) dailyWorkMinutes = computed;
+    }
+
     let count = 0;
     const current = new Date(startDate);
     while (current <= endDate) {
       if (workDaysArray.includes(current.getDay())) count++;
       current.setDate(current.getDate() + 1);
     }
-    return { count, workDaysArray };
+    return { count, workDaysArray, dailyWorkMinutes };
   }
 
   // ==================== Read ====================

@@ -189,11 +189,37 @@ export class ApprovalService {
   async getPendingMyApproval(userId: string, page: number, limit: number) {
     const skip = (page - 1) * limit;
 
+    // جلب employeeId و permissions مرة واحدة بدل تكرارها لكل طلب
+    const approverEmployeeId = await this.resolver.getEmployeeIdByUserId(userId);
+    const hasHrApprove = await this.resolver.hasPermission(userId, 'requests:hr-approve');
+    const hasCeoApprove = await this.resolver.hasPermission(userId, 'requests:ceo-approve');
+    const hasCfoApprove = await this.resolver.hasPermission(userId, 'requests:cfo-approve');
+
     const allPending = await this.prisma.request.findMany({
       where: { status: 'IN_APPROVAL', deletedAt: null },
       include: { approvalSteps: true },
       orderBy: { createdAt: 'desc' },
     });
+
+    // جلب بيانات الموظفين دفعة واحدة
+    const employeeIds = [...new Set(allPending.map(r => r.employeeId))];
+    const employeeData = employeeIds.length > 0
+      ? await this.prisma.$queryRawUnsafe<Array<{ id: string; managerId: string | null; departmentId: string | null }>>(
+          `SELECT id, "managerId", "departmentId" FROM users.employees WHERE id::text = ANY($1::text[]) AND "deletedAt" IS NULL`,
+          employeeIds,
+        )
+      : [];
+    const empMap = new Map(employeeData.map(e => [e.id, e]));
+
+    // جلب department managers دفعة واحدة
+    const deptIds = [...new Set(employeeData.map(e => e.departmentId).filter(Boolean))] as string[];
+    const deptData = deptIds.length > 0
+      ? await this.prisma.$queryRawUnsafe<Array<{ id: string; managerId: string | null }>>(
+          `SELECT id, "managerId" FROM users.departments WHERE id::text = ANY($1::text[]) AND "deletedAt" IS NULL`,
+          deptIds,
+        )
+      : [];
+    const deptMap = new Map(deptData.map(d => [d.id, d]));
 
     const myRequests: any[] = [];
     for (const req of allPending) {
@@ -202,12 +228,34 @@ export class ApprovalService {
       );
       if (!currentStep) continue;
 
-      const canApprove = await this.resolver.canApprove(
-        userId,
-        req.employeeId,
-        currentStep.approverRole,
-        req.details as any,
-      );
+      const emp = empMap.get(req.employeeId);
+      let canApprove = false;
+
+      switch (currentStep.approverRole) {
+        case 'DIRECT_MANAGER':
+          canApprove = (approverEmployeeId !== null && emp?.managerId === approverEmployeeId) || hasHrApprove;
+          break;
+        case 'DEPARTMENT_MANAGER':
+          canApprove = approverEmployeeId !== null && deptMap.get(emp?.departmentId ?? '')?.managerId === approverEmployeeId;
+          break;
+        case 'TARGET_MANAGER': {
+          const newDeptId = (req.details as any)?.newDepartmentId;
+          canApprove = approverEmployeeId !== null && !!newDeptId && deptMap.get(newDeptId)?.managerId === approverEmployeeId;
+          break;
+        }
+        case 'HR':
+          canApprove = hasHrApprove;
+          break;
+        case 'CEO':
+          canApprove = hasCeoApprove;
+          break;
+        case 'CFO':
+          canApprove = hasCfoApprove;
+          break;
+        default:
+          canApprove = false;
+      }
+
       if (canApprove) myRequests.push({ ...req, currentStep });
     }
 

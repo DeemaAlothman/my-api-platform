@@ -40,26 +40,28 @@ export class ReportsService {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
 
+    const recordWhere: any = {
+      date: startOfDay,
+      ...(query.employeeId ? { employeeId: query.employeeId } : {}),
+    };
+
+    if (query.departmentId) {
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
+        query.departmentId,
+      )).map(e => e.id);
+      recordWhere.employeeId = { in: deptEmpIds };
+    }
+
     const records = await this.prisma.attendanceRecord.findMany({
-      where: {
-        date: startOfDay,
-        ...(query.employeeId ? { employeeId: query.employeeId } : {}),
-      },
+      where: recordWhere,
       include: { breaks: true },
       orderBy: { clockInTime: 'asc' },
     });
 
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
-    let employeeMap = await this.getEmployeeNames(employeeIds);
-
-    // Filter by departmentId if provided
-    let filteredRecords: any[] = records;
-    if (query.departmentId) {
-      filteredRecords = records.filter((r: any) => {
-        const emp = employeeMap.get(r.employeeId);
-        return emp?.departmentId === query.departmentId;
-      });
-    }
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+    const filteredRecords: any[] = records;
 
     const statusSummary: Record<string, number> = {};
     filteredRecords.forEach((r: any) => {
@@ -95,25 +97,27 @@ export class ReportsService {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
+    const monthlyWhere: any = {
+      date: { gte: startDate, lte: endDate },
+      ...(query.employeeId ? { employeeId: query.employeeId } : {}),
+    };
+
+    if (query.departmentId) {
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
+        query.departmentId,
+      )).map(e => e.id);
+      monthlyWhere.employeeId = { in: deptEmpIds };
+    }
+
     const records = await this.prisma.attendanceRecord.findMany({
-      where: {
-        date: { gte: startDate, lte: endDate },
-        ...(query.employeeId ? { employeeId: query.employeeId } : {}),
-      },
+      where: monthlyWhere,
       orderBy: [{ employeeId: 'asc' }, { date: 'asc' }],
     });
 
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
-
-    // Filter by department
-    let filteredRecords: any[] = records;
-    if (query.departmentId) {
-      filteredRecords = records.filter((r: any) => {
-        const emp = employeeMap.get(r.employeeId);
-        return emp?.departmentId === query.departmentId;
-      });
-    }
+    const filteredRecords: any[] = records;
 
     // جلب إعدادات الموظفين لحساب breakOverLimit
     const configs = await this.prisma.employeeAttendanceConfig.findMany({
@@ -194,29 +198,27 @@ export class ReportsService {
     dateFrom: string;
     dateTo: string;
   }) {
-    const where: any = {
-      date: {
-        gte: new Date(query.dateFrom),
-        lte: new Date(query.dateTo),
-      },
+    const summaryWhere: any = {
+      date: { gte: new Date(query.dateFrom), lte: new Date(query.dateTo) },
     };
-    if (query.employeeId) where.employeeId = query.employeeId;
+    if (query.employeeId) summaryWhere.employeeId = query.employeeId;
+
+    if (query.departmentId) {
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
+        query.departmentId,
+      )).map(e => e.id);
+      summaryWhere.employeeId = { in: deptEmpIds };
+    }
 
     const records = await this.prisma.attendanceRecord.findMany({
-      where,
+      where: summaryWhere,
       orderBy: { date: 'asc' },
     });
 
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
-
-    let filteredRecords: any[] = records;
-    if (query.departmentId) {
-      filteredRecords = records.filter((r: any) => {
-        const emp = employeeMap.get(r.employeeId);
-        return emp?.departmentId === query.departmentId;
-      });
-    }
+    const filteredRecords: any[] = records;
 
     // Overall totals
     const totals = {
@@ -274,23 +276,29 @@ export class ReportsService {
   }) {
     const minLate = query.minLateMinutes ?? 1;
 
+    const latenessWhere: any = {
+      date: { gte: new Date(query.dateFrom), lte: new Date(query.dateTo) },
+      status: { in: ['LATE'] },
+      lateMinutes: { gte: minLate },
+      ...(query.employeeId ? { employeeId: query.employeeId } : {}),
+    };
+
+    if (query.departmentId) {
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
+        query.departmentId,
+      )).map(e => e.id);
+      latenessWhere.employeeId = { in: deptEmpIds };
+    }
+
     const records = await this.prisma.attendanceRecord.findMany({
-      where: {
-        date: { gte: new Date(query.dateFrom), lte: new Date(query.dateTo) },
-        status: { in: ['LATE'] },
-        lateMinutes: { gte: minLate },
-        ...(query.employeeId ? { employeeId: query.employeeId } : {}),
-      },
+      where: latenessWhere,
       orderBy: [{ employeeId: 'asc' }, { date: 'asc' }],
     });
 
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
-
-    let filtered: any[] = records;
-    if (query.departmentId) {
-      filtered = records.filter((r: any) => employeeMap.get(r.employeeId)?.departmentId === query.departmentId);
-    }
+    const filtered: any[] = records;
 
     const byEmployee: Record<string, any> = {};
     filtered.forEach((r: any) => {
@@ -336,22 +344,28 @@ export class ReportsService {
     departmentId?: string;
     justified?: boolean;
   }) {
+    const absenceWhere: any = {
+      date: { gte: new Date(query.dateFrom), lte: new Date(query.dateTo) },
+      status: 'ABSENT',
+      ...(query.employeeId ? { employeeId: query.employeeId } : {}),
+    };
+
+    if (query.departmentId) {
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
+        query.departmentId,
+      )).map(e => e.id);
+      absenceWhere.employeeId = { in: deptEmpIds };
+    }
+
     const records = await this.prisma.attendanceRecord.findMany({
-      where: {
-        date: { gte: new Date(query.dateFrom), lte: new Date(query.dateTo) },
-        status: 'ABSENT',
-        ...(query.employeeId ? { employeeId: query.employeeId } : {}),
-      },
+      where: absenceWhere,
       orderBy: [{ employeeId: 'asc' }, { date: 'asc' }],
     });
 
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
-
-    let filtered: any[] = records;
-    if (query.departmentId) {
-      filtered = records.filter((r: any) => employeeMap.get(r.employeeId)?.departmentId === query.departmentId);
-    }
+    const filtered: any[] = records;
 
     // جلب التبريرات الموافق عليها للسجلات
     const recordIds = filtered.map((r: any) => r.id).filter(Boolean);

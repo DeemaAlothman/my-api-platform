@@ -255,11 +255,12 @@ export class AttendanceJustificationsService {
   async processExpired() {
     const now = new Date();
 
-    // 1. تبريرات PENDING_MANAGER أو PENDING_HR انتهت مهلتها
+    // 1. تبريرات PENDING_MANAGER أو PENDING_HR انتهت مهلة المراجعة (72 ساعة من تقديم التبرير)
+    const managerDeadlineCutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000);
     const expiredJustifications = await this.prisma.attendanceJustification.findMany({
       where: {
         status: { in: ['PENDING_MANAGER', 'PENDING_HR'] },
-        deadline: { lt: now },
+        createdAt: { lt: managerDeadlineCutoff },
       },
     });
 

@@ -51,6 +51,15 @@ export class AttendanceRecordsService {
     const endOfDay = new Date(dateObj);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // التحقق من أن الموظف غير محذوف
+    const empCheck = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    );
+    if (!empCheck[0]) {
+      throw new BadRequestException({ code: 'EMPLOYEE_NOT_FOUND', message: 'الموظف غير موجود أو تم حذفه', details: [] });
+    }
+
     // رفض التواريخ الماضية
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -271,6 +280,15 @@ export class AttendanceRecordsService {
   async create(dto: CreateAttendanceRecordDto, createdByUserId?: string) {
     const dateObj = new Date(dto.date);
     dateObj.setHours(0, 0, 0, 0);
+
+    // التحقق من أن الموظف غير محذوف
+    const empCheck = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      dto.employeeId,
+    );
+    if (!empCheck[0]) {
+      throw new BadRequestException(`الموظف غير موجود أو تم حذفه`);
+    }
 
     // منع تكرار السجل لنفس الموظف في نفس اليوم
     const existing = await this.prisma.attendanceRecord.findFirst({

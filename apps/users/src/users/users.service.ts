@@ -19,18 +19,18 @@ export class UsersService {
 
     const skip = (page - 1) * limit;
 
-    // roleId موجود بالـ spec، لكن رح نفعّله لما نبني Roles
-    if (query.roleId) {
-      throw new BadRequestException({
-        code: 'ROLES_NOT_IMPLEMENTED',
-        message: 'roleId filter is not available yet. Roles endpoints will be implemented next.',
-        details: [{ field: 'roleId' }],
-      });
-    }
-
     const where: any = {
       deletedAt: null,
     };
+
+    // فلترة بالـ role عبر user_roles
+    if (query.roleId) {
+      const userIdsWithRole = (await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT "userId" FROM users.user_roles WHERE "roleId" = $1`,
+        query.roleId,
+      )).map(r => r.userId);
+      where.id = { in: userIdsWithRole };
+    }
 
     if (query.status) {
       where.status = query.status as UserStatus;

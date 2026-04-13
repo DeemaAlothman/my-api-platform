@@ -78,6 +78,14 @@ export class LeaveRequestsService {
   async create(createDto: CreateLeaveRequestDto, employeeId: string) {
     const { leaveTypeId, startDate, endDate, isHalfDay = false, ...rest } = createDto;
 
+    // التحقق من أن الموظف غير محذوف
+    const empCheck = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM users.employees WHERE id = ${employeeId} AND "deletedAt" IS NULL LIMIT 1
+    `;
+    if (!empCheck[0]) {
+      throw new BadRequestException('الموظف غير موجود أو تم حذفه');
+    }
+
     // التحقق من نوع الإجازة
     const leaveType = await this.prisma.leaveType.findUnique({
       where: { id: leaveTypeId },
