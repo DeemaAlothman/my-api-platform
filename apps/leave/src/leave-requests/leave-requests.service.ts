@@ -44,15 +44,17 @@ export class LeaveRequestsService {
     });
   }
 
-  // تحديث رصيد الإجازة
+  // تحديث رصيد الإجازة (يقبل transaction client اختياري لمنع race condition)
   private async updateLeaveBalance(
     employeeId: string,
     leaveTypeId: string,
     year: number,
     usedDays: number,
     pendingDays: number,
+    tx?: any,
   ) {
-    const balance = await this.prisma.leaveBalance.findFirst({
+    const client = tx ?? this.prisma;
+    const balance = await client.leaveBalance.findFirst({
       where: { employeeId, leaveTypeId, year },
     });
 
@@ -64,7 +66,7 @@ export class LeaveRequestsService {
     const newPendingDays = balance.pendingDays + pendingDays;
     const newRemainingDays = (balance.totalDays + (balance.carriedOverDays ?? 0)) - newUsedDays - newPendingDays;
 
-    return this.prisma.leaveBalance.update({
+    return client.leaveBalance.update({
       where: { id: balance.id },
       data: {
         usedDays: newUsedDays,
@@ -240,22 +242,18 @@ export class LeaveRequestsService {
       throw new BadRequestException('Insufficient leave balance');
     }
 
-    // تحديث الحالة وحجز الأيام
-    const updated = await this.prisma.leaveRequest.update({
-      where: { id },
-      data: {
-        status: 'PENDING_MANAGER',
-        managerStatus: 'PENDING',
-      },
-      include: {
-        leaveType: true,
-      },
+    // تحديث الحالة وحجز الأيام (داخل transaction لمنع race condition)
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: { id },
+        data: { status: 'PENDING_MANAGER', managerStatus: 'PENDING' },
+        include: { leaveType: true },
+      });
+      if (balance) {
+        await this.updateLeaveBalance(employeeId, request.leaveTypeId, year, 0, request.totalDays, tx);
+      }
+      return result;
     });
-
-    // تحديث الرصيد (إضافة إلى pending)
-    if (balance) {
-      await this.updateLeaveBalance(employeeId, request.leaveTypeId, year, 0, request.totalDays);
-    }
 
     await this.addHistory(
       id,
@@ -287,40 +285,30 @@ export class LeaveRequestsService {
     // إذا كان النوع يتطلب موافقة HR، ننقله إلى PENDING_HR، وإلا نعتمده مباشرة
     const newStatus = request.leaveType.requiresApproval ? 'PENDING_HR' : 'APPROVED';
 
-    const updated = await this.prisma.leaveRequest.update({
-      where: { id },
-      data: {
-        status: newStatus,
-        managerStatus: 'APPROVED',
-        managerApprovedBy: managerId,
-        managerApprovedAt: new Date(),
-        managerNotes: dto.notes,
-        hrStatus: request.leaveType.requiresApproval ? 'PENDING_HR' : undefined,
-      },
-      include: {
-        leaveType: true,
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: { id },
+        data: {
+          status: newStatus,
+          managerStatus: 'APPROVED',
+          managerApprovedBy: managerId,
+          managerApprovedAt: new Date(),
+          managerNotes: dto.notes,
+          hrStatus: request.leaveType.requiresApproval ? 'PENDING_HR' : undefined,
+        },
+        include: { leaveType: true },
+      });
+      if (newStatus === 'APPROVED') {
+        const year = new Date(request.startDate).getFullYear();
+        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, request.totalDays, -request.totalDays, tx);
+      }
+      return result;
     });
 
-    await this.addHistory(
-      id,
-      'MANAGER_APPROVE',
-      'PENDING_MANAGER',
-      newStatus,
-      managerId,
-      dto.notes || 'Approved by manager',
-    );
+    await this.addHistory(id, 'MANAGER_APPROVE', 'PENDING_MANAGER', newStatus, managerId, dto.notes || 'Approved by manager');
 
-    // إذا تم الاعتماد النهائي، نحدث الرصيد
     if (newStatus === 'APPROVED') {
-      const year = new Date(request.startDate).getFullYear();
-      await this.updateLeaveBalance(
-        request.employeeId,
-        request.leaveTypeId,
-        year,
-        request.totalDays,
-        -request.totalDays,
-      );
+      await this.createOnLeaveAttendanceRecords(request.employeeId, request.startDate, request.endDate);
     }
 
     return updated;
@@ -340,38 +328,24 @@ export class LeaveRequestsService {
       throw new BadRequestException('Request is not pending manager approval');
     }
 
-    const updated = await this.prisma.leaveRequest.update({
-      where: { id },
-      data: {
-        status: 'REJECTED',
-        managerStatus: 'REJECTED',
-        managerApprovedBy: managerId,
-        managerApprovedAt: new Date(),
-        managerNotes: dto.notes,
-      },
-      include: {
-        leaveType: true,
-      },
+    const year = new Date(request.startDate).getFullYear();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          managerStatus: 'REJECTED',
+          managerApprovedBy: managerId,
+          managerApprovedAt: new Date(),
+          managerNotes: dto.notes,
+        },
+        include: { leaveType: true },
+      });
+      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx);
+      return result;
     });
 
-    // إرجاع الأيام من pending
-    const year = new Date(request.startDate).getFullYear();
-    await this.updateLeaveBalance(
-      request.employeeId,
-      request.leaveTypeId,
-      year,
-      0,
-      -request.totalDays,
-    );
-
-    await this.addHistory(
-      id,
-      'MANAGER_REJECT',
-      'PENDING_MANAGER',
-      'REJECTED',
-      managerId,
-      dto.notes,
-    );
+    await this.addHistory(id, 'MANAGER_REJECT', 'PENDING_MANAGER', 'REJECTED', managerId, dto.notes);
 
     return updated;
   }
@@ -390,38 +364,26 @@ export class LeaveRequestsService {
       throw new BadRequestException('Request is not pending HR approval');
     }
 
-    const updated = await this.prisma.leaveRequest.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        hrStatus: 'APPROVED',
-        hrApprovedBy: hrUserId,
-        hrApprovedAt: new Date(),
-        hrNotes: dto.notes,
-      },
-      include: {
-        leaveType: true,
-      },
+    const year = new Date(request.startDate).getFullYear();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          hrStatus: 'APPROVED',
+          hrApprovedBy: hrUserId,
+          hrApprovedAt: new Date(),
+          hrNotes: dto.notes,
+        },
+        include: { leaveType: true },
+      });
+      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, request.totalDays, -request.totalDays, tx);
+      return result;
     });
 
-    // تحديث الرصيد (من pending إلى used)
-    const year = new Date(request.startDate).getFullYear();
-    await this.updateLeaveBalance(
-      request.employeeId,
-      request.leaveTypeId,
-      year,
-      request.totalDays,
-      -request.totalDays,
-    );
+    await this.addHistory(id, 'HR_APPROVE', 'PENDING_HR', 'APPROVED', hrUserId, dto.notes || 'Approved by HR');
 
-    await this.addHistory(
-      id,
-      'HR_APPROVE',
-      'PENDING_HR',
-      'APPROVED',
-      hrUserId,
-      dto.notes || 'Approved by HR',
-    );
+    await this.createOnLeaveAttendanceRecords(request.employeeId, request.startDate, request.endDate);
 
     return updated;
   }
@@ -440,29 +402,22 @@ export class LeaveRequestsService {
       throw new BadRequestException('Request is not pending HR approval');
     }
 
-    const updated = await this.prisma.leaveRequest.update({
-      where: { id },
-      data: {
-        status: 'REJECTED',
-        hrStatus: 'REJECTED',
-        hrApprovedBy: hrUserId,
-        hrApprovedAt: new Date(),
-        hrNotes: dto.notes,
-      },
-      include: {
-        leaveType: true,
-      },
-    });
-
-    // إرجاع الأيام من pending
     const year = new Date(request.startDate).getFullYear();
-    await this.updateLeaveBalance(
-      request.employeeId,
-      request.leaveTypeId,
-      year,
-      0,
-      -request.totalDays,
-    );
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          hrStatus: 'REJECTED',
+          hrApprovedBy: hrUserId,
+          hrApprovedAt: new Date(),
+          hrNotes: dto.notes,
+        },
+        include: { leaveType: true },
+      });
+      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx);
+      return result;
+    });
 
     await this.addHistory(id, 'HR_REJECT', 'PENDING_HR', 'REJECTED', hrUserId, dto.notes);
 
@@ -493,45 +448,53 @@ export class LeaveRequestsService {
     }
 
     const oldStatus = request.status;
-
-    const updated = await this.prisma.leaveRequest.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelReason: dto.cancelReason,
-        cancelledBy: userId,
-        cancelledAt: new Date(),
-      },
-      include: {
-        leaveType: true,
-      },
-    });
-
-    // إرجاع الرصيد
     const year = new Date(request.startDate).getFullYear();
-    if (oldStatus === 'APPROVED') {
-      // إرجاع من used
-      await this.updateLeaveBalance(
-        request.employeeId,
-        request.leaveTypeId,
-        year,
-        -request.totalDays,
-        0,
-      );
-    } else if (oldStatus === 'PENDING_MANAGER' || oldStatus === 'PENDING_HR') {
-      // إرجاع من pending
-      await this.updateLeaveBalance(
-        request.employeeId,
-        request.leaveTypeId,
-        year,
-        0,
-        -request.totalDays,
-      );
-    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.leaveRequest.update({
+        where: { id },
+        data: {
+          status: 'CANCELLED',
+          cancelReason: dto.cancelReason,
+          cancelledBy: userId,
+          cancelledAt: new Date(),
+        },
+        include: { leaveType: true },
+      });
+      if (oldStatus === 'APPROVED') {
+        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, -request.totalDays, 0, tx);
+      } else if (oldStatus === 'PENDING_MANAGER' || oldStatus === 'PENDING_HR') {
+        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx);
+      }
+      return result;
+    });
 
     await this.addHistory(id, 'CANCEL', oldStatus, 'CANCELLED', userId, dto.cancelReason);
 
     return updated;
+  }
+
+  // إنشاء سجلات ON_LEAVE في جدول الحضور عند اعتماد الإجازة
+  private async createOnLeaveAttendanceRecords(employeeId: string, startDate: Date, endDate: Date): Promise<void> {
+    try {
+      const current = new Date(startDate);
+      current.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(0, 0, 0, 0);
+      while (current <= end) {
+        const dateStr = current.toISOString().split('T')[0];
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO attendance.attendance_records (id, "employeeId", date, status, source, "createdAt", "updatedAt")
+           VALUES (gen_random_uuid(), $1, $2::date, 'ON_LEAVE', 'MANUAL', NOW(), NOW())
+           ON CONFLICT ("employeeId", date) DO UPDATE SET status = 'ON_LEAVE', "updatedAt" = NOW()`,
+          employeeId,
+          dateStr,
+        );
+        current.setDate(current.getDate() + 1);
+      }
+    } catch (err) {
+      console.error(`[createOnLeaveAttendanceRecords] failed for employee ${employeeId}:`, (err as any)?.message);
+    }
   }
 
   // الحصول على طلب واحد

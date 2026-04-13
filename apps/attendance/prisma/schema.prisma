@@ -386,6 +386,10 @@ model MonthlyPayroll {
   overtimePay            Decimal? @db.Decimal(15, 2) @default(0)
   deductionAmount        Decimal? @db.Decimal(15, 2) @default(0)
   absenceDeductionAmount Decimal? @db.Decimal(15, 2) @default(0)
+  bonusAmount            Decimal? @db.Decimal(15, 2) @default(0)
+  penaltyAmount          Decimal? @db.Decimal(15, 2) @default(0)
+  bonusDetails           String?  // JSON: [{ requestId, amount, reason }]
+  penaltyDetails         String?  // JSON: [{ requestId, amount, description }]
   grossSalary            Decimal? @db.Decimal(15, 2)
   netSalary              Decimal? @db.Decimal(15, 2)
   currency               String?  @default("SYP")

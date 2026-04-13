@@ -241,8 +241,61 @@ export class PayrollService {
     const absenceDeductionAmount = absenceDeductionDaysCalc * dailyRate;
     const repeatLatePenaltyAmount = repeatLatePenaltyDaysCalc * dailyRate;
     const overtimePay = overtimeMinutes * minuteRate * overtimeRateMultiplier;
+
+    // === مكافآت وجزاءات من requests schema ===
+    let bonusAmount = 0;
+    let penaltyAmount = 0;
+    const bonusDetailsList: Array<{ requestId: string; amount: number; reason: string }> = [];
+    const penaltyDetailsList: Array<{ requestId: string; amount: number; description: string }> = [];
+
+    try {
+      // REWARD: طلبات مكافأة معتمدة تشمل هذا الموظف في الفترة
+      const rewardRequests = await this.prisma.$queryRawUnsafe(
+        `SELECT id, details FROM requests.requests
+         WHERE type = 'REWARD' AND status = 'APPROVED'
+           AND "deletedAt" IS NULL
+           AND "createdAt" >= $1 AND "createdAt" <= $2`,
+        startDate, endDate,
+      ) as Array<{ id: string; details: any }>;
+
+      for (const req of rewardRequests) {
+        const employees: Array<{ employeeId: string; amount: number; reason: string }> =
+          req.details?.employees ?? [];
+        for (const e of employees) {
+          if (e.employeeId === employeeId && e.amount > 0) {
+            bonusAmount += e.amount;
+            bonusDetailsList.push({ requestId: req.id, amount: e.amount, reason: e.reason ?? '' });
+          }
+        }
+      }
+
+      // PENALTY_PROPOSAL: جزاءات معتمدة تستهدف هذا الموظف في الفترة
+      const penaltyRequests = await this.prisma.$queryRawUnsafe(
+        `SELECT id, details FROM requests.requests
+         WHERE type = 'PENALTY_PROPOSAL' AND status = 'APPROVED'
+           AND "deletedAt" IS NULL
+           AND (details->>'targetEmployeeId') = $1
+           AND "createdAt" >= $2 AND "createdAt" <= $3`,
+        employeeId, startDate, endDate,
+      ) as Array<{ id: string; details: any }>;
+
+      for (const req of penaltyRequests) {
+        const amount = parseFloat(req.details?.amount ?? '0') || 0;
+        if (amount > 0) {
+          penaltyAmount += amount;
+          penaltyDetailsList.push({
+            requestId: req.id,
+            amount,
+            description: req.details?.violationDescription ?? '',
+          });
+        }
+      }
+    } catch (err) {
+      console.error(`[payroll] failed to load reward/penalty requests for employee ${employeeId}:`, (err as any)?.message);
+    }
+
     const grossSalary = basicSalary + allowancesTotal + overtimePay;
-    const netSalary = parseFloat(Math.max(0, grossSalary - deductionAmount - absenceDeductionAmount - repeatLatePenaltyAmount).toFixed(2));
+    const netSalary = parseFloat(Math.max(0, grossSalary + bonusAmount - deductionAmount - absenceDeductionAmount - repeatLatePenaltyAmount - penaltyAmount).toFixed(2));
 
     // أنشئ أو حدّث كشف الراتب
     const data = {
@@ -278,6 +331,10 @@ export class PayrollService {
       overtimePay: parseFloat(overtimePay.toFixed(2)),
       deductionAmount: parseFloat(deductionAmount.toFixed(2)),
       absenceDeductionAmount: parseFloat(absenceDeductionAmount.toFixed(2)),
+      bonusAmount: parseFloat(bonusAmount.toFixed(2)),
+      penaltyAmount: parseFloat(penaltyAmount.toFixed(2)),
+      bonusDetails: bonusDetailsList.length > 0 ? JSON.stringify(bonusDetailsList) : null,
+      penaltyDetails: penaltyDetailsList.length > 0 ? JSON.stringify(penaltyDetailsList) : null,
       grossSalary: parseFloat(grossSalary.toFixed(2)),
       netSalary,
       currency,
@@ -454,6 +511,10 @@ export class PayrollService {
         },
         overtimePay: payroll.overtimePay ? Number(payroll.overtimePay) : 0,
         grossSalary: payroll.grossSalary ? Number(payroll.grossSalary) : 0,
+        bonusAmount: payroll.bonusAmount ? Number(payroll.bonusAmount) : 0,
+        bonusDetails: payroll.bonusDetails ? JSON.parse(payroll.bonusDetails) : [],
+        penaltyAmount: payroll.penaltyAmount ? Number(payroll.penaltyAmount) : 0,
+        penaltyDetails: payroll.penaltyDetails ? JSON.parse(payroll.penaltyDetails) : [],
         deductions: {
           attendanceDeduction: payroll.deductionAmount ? Number(payroll.deductionAmount) : 0,
           absenceDeduction: payroll.absenceDeductionAmount ? Number(payroll.absenceDeductionAmount) : 0,
