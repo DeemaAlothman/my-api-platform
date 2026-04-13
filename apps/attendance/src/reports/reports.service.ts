@@ -46,10 +46,10 @@ export class ReportsService {
     };
 
     if (query.departmentId) {
-      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe(
         `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
         query.departmentId,
-      )).map(e => e.id);
+      ) as Array<{ id: string }>).map(e => e.id);
       recordWhere.employeeId = { in: deptEmpIds };
     }
 
@@ -103,10 +103,10 @@ export class ReportsService {
     };
 
     if (query.departmentId) {
-      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe(
         `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
         query.departmentId,
-      )).map(e => e.id);
+      ) as Array<{ id: string }>).map(e => e.id);
       monthlyWhere.employeeId = { in: deptEmpIds };
     }
 
@@ -204,10 +204,10 @@ export class ReportsService {
     if (query.employeeId) summaryWhere.employeeId = query.employeeId;
 
     if (query.departmentId) {
-      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe(
         `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
         query.departmentId,
-      )).map(e => e.id);
+      ) as Array<{ id: string }>).map(e => e.id);
       summaryWhere.employeeId = { in: deptEmpIds };
     }
 
@@ -284,10 +284,10 @@ export class ReportsService {
     };
 
     if (query.departmentId) {
-      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe(
         `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
         query.departmentId,
-      )).map(e => e.id);
+      ) as Array<{ id: string }>).map(e => e.id);
       latenessWhere.employeeId = { in: deptEmpIds };
     }
 
@@ -351,10 +351,10 @@ export class ReportsService {
     };
 
     if (query.departmentId) {
-      const deptEmpIds = (await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe(
         `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
         query.departmentId,
-      )).map(e => e.id);
+      ) as Array<{ id: string }>).map(e => e.id);
       absenceWhere.employeeId = { in: deptEmpIds };
     }
 
@@ -365,7 +365,7 @@ export class ReportsService {
 
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
-    const filtered: any[] = records;
+    let filtered: any[] = records;
 
     // جلب التبريرات الموافق عليها للسجلات
     const recordIds = filtered.map((r: any) => r.id).filter(Boolean);
