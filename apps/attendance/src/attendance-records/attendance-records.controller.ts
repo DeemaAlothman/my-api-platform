@@ -8,7 +8,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
-import { EmployeeId } from '../common/decorators/employee.decorator';
+import { EmployeeId, UserId } from '../common/decorators/employee.decorator';
 import { ListAttendanceRecordsQueryDto } from './dto/list-attendance-records.query.dto';
 
 @Controller('attendance-records')
@@ -40,8 +40,8 @@ export class AttendanceRecordsController {
 
   @Post()
   @Permission('attendance.records.create')
-  create(@Body() dto: CreateAttendanceRecordDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateAttendanceRecordDto, @UserId() userId: string) {
+    return this.service.create(dto, userId);
   }
 
   @Get()

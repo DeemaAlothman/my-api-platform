@@ -52,4 +52,8 @@ export class CreateAttendanceRecordDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsString()
+  @IsOptional()
+  manualEntryReason?: string;
 }

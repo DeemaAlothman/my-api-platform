@@ -16,6 +16,7 @@ export class PayrollService {
       `SELECT e.id, e."employeeNumber", e."departmentId"
        FROM users.employees e
        WHERE e."deletedAt" IS NULL
+         AND e."employmentStatus" = 'ACTIVE'
        ${departmentId ? `AND e."departmentId" = '${departmentId}'` : ''}`,
     )) as Array<{ id: string; employeeNumber: string; departmentId: string }>;
 

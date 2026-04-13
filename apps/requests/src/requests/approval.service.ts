@@ -67,11 +67,6 @@ export class ApprovalService {
 
     const reviewerId = (await this.resolver.getEmployeeIdByUserId(approverUserId)) ?? approverUserId;
 
-    await this.prisma.approvalStep.update({
-      where: { id: currentStep.id },
-      data: { status: 'APPROVED', reviewedBy: reviewerId, reviewedAt: new Date(), notes },
-    });
-
     const nextStep = (request.approvalSteps as any[]).find(
       s => s.stepOrder === (request.currentStepOrder! + 1),
     );
@@ -79,10 +74,16 @@ export class ApprovalService {
     const newStatus = nextStep ? 'IN_APPROVAL' : 'APPROVED';
     const newStepOrder = nextStep ? nextStep.stepOrder : currentStep.stepOrder;
 
-    await this.prisma.request.update({
-      where: { id: requestId },
-      data: { status: newStatus as any, currentStepOrder: newStepOrder },
-    });
+    await this.prisma.$transaction([
+      this.prisma.approvalStep.update({
+        where: { id: currentStep.id },
+        data: { status: 'APPROVED', reviewedBy: reviewerId, reviewedAt: new Date(), notes },
+      }),
+      this.prisma.request.update({
+        where: { id: requestId },
+        data: { status: newStatus as any, currentStepOrder: newStepOrder },
+      }),
+    ]);
 
     await this.prisma.requestHistory.create({
       data: {
@@ -141,15 +142,16 @@ export class ApprovalService {
 
     const reviewerId = (await this.resolver.getEmployeeIdByUserId(approverUserId)) ?? approverUserId;
 
-    await this.prisma.approvalStep.update({
-      where: { id: currentStep.id },
-      data: { status: 'REJECTED', reviewedBy: reviewerId, reviewedAt: new Date(), notes },
-    });
-
-    await this.prisma.request.update({
-      where: { id: requestId },
-      data: { status: 'REJECTED' as any },
-    });
+    await this.prisma.$transaction([
+      this.prisma.approvalStep.update({
+        where: { id: currentStep.id },
+        data: { status: 'REJECTED', reviewedBy: reviewerId, reviewedAt: new Date(), notes },
+      }),
+      this.prisma.request.update({
+        where: { id: requestId },
+        data: { status: 'REJECTED' as any },
+      }),
+    ]);
 
     await this.prisma.requestHistory.create({
       data: {

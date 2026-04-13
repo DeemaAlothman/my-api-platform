@@ -62,7 +62,7 @@ export class LeaveRequestsService {
 
     const newUsedDays = balance.usedDays + usedDays;
     const newPendingDays = balance.pendingDays + pendingDays;
-    const newRemainingDays = balance.totalDays - newUsedDays - newPendingDays;
+    const newRemainingDays = (balance.totalDays + (balance.carriedOverDays ?? 0)) - newUsedDays - newPendingDays;
 
     return this.prisma.leaveBalance.update({
       where: { id: balance.id },
@@ -95,6 +95,19 @@ export class LeaveRequestsService {
       throw new BadRequestException(
         `Maximum ${leaveType.maxDaysPerRequest} days allowed per request`,
       );
+    }
+
+    // التحقق من تداخل التواريخ مع إجازة قائمة
+    const overlapping = await this.prisma.leaveRequest.findFirst({
+      where: {
+        employeeId,
+        status: { in: ['PENDING_MANAGER', 'PENDING_HR', 'APPROVED'] },
+        startDate: { lte: new Date(endDate) },
+        endDate: { gte: new Date(startDate) },
+      },
+    });
+    if (overlapping) {
+      throw new BadRequestException('يوجد إجازة أخرى في نفس الفترة أو تتداخل معها');
     }
 
     // إنشاء الطلب
@@ -436,8 +449,15 @@ export class LeaveRequestsService {
       throw new NotFoundException('Leave request not found');
     }
 
-    // يمكن إلغاء الطلب فقط من قبل صاحبه أو HR
-    // في حالة APPROVED يحتاج موافقة HR فقط
+    // يمكن إلغاء الطلب فقط من قبل صاحبه
+    const empRows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM users.employees WHERE "userId" = ${userId} AND "deletedAt" IS NULL LIMIT 1
+    `;
+    const employeeId = empRows[0]?.id ?? null;
+    if (!employeeId || request.employeeId !== employeeId) {
+      throw new ForbiddenException('You can only cancel your own requests');
+    }
+
     if (request.status === 'CANCELLED') {
       throw new BadRequestException('Request is already cancelled');
     }

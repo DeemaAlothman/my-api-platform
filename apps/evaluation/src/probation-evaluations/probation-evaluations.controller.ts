@@ -3,10 +3,12 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProbationEvaluationsService } from './probation-evaluations.service';
 import { CreateProbationEvaluationDto, WorkflowActionDto } from './dto/create-probation-evaluation.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { Permissions } from '../common/decorators/permissions.decorator';
 
 @ApiTags('Probation Evaluations')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('probation/evaluations')
 export class ProbationEvaluationsController {
   constructor(private readonly service: ProbationEvaluationsService) {}
@@ -21,6 +23,7 @@ export class ProbationEvaluationsController {
     return this.service.findPendingMyAction(req.user?.userId);
   }
 
+  @Permissions('probation:view-all')
   @Get()
   findAll() {
     return this.service.findAll();
@@ -51,26 +54,31 @@ export class ProbationEvaluationsController {
     return this.service.submit(id, req.user?.userId ?? 'system', dto);
   }
 
+  @Permissions('probation:senior-review')
   @Post(':id/senior-approve')
   seniorApprove(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
     return this.service.seniorApprove(id, req.user?.userId ?? 'system', dto);
   }
 
+  @Permissions('probation:senior-review')
   @Post(':id/senior-reject')
   seniorReject(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
     return this.service.seniorReject(id, req.user?.userId ?? 'system', dto);
   }
 
+  @Permissions('probation:hr-review')
   @Post(':id/hr-document')
   hrDocument(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
     return this.service.hrDocument(id, req.user?.userId ?? 'system', dto);
   }
 
+  @Permissions('probation:hr-review')
   @Post(':id/hr-reject')
   hrReject(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
     return this.service.hrReject(id, req.user?.userId ?? 'system', dto);
   }
 
+  @Permissions('probation:ceo-review')
   @Post(':id/ceo-decide')
   ceoDecide(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
     return this.service.ceoDecide(id, req.user?.userId ?? 'system', dto);

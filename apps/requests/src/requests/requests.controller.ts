@@ -78,14 +78,16 @@ export class RequestsController {
   }
 
   // موافقة ديناميكية (النظام الجديد)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('requests:approve')
   @Post(':id/approve')
   approveStep(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: ApproveRequestDto) {
     return this.requests.approveStep(id, user.userId, dto);
   }
 
   // رفض ديناميكي (النظام الجديد)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('requests:approve')
   @Post(':id/reject')
   rejectStep(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: RejectRequestDto) {
     return this.requests.rejectStep(id, user.userId, dto);

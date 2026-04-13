@@ -246,13 +246,27 @@ export class AttendanceRecordsService {
     return updatedRecord;
   }
 
-  async create(dto: CreateAttendanceRecordDto) {
+  async create(dto: CreateAttendanceRecordDto, createdByUserId?: string) {
+    const dateObj = new Date(dto.date);
+    dateObj.setHours(0, 0, 0, 0);
+
+    // منع تكرار السجل لنفس الموظف في نفس اليوم
+    const existing = await this.prisma.attendanceRecord.findFirst({
+      where: { employeeId: dto.employeeId, date: dateObj },
+    });
+    if (existing) {
+      throw new BadRequestException(`سجل حضور موجود مسبقاً لهذا الموظف في هذا اليوم`);
+    }
+
     const data: any = {
       employeeId: dto.employeeId,
-      date: new Date(dto.date),
+      date: dateObj,
       status: dto.status || 'PRESENT',
       lateMinutes: dto.lateMinutes || 0,
       earlyLeaveMinutes: dto.earlyLeaveMinutes || 0,
+      isManualEntry: true,
+      manualEntryBy: createdByUserId ?? null,
+      manualEntryReason: dto.manualEntryReason ?? null,
     };
 
     if (dto.clockInTime) data.clockInTime = new Date(dto.clockInTime);
@@ -263,9 +277,7 @@ export class AttendanceRecordsService {
     if (dto.clockOutLocation) data.clockOutLocation = dto.clockOutLocation;
     if (dto.notes) data.notes = dto.notes;
 
-    return this.prisma.attendanceRecord.create({
-      data,
-    });
+    return this.prisma.attendanceRecord.create({ data });
   }
 
   async findAll(filters?: {
