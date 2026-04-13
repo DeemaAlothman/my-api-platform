@@ -238,11 +238,11 @@ export class PayrollService {
     const minuteRate = dailyRate > 0 ? dailyRate / dailyWorkMinutes : 0;
     const overtimeRateMultiplier = 1.5;
 
-    const deductionAmount = parseFloat((totalDeductionMinutes * minuteRate).toFixed(2));
-    const absenceDeductionAmount = parseFloat((absenceDeductionDaysCalc * dailyRate).toFixed(2));
-    const repeatLatePenaltyAmount = parseFloat((repeatLatePenaltyDaysCalc * dailyRate).toFixed(2));
-    const overtimePay = parseFloat((overtimeMinutes * minuteRate * overtimeRateMultiplier).toFixed(2));
-    const grossSalary = parseFloat((basicSalary + allowancesTotal + overtimePay).toFixed(2));
+    const deductionAmount = totalDeductionMinutes * minuteRate;
+    const absenceDeductionAmount = absenceDeductionDaysCalc * dailyRate;
+    const repeatLatePenaltyAmount = repeatLatePenaltyDaysCalc * dailyRate;
+    const overtimePay = overtimeMinutes * minuteRate * overtimeRateMultiplier;
+    const grossSalary = basicSalary + allowancesTotal + overtimePay;
     const netSalary = parseFloat(Math.max(0, grossSalary - deductionAmount - absenceDeductionAmount - repeatLatePenaltyAmount).toFixed(2));
 
     // أنشئ أو حدّث كشف الراتب
@@ -276,14 +276,14 @@ export class PayrollService {
       basicSalary,
       allowancesTotal,
       allowancesBreakdown: JSON.stringify(allowancesBreakdownMap),
-      overtimePay,
-      deductionAmount,
-      absenceDeductionAmount,
-      grossSalary,
+      overtimePay: parseFloat(overtimePay.toFixed(2)),
+      deductionAmount: parseFloat(deductionAmount.toFixed(2)),
+      absenceDeductionAmount: parseFloat(absenceDeductionAmount.toFixed(2)),
+      grossSalary: parseFloat(grossSalary.toFixed(2)),
       netSalary,
       currency,
-      dailyRate: parseFloat(dailyRate.toFixed(2)),
-      minuteRate: parseFloat(minuteRate.toFixed(4)),
+      dailyRate: parseFloat(dailyRate.toFixed(4)),
+      minuteRate: parseFloat(minuteRate.toFixed(6)),
       overtimeRateMultiplier,
     };
 

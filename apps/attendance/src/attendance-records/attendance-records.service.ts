@@ -51,6 +51,17 @@ export class AttendanceRecordsService {
     const endOfDay = new Date(dateObj);
     endOfDay.setHours(23, 59, 59, 999);
 
+    // رفض التواريخ الماضية
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (startOfDay < today) {
+      throw new BadRequestException({
+        code: 'INVALID_DATE',
+        message: 'لا يمكن تسجيل الحضور لتاريخ ماضٍ',
+        details: [],
+      });
+    }
+
     // Check if already checked in today
     const existing = await this.prisma.attendanceRecord.findFirst({
       where: {
@@ -143,6 +154,17 @@ export class AttendanceRecordsService {
 
     const endOfDay = new Date(dateObj);
     endOfDay.setHours(23, 59, 59, 999);
+
+    // رفض التواريخ الماضية
+    const todayForCheckout = new Date();
+    todayForCheckout.setHours(0, 0, 0, 0);
+    if (startOfDay < todayForCheckout) {
+      throw new BadRequestException({
+        code: 'INVALID_DATE',
+        message: 'لا يمكن تسجيل الانصراف لتاريخ ماضٍ',
+        details: [],
+      });
+    }
 
     // Find today's check-in record
     const record = await this.prisma.attendanceRecord.findFirst({

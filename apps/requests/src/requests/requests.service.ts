@@ -86,20 +86,30 @@ export class RequestsService {
       });
     }
 
-    const requestNumber = await this.generateRequestNumber();
-
-    return this.prisma.request.create({
-      data: {
-        requestNumber,
-        employeeId,
-        type: dto.type as any,
-        reason: dto.reason,
-        notes: dto.notes,
-        attachmentUrl: dto.attachmentUrl,
-        details: dto.details ?? undefined,
-      },
-      include: { history: true },
-    });
+    // Retry up to 5 times to handle concurrent request number collisions
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const requestNumber = await this.generateRequestNumber();
+      try {
+        return await this.prisma.request.create({
+          data: {
+            requestNumber,
+            employeeId,
+            type: dto.type as any,
+            reason: dto.reason,
+            notes: dto.notes,
+            attachmentUrl: dto.attachmentUrl,
+            details: dto.details ?? undefined,
+          },
+          include: { history: true },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002' && err?.meta?.target?.includes('requestNumber')) {
+          continue; // رقم مكرر → حاول مرة أخرى
+        }
+        throw err;
+      }
+    }
+    throw new BadRequestException('فشل توليد رقم الطلب، يرجى المحاولة مرة أخرى');
   }
 
   async submit(id: string, userId: string) {

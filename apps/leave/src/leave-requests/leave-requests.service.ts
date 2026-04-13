@@ -97,6 +97,28 @@ export class LeaveRequestsService {
       );
     }
 
+    // التحقق من مدة الإشعار المسبق
+    if (leaveType.minDaysNotice) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const daysUntilStart = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysUntilStart < leaveType.minDaysNotice) {
+        throw new BadRequestException(`يجب تقديم الطلب قبل ${leaveType.minDaysNotice} يوم على الأقل`);
+      }
+    }
+
+    // التحقق من المرفق المطلوب
+    if (leaveType.requiresAttachment && !createDto.attachmentUrl) {
+      throw new BadRequestException('هذا النوع من الإجازات يتطلب إرفاق مستند');
+    }
+
+    // التحقق من السماح بنصف يوم
+    if (isHalfDay && !leaveType.allowHalfDay) {
+      throw new BadRequestException('هذا النوع من الإجازات لا يسمح بطلب نصف يوم');
+    }
+
     // التحقق من تداخل التواريخ مع إجازة قائمة
     const overlapping = await this.prisma.leaveRequest.findFirst({
       where: {

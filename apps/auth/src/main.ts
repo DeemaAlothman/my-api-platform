@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './filters/infrastructure/http-exception.filter';
 import { validateEnvironment } from './config/env.validation';
@@ -30,6 +31,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }));
 
   const config = new DocumentBuilder()
     .setTitle('Auth Service')
