@@ -101,7 +101,7 @@ export class LeaveRequestsService {
     const overlapping = await this.prisma.leaveRequest.findFirst({
       where: {
         employeeId,
-        status: { in: ['PENDING_MANAGER', 'PENDING_HR', 'APPROVED'] },
+        status: { in: ['DRAFT', 'PENDING_MANAGER', 'PENDING_HR', 'APPROVED'] },
         startDate: { lte: new Date(endDate) },
         endDate: { gte: new Date(startDate) },
       },
