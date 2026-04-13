@@ -37,24 +37,26 @@ export class RequestsService {
   private async executeApprovedRequest(request: any): Promise<void> {
     try {
       const details = request.details as any;
+      console.log(`[executeApprovedRequest] type=${request.type} employeeId=${request.employeeId} details=${JSON.stringify(details)}`);
       if (request.type === 'TRANSFER') {
         const updates: string[] = [];
         const values: any[] = [];
         let idx = 1;
         if (details?.newDepartmentId) { updates.push(`"departmentId" = $${idx++}`); values.push(details.newDepartmentId); }
         if (details?.newJobTitleId)   { updates.push(`"jobTitleId" = $${idx++}`);   values.push(details.newJobTitleId); }
+        console.log(`[executeApprovedRequest] updates=${JSON.stringify(updates)} values=${JSON.stringify(values)}`);
         if (updates.length > 0) {
           values.push(request.employeeId);
-          await this.prisma.$queryRawUnsafe(
-            `UPDATE users.employees SET ${updates.join(', ')} WHERE id = $${idx}`,
-            ...values,
-          );
+          const sql = `UPDATE users.employees SET ${updates.join(', ')} WHERE id = $${idx}`;
+          console.log(`[executeApprovedRequest] executing: ${sql} with values=${JSON.stringify(values)}`);
+          const result = await this.prisma.$queryRawUnsafe(sql, ...values);
+          console.log(`[executeApprovedRequest] result=${JSON.stringify(result)}`);
         }
       }
       // REWARD/PENALTY_PROPOSAL: يُسجَّل كملاحظة في سجل الطلب — يُدمج مع الراتب عند التوليد
     } catch (err) {
       // لا نوقف الموافقة بسبب خطأ في التنفيذ — نسجّل فقط
-      console.error(`[executeApprovedRequest] failed for request ${request.id}:`, (err as any)?.message);
+      console.error(`[executeApprovedRequest] failed for request ${request.id}:`, (err as any)?.message, (err as any)?.stack);
     }
   }
 
