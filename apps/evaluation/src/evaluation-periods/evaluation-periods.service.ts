@@ -193,11 +193,24 @@ export class EvaluationPeriodsService {
           continue;
         }
 
+        // Resolve evaluatorId: get manager's userId for this employee
+        const managerRows = (await this.prisma.$queryRawUnsafe(
+          `SELECT u."id" as "evaluatorId"
+           FROM users.employees e
+           JOIN users.employees m ON m.id = e."managerId"
+           JOIN users.users u ON u.id = m."userId"
+           WHERE e.id = $1 AND m."deletedAt" IS NULL
+           LIMIT 1`,
+          employeeId,
+        )) as Array<{ evaluatorId: string }>;
+        const evaluatorId = managerRows.length > 0 ? managerRows[0].evaluatorId : null;
+
         // Create form with sections
         await this.prisma.evaluationForm.create({
           data: {
             periodId: id,
             employeeId,
+            evaluatorId,
             sections: {
               create: criteria.map((c) => ({
                 criteriaId: c.id,
