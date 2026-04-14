@@ -462,19 +462,21 @@ export class PayrollService {
       employeeNumber: string;
       firstNameAr: string;
       lastNameAr: string;
+      firstNameEn: string | null;
+      lastNameEn: string | null;
       jobTitle: string | null;
       departmentName: string | null;
       hireDate: Date | null;
     }>>`
-      SELECT e."employeeNumber", e."firstNameAr", e."lastNameAr", jt."nameAr" as "jobTitle",
-             d."nameAr" as "departmentName", e."hireDate"
+      SELECT e."employeeNumber", e."firstNameAr", e."lastNameAr", e."firstNameEn", e."lastNameEn",
+             jt."nameAr" as "jobTitle", d."nameAr" as "departmentName", e."hireDate"
       FROM users.employees e
       LEFT JOIN users.job_titles jt ON e."jobTitleId" = jt.id
       LEFT JOIN users.departments d ON e."departmentId" = d.id
       WHERE e.id = ${employeeId}
     `;
 
-    const emp = empData[0] as { employeeNumber: string; firstNameAr: string; lastNameAr: string; jobTitle: string | null; departmentName: string | null; hireDate: Date | null } | undefined;
+    const emp = empData[0] as { employeeNumber: string; firstNameAr: string; lastNameAr: string; firstNameEn: string | null; lastNameEn: string | null; jobTitle: string | null; departmentName: string | null; hireDate: Date | null } | undefined;
     const allowancesBreakdown = payroll.allowancesBreakdown
       ? JSON.parse(payroll.allowancesBreakdown)
       : {};
@@ -488,7 +490,12 @@ export class PayrollService {
       employee: {
         id: employeeId,
         employeeNumber: emp?.employeeNumber,
-        fullName: emp ? `${emp.firstNameAr} ${emp.lastNameAr}` : undefined,
+        firstNameAr: emp?.firstNameAr,
+        lastNameAr: emp?.lastNameAr,
+        firstNameEn: emp?.firstNameEn,
+        lastNameEn: emp?.lastNameEn,
+        fullNameAr: emp ? `${emp.firstNameAr} ${emp.lastNameAr}` : undefined,
+        fullNameEn: emp?.firstNameEn ? `${emp.firstNameEn} ${emp.lastNameEn ?? ''}`.trim() : undefined,
         jobTitle: emp?.jobTitle,
         department: emp?.departmentName,
         hireDate: emp?.hireDate,
