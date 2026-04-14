@@ -545,8 +545,8 @@ export class LeaveRequestsService {
 
   // الحصول على طلب واحد
   async findOne(id: string) {
-    const request = await this.prisma.leaveRequest.findUnique({
-      where: { id },
+    const request = await this.prisma.leaveRequest.findFirst({
+      where: { id, deletedAt: null },
       include: {
         leaveType: true,
         history: {
@@ -564,7 +564,7 @@ export class LeaveRequestsService {
 
   // قائمة طلبات الموظف
   async findByEmployee(employeeId: string, filters?: any) {
-    const where: any = { employeeId };
+    const where: any = { employeeId, deletedAt: null };
 
     if (filters?.status) where.status = filters.status;
     if (filters?.leaveTypeId) where.leaveTypeId = filters.leaveTypeId;
@@ -594,7 +594,7 @@ export class LeaveRequestsService {
 
   // قائمة جميع الطلبات (للمدراء و HR)
   async findAll(filters?: any) {
-    const where: any = {};
+    const where: any = { deletedAt: null };
 
     if (filters?.status) where.status = filters.status;
     if (filters?.employeeId) where.employeeId = filters.employeeId;
@@ -623,10 +623,10 @@ export class LeaveRequestsService {
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
-  // حذف طلب (فقط DRAFT)
+  // حذف طلب (soft-delete — فقط DRAFT)
   async remove(id: string, employeeId: string) {
-    const request = await this.prisma.leaveRequest.findUnique({
-      where: { id },
+    const request = await this.prisma.leaveRequest.findFirst({
+      where: { id, deletedAt: null },
     });
 
     if (!request) {
@@ -641,8 +641,9 @@ export class LeaveRequestsService {
       throw new BadRequestException('Only draft requests can be deleted');
     }
 
-    await this.prisma.leaveRequest.delete({
+    await this.prisma.leaveRequest.update({
       where: { id },
+      data: { deletedAt: new Date() },
     });
 
     return { message: 'Leave request deleted successfully' };

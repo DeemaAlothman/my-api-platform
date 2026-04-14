@@ -8,6 +8,17 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum LeaveRequestStatus {
+  DRAFT
+  PENDING_MANAGER
+  PENDING_HR
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("leaves")
+}
+
 // Leave Types (أنواع الإجازات)
 model LeaveType {
   id                   String         @id @default(uuid())
@@ -70,7 +81,7 @@ model LeaveRequest {
   substituteId      String?
   contactDuring     String?
   attachmentUrl     String?
-  status            String                @default("DRAFT")
+  status            LeaveRequestStatus    @default(DRAFT)
   managerStatus     String?
   managerApprovedBy String?
   managerApprovedAt DateTime?
@@ -82,6 +93,7 @@ model LeaveRequest {
   cancelReason      String?
   cancelledAt       DateTime?
   cancelledBy       String?
+  deletedAt         DateTime?
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 

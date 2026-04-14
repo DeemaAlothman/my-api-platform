@@ -187,80 +187,54 @@ export class ApprovalService {
   }
 
   async getPendingMyApproval(userId: string, page: number, limit: number) {
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
-    // جلب employeeId و permissions مرة واحدة بدل تكرارها لكل طلب
     const approverEmployeeId = await this.resolver.getEmployeeIdByUserId(userId);
-    const hasHrApprove = await this.resolver.hasPermission(userId, 'requests:hr-approve');
+    const hasHrApprove  = await this.resolver.hasPermission(userId, 'requests:hr-approve');
     const hasCeoApprove = await this.resolver.hasPermission(userId, 'requests:ceo-approve');
     const hasCfoApprove = await this.resolver.hasPermission(userId, 'requests:cfo-approve');
 
-    const allPending = await this.prisma.request.findMany({
-      where: { status: 'IN_APPROVAL', deletedAt: null },
-      include: { approvalSteps: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    // استعلام واحد على DB يفلتر الطلبات حسب دور المعتمد — بدل جلب كل شيء في الذاكرة
+    const baseConditions = `
+      r.status = 'IN_APPROVAL'
+      AND r."deletedAt" IS NULL
+      AND s."stepOrder" = r."currentStepOrder"
+      AND s.status = 'PENDING'
+      AND (
+        (s."approverRole" = 'DIRECT_MANAGER'
+          AND ${approverEmployeeId ? `r."employeeId" IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL)` : 'false'})
+        OR (s."approverRole" = 'DEPARTMENT_MANAGER'
+          AND ${approverEmployeeId ? `r."employeeId" IN (
+            SELECT e.id FROM users.employees e
+            JOIN users.departments d ON e."departmentId" = d.id
+            WHERE d."managerId" = '${approverEmployeeId}' AND e."deletedAt" IS NULL AND d."deletedAt" IS NULL
+          )` : 'false'})
+        OR (s."approverRole" = 'TARGET_MANAGER'
+          AND ${approverEmployeeId ? `(r.details->>'newDepartmentId') IN (
+            SELECT id FROM users.departments WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL
+          )` : 'false'})
+        OR (s."approverRole" = 'HR'  AND ${hasHrApprove  ? 'true' : 'false'})
+        OR (s."approverRole" = 'CEO' AND ${hasCeoApprove ? 'true' : 'false'})
+        OR (s."approverRole" = 'CFO' AND ${hasCfoApprove ? 'true' : 'false'})
+      )
+    `;
 
-    // جلب بيانات الموظفين دفعة واحدة
-    const employeeIds = [...new Set(allPending.map(r => r.employeeId))];
-    const employeeData = employeeIds.length > 0
-      ? await this.prisma.$queryRawUnsafe<Array<{ id: string; managerId: string | null; departmentId: string | null }>>(
-          `SELECT id, "managerId", "departmentId" FROM users.employees WHERE id::text = ANY($1::text[]) AND "deletedAt" IS NULL`,
-          employeeIds,
-        )
-      : [];
-    const empMap = new Map(employeeData.map(e => [e.id, e]));
+    const countResult = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+      `SELECT COUNT(*) as count
+       FROM requests.requests r
+       JOIN requests.approval_steps s ON s."requestId" = r.id
+       WHERE ${baseConditions}`,
+    );
+    const total = Number(countResult[0]?.count ?? 0);
 
-    // جلب department managers دفعة واحدة
-    const deptIds = [...new Set(employeeData.map(e => e.departmentId).filter(Boolean))] as string[];
-    const deptData = deptIds.length > 0
-      ? await this.prisma.$queryRawUnsafe<Array<{ id: string; managerId: string | null }>>(
-          `SELECT id, "managerId" FROM users.departments WHERE id::text = ANY($1::text[]) AND "deletedAt" IS NULL`,
-          deptIds,
-        )
-      : [];
-    const deptMap = new Map(deptData.map(d => [d.id, d]));
-
-    const myRequests: any[] = [];
-    for (const req of allPending) {
-      const currentStep = (req.approvalSteps as any[]).find(
-        s => s.stepOrder === req.currentStepOrder && s.status === 'PENDING',
-      );
-      if (!currentStep) continue;
-
-      const emp = empMap.get(req.employeeId);
-      let canApprove = false;
-
-      switch (currentStep.approverRole) {
-        case 'DIRECT_MANAGER':
-          canApprove = (approverEmployeeId !== null && emp?.managerId === approverEmployeeId) || hasHrApprove;
-          break;
-        case 'DEPARTMENT_MANAGER':
-          canApprove = approverEmployeeId !== null && deptMap.get(emp?.departmentId ?? '')?.managerId === approverEmployeeId;
-          break;
-        case 'TARGET_MANAGER': {
-          const newDeptId = (req.details as any)?.newDepartmentId;
-          canApprove = approverEmployeeId !== null && !!newDeptId && deptMap.get(newDeptId)?.managerId === approverEmployeeId;
-          break;
-        }
-        case 'HR':
-          canApprove = hasHrApprove;
-          break;
-        case 'CEO':
-          canApprove = hasCeoApprove;
-          break;
-        case 'CFO':
-          canApprove = hasCfoApprove;
-          break;
-        default:
-          canApprove = false;
-      }
-
-      if (canApprove) myRequests.push({ ...req, currentStep });
-    }
-
-    const total = myRequests.length;
-    const items = myRequests.slice(skip, skip + limit);
+    const items = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT r.*, row_to_json(s) AS "currentStep"
+       FROM requests.requests r
+       JOIN requests.approval_steps s ON s."requestId" = r.id
+       WHERE ${baseConditions}
+       ORDER BY r."createdAt" DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+    );
 
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
@@ -268,6 +242,7 @@ export class ApprovalService {
   private async executeApprovedRequest(request: any): Promise<void> {
     try {
       const details = request.details as any;
+
       if (request.type === 'TRANSFER') {
         const updates: string[] = [];
         const values: any[] = [];
@@ -282,6 +257,19 @@ export class ApprovalService {
           );
         }
       }
+
+      if (request.type === 'RESIGNATION') {
+        // تغيير حالة الموظف إلى TERMINATED — HR يتابع إجراءات الخروج يدوياً
+        await this.prisma.$queryRawUnsafe(
+          `UPDATE users.employees SET "employmentStatus" = 'TERMINATED', "updatedAt" = NOW() WHERE id = $1`,
+          request.employeeId,
+        );
+      }
+
+      // REWARD و PENALTY_PROPOSAL تُعالج في payroll service تلقائياً عند اعتماد الطلب
+      // BUSINESS_MISSION، OVERTIME، DELEGATION، HIRING_REQUEST، COMPLAINT، OTHER:
+      // لا توجد إجراءات تلقائية — HR يتابع يدوياً بعد الاعتماد
+
     } catch (err) {
       console.error(`[executeApprovedRequest] failed for request ${request.id}:`, (err as any)?.message);
     }

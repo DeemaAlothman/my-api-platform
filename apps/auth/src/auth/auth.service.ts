@@ -64,7 +64,7 @@ export class AuthService {
       // If user has super_admin role, give all permissions
       if (userRoles.some(r => r.name === 'super_admin')) {
         finalRoles = ['super_admin'];
-        finalPermissions = this.getSuperAdminPermissions();
+        finalPermissions = await this.loadSuperAdminPermissions();
       } else if (userRoles.length > 0) {
         // Load permissions from database for other roles
         finalRoles = userRoles.map(r => r.name);
@@ -168,7 +168,7 @@ export class AuthService {
       `;
 
       if (userRoles.some(r => r.name === 'super_admin')) {
-        permissions = this.getSuperAdminPermissions();
+        permissions = await this.loadSuperAdminPermissions();
       } else if (userRoles.length > 0) {
         const userPermissions = await this.prisma.$queryRaw<Array<{ code: string }>>`
           SELECT DISTINCT p.name as code
@@ -268,7 +268,17 @@ export class AuthService {
     );
   }
 
-  private getSuperAdminPermissions(): string[] {
+  // يجلب كل الصلاحيات من DB — أي permission جديدة في seed تصبح متاحة تلقائياً لـ super_admin
+  private async loadSuperAdminPermissions(): Promise<string[]> {
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ name: string }>>`
+        SELECT name FROM users.permissions ORDER BY name
+      `;
+      if (rows.length > 0) return rows.map(r => r.name);
+    } catch (err) {
+      this.logger.warn('loadSuperAdminPermissions: DB query failed, falling back to hardcoded list');
+    }
+    // fallback إذا فشل الاتصال بـ DB
     return [
       'users:read', 'users:create', 'users:update', 'users:delete', 'users:assign_roles',
       'employees:read', 'employees:create', 'employees:update', 'employees:delete',
