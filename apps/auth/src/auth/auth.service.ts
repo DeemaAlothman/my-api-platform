@@ -64,50 +64,7 @@ export class AuthService {
       // If user has super_admin role, give all permissions
       if (userRoles.some(r => r.name === 'super_admin')) {
         finalRoles = ['super_admin'];
-        finalPermissions = [
-          'users:read', 'users:create', 'users:update', 'users:delete', 'users:assign_roles',
-          'employees:read', 'employees:create', 'employees:update', 'employees:delete',
-          'departments:read', 'departments:create', 'departments:update', 'departments:delete',
-          'roles:read', 'roles:create', 'roles:update', 'roles:delete',
-          'leave_types:read', 'leave_types:create', 'leave_types:update', 'leave_types:delete',
-          'leave_requests:read', 'leave_requests:read_all', 'leave_requests:create', 'leave_requests:update',
-          'leave_requests:submit', 'leave_requests:delete', 'leave_requests:approve_manager',
-          'leave_requests:approve_hr', 'leave_requests:cancel',
-          'leave_balances:read', 'leave_balances:read_all', 'leave_balances:create', 'leave_balances:adjust',
-          'leave_balances:initialize', 'leave_balances:delete', 'leave_balances:carry_over',
-          'holidays:read', 'holidays:create', 'holidays:update', 'holidays:delete',
-          'attendance.work-schedules.read', 'attendance.work-schedules.create',
-          'attendance.work-schedules.update', 'attendance.work-schedules.delete',
-          'attendance.employee-schedules.read', 'attendance.employee-schedules.create',
-          'attendance.employee-schedules.update', 'attendance.employee-schedules.delete',
-          'attendance.records.read', 'attendance.records.read-own', 'attendance.records.create',
-          'attendance.records.update', 'attendance.records.delete', 'attendance.records.check-in',
-          'attendance.records.check-out',
-          'attendance.alerts.read', 'attendance.alerts.read-own', 'attendance.alerts.create',
-          'attendance.alerts.update', 'attendance.alerts.delete', 'attendance.alerts.resolve',
-          'attendance.justifications.read', 'attendance.justifications.read-own',
-          'attendance.justifications.create-own', 'attendance.justifications.manager-review',
-          'attendance.justifications.hr-review',
-          'evaluation:periods:read', 'evaluation:periods:create', 'evaluation:periods:update',
-          'evaluation:periods:delete', 'evaluation:periods:manage',
-          'evaluation:criteria:read', 'evaluation:criteria:create', 'evaluation:criteria:update',
-          'evaluation:criteria:delete',
-          'evaluation:forms:view-own', 'evaluation:forms:view-all', 'evaluation:forms:self-evaluate',
-          'evaluation:forms:manager-evaluate', 'evaluation:forms:hr-review', 'evaluation:forms:gm-approval',
-          'evaluation:peer:submit', 'evaluation:goals:manage',
-          'job-titles:read', 'job-titles:create', 'job-titles:update', 'job-titles:delete',
-          'job-grades:read', 'job-grades:create', 'job-grades:update', 'job-grades:delete',
-          'requests:read', 'requests:manager-approve', 'requests:manager-reject', 'requests:hr-approve', 'requests:hr-reject',
-          'attendance.reports.read',
-          'custodies:read', 'custodies:create', 'custodies:update', 'custodies:delete',
-          'biometric.devices.read', 'biometric.devices.create', 'biometric.devices.update', 'biometric.devices.delete',
-          'biometric.mappings.read', 'biometric.mappings.create', 'biometric.mappings.update', 'biometric.mappings.delete',
-          'attendance.records.device',
-          'attendance.config.read', 'attendance.config.create', 'attendance.config.update',
-          'job-applications:read', 'job-applications:update', 'job-applications:ceo-approve',
-          'attendance.policies.read', 'attendance.policies.create', 'attendance.policies.update', 'attendance.policies.delete',
-          'attendance.payroll.generate', 'attendance.payroll.read', 'attendance.payroll.confirm', 'attendance.payroll.export',
-        ];
+        finalPermissions = this.getSuperAdminPermissions();
       } else if (userRoles.length > 0) {
         // Load permissions from database for other roles
         finalRoles = userRoles.map(r => r.name);
@@ -346,6 +303,8 @@ export class AuthService {
       'job-titles:read', 'job-titles:create', 'job-titles:update', 'job-titles:delete',
       'job-grades:read', 'job-grades:create', 'job-grades:update', 'job-grades:delete',
       'requests:read', 'requests:manager-approve', 'requests:manager-reject', 'requests:hr-approve', 'requests:hr-reject',
+      'requests:approve', 'requests:reject', 'requests:ceo-approve', 'requests:cfo-approve',
+      'requests:read-all-steps', 'requests:manage-workflows',
       'attendance.reports.read',
       'custodies:read', 'custodies:create', 'custodies:update', 'custodies:delete',
       'biometric.devices.read', 'biometric.devices.create', 'biometric.devices.update', 'biometric.devices.delete',
@@ -357,7 +316,6 @@ export class AuthService {
       'attendance.payroll.generate', 'attendance.payroll.read', 'attendance.payroll.confirm', 'attendance.payroll.export',
       'probation:view-all', 'probation:submit', 'probation:senior-review', 'probation:hr-review',
       'probation:ceo-review', 'probation:acknowledge',
-      'requests:approve', 'requests:cfo-approve', 'requests:ceo-approve', 'requests:hr-approve',
     ];
   }
 

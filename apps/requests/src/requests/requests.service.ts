@@ -186,18 +186,30 @@ export class RequestsService {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Cannot cancel request at this stage', details: [] });
     }
 
-    const updated = await this.prisma.request.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelReason: dto.reason,
-        cancelledAt: new Date(),
-        cancelledBy: employeeId,
-      },
-    });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      // أغلق خطوات الاعتماد المعلقة إذا كان الطلب في مسار الاعتماد
+      if (request.status === 'IN_APPROVAL') {
+        await tx.approvalStep.updateMany({
+          where: { requestId: id, status: 'PENDING' },
+          data: { status: 'REJECTED', notes: 'Auto-closed: request cancelled by employee' },
+        });
+      }
 
-    await this.prisma.requestHistory.create({
-      data: { requestId: id, action: 'CANCELLED', fromStatus: request.status, toStatus: 'CANCELLED', performedBy: employeeId, notes: dto.reason },
+      const result = await tx.request.update({
+        where: { id },
+        data: {
+          status: 'CANCELLED',
+          cancelReason: dto.reason,
+          cancelledAt: new Date(),
+          cancelledBy: employeeId,
+        },
+      });
+
+      await tx.requestHistory.create({
+        data: { requestId: id, action: 'CANCELLED', fromStatus: request.status, toStatus: 'CANCELLED', performedBy: employeeId, notes: dto.reason },
+      });
+
+      return result;
     });
 
     return updated;

@@ -44,6 +44,24 @@ export class LeaveRequestsService {
     });
   }
 
+  // التحقق أن المستخدم هو المدير المباشر للموظف صاحب الطلب
+  private async assertIsEmployeeManager(approverUserId: string, employeeId: string): Promise<void> {
+    const rows = await this.prisma.$queryRaw<Array<{ managerId: string | null; approverId: string | null }>>`
+      SELECT e."managerId",
+             (SELECT id FROM users.employees WHERE "userId" = ${approverUserId} AND "deletedAt" IS NULL LIMIT 1) AS "approverId"
+      FROM users.employees e
+      WHERE e.id = ${employeeId} AND e."deletedAt" IS NULL LIMIT 1
+    `;
+    const row = rows[0];
+    if (!row || !row.approverId || row.managerId !== row.approverId) {
+      throw new ForbiddenException({
+        code: 'AUTH_INSUFFICIENT_PERMISSIONS',
+        message: 'You are not the direct manager of this employee',
+        details: [],
+      });
+    }
+  }
+
   // تحديث رصيد الإجازة (يقبل transaction client اختياري لمنع race condition)
   private async updateLeaveBalance(
     employeeId: string,
@@ -282,6 +300,9 @@ export class LeaveRequestsService {
       throw new BadRequestException('Request is not pending manager approval');
     }
 
+    // managerId هنا فعليا userId — نتحقق أنه المدير المباشر للموظف
+    await this.assertIsEmployeeManager(managerId, request.employeeId);
+
     // إذا كان النوع يتطلب موافقة HR، ننقله إلى PENDING_HR، وإلا نعتمده مباشرة
     const newStatus = request.leaveType.requiresApproval ? 'PENDING_HR' : 'APPROVED';
 
@@ -327,6 +348,9 @@ export class LeaveRequestsService {
     if (request.status !== 'PENDING_MANAGER') {
       throw new BadRequestException('Request is not pending manager approval');
     }
+
+    // managerId هنا فعليا userId — نتحقق أنه المدير المباشر للموظف
+    await this.assertIsEmployeeManager(managerId, request.employeeId);
 
     const year = new Date(request.startDate).getFullYear();
     const updated = await this.prisma.$transaction(async (tx) => {

@@ -87,7 +87,7 @@ export class RequestsController {
 
   // رفض ديناميكي (النظام الجديد)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permission('requests:approve')
+  @Permission('requests:reject')
   @Post(':id/reject')
   rejectStep(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: RejectRequestDto) {
     return this.requests.rejectStep(id, user.userId, dto);
