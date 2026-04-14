@@ -20,6 +20,9 @@ UPDATE leave_requests
   WHERE status NOT IN ('DRAFT','PENDING_MANAGER','PENDING_HR','APPROVED','REJECTED','CANCELLED');
 
 -- تحويل عمود status من TEXT إلى enum
+-- يجب حذف الـ default أولاً لأن PostgreSQL لا يحوّله تلقائياً
+ALTER TABLE leave_requests ALTER COLUMN status DROP DEFAULT;
+
 ALTER TABLE leave_requests
   ALTER COLUMN status TYPE "LeaveRequestStatus"
   USING status::"LeaveRequestStatus";
