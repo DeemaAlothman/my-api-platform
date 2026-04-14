@@ -132,6 +132,12 @@ async function main() {
     { name: 'requests:manager-reject', displayName: 'رفض المدير للطلبات', module: 'requests' },
     { name: 'requests:hr-approve', displayName: 'موافقة HR على الطلبات', module: 'requests' },
     { name: 'requests:hr-reject', displayName: 'رفض HR للطلبات', module: 'requests' },
+    { name: 'requests:approve', displayName: 'اعتماد خطوة في مسار الطلب', module: 'requests' },
+    { name: 'requests:reject', displayName: 'رفض خطوة في مسار الطلب', module: 'requests' },
+    { name: 'requests:ceo-approve', displayName: 'موافقة CEO على الطلبات', module: 'requests' },
+    { name: 'requests:cfo-approve', displayName: 'موافقة CFO على الطلبات', module: 'requests' },
+    { name: 'requests:read-all-steps', displayName: 'عرض كل خطوات الاعتماد', module: 'requests' },
+    { name: 'requests:manage-workflows', displayName: 'إدارة مسارات الاعتماد', module: 'requests' },
 
     // Attendance Reports
     { name: 'attendance.reports.read', displayName: 'عرض تقارير الحضور', module: 'attendance' },

@@ -15,11 +15,6 @@ ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'BUSINESS_MISSION';
 ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'DELEGATION';
 ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'HIRING_REQUEST';
 ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'COMPLAINT';
-ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'PERMISSION';
-ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'ADVANCE';
-ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'JOB_CHANGE';
-ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'RIGHTS';
-ALTER TYPE "RequestType" ADD VALUE IF NOT EXISTS 'SPONSORSHIP';
 
 ALTER TYPE "RequestStatus" ADD VALUE IF NOT EXISTS 'IN_APPROVAL';
 
@@ -94,24 +89,10 @@ INSERT INTO approval_workflows (id, "requestType", "stepOrder", "approverRole") 
   -- TRANSFER: مدير مباشر ← HR
   (gen_random_uuid()::text, 'TRANSFER',           1, 'DIRECT_MANAGER'),
   (gen_random_uuid()::text, 'TRANSFER',           2, 'HR'),
-  -- PERMISSION: مدير مباشر
-  (gen_random_uuid()::text, 'PERMISSION',         1, 'DIRECT_MANAGER'),
-  -- ADVANCE: مدير مباشر ← HR ← CFO
-  (gen_random_uuid()::text, 'ADVANCE',            1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'ADVANCE',            2, 'HR'),
-  (gen_random_uuid()::text, 'ADVANCE',            3, 'CFO'),
-  -- JOB_CHANGE: مدير مباشر ← HR
-  (gen_random_uuid()::text, 'JOB_CHANGE',         1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'JOB_CHANGE',         2, 'HR'),
-  -- RIGHTS: HR
-  (gen_random_uuid()::text, 'RIGHTS',             1, 'HR'),
   -- REWARD: مدير مباشر ← HR ← CEO
   (gen_random_uuid()::text, 'REWARD',             1, 'DIRECT_MANAGER'),
   (gen_random_uuid()::text, 'REWARD',             2, 'HR'),
   (gen_random_uuid()::text, 'REWARD',             3, 'CEO'),
-  -- SPONSORSHIP: مدير مباشر ← HR
-  (gen_random_uuid()::text, 'SPONSORSHIP',        1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'SPONSORSHIP',        2, 'HR'),
   -- OTHER: مدير مباشر
   (gen_random_uuid()::text, 'OTHER',              1, 'DIRECT_MANAGER'),
   -- PENALTY_PROPOSAL: مدير مباشر ← HR ← CEO
