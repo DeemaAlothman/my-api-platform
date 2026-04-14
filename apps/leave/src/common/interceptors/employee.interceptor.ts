@@ -36,12 +36,9 @@ export class EmployeeInterceptor implements NestInterceptor {
       if (result && result.length > 0) {
         // Attach employeeId to the request for use in controllers
         request.employeeId = result[0].id;
-      } else {
-        // User exists but has no employee record
-        throw new NotFoundException(
-          'Employee record not found. Please contact HR to create your employee profile.',
-        );
       }
+      // If no employee record found, leave employeeId undefined.
+      // Routes that require it (via @EmployeeId()) will handle the missing value.
     }
 
     return next.handle();

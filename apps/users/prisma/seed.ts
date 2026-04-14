@@ -147,6 +147,43 @@ async function main() {
     { name: 'custodies:create', displayName: 'إنشاء عهدة', module: 'custodies' },
     { name: 'custodies:update', displayName: 'تعديل عهدة', module: 'custodies' },
     { name: 'custodies:delete', displayName: 'حذف عهدة', module: 'custodies' },
+
+    // Job Titles
+    { name: 'job-titles:read',   displayName: 'عرض المسميات الوظيفية',  module: 'users' },
+    { name: 'job-titles:create', displayName: 'إنشاء مسمى وظيفي',       module: 'users' },
+    { name: 'job-titles:update', displayName: 'تعديل مسمى وظيفي',       module: 'users' },
+    { name: 'job-titles:delete', displayName: 'حذف مسمى وظيفي',         module: 'users' },
+
+    // Job Grades
+    { name: 'job-grades:read',   displayName: 'عرض الدرجات الوظيفية',   module: 'users' },
+    { name: 'job-grades:create', displayName: 'إنشاء درجة وظيفية',      module: 'users' },
+    { name: 'job-grades:update', displayName: 'تعديل درجة وظيفية',      module: 'users' },
+    { name: 'job-grades:delete', displayName: 'حذف درجة وظيفية',        module: 'users' },
+
+    // Payroll
+    { name: 'attendance.payroll.generate', displayName: 'توليد الرواتب',   module: 'attendance' },
+    { name: 'attendance.payroll.read',     displayName: 'عرض الرواتب',     module: 'attendance' },
+    { name: 'attendance.payroll.confirm',  displayName: 'اعتماد الرواتب',  module: 'attendance' },
+    { name: 'attendance.payroll.export',   displayName: 'تصدير الرواتب',   module: 'attendance' },
+
+    // Attendance Device
+    { name: 'attendance.records.device', displayName: 'أجهزة تسجيل الحضور', module: 'attendance' },
+
+    // Attendance Config
+    { name: 'attendance.config.create', displayName: 'إنشاء إعدادات حضور',  module: 'attendance' },
+    { name: 'attendance.config.read',   displayName: 'عرض إعدادات حضور',    module: 'attendance' },
+    { name: 'attendance.config.update', displayName: 'تعديل إعدادات حضور',  module: 'attendance' },
+
+    // Deduction Policies
+    { name: 'attendance.policies.create', displayName: 'إنشاء سياسة خصم',   module: 'attendance' },
+    { name: 'attendance.policies.read',   displayName: 'عرض سياسات الخصم',  module: 'attendance' },
+    { name: 'attendance.policies.update', displayName: 'تعديل سياسة خصم',   module: 'attendance' },
+    { name: 'attendance.policies.delete', displayName: 'حذف سياسة خصم',     module: 'attendance' },
+
+    // Job Applications (التوظيف)
+    { name: 'job-applications:read',        displayName: 'عرض طلبات التوظيف',     module: 'jobs' },
+    { name: 'job-applications:update',      displayName: 'تعديل طلبات التوظيف',    module: 'jobs' },
+    { name: 'job-applications:ceo-approve', displayName: 'موافقة CEO على التوظيف', module: 'jobs' },
   ];
 
   console.log('Creating permissions...');
