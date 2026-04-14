@@ -83,7 +83,7 @@ async function main() {
       endDate: new Date('2026-06-14'),
       totalDays: 5,
       reason: 'رحلة عائلية',
-      status: 'PENDING',
+      status: 'PENDING_MANAGER',
       createdAt: new Date('2026-04-10'),
     },
   });
