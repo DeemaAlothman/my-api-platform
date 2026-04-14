@@ -41,11 +41,10 @@ export class RequestsController {
   }
 
   // طلب واحد
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permission('requests:read')
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.requests.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.requests.findOneScoped(id, user.userId, user.permissions ?? []);
   }
 
   // عرض خطوات الموافقة

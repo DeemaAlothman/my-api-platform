@@ -253,6 +253,33 @@ export class RequestsService {
     return this.list({ ...query, employeeId });
   }
 
+  async findOneScoped(id: string, userId: string, permissions: string[]) {
+    const request = await this.prisma.request.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        history: { orderBy: { createdAt: 'desc' } },
+        approvalSteps: { orderBy: { stepOrder: 'asc' } },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Request not found', details: [{ field: 'id', value: id }] });
+    }
+
+    const isHr = permissions.includes('requests:hr-approve') || permissions.includes('requests:read-all-steps');
+    if (!isHr) {
+      const employeeId = await this.getEmployeeIdByUserId(userId);
+      const isOwner = request.employeeId === employeeId;
+      const isReviewer = (request.approvalSteps as any[]).some(s => s.reviewedBy === employeeId);
+      if (!isOwner && !isReviewer) {
+        throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'Not authorized to view this request', details: [] });
+      }
+    }
+
+    const employeeMap = await this.fetchEmployeeNames([request.employeeId]);
+    return { ...request, employee: employeeMap.get(request.employeeId) ?? null };
+  }
+
   async findOne(id: string) {
     const request = await this.prisma.request.findFirst({
       where: { id, deletedAt: null },
