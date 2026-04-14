@@ -19,6 +19,11 @@ enum RequestType {
   DELEGATION
   HIRING_REQUEST
   COMPLAINT
+  PERMISSION
+  ADVANCE
+  JOB_CHANGE
+  RIGHTS
+  SPONSORSHIP
 }
 
 enum RequestStatus {
