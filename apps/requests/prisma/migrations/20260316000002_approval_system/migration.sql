@@ -80,59 +80,60 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- 6. Seed approval_workflows
+-- 6. Seed approval_workflows (DELETE + INSERT for idempotency)
+DELETE FROM approval_workflows;
 INSERT INTO approval_workflows (id, "requestType", "stepOrder", "approverRole") VALUES
-  -- RESIGNATION (3 steps)
-  (gen_random_uuid()::text, 'RESIGNATION',       1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'RESIGNATION',       2, 'HR'),
-  (gen_random_uuid()::text, 'RESIGNATION',       3, 'CEO'),
-  -- TRANSFER (4 steps)
-  (gen_random_uuid()::text, 'TRANSFER',          1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'TRANSFER',          2, 'TARGET_MANAGER'),
-  (gen_random_uuid()::text, 'TRANSFER',          3, 'HR'),
-  (gen_random_uuid()::text, 'TRANSFER',          4, 'CEO'),
-  -- PENALTY_PROPOSAL (3 steps)
-  (gen_random_uuid()::text, 'PENALTY_PROPOSAL',  1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'PENALTY_PROPOSAL',  2, 'HR'),
-  (gen_random_uuid()::text, 'PENALTY_PROPOSAL',  3, 'CEO'),
-  -- REWARD (4 steps)
-  (gen_random_uuid()::text, 'REWARD',            1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'REWARD',            2, 'HR'),
-  (gen_random_uuid()::text, 'REWARD',            3, 'CEO'),
-  (gen_random_uuid()::text, 'REWARD',            4, 'CFO'),
-  -- OVERTIME_EMPLOYEE (1 step)
-  (gen_random_uuid()::text, 'OVERTIME_EMPLOYEE', 1, 'DIRECT_MANAGER'),
-  -- OVERTIME_MANAGER (1 step)
-  (gen_random_uuid()::text, 'OVERTIME_MANAGER',  1, 'DIRECT_MANAGER'),
-  -- BUSINESS_MISSION (3 steps)
-  (gen_random_uuid()::text, 'BUSINESS_MISSION',  1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'BUSINESS_MISSION',  2, 'HR'),
-  (gen_random_uuid()::text, 'BUSINESS_MISSION',  3, 'CEO'),
-  -- DELEGATION (1 step)
-  (gen_random_uuid()::text, 'DELEGATION',        1, 'DIRECT_MANAGER'),
-  -- HIRING_REQUEST (3 steps)
-  (gen_random_uuid()::text, 'HIRING_REQUEST',    1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'HIRING_REQUEST',    2, 'HR'),
-  (gen_random_uuid()::text, 'HIRING_REQUEST',    3, 'CEO'),
-  -- COMPLAINT (1 step)
-  (gen_random_uuid()::text, 'COMPLAINT',         1, 'HR'),
-  -- ADVANCE (2 steps)
-  (gen_random_uuid()::text, 'ADVANCE',           1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'ADVANCE',           2, 'HR'),
-  -- PERMISSION (1 step)
-  (gen_random_uuid()::text, 'PERMISSION',        1, 'DIRECT_MANAGER'),
-  -- JOB_CHANGE (2 steps)
-  (gen_random_uuid()::text, 'JOB_CHANGE',        1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'JOB_CHANGE',        2, 'HR'),
-  -- RIGHTS (2 steps)
-  (gen_random_uuid()::text, 'RIGHTS',            1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'RIGHTS',            2, 'HR'),
-  -- SPONSORSHIP (2 steps)
-  (gen_random_uuid()::text, 'SPONSORSHIP',       1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'SPONSORSHIP',       2, 'HR'),
-  -- OTHER (2 steps)
-  (gen_random_uuid()::text, 'OTHER',             1, 'DIRECT_MANAGER'),
-  (gen_random_uuid()::text, 'OTHER',             2, 'HR')
+  -- RESIGNATION: مدير مباشر ← HR
+  (gen_random_uuid()::text, 'RESIGNATION',        1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'RESIGNATION',        2, 'HR'),
+  -- TRANSFER: مدير مباشر ← HR
+  (gen_random_uuid()::text, 'TRANSFER',           1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'TRANSFER',           2, 'HR'),
+  -- PERMISSION: مدير مباشر
+  (gen_random_uuid()::text, 'PERMISSION',         1, 'DIRECT_MANAGER'),
+  -- ADVANCE: مدير مباشر ← HR ← CFO
+  (gen_random_uuid()::text, 'ADVANCE',            1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'ADVANCE',            2, 'HR'),
+  (gen_random_uuid()::text, 'ADVANCE',            3, 'CFO'),
+  -- JOB_CHANGE: مدير مباشر ← HR
+  (gen_random_uuid()::text, 'JOB_CHANGE',         1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'JOB_CHANGE',         2, 'HR'),
+  -- RIGHTS: HR
+  (gen_random_uuid()::text, 'RIGHTS',             1, 'HR'),
+  -- REWARD: مدير مباشر ← HR ← CEO
+  (gen_random_uuid()::text, 'REWARD',             1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'REWARD',             2, 'HR'),
+  (gen_random_uuid()::text, 'REWARD',             3, 'CEO'),
+  -- SPONSORSHIP: مدير مباشر ← HR
+  (gen_random_uuid()::text, 'SPONSORSHIP',        1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'SPONSORSHIP',        2, 'HR'),
+  -- OTHER: مدير مباشر
+  (gen_random_uuid()::text, 'OTHER',              1, 'DIRECT_MANAGER'),
+  -- PENALTY_PROPOSAL: مدير مباشر ← HR ← CEO
+  (gen_random_uuid()::text, 'PENALTY_PROPOSAL',   1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'PENALTY_PROPOSAL',   2, 'HR'),
+  (gen_random_uuid()::text, 'PENALTY_PROPOSAL',   3, 'CEO'),
+  -- OVERTIME_EMPLOYEE: مدير مباشر ← HR
+  (gen_random_uuid()::text, 'OVERTIME_EMPLOYEE',  1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'OVERTIME_EMPLOYEE',  2, 'HR'),
+  -- OVERTIME_MANAGER: HR ← CEO
+  (gen_random_uuid()::text, 'OVERTIME_MANAGER',   1, 'HR'),
+  (gen_random_uuid()::text, 'OVERTIME_MANAGER',   2, 'CEO'),
+  -- BUSINESS_MISSION: مدير مباشر ← HR ← CEO
+  (gen_random_uuid()::text, 'BUSINESS_MISSION',   1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'BUSINESS_MISSION',   2, 'HR'),
+  (gen_random_uuid()::text, 'BUSINESS_MISSION',   3, 'CEO'),
+  -- DELEGATION: مدير مباشر ← مدير المفوَّض إليه ← HR
+  (gen_random_uuid()::text, 'DELEGATION',         1, 'DIRECT_MANAGER'),
+  (gen_random_uuid()::text, 'DELEGATION',         2, 'TARGET_MANAGER'),
+  (gen_random_uuid()::text, 'DELEGATION',         3, 'HR'),
+  -- HIRING_REQUEST: مدير القسم ← HR ← CEO
+  (gen_random_uuid()::text, 'HIRING_REQUEST',     1, 'DEPARTMENT_MANAGER'),
+  (gen_random_uuid()::text, 'HIRING_REQUEST',     2, 'HR'),
+  (gen_random_uuid()::text, 'HIRING_REQUEST',     3, 'CEO'),
+  -- COMPLAINT: HR ← CEO
+  (gen_random_uuid()::text, 'COMPLAINT',          1, 'HR'),
+  (gen_random_uuid()::text, 'COMPLAINT',          2, 'CEO')
 ON CONFLICT DO NOTHING;
 
 COMMIT;
