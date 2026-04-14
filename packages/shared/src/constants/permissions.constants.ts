@@ -150,10 +150,17 @@ export const PERMISSIONS = {
 
   // ── Requests ───────────────────────────────────────────────────────
   REQUESTS: {
-    READ:           'requests:read',
-    MANAGER_APPROVE:'requests:manager-approve',
-    MANAGER_REJECT: 'requests:manager-reject',
-    HR_APPROVE:     'requests:hr-approve',
-    HR_REJECT:      'requests:hr-reject',
+    READ:             'requests:read',
+    MANAGER_APPROVE:  'requests:manager-approve',
+    MANAGER_REJECT:   'requests:manager-reject',
+    HR_APPROVE:       'requests:hr-approve',
+    HR_REJECT:        'requests:hr-reject',
+    // Dynamic approval system
+    APPROVE:          'requests:approve',
+    REJECT:           'requests:reject',
+    CEO_APPROVE:      'requests:ceo-approve',
+    CFO_APPROVE:      'requests:cfo-approve',
+    READ_ALL_STEPS:   'requests:read-all-steps',
+    MANAGE_WORKFLOWS: 'requests:manage-workflows',
   },
 } as const;
