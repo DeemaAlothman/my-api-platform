@@ -11,17 +11,15 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- 2. تحويل عمود status من TEXT إلى enum
---    نتحقق أولاً أن كل القيم الموجودة ضمن النطاق المسموح
-DO $$ BEGIN
-  IF EXISTS (
-    SELECT 1 FROM leaves.leave_requests
-    WHERE status NOT IN ('DRAFT','PENDING_MANAGER','PENDING_HR','APPROVED','REJECTED','CANCELLED')
-  ) THEN
-    RAISE EXCEPTION 'Found leave_requests with invalid status values — fix data before migrating';
-  END IF;
-END $$;
+-- 2. تصحيح القيم غير الصالحة قبل التحويل
+--    'PENDING' كان مستخدماً في seed قديم → نحوّله إلى PENDING_MANAGER
+UPDATE leave_requests SET status = 'PENDING_MANAGER' WHERE status = 'PENDING';
+-- أي قيم غير معروفة أخرى → نحوّلها إلى DRAFT
+UPDATE leave_requests
+  SET status = 'DRAFT'
+  WHERE status NOT IN ('DRAFT','PENDING_MANAGER','PENDING_HR','APPROVED','REJECTED','CANCELLED');
 
+-- تحويل عمود status من TEXT إلى enum
 ALTER TABLE leave_requests
   ALTER COLUMN status TYPE "LeaveRequestStatus"
   USING status::"LeaveRequestStatus";
