@@ -184,6 +184,16 @@ async function main() {
     { name: 'job-applications:read',        displayName: 'عرض طلبات التوظيف',     module: 'jobs' },
     { name: 'job-applications:update',      displayName: 'تعديل طلبات التوظيف',    module: 'jobs' },
     { name: 'job-applications:ceo-approve', displayName: 'موافقة CEO على التوظيف', module: 'jobs' },
+
+    // Biometric Devices (أجهزة البصمة)
+    { name: 'biometric.devices.create',   displayName: 'إضافة جهاز بصمة',   module: 'biometric' },
+    { name: 'biometric.devices.read',     displayName: 'عرض أجهزة البصمة',  module: 'biometric' },
+    { name: 'biometric.devices.update',   displayName: 'تعديل جهاز بصمة',   module: 'biometric' },
+    { name: 'biometric.devices.delete',   displayName: 'حذف جهاز بصمة',     module: 'biometric' },
+    { name: 'biometric.mappings.create',  displayName: 'ربط موظف بجهاز',    module: 'biometric' },
+    { name: 'biometric.mappings.read',    displayName: 'عرض ربط الموظفين',  module: 'biometric' },
+    { name: 'biometric.mappings.update',  displayName: 'تعديل ربط موظف',    module: 'biometric' },
+    { name: 'biometric.mappings.delete',  displayName: 'حذف ربط موظف',      module: 'biometric' },
   ];
 
   console.log('Creating permissions...');
