@@ -38,8 +38,8 @@ WORKDIR /app
 COPY --from=builder /app/apps/zkteco/package*.json ./
 RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=builder /app/apps/zkteco/dist   ./dist
-COPY --from=builder /app/apps/zkteco/prisma ./prisma
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+# نسخ الـ generated Prisma client من builder بدل إعادة generate (تجنب Prisma 7 auto-install)
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 4007
 CMD ["node", "dist/src/main.js"]
