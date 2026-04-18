@@ -27,13 +27,15 @@ export class SyncService {
     const dateStr = toLocalDateString(timestamp);
     const lockKey = this.hashLockKey(employeeId + dateStr);
 
+    // 3.3: نستعلم عن shiftType خارج الـ transaction لتجنب إلغاءها عند فشل الاستعلام
+    const shiftType = await this.getEmployeeShiftType(employeeId, dateStr, this.prisma);
+
     try {
       await this.prisma.$transaction(async (tx) => {
         // advisory lock: يمنع race condition لنفس الموظف + اليوم
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
 
-        // 1. جلب نوع الوردية (DAY/NIGHT) لتحديد نافذة اليوم الصحيحة
-        const shiftType = await this.getEmployeeShiftType(employeeId, dateStr, tx);
+        // 1. جلب بصمات اليوم بناءً على نوع الوردية
         const { start: startOfDay, end: endOfDay } = shiftDayRange(timestamp, shiftType);
 
         const todayLogs = await tx.rawAttendanceLog.findMany({
