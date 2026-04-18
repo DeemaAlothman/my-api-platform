@@ -247,6 +247,7 @@ enum MaritalStatus {
   MARRIED
   DIVORCED
   WIDOWED
+  UNSPECIFIED
 }
 
 enum ContractType {
@@ -256,6 +257,7 @@ enum ContractType {
   TRAINEE
   CONSULTANT
   SERVICE_PROVIDER
+  UNSPECIFIED
 }
 
 enum AllowanceType {
@@ -284,6 +286,7 @@ enum BloodType {
   AB_NEGATIVE
   O_POSITIVE
   O_NEGATIVE
+  UNSPECIFIED
 }
 
 enum EducationLevel {
@@ -293,12 +296,14 @@ enum EducationLevel {
   DIPLOMA
   BACHELOR
   POSTGRADUATE
+  UNSPECIFIED
 }
 
 enum WorkType {
   FULL_TIME
   PART_TIME
   REMOTE
+  UNSPECIFIED
 }
 
 enum ProbationPeriod {
@@ -306,6 +311,7 @@ enum ProbationPeriod {
   TWO_MONTHS
   THREE_MONTHS
   PERMANENT
+  UNSPECIFIED
 }
 
 enum InterviewEvaluation {
@@ -314,6 +320,7 @@ enum InterviewEvaluation {
   GOOD
   ACCEPTABLE
   POOR
+  UNSPECIFIED
 }
 
 enum ProbationResult {

@@ -12,6 +12,7 @@ export enum MaritalStatus {
   MARRIED = 'MARRIED',
   DIVORCED = 'DIVORCED',
   WIDOWED = 'WIDOWED',
+  UNSPECIFIED = 'UNSPECIFIED',
 }
 
 export enum ContractType {
@@ -21,6 +22,7 @@ export enum ContractType {
   TRAINEE = 'TRAINEE',
   CONSULTANT = 'CONSULTANT',
   SERVICE_PROVIDER = 'SERVICE_PROVIDER',
+  UNSPECIFIED = 'UNSPECIFIED',
 }
 
 export enum AllowanceType {
@@ -63,6 +65,7 @@ export enum BloodType {
   AB_NEGATIVE = 'AB_NEGATIVE',
   O_POSITIVE = 'O_POSITIVE',
   O_NEGATIVE = 'O_NEGATIVE',
+  UNSPECIFIED = 'UNSPECIFIED',
 }
 
 export enum EducationLevel {
@@ -72,12 +75,14 @@ export enum EducationLevel {
   DIPLOMA = 'DIPLOMA',
   BACHELOR = 'BACHELOR',
   POSTGRADUATE = 'POSTGRADUATE',
+  UNSPECIFIED = 'UNSPECIFIED',
 }
 
 export enum WorkType {
   FULL_TIME = 'FULL_TIME',
   PART_TIME = 'PART_TIME',
   REMOTE = 'REMOTE',
+  UNSPECIFIED = 'UNSPECIFIED',
 }
 
 export enum ProbationPeriod {
@@ -85,6 +90,7 @@ export enum ProbationPeriod {
   TWO_MONTHS = 'TWO_MONTHS',
   THREE_MONTHS = 'THREE_MONTHS',
   PERMANENT = 'PERMANENT',
+  UNSPECIFIED = 'UNSPECIFIED',
 }
 
 export enum InterviewEvaluation {
@@ -93,6 +99,7 @@ export enum InterviewEvaluation {
   GOOD = 'GOOD',
   ACCEPTABLE = 'ACCEPTABLE',
   POOR = 'POOR',
+  UNSPECIFIED = 'UNSPECIFIED',
 }
 
 export class EmployeeAttachmentDto {
