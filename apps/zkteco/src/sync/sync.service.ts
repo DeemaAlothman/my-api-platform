@@ -256,15 +256,74 @@ export class SyncService {
       );
       const netWorkedMinutes = grossMinutes - totalBreakMinutes;
 
+      // حساب lateMinutes / earlyLeaveMinutes من جدول الدوام
+      const { lateMinutes, earlyLeaveMinutes } = await this.calcScheduleDeltas(
+        employeeId, dateStr, fin.clockInTime, fin.clockOutTime, tx,
+      );
+
       await tx.$executeRaw`
         UPDATE attendance.attendance_records
-        SET "workedMinutes"     = ${grossMinutes},
-            "totalBreakMinutes" = ${totalBreakMinutes},
-            "netWorkedMinutes"  = ${netWorkedMinutes},
-            "updatedAt"         = NOW()
+        SET "workedMinutes"       = ${grossMinutes},
+            "totalBreakMinutes"   = ${totalBreakMinutes},
+            "netWorkedMinutes"    = ${netWorkedMinutes},
+            "lateMinutes"         = ${lateMinutes},
+            "earlyLeaveMinutes"   = ${earlyLeaveMinutes},
+            "updatedAt"           = NOW()
         WHERE id = ${recordId}
       `;
     }
+  }
+
+  /**
+   * يحسب lateMinutes و earlyLeaveMinutes بناءً على جدول الدوام المخصص للموظف
+   */
+  private async calcScheduleDeltas(
+    employeeId: string,
+    dateStr: string,
+    clockInTime: Date,
+    clockOutTime: Date,
+    tx: any,
+  ): Promise<{ lateMinutes: number; earlyLeaveMinutes: number }> {
+    const schedules = await tx.$queryRaw<Array<{
+      workStartTime: string;
+      workEndTime: string;
+      lateToleranceMin: number;
+      earlyLeaveToleranceMin: number;
+    }>>`
+      SELECT ws."workStartTime", ws."workEndTime",
+             ws."lateToleranceMin", ws."earlyLeaveToleranceMin"
+      FROM attendance.employee_schedules es
+      JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+      WHERE es."employeeId" = ${employeeId}
+        AND ${dateStr}::date BETWEEN es."effectiveFrom"::date
+            AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+        AND es."isActive" = true
+      LIMIT 1
+    `;
+
+    if (!schedules[0]) return { lateMinutes: 0, earlyLeaveMinutes: 0 };
+
+    const s = schedules[0];
+    const [startH, startM] = s.workStartTime.split(':').map(Number);
+    const [endH, endM] = s.workEndTime.split(':').map(Number);
+
+    // وقت البداية المقرر بتوقيت الرياض → UTC (UTC = local - 3h)
+    const scheduledStartLocal = new Date(clockInTime);
+    scheduledStartLocal.setUTCHours(startH - 3, startM, 0, 0); // UTC = local - 3
+    const scheduledStart = new Date(scheduledStartLocal.getTime());
+
+    // وقت النهاية المقرر
+    const scheduledEndLocal = new Date(clockOutTime);
+    scheduledEndLocal.setUTCHours(endH - 3, endM, 0, 0);
+    const scheduledEnd = new Date(scheduledEndLocal.getTime());
+
+    const lateRaw = Math.floor((clockInTime.getTime() - scheduledStart.getTime()) / 60000);
+    const earlyRaw = Math.floor((scheduledEnd.getTime() - clockOutTime.getTime()) / 60000);
+
+    const lateMinutes = Math.max(0, lateRaw - (s.lateToleranceMin || 0));
+    const earlyLeaveMinutes = Math.max(0, earlyRaw - (s.earlyLeaveToleranceMin || 0));
+
+    return { lateMinutes, earlyLeaveMinutes };
   }
 
   /**
