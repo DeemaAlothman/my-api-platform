@@ -16,7 +16,7 @@ COPY apps/gateway/package*.json    ./apps/gateway/
 COPY apps/zkteco/package*.json     ./apps/zkteco/
 
 # Step 2: Install all workspace deps (CACHED if no package.json changed)
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Step 3: Copy source code
 COPY packages ./packages
@@ -36,7 +36,7 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 COPY --from=builder /app/apps/zkteco/package*.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=builder /app/apps/zkteco/dist   ./dist
 COPY --from=builder /app/apps/zkteco/prisma ./prisma
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
