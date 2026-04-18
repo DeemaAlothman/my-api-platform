@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateMappingDto {
   @IsString()
@@ -12,6 +13,8 @@ export class CreateMappingDto {
 }
 
 export class BulkCreateMappingDto {
-  @IsString({ each: true })
-  mappings: { employeeId: string; pin: string; deviceId: string }[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateMappingDto)
+  mappings: CreateMappingDto[];
 }

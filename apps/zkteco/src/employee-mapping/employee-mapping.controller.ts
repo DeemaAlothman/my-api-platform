@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { EmployeeMappingService } from './employee-mapping.service';
-import { CreateMappingDto } from './dto/create-mapping.dto';
+import { CreateMappingDto, BulkCreateMappingDto } from './dto/create-mapping.dto';
 import { UpdateMappingDto } from './dto/update-mapping.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -19,8 +19,8 @@ export class EmployeeMappingController {
 
   @Post('bulk')
   @Permission('biometric.mappings.create')
-  bulkCreate(@Body() body: { mappings: CreateMappingDto[] }) {
-    return this.employeeMappingService.bulkCreate(body.mappings);
+  bulkCreate(@Body() dto: BulkCreateMappingDto) {
+    return this.employeeMappingService.bulkCreate(dto.mappings);
   }
 
   @Get()

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { localDayRange, toLocalDateString } from '../common/utils/timezone';
+import { shiftDayRange, toLocalDateString } from '../common/utils/timezone';
 
 type InterpretedType = 'CLOCK_IN' | 'CLOCK_OUT' | 'BREAK_OUT' | 'BREAK_IN';
 
@@ -32,8 +32,9 @@ export class SyncService {
         // advisory lock: يمنع race condition لنفس الموظف + اليوم
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
 
-        // 1. جلب كل بصمات هالموظف لهاليوم مرتبة بالوقت (بتوقيت الرياض)
-        const { start: startOfDay, end: endOfDay } = localDayRange(timestamp);
+        // 1. جلب نوع الوردية (DAY/NIGHT) لتحديد نافذة اليوم الصحيحة
+        const shiftType = await this.getEmployeeShiftType(employeeId, dateStr, tx);
+        const { start: startOfDay, end: endOfDay } = shiftDayRange(timestamp, shiftType);
 
         const todayLogs = await tx.rawAttendanceLog.findMany({
           where: {
@@ -57,13 +58,14 @@ export class SyncService {
         // 3. تطبيق Toggle Logic
         const interpreted = this.applyToggleLogic(filteredLogs);
 
-        // 4. تحديث interpretedAs و pairIndex لكل سجل
+        // 4. تحديث interpretedAs و pairIndex (وsyncError إذا وجد تعارض rawType)
         for (const item of interpreted) {
           await tx.rawAttendanceLog.update({
             where: { id: item.id },
             data: {
               interpretedAs: item.interpretedAs,
               pairIndex: item.pairIndex,
+              ...(item.syncError ? { syncError: item.syncError } : {}),
             },
           });
         }
@@ -101,6 +103,33 @@ export class SyncService {
   }
 
   /**
+   * 3.3: جلب نوع وردية الموظف من جدول الدوام — fallback لـ DAY
+   */
+  private async getEmployeeShiftType(
+    employeeId: string,
+    dateStr: string,
+    tx: any,
+  ): Promise<'DAY' | 'NIGHT'> {
+    try {
+      const rows = await tx.$queryRaw<Array<{ shiftType: string }>>`
+        SELECT ws."shiftType"
+        FROM attendance.employee_schedules es
+        JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+        WHERE es."employeeId" = ${employeeId}
+          AND ${dateStr}::date BETWEEN es."effectiveFrom"::date
+              AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+          AND es."isActive" = true
+        LIMIT 1
+      `;
+      const val = rows[0]?.shiftType;
+      return val === 'NIGHT' ? 'NIGHT' : 'DAY';
+    } catch {
+      // العمود shiftType غير موجود بعد أو لا يوجد جدول دوام → افتراضي DAY
+      return 'DAY';
+    }
+  }
+
+  /**
    * تصفية البصمات المتكررة (أقل من دقيقتين بين بصمتين)
    * يُرجع: kept = البصمات المقبولة، duplicates = IDs المكررة للتعليم
    */
@@ -124,32 +153,44 @@ export class SyncService {
   }
 
   /**
-   * تطبيق Toggle Logic:
-   * N=1: [CLOCK_IN]
+   * تطبيق Toggle Logic مع rawType tie-breaker (4.1):
+   * N=1: rawType=1 → CLOCK_OUT (خروج بلا دخول)، غير ذلك CLOCK_IN
    * N=2: [CLOCK_IN, CLOCK_OUT]
    * N>=3: [CLOCK_IN, BREAK_OUT/BREAK_IN alternating, CLOCK_OUT]
+   * tie-breaker: إذا آخر بصمتين لهما نفس rawType → تحذير في syncError
    */
-  private applyToggleLogic(logs: any[]): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number }> {
+  private applyToggleLogic(
+    logs: any[],
+  ): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> {
     const n = logs.length;
 
-    return logs.map((log, index) => {
+    const result = logs.map((log, index) => {
       let interpretedAs: InterpretedType;
 
       if (index === 0) {
-        interpretedAs = 'CLOCK_IN';
-      } else if (n === 2 && index === 1) {
-        interpretedAs = 'CLOCK_OUT';
+        // 4.1: rawType=1 في البصمة الأولى يعني CLOCK_OUT بلا دخول مسجَّل
+        interpretedAs = (log.rawType === 1) ? 'CLOCK_OUT' : 'CLOCK_IN';
       } else if (index === n - 1) {
-        // آخر بصمة = خروج نهائي
         interpretedAs = 'CLOCK_OUT';
       } else {
-        // بصمات وسطية: تتبادل BREAK_OUT / BREAK_IN
-        // index 1 = BREAK_OUT, index 2 = BREAK_IN, index 3 = BREAK_OUT, ...
         interpretedAs = index % 2 === 1 ? 'BREAK_OUT' : 'BREAK_IN';
       }
 
-      return { id: log.id, interpretedAs, pairIndex: index + 1 };
+      return { id: log.id, interpretedAs, pairIndex: index + 1, syncError: undefined as string | undefined };
     });
+
+    // 4.1: تحقق من تعارض rawType في آخر بصمتين
+    if (n >= 2) {
+      const last = logs[n - 1];
+      const prev = logs[n - 2];
+      if (last.rawType === prev.rawType && last.rawType !== undefined) {
+        const warn = `rawType conflict: last 2 stamps both have rawType=${last.rawType}`;
+        this.logger.warn(warn);
+        result[n - 1].syncError = warn;
+      }
+    }
+
+    return result;
   }
 
   /**
