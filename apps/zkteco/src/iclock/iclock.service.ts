@@ -157,12 +157,12 @@ export class IclockService {
 
     // تحقق من حالة الموظف (2.4)
     if (employeeId) {
-      const employees = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
-        SELECT id, status FROM users.employees
+      const employees = await this.prisma.$queryRaw<Array<{ id: string; employmentStatus: string }>>`
+        SELECT id, "employmentStatus" FROM users.employees
         WHERE id = ${employeeId} AND "deletedAt" IS NULL
         LIMIT 1
       `;
-      if (employees.length === 0 || employees[0].status !== 'ACTIVE') {
+      if (employees.length === 0 || employees[0].employmentStatus !== 'ACTIVE') {
         await this.prisma.rawAttendanceLog.create({
           data: {
             deviceId, deviceSN, pin: log.pin, employeeId,
