@@ -287,11 +287,11 @@ enum BloodType {
 }
 
 enum EducationLevel {
-  ILLITERATE
   PRIMARY
+  INTERMEDIATE
   SECONDARY
   DIPLOMA
-  UNIVERSITY
+  BACHELOR
   POSTGRADUATE
 }
 
