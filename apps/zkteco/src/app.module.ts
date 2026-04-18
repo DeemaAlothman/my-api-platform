@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaService } from './prisma/prisma.service';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
@@ -12,6 +13,7 @@ import { SyncModule } from './sync/sync.module';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     DeviceModule,
     EmployeeMappingModule,
