@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { localDayRange, toLocalDateString } from '../common/utils/timezone';
 
 type InterpretedType = 'CLOCK_IN' | 'CLOCK_OUT' | 'BREAK_OUT' | 'BREAK_IN';
 
@@ -23,76 +24,103 @@ export class SyncService {
    * يُعيد حساب تفسير كل بصمات اليوم ويكتب للـ attendance schema.
    */
   async processNewStamp(logId: string, employeeId: string, deviceSN: string, timestamp: Date) {
+    const dateStr = toLocalDateString(timestamp);
+    const lockKey = this.hashLockKey(employeeId + dateStr);
+
     try {
-      // 1. جلب كل بصمات هالموظف لهاليوم مرتبة بالوقت
-      const startOfDay = new Date(timestamp);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(timestamp);
-      endOfDay.setHours(23, 59, 59, 999);
+      await this.prisma.$transaction(async (tx) => {
+        // advisory lock: يمنع race condition لنفس الموظف + اليوم
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
 
-      const todayLogs = await this.prisma.rawAttendanceLog.findMany({
-        where: {
-          employeeId,
-          timestamp: { gte: startOfDay, lte: endOfDay },
-        },
-        orderBy: { timestamp: 'asc' },
-      });
+        // 1. جلب كل بصمات هالموظف لهاليوم مرتبة بالوقت (بتوقيت الرياض)
+        const { start: startOfDay, end: endOfDay } = localDayRange(timestamp);
 
-      if (todayLogs.length === 0) return;
-
-      // 2. تصفية البصمات المتكررة (أقل من دقيقتين)
-      const filteredLogs = this.filterDuplicates(todayLogs);
-
-      // 3. تطبيق Toggle Logic
-      const interpreted = this.applyToggleLogic(filteredLogs);
-
-      // 4. تحديث interpretedAs و pairIndex لكل سجل
-      for (const item of interpreted) {
-        await this.prisma.rawAttendanceLog.update({
-          where: { id: item.id },
-          data: {
-            interpretedAs: item.interpretedAs,
-            pairIndex: item.pairIndex,
+        const todayLogs = await tx.rawAttendanceLog.findMany({
+          where: {
+            employeeId,
+            timestamp: { gte: startOfDay, lte: endOfDay },
           },
+          orderBy: { timestamp: 'asc' },
         });
-      }
 
-      // 5. كتابة للـ attendance schema
-      await this.writeToAttendance(employeeId, timestamp, interpreted);
+        if (todayLogs.length === 0) return;
 
-      // 6. وضع علامة synced على السجل الجديد
-      await this.prisma.rawAttendanceLog.update({
-        where: { id: logId },
-        data: { synced: true, syncedAt: new Date() },
+        // 2. تصفية البصمات المكررة (أقل من دقيقتين) وتعليمها
+        const { kept: filteredLogs, duplicates: duplicateIds } = this.filterDuplicates(todayLogs);
+        if (duplicateIds.length > 0) {
+          await tx.rawAttendanceLog.updateMany({
+            where: { id: { in: duplicateIds } },
+            data: { interpretedAs: 'DUPLICATE_IGNORED' },
+          });
+        }
+
+        // 3. تطبيق Toggle Logic
+        const interpreted = this.applyToggleLogic(filteredLogs);
+
+        // 4. تحديث interpretedAs و pairIndex لكل سجل
+        for (const item of interpreted) {
+          await tx.rawAttendanceLog.update({
+            where: { id: item.id },
+            data: {
+              interpretedAs: item.interpretedAs,
+              pairIndex: item.pairIndex,
+            },
+          });
+        }
+
+        // 5. كتابة للـ attendance schema
+        await this.writeToAttendance(employeeId, timestamp, interpreted, tx);
+
+        // 6. وضع علامة synced على السجل الجديد
+        await tx.rawAttendanceLog.update({
+          where: { id: logId },
+          data: { synced: true, syncedAt: new Date() },
+        });
       });
 
     } catch (error) {
-      this.logger.error(`Error processing stamp logId=${logId}: ${error.message}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error processing stamp logId=${logId}: ${msg}`);
       await this.prisma.rawAttendanceLog.update({
         where: { id: logId },
-        data: { syncError: error.message },
+        data: { syncError: msg },
       }).catch(() => {});
     }
   }
 
   /**
-   * تصفية البصمات المتكررة (أقل من دقيقتين بين بصمتين)
+   * FNV-1a hash → bigint للاستخدام مع pg_advisory_xact_lock
    */
-  private filterDuplicates(logs: any[]): any[] {
-    const filtered: any[] = [];
+  private hashLockKey(s: string): bigint {
+    let hash = BigInt(2166136261);
+    for (const ch of s) {
+      hash ^= BigInt(ch.charCodeAt(0));
+      hash = (hash * BigInt(16777619)) & BigInt('0x7FFFFFFFFFFFFFFF');
+    }
+    return hash;
+  }
+
+  /**
+   * تصفية البصمات المتكررة (أقل من دقيقتين بين بصمتين)
+   * يُرجع: kept = البصمات المقبولة، duplicates = IDs المكررة للتعليم
+   */
+  private filterDuplicates(logs: any[]): { kept: any[]; duplicates: string[] } {
+    const kept: any[] = [];
+    const duplicates: string[] = [];
     for (const log of logs) {
-      if (filtered.length === 0) {
-        filtered.push(log);
+      if (kept.length === 0) {
+        kept.push(log);
         continue;
       }
-      const last = filtered[filtered.length - 1];
+      const last = kept[kept.length - 1];
       const diffMs = log.timestamp.getTime() - last.timestamp.getTime();
       if (diffMs >= 2 * 60 * 1000) { // 2 دقائق
-        filtered.push(log);
+        kept.push(log);
+      } else {
+        duplicates.push(log.id); // تعليم كـ DUPLICATE_IGNORED
       }
-      // else: تجاهل البصمة المتكررة
     }
-    return filtered;
+    return { kept, duplicates };
   }
 
   /**
@@ -131,11 +159,12 @@ export class SyncService {
     employeeId: string,
     timestamp: Date,
     interpreted: Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number }>,
+    tx: any,
   ) {
-    const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
+    const dateStr = toLocalDateString(timestamp); // YYYY-MM-DD بتوقيت الرياض
 
     // جلب اليوم الحالي من attendance schema
-    const records = await this.prisma.$queryRaw<Array<{
+    const records = await tx.$queryRaw<Array<{
       id: string;
       clockInTime: Date | null;
       clockOutTime: Date | null;
@@ -151,22 +180,22 @@ export class SyncService {
 
     // جلب timestamps للبصمات المفسرة
     const logIds = interpreted.map(i => i.id);
-    const rawLogs = await this.prisma.rawAttendanceLog.findMany({
+    const rawLogs = await tx.rawAttendanceLog.findMany({
       where: { id: { in: logIds } },
       select: { id: true, timestamp: true },
     });
-    const timestampMap = new Map(rawLogs.map(l => [l.id, l.timestamp]));
+    const timestampMap = new Map(rawLogs.map((l: { id: string; timestamp: Date }) => [l.id, l.timestamp]));
 
     const clockInItem = interpreted.find(i => i.interpretedAs === 'CLOCK_IN');
     const clockOutItem = [...interpreted].reverse().find(i => i.interpretedAs === 'CLOCK_OUT');
 
-    const clockInTime = clockInItem ? timestampMap.get(clockInItem.id) : null;
-    const clockOutTime = clockOutItem ? timestampMap.get(clockOutItem.id) : null;
+    const clockInTime = (clockInItem ? timestampMap.get(clockInItem.id) : null) as Date | null | undefined;
+    const clockOutTime = (clockOutItem ? timestampMap.get(clockOutItem.id) : null) as Date | null | undefined;
 
     if (!existingRecord) {
       // إنشاء سجل جديد
       if (clockInTime) {
-        await this.prisma.$executeRaw`
+        await tx.$executeRaw`
           INSERT INTO attendance.attendance_records
             (id, "employeeId", date, "clockInTime", "clockOutTime", status, "isManualEntry", "lateMinutes", "earlyLeaveMinutes", "deductionApplied", "createdAt", "updatedAt")
           VALUES
@@ -176,11 +205,8 @@ export class SyncService {
         `;
       }
     } else {
-      // تحديث السجل الموجود
-      const updates: string[] = [];
-
       if (clockInTime && !existingRecord.clockInTime) {
-        await this.prisma.$executeRaw`
+        await tx.$executeRaw`
           UPDATE attendance.attendance_records
           SET "clockInTime" = ${clockInTime}, "updatedAt" = NOW()
           WHERE id = ${existingRecord.id}
@@ -192,10 +218,10 @@ export class SyncService {
         const inTime = existingRecord.clockInTime ?? clockInTime;
         let workedMinutes: number | null = null;
         if (inTime && clockOutTime) {
-          workedMinutes = Math.floor((clockOutTime.getTime() - inTime.getTime()) / 60000);
+          workedMinutes = Math.floor(((clockOutTime as Date).getTime() - (inTime as Date).getTime()) / 60000);
         }
 
-        await this.prisma.$executeRaw`
+        await tx.$executeRaw`
           UPDATE attendance.attendance_records
           SET "clockOutTime" = ${clockOutTime},
               "workedMinutes" = ${workedMinutes},

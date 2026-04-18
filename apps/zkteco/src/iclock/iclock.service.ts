@@ -153,7 +153,27 @@ export class IclockService {
       where: { pin: log.pin, deviceId, isActive: true },
     });
 
-    const employeeId = mapping?.employeeId ?? null;
+    let employeeId = mapping?.employeeId ?? null;
+
+    // تحقق من حالة الموظف (2.4)
+    if (employeeId) {
+      const employees = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`
+        SELECT id, status FROM users.employees
+        WHERE id = ${employeeId} AND "deletedAt" IS NULL
+        LIMIT 1
+      `;
+      if (employees.length === 0 || employees[0].status !== 'ACTIVE') {
+        await this.prisma.rawAttendanceLog.create({
+          data: {
+            deviceId, deviceSN, pin: log.pin, employeeId,
+            timestamp: log.timestamp, rawType: log.rawType, synced: false,
+            syncError: `Employee ${employeeId} inactive/deleted`,
+          },
+        });
+        this.logger.warn(`PIN ${log.pin} → employee ${employeeId} is inactive/deleted`);
+        return;
+      }
+    }
 
     // احفظ السجل الخام
     const rawLog = await this.prisma.rawAttendanceLog.create({
