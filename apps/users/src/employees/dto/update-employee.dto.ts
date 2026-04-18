@@ -1,6 +1,6 @@
 import { IsEmail, IsEnum, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Gender, MaritalStatus, ContractType, BloodType, EducationLevel, EmployeeAttachmentDto, TrainingCertificateDto, EmployeeAllowanceDto, ProbationPeriod, InterviewEvaluation } from './create-employee.dto';
+import { Gender, MaritalStatus, ContractType, BloodType, EducationLevel, EmployeeAttachmentDto, TrainingCertificateDto, EmployeeAllowanceDto, ProbationPeriod, InterviewEvaluation, WorkType } from './create-employee.dto';
 
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',
@@ -57,7 +57,7 @@ export class UpdateEmployeeDto {
 
   @IsOptional()
   @IsEnum(MaritalStatus)
-  maritalStatus?: MaritalStatus;
+  maritalStatus?: MaritalStatus | null;
 
   @IsOptional()
   @IsBoolean()
@@ -96,12 +96,16 @@ export class UpdateEmployeeDto {
   fingerprintId?: string;
 
   @IsOptional()
+  @IsEnum(WorkType)
+  workType?: WorkType | null;
+
+  @IsOptional()
   @IsEnum(ProbationPeriod)
-  probationPeriod?: ProbationPeriod;
+  probationPeriod?: ProbationPeriod | null;
 
   @IsOptional()
   @IsEnum(InterviewEvaluation)
-  interviewEvaluation?: InterviewEvaluation;
+  interviewEvaluation?: InterviewEvaluation | null;
 
   @IsOptional()
   @Type(() => Number)
@@ -120,7 +124,7 @@ export class UpdateEmployeeDto {
 
   @IsOptional()
   @IsEnum(BloodType)
-  bloodType?: BloodType;
+  bloodType?: BloodType | null;
 
   @IsOptional()
   @IsInt()
@@ -142,7 +146,7 @@ export class UpdateEmployeeDto {
 
   @IsOptional()
   @IsEnum(EducationLevel)
-  educationLevel?: EducationLevel;
+  educationLevel?: EducationLevel | null;
 
   @IsOptional()
   @IsInt()
@@ -178,6 +182,10 @@ export class UpdateEmployeeDto {
 
   @IsOptional()
   @IsString()
+  university1?: string;
+
+  @IsOptional()
+  @IsString()
   certificateAttachment1?: string;
 
   @IsOptional()
@@ -187,6 +195,10 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   specialization2?: string;
+
+  @IsOptional()
+  @IsString()
+  university2?: string;
 
   @IsOptional()
   @IsString()

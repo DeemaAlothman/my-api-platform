@@ -95,6 +95,7 @@ model Employee {
   fingerprintId  String?
 
   // Hiring
+  workType           WorkType?
   probationPeriod    ProbationPeriod?
   interviewEvaluation InterviewEvaluation?
 
@@ -117,9 +118,11 @@ model Employee {
   yearsOfExperience      Int?
   certificate1           String?
   specialization1        String?
+  university1            String?
   certificateAttachment1 String?
   certificate2           String?
   specialization2        String?
+  university2            String?
   certificateAttachment2 String?
 
   // Attachments
@@ -251,6 +254,8 @@ enum ContractType {
   INDEFINITE
   TEMPORARY
   TRAINEE
+  CONSULTANT
+  SERVICE_PROVIDER
 }
 
 enum AllowanceType {
@@ -290,10 +295,17 @@ enum EducationLevel {
   POSTGRADUATE
 }
 
+enum WorkType {
+  FULL_TIME
+  PART_TIME
+  REMOTE
+}
+
 enum ProbationPeriod {
   ONE_MONTH
   TWO_MONTHS
   THREE_MONTHS
+  PERMANENT
 }
 
 enum InterviewEvaluation {

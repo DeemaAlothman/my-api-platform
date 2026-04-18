@@ -236,15 +236,19 @@ export class EmployeesService {
   }
 
   async create(dto: CreateEmployeeDto) {
-    // تحقق من email موجود
+    // تحقق من email موجود (نشط أو محذوف سابقاً)
     const existingEmail = await this.prisma.employee.findFirst({
-      where: {
-        email: dto.email,
-        deletedAt: null,
-      },
+      where: { email: dto.email },
     });
 
     if (existingEmail) {
+      if (existingEmail.deletedAt !== null) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_PREVIOUSLY_DELETED',
+          message: 'An employee with this email was previously deleted. Please contact the admin to restore the record.',
+          details: [{ field: 'email', value: dto.email }],
+        });
+      }
       throw new ConflictException({
         code: 'RESOURCE_ALREADY_EXISTS',
         message: 'Email already exists',
@@ -272,15 +276,19 @@ export class EmployeesService {
       employeeNumber = `VTX-EMP-${String(count + 1).padStart(6, '0')}`;
     }
 
-    // تحقق من employeeNumber مو مكرر
+    // تحقق من employeeNumber مو مكرر (نشط أو محذوف سابقاً)
     const existingNumber = await this.prisma.employee.findFirst({
-      where: {
-        employeeNumber,
-        deletedAt: null,
-      },
+      where: { employeeNumber },
     });
 
     if (existingNumber) {
+      if (existingNumber.deletedAt !== null) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_PREVIOUSLY_DELETED',
+          message: 'An employee with this number was previously deleted. Please contact the admin to restore the record.',
+          details: [{ field: 'employeeNumber', value: employeeNumber }],
+        });
+      }
       throw new ConflictException({
         code: 'RESOURCE_ALREADY_EXISTS',
         message: 'Employee number already exists',

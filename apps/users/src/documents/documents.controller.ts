@@ -58,7 +58,7 @@ export class DocumentsController {
   })
   @UseInterceptors(FileInterceptor('file', {
     storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
     fileFilter: (_req, file, cb) => {
       if (ALLOWED_MIMES.includes(file.mimetype)) {
         cb(null, true);

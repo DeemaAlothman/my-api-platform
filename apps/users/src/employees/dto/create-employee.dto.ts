@@ -19,6 +19,8 @@ export enum ContractType {
   INDEFINITE = 'INDEFINITE',
   TEMPORARY = 'TEMPORARY',
   TRAINEE = 'TRAINEE',
+  CONSULTANT = 'CONSULTANT',
+  SERVICE_PROVIDER = 'SERVICE_PROVIDER',
 }
 
 export enum AllowanceType {
@@ -72,10 +74,17 @@ export enum EducationLevel {
   POSTGRADUATE = 'POSTGRADUATE',
 }
 
+export enum WorkType {
+  FULL_TIME = 'FULL_TIME',
+  PART_TIME = 'PART_TIME',
+  REMOTE = 'REMOTE',
+}
+
 export enum ProbationPeriod {
   ONE_MONTH = 'ONE_MONTH',
   TWO_MONTHS = 'TWO_MONTHS',
   THREE_MONTHS = 'THREE_MONTHS',
+  PERMANENT = 'PERMANENT',
 }
 
 export enum InterviewEvaluation {
@@ -186,6 +195,10 @@ export class CreateEmployeeDto {
   fingerprintId?: string;
 
   @IsOptional()
+  @IsEnum(WorkType)
+  workType?: WorkType;
+
+  @IsOptional()
   @IsEnum(ProbationPeriod)
   probationPeriod?: ProbationPeriod;
 
@@ -268,6 +281,10 @@ export class CreateEmployeeDto {
 
   @IsOptional()
   @IsString()
+  university1?: string;
+
+  @IsOptional()
+  @IsString()
   certificateAttachment1?: string;
 
   @IsOptional()
@@ -277,6 +294,10 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   specialization2?: string;
+
+  @IsOptional()
+  @IsString()
+  university2?: string;
 
   @IsOptional()
   @IsString()

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListUsersQueryDto, UserStatus } from './dto/list-users.query.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -130,15 +130,19 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto) {
-    // تحقق من username موجود
+    // تحقق من username موجود (نشط أو محذوف سابقاً)
     const existingUsername = await this.prisma.user.findFirst({
-      where: {
-        username: dto.username,
-        deletedAt: null,
-      },
+      where: { username: dto.username },
     });
 
     if (existingUsername) {
+      if (existingUsername.deletedAt !== null) {
+        throw new ConflictException({
+          code: 'USER_PREVIOUSLY_DELETED',
+          message: 'A user with this username was previously deleted. Please contact the admin to restore the account.',
+          details: [{ field: 'username', value: dto.username }],
+        });
+      }
       throw new ConflictException({
         code: 'RESOURCE_ALREADY_EXISTS',
         message: 'Username already exists',
@@ -146,15 +150,19 @@ export class UsersService {
       });
     }
 
-    // تحقق من email موجود
+    // تحقق من email موجود (نشط أو محذوف سابقاً)
     const existingEmail = await this.prisma.user.findFirst({
-      where: {
-        email: dto.email,
-        deletedAt: null,
-      },
+      where: { email: dto.email },
     });
 
     if (existingEmail) {
+      if (existingEmail.deletedAt !== null) {
+        throw new ConflictException({
+          code: 'USER_PREVIOUSLY_DELETED',
+          message: 'A user with this email was previously deleted. Please contact the admin to restore the account.',
+          details: [{ field: 'email', value: dto.email }],
+        });
+      }
       throw new ConflictException({
         code: 'RESOURCE_ALREADY_EXISTS',
         message: 'Email already exists',
@@ -260,6 +268,44 @@ export class UsersService {
       where: { id },
       data: { deletedAt: new Date() },
     });
+  }
+
+  async changePassword(id: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, password: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'User not found',
+        details: [{ field: 'id', value: id }],
+      });
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Current password is incorrect',
+      });
+    }
+
+    if (newPassword.length < 6) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'New password must be at least 6 characters',
+      });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id },
+      data: { password: hashed },
+    });
+
+    return { message: 'Password changed successfully' };
   }
 
   async assignRoles(id: string, dto: { roleIds: string[] }) {

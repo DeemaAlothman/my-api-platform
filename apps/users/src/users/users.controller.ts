@@ -6,6 +6,7 @@ import { Permission } from '../common/decorators/permission.decorator';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller()
 export class UsersController {
@@ -51,6 +52,13 @@ export class UsersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string) {
     await this.users.remove(id);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('users:update')
+  @Patch('users/:id/password')
+  changePassword(@Param('id') id: string, @Body() dto: ChangePasswordDto) {
+    return this.users.changePassword(id, dto.currentPassword, dto.newPassword);
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
