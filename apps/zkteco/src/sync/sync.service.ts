@@ -153,7 +153,7 @@ export class SyncService {
   }
 
   /**
-   * كتابة النتائج لـ attendance.attendance_records (Option B - Direct DB write)
+   * كتابة النتائج لـ attendance schema مع الاستراحات وحساب workedMinutes
    */
   private async writeToAttendance(
     employeeId: string,
@@ -161,22 +161,7 @@ export class SyncService {
     interpreted: Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number }>,
     tx: any,
   ) {
-    const dateStr = toLocalDateString(timestamp); // YYYY-MM-DD بتوقيت الرياض
-
-    // جلب اليوم الحالي من attendance schema
-    const records = await tx.$queryRaw<Array<{
-      id: string;
-      clockInTime: Date | null;
-      clockOutTime: Date | null;
-    }>>`
-      SELECT id, "clockInTime", "clockOutTime"
-      FROM attendance.attendance_records
-      WHERE "employeeId" = ${employeeId}
-        AND date = ${dateStr}::date
-      LIMIT 1
-    `;
-
-    const existingRecord = records[0] ?? null;
+    const dateStr = toLocalDateString(timestamp);
 
     // جلب timestamps للبصمات المفسرة
     const logIds = interpreted.map(i => i.id);
@@ -184,51 +169,128 @@ export class SyncService {
       where: { id: { in: logIds } },
       select: { id: true, timestamp: true },
     });
-    const timestampMap = new Map(rawLogs.map((l: { id: string; timestamp: Date }) => [l.id, l.timestamp]));
+    const timestampMap = new Map(
+      rawLogs.map((l: { id: string; timestamp: Date }) => [l.id, l.timestamp]),
+    );
 
     const clockInItem = interpreted.find(i => i.interpretedAs === 'CLOCK_IN');
     const clockOutItem = [...interpreted].reverse().find(i => i.interpretedAs === 'CLOCK_OUT');
+    const clockInTime = (clockInItem ? timestampMap.get(clockInItem.id) : null) as Date | null;
+    const clockOutTime = (clockOutItem ? timestampMap.get(clockOutItem.id) : null) as Date | null;
 
-    const clockInTime = (clockInItem ? timestampMap.get(clockInItem.id) : null) as Date | null | undefined;
-    const clockOutTime = (clockOutItem ? timestampMap.get(clockOutItem.id) : null) as Date | null | undefined;
+    // إنشاء أو تحديث attendance_record وإرجاع id
+    const existing = await tx.$queryRaw<Array<{ id: string; clockInTime: Date | null }>>`
+      SELECT id, "clockInTime"
+      FROM attendance.attendance_records
+      WHERE "employeeId" = ${employeeId} AND date = ${dateStr}::date
+      LIMIT 1
+    `;
 
-    if (!existingRecord) {
-      // إنشاء سجل جديد
-      if (clockInTime) {
-        await tx.$executeRaw`
-          INSERT INTO attendance.attendance_records
-            (id, "employeeId", date, "clockInTime", "clockOutTime", status, "isManualEntry", "lateMinutes", "earlyLeaveMinutes", "deductionApplied", "createdAt", "updatedAt")
-          VALUES
-            (gen_random_uuid(), ${employeeId}, ${dateStr}::date, ${clockInTime}, ${clockOutTime ?? null},
-             'PRESENT', false, 0, 0, false, NOW(), NOW())
-          ON CONFLICT ("employeeId", date) DO NOTHING
-        `;
-      }
+    let recordId: string | null = null;
+
+    if (!existing[0]) {
+      if (!clockInTime) return; // لا يمكن إنشاء سجل بدون clock-in
+      const inserted = await tx.$queryRaw<Array<{ id: string }>>`
+        INSERT INTO attendance.attendance_records
+          (id, "employeeId", date, "clockInTime", "clockOutTime", status,
+           "isManualEntry", "lateMinutes", "earlyLeaveMinutes", "deductionApplied",
+           "createdAt", "updatedAt")
+        VALUES
+          (gen_random_uuid(), ${employeeId}, ${dateStr}::date, ${clockInTime}, ${clockOutTime ?? null},
+           'PRESENT', false, 0, 0, false, NOW(), NOW())
+        ON CONFLICT ("employeeId", date) DO UPDATE SET "updatedAt" = NOW()
+        RETURNING id
+      `;
+      recordId = inserted[0]?.id ?? null;
     } else {
-      if (clockInTime && !existingRecord.clockInTime) {
+      recordId = existing[0].id;
+      if (clockInTime && !existing[0].clockInTime) {
         await tx.$executeRaw`
-          UPDATE attendance.attendance_records
-          SET "clockInTime" = ${clockInTime}, "updatedAt" = NOW()
-          WHERE id = ${existingRecord.id}
+          UPDATE attendance.attendance_records SET "clockInTime" = ${clockInTime}, "updatedAt" = NOW()
+          WHERE id = ${recordId}
         `;
       }
-
       if (clockOutTime) {
-        // احسب workedMinutes
-        const inTime = existingRecord.clockInTime ?? clockInTime;
-        let workedMinutes: number | null = null;
-        if (inTime && clockOutTime) {
-          workedMinutes = Math.floor(((clockOutTime as Date).getTime() - (inTime as Date).getTime()) / 60000);
-        }
-
         await tx.$executeRaw`
-          UPDATE attendance.attendance_records
-          SET "clockOutTime" = ${clockOutTime},
-              "workedMinutes" = ${workedMinutes},
-              "updatedAt" = NOW()
-          WHERE id = ${existingRecord.id}
+          UPDATE attendance.attendance_records SET "clockOutTime" = ${clockOutTime}, "updatedAt" = NOW()
+          WHERE id = ${recordId}
         `;
       }
     }
+
+    if (!recordId) return;
+
+    // حساب أزواج الاستراحات وكتابتها
+    const breakPairs = this.buildBreakPairs(interpreted, timestampMap as Map<string, Date>);
+
+    await tx.$executeRaw`
+      DELETE FROM attendance.attendance_breaks WHERE "attendanceRecordId" = ${recordId}
+    `;
+
+    for (const pair of breakPairs) {
+      const duration = pair.breakIn
+        ? Math.floor((pair.breakIn.getTime() - pair.breakOut.getTime()) / 60000)
+        : null;
+      await tx.$executeRaw`
+        INSERT INTO attendance.attendance_breaks
+          (id, "attendanceRecordId", "breakOut", "breakIn", "durationMinutes", "createdAt", "updatedAt")
+        VALUES
+          (gen_random_uuid(), ${recordId}, ${pair.breakOut}, ${pair.breakIn ?? null}, ${duration}, NOW(), NOW())
+      `;
+    }
+
+    // تحديث workedMinutes / totalBreakMinutes / netWorkedMinutes
+    const finalRecord = await tx.$queryRaw<Array<{ clockInTime: Date | null; clockOutTime: Date | null }>>`
+      SELECT "clockInTime", "clockOutTime" FROM attendance.attendance_records WHERE id = ${recordId}
+    `;
+
+    const fin = finalRecord[0];
+    if (fin?.clockInTime && fin?.clockOutTime) {
+      const totalBreakMinutes = breakPairs.reduce((sum, p) => {
+        return p.breakIn
+          ? sum + Math.floor((p.breakIn.getTime() - p.breakOut.getTime()) / 60000)
+          : sum;
+      }, 0);
+      const grossMinutes = Math.floor(
+        (fin.clockOutTime.getTime() - fin.clockInTime.getTime()) / 60000,
+      );
+      const netWorkedMinutes = grossMinutes - totalBreakMinutes;
+
+      await tx.$executeRaw`
+        UPDATE attendance.attendance_records
+        SET "workedMinutes"     = ${grossMinutes},
+            "totalBreakMinutes" = ${totalBreakMinutes},
+            "netWorkedMinutes"  = ${netWorkedMinutes},
+            "updatedAt"         = NOW()
+        WHERE id = ${recordId}
+      `;
+    }
+  }
+
+  /**
+   * بناء أزواج BREAK_OUT → BREAK_IN من قائمة البصمات المفسرة
+   */
+  private buildBreakPairs(
+    interpreted: Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number }>,
+    timestampMap: Map<string, Date>,
+  ): Array<{ breakOut: Date; breakIn: Date | null }> {
+    const pairs: Array<{ breakOut: Date; breakIn: Date | null }> = [];
+    let current: { breakOut: Date; breakIn: Date | null } | null = null;
+
+    for (const item of interpreted) {
+      const ts = timestampMap.get(item.id);
+      if (!ts) continue;
+
+      if (item.interpretedAs === 'BREAK_OUT') {
+        if (current) pairs.push(current);
+        current = { breakOut: ts, breakIn: null };
+      } else if (item.interpretedAs === 'BREAK_IN' && current) {
+        current.breakIn = ts;
+        pairs.push(current);
+        current = null;
+      }
+    }
+    if (current) pairs.push(current); // استراحة مفتوحة
+    return pairs;
   }
 }
