@@ -42,4 +42,4 @@ COPY --from=builder /app/apps/zkteco/prisma ./prisma
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 
 EXPOSE 4007
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
