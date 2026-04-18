@@ -10,7 +10,7 @@ export class AuditInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest();
 
-    if (req.method === 'GET') return next.handle();
+    if (req.method === 'GET' || req.path.startsWith('/iclock')) return next.handle();
 
     return next.handle().pipe(
       finalize(() => {

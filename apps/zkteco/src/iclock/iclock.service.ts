@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DeviceService } from '../device/device.service';
 import { SyncService } from '../sync/sync.service';
@@ -25,14 +25,9 @@ export class IclockService {
   async handleHandshake(sn: string): Promise<string> {
     const device = await this.deviceService.findBySerialNumber(sn);
 
-    if (!device) {
-      this.logger.warn(`Unknown device SN: ${sn}`);
-      // نسمح بالاتصال لكن نسجل تحذير
-      return this.buildHandshakeResponse(sn);
-    }
-
-    if (!device.isActive) {
-      this.logger.warn(`Inactive device SN: ${sn}`);
+    if (!device || !device.isActive) {
+      this.logger.warn(`Rejected handshake from unknown/inactive SN: ${sn}`);
+      throw new UnauthorizedException({ code: 'DEVICE_NOT_REGISTERED' });
     }
 
     await this.deviceService.updateLastSync(device.id);
@@ -105,7 +100,8 @@ export class IclockService {
           if (parsed) results.push(parsed);
         }
       } catch (err) {
-        this.logger.warn(`Failed to parse log line: ${trimmed} - ${err.message}`);
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Failed to parse log line: ${trimmed} - ${msg}`);
       }
     }
 

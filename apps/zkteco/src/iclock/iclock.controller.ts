@@ -1,12 +1,14 @@
-import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { IclockService } from './iclock.service';
+import { DeviceApiKeyGuard } from '../common/guards/device-api-key.guard';
 
 /**
- * PUSH Protocol Endpoints - بدون JWT Auth
+ * PUSH Protocol Endpoints - مصادقة بـ apiKey الجهاز
  * الجهاز يتواصل مباشرة مع هذه الإندبوينتات
  */
 @Controller('iclock')
+@UseGuards(DeviceApiKeyGuard)
 export class IclockController {
   constructor(private readonly iclockService: IclockService) {}
 
