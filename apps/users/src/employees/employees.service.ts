@@ -387,6 +387,7 @@ export class EmployeesService {
       data: {
         ...employeeData,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+        hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
         contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : undefined,
         ...(attachments !== undefined ? {
           attachments: { deleteMany: {}, create: attachments },

@@ -47,8 +47,9 @@ export class EmployeeMappingService {
     return { created: results.length, failed: errors.length, errors };
   }
 
-  async findAll() {
+  async findAll(employeeId?: string) {
     return this.prisma.employeeFingerprint.findMany({
+      where: employeeId ? { employeeId } : undefined,
       include: { device: { select: { id: true, serialNumber: true, nameAr: true } } },
       orderBy: { createdAt: 'desc' },
     });

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { EmployeeMappingService } from './employee-mapping.service';
 import { CreateMappingDto, BulkCreateMappingDto } from './dto/create-mapping.dto';
 import { UpdateMappingDto } from './dto/update-mapping.dto';
@@ -25,8 +25,8 @@ export class EmployeeMappingController {
 
   @Get()
   @Permission('biometric.mappings.read')
-  findAll() {
-    return this.employeeMappingService.findAll();
+  findAll(@Query('employeeId') employeeId?: string) {
+    return this.employeeMappingService.findAll(employeeId);
   }
 
   @Get('by-employee/:employeeId')

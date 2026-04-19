@@ -52,6 +52,10 @@ export class UpdateEmployeeDto {
   dateOfBirth?: string;
 
   @IsOptional()
+  @IsDateString()
+  hireDate?: string;
+
+  @IsOptional()
   @IsString()
   nationality?: string;
 
