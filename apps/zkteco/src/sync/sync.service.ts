@@ -170,8 +170,8 @@ export class SyncService {
       let interpretedAs: InterpretedType;
 
       if (index === 0) {
-        // 4.1: rawType=1 في البصمة الأولى يعني CLOCK_OUT بلا دخول مسجَّل
-        interpretedAs = (log.rawType === 1) ? 'CLOCK_OUT' : 'CLOCK_IN';
+        // البصمة الأولى دائماً CLOCK_IN — أجهزة ZKTeco كثيراً ترسل rawType=1 حتى لبصمة الدخول
+        interpretedAs = 'CLOCK_IN';
       } else if (index === n - 1) {
         interpretedAs = 'CLOCK_OUT';
       } else {
