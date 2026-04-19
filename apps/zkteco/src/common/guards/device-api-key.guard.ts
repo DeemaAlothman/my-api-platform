@@ -11,16 +11,21 @@ export class DeviceApiKeyGuard implements CanActivate {
     const apiKey =
       (req.headers['x-device-key'] as string) || (req.query.apiKey as string);
 
-    if (!sn || !apiKey) {
-      throw new UnauthorizedException({ code: 'DEVICE_AUTH_MISSING', message: 'SN and apiKey are required' });
+    if (!sn) {
+      throw new UnauthorizedException({ code: 'DEVICE_AUTH_MISSING', message: 'SN is required' });
     }
 
     const device = await this.prisma.biometricDevice.findUnique({
       where: { serialNumber: sn },
     });
 
-    if (!device || !device.isActive || device.apiKey !== apiKey) {
-      throw new UnauthorizedException({ code: 'DEVICE_AUTH_INVALID', message: 'Invalid or inactive device credentials' });
+    if (!device || !device.isActive) {
+      throw new UnauthorizedException({ code: 'DEVICE_AUTH_INVALID', message: 'Invalid or inactive device' });
+    }
+
+    // apiKey اختياري: إذا أُرسل يجب أن يتطابق
+    if (apiKey && device.apiKey !== apiKey) {
+      throw new UnauthorizedException({ code: 'DEVICE_AUTH_INVALID', message: 'Invalid device apiKey' });
     }
 
     req.device = device;
