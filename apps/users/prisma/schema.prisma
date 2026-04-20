@@ -97,7 +97,7 @@ model Employee {
   // Hiring
   workType           WorkType?
   probationPeriod    ProbationPeriod?
-  interviewEvaluation InterviewEvaluation?
+  interviewEvaluation String?
 
   // Exit Interview
   exitInterviewEvaluation String?
@@ -317,14 +317,6 @@ enum ProbationPeriod {
   UNSPECIFIED
 }
 
-enum InterviewEvaluation {
-  EXCELLENT
-  VERY_GOOD
-  GOOD
-  ACCEPTABLE
-  POOR
-  UNSPECIFIED
-}
 
 enum ProbationResult {
   CONFIRM_POSITION

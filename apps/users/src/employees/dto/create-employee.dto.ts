@@ -93,14 +93,6 @@ export enum ProbationPeriod {
   UNSPECIFIED = 'UNSPECIFIED',
 }
 
-export enum InterviewEvaluation {
-  EXCELLENT = 'EXCELLENT',
-  VERY_GOOD = 'VERY_GOOD',
-  GOOD = 'GOOD',
-  ACCEPTABLE = 'ACCEPTABLE',
-  POOR = 'POOR',
-  UNSPECIFIED = 'UNSPECIFIED',
-}
 
 export class EmployeeAttachmentDto {
   @IsNotEmpty()
@@ -210,8 +202,8 @@ export class CreateEmployeeDto {
   probationPeriod?: ProbationPeriod;
 
   @IsOptional()
-  @IsEnum(InterviewEvaluation)
-  interviewEvaluation?: InterviewEvaluation;
+  @IsString()
+  interviewEvaluation?: string;
 
   @IsOptional()
   @Type(() => Number)
