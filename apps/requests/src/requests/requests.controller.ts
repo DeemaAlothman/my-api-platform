@@ -76,6 +76,17 @@ export class RequestsController {
     return this.requests.cancel(id, user.userId, dto);
   }
 
+  // تقديم استمارة مقابلة الخروج (طلبات الاستقالة فقط)
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/exit-interview')
+  submitExitInterview(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() body: Record<string, any>,
+  ) {
+    return this.requests.submitExitInterview(id, user.userId, body);
+  }
+
   // موافقة ديناميكية (النظام الجديد)
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:approve')

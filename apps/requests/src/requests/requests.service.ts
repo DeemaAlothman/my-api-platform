@@ -297,6 +297,52 @@ export class RequestsService {
     return { ...request, employee: employeeMap.get(request.employeeId) ?? null };
   }
 
+  async submitExitInterview(id: string, userId: string, exitInterviewData: Record<string, any>) {
+    const request = await this.findRequestOrFail(id);
+    const employeeId = await this.getEmployeeIdByUserId(userId);
+
+    if (request.employeeId !== employeeId) {
+      throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'Not your request', details: [] });
+    }
+    if (request.status !== 'PENDING_EXIT_INTERVIEW') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Request is not awaiting exit interview', details: [] });
+    }
+    if (request.type !== 'RESIGNATION') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Exit interview is only for RESIGNATION requests', details: [] });
+    }
+
+    const existingDetails = (request.details as any) ?? {};
+    await this.prisma.request.update({
+      where: { id },
+      data: {
+        status: 'APPROVED' as any,
+        details: { ...existingDetails, exitInterview: exitInterviewData },
+      },
+    });
+
+    await this.prisma.requestHistory.create({
+      data: {
+        requestId: id,
+        action: 'EXIT_INTERVIEW_SUBMITTED',
+        fromStatus: 'PENDING_EXIT_INTERVIEW',
+        toStatus: 'APPROVED',
+        performedBy: employeeId!,
+        notes: 'Employee submitted exit interview form',
+      },
+    });
+
+    const updatedRequest = await this.prisma.request.findFirst({ where: { id } });
+    await this.approvalService.executeApprovedRequest(updatedRequest);
+
+    return this.prisma.request.findFirst({
+      where: { id },
+      include: {
+        approvalSteps: { orderBy: { stepOrder: 'asc' } },
+        history: { orderBy: { createdAt: 'desc' }, take: 5 },
+      },
+    });
+  }
+
   private async findRequestOrFail(id: string) {
     const request = await this.prisma.request.findFirst({ where: { id, deletedAt: null } });
     if (!request) {

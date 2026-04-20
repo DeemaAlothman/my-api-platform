@@ -71,7 +71,12 @@ export class ApprovalService {
       s => s.stepOrder === (request.currentStepOrder! + 1),
     );
 
-    const newStatus = nextStep ? 'IN_APPROVAL' : 'APPROVED';
+    // طلب الاستقالة: عند اكتمال الموافقة يذهب لمرحلة مقابلة الخروج بدل APPROVED مباشرة
+    const fullyApproved = !nextStep;
+    const isResignation = request.type === 'RESIGNATION';
+    const newStatus = nextStep
+      ? 'IN_APPROVAL'
+      : (isResignation ? 'PENDING_EXIT_INTERVIEW' : 'APPROVED');
     const newStepOrder = nextStep ? nextStep.stepOrder : currentStep.stepOrder;
 
     await this.prisma.$transaction([
@@ -96,8 +101,8 @@ export class ApprovalService {
       },
     });
 
-    // تنفيذ الإجراء الفعلي عند اكتمال الاعتماد
-    if (newStatus === 'APPROVED') {
+    // تنفيذ الإجراء الفعلي عند اكتمال الاعتماد — ماعدا الاستقالة تنتظر مقابلة الخروج
+    if (fullyApproved && !isResignation) {
       await this.executeApprovedRequest(request);
     }
 
@@ -239,7 +244,7 @@ export class ApprovalService {
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
-  private async executeApprovedRequest(request: any): Promise<void> {
+  async executeApprovedRequest(request: any): Promise<void> {
     try {
       const details = request.details as any;
 

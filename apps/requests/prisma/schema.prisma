@@ -31,6 +31,7 @@ enum RequestStatus {
   APPROVED
   REJECTED
   CANCELLED
+  PENDING_EXIT_INTERVIEW
 }
 
 enum ApprovalStatus {
