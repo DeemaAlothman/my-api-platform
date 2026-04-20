@@ -35,7 +35,7 @@ export class DashboardDataController {
           firstNameAr: true,
           lastNameAr: true,
           currentStage: true,
-          position: { select: { titleAr: true, titleEn: true } },
+          position: { select: { jobTitle: true, department: true } },
         },
         orderBy: { updatedAt: 'desc' },
       });
