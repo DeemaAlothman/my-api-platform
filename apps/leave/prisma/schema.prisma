@@ -93,6 +93,7 @@ model LeaveRequest {
   cancelReason      String?
   cancelledAt       DateTime?
   cancelledBy       String?
+  hrNotifiedAt      DateTime?
   deletedAt         DateTime?
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
