@@ -219,9 +219,9 @@ export class HrReportsService {
         COALESCE(d."nameAr", 'غير محدد') AS "departmentAr",
         c.name AS "custodyName",
         c.category AS "category",
-        c."handedOverAt" AS "handedOverAt",
+        c."assignedDate" AS "handedOverAt",
         c.status AS "status",
-        c."returnedAt" AS "returnedAt",
+        c."returnedDate" AS "returnedAt",
         c.notes AS "notes"
       FROM users.custodies c
       JOIN users.employees e ON e.id = c."employeeId"
