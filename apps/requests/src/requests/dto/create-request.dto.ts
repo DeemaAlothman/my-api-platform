@@ -23,10 +23,6 @@ export class CreateRequestDto {
 
   @IsOptional()
   @IsString()
-  reason?: string;
-
-  @IsOptional()
-  @IsString()
   notes?: string;
 
   @IsOptional()

@@ -72,7 +72,6 @@ export class RequestsService {
             requestNumber,
             employeeId,
             type: dto.type as any,
-            reason: dto.reason,
             notes: dto.notes,
             attachmentUrl: dto.attachmentUrl,
             details: dto.details ?? undefined,
