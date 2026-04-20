@@ -180,6 +180,12 @@ services:
       VITASYR_API_URL: https://vitaxirpro.com/api/external
       VITASYR_API_KEY: 8d57edc1234696d504eb9d24187bc5d311aedf70a53ec963e8823eff7e05ae3a
       NODE_ENV: production
+      MAIL_HOST: smtp.hostinger.com
+      MAIL_PORT: "465"
+      MAIL_SECURE: "true"
+      MAIL_USER: hr@vitaxirpro.com
+      MAIL_PASS: hr2026Vita#F
+      MAIL_FROM: "فريق الموارد البشرية - فيتاكسير <hr@vitaxirpro.com>"
     ports:
       - "4008:4008"
     networks:
