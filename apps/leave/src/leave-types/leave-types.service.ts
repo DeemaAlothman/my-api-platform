@@ -37,6 +37,14 @@ export class LeaveTypesService {
 
   // إنشاء نوع إجازة جديد
   async create(createDto: CreateLeaveTypeDto) {
+    // توليد code تلقائي إذا لم يُحدد
+    if (!createDto.code || !createDto.code.trim()) {
+      const count = await this.prisma.leaveType.count();
+      createDto.code = `VTX-LVT-${String(count + 1).padStart(6, '0')}`;
+    } else {
+      createDto.code = createDto.code.trim().toUpperCase();
+    }
+
     // التحقق من عدم تكرار الكود
     const existing = await this.prisma.leaveType.findUnique({
       where: { code: createDto.code },
