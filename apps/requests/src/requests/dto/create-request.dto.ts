@@ -12,6 +12,8 @@ export enum RequestType {
   DELEGATION = 'DELEGATION',
   HIRING_REQUEST = 'HIRING_REQUEST',
   COMPLAINT = 'COMPLAINT',
+  WORK_ACCIDENT = 'WORK_ACCIDENT',
+  REMOTE_WORK = 'REMOTE_WORK',
 }
 
 export class CreateRequestDto {

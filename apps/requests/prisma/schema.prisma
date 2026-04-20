@@ -19,6 +19,8 @@ enum RequestType {
   DELEGATION
   HIRING_REQUEST
   COMPLAINT
+  WORK_ACCIDENT
+  REMOTE_WORK
 }
 
 enum RequestStatus {
