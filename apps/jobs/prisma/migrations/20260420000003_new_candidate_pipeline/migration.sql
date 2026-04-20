@@ -81,8 +81,8 @@ ALTER TABLE jobs.candidates
   ADD COLUMN IF NOT EXISTS "reference2Name"  TEXT,
   ADD COLUMN IF NOT EXISTS "reference2Phone" TEXT;
 
--- Step 7: Add new fields to interview_evaluations
-ALTER TABLE jobs.interview_evaluations
+-- Step 7: Add new fields to InterviewEvaluation
+ALTER TABLE jobs."InterviewEvaluation"
   ADD COLUMN IF NOT EXISTS "additionalConditions"    TEXT,
   ADD COLUMN IF NOT EXISTS "salaryAfterConfirmation" DOUBLE PRECISION;
 
