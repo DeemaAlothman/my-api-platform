@@ -38,5 +38,8 @@ COPY --from=builder /app/apps/jobs/prisma ./prisma
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 COPY --from=builder /app/apps/jobs/dist   ./dist
 
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 EXPOSE 4008
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+CMD ["./entrypoint.sh"]
