@@ -11,11 +11,13 @@ export class DashboardDataController {
   @Get('data')
   async getData(@Req() req: Request, @Query('role') role: string) {
     if (role === 'HR') {
-      const byStage = await this.prisma.candidate.groupBy({
-        by: ['currentStage'],
-        where: { deletedAt: null, currentStage: { notIn: ['HIRED', 'REJECTED', 'WITHDRAWN'] } },
-        _count: { id: true },
-      });
+      const byStage = await this.prisma.$queryRaw<{ currentStage: string; count: bigint }[]>`
+        SELECT "currentStage", COUNT(*) as count
+        FROM jobs.candidates
+        WHERE "deletedAt" IS NULL
+          AND "currentStage" NOT IN ('HIRED', 'REJECTED')
+        GROUP BY "currentStage"
+      `;
 
       const activePositions = await this.prisma.interviewPosition.count({
         where: { status: 'OPEN' },
