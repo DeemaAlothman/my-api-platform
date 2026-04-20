@@ -62,7 +62,7 @@ export class ApprovalService {
       JOIN users.permissions p ON p.id = rp."permissionId"
       JOIN users.employees e ON e."userId" = ur."userId"
       WHERE e.id = ${managerId}
-        AND p.key = 'requests:ceo-approve'
+        AND p.name = 'requests:ceo-approve'
         AND e."deletedAt" IS NULL
     `;
     return Number(ceoCheck[0]?.count ?? 0) > 0;
