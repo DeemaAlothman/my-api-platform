@@ -9,11 +9,23 @@ export class ApprovalService {
     private readonly resolver: ApprovalResolverService,
   ) {}
 
-  async initializeApprovalSteps(requestId: string, requestType: string): Promise<boolean> {
-    const workflows = await this.prisma.approvalWorkflow.findMany({
+  async initializeApprovalSteps(requestId: string, requestType: string, employeeId?: string): Promise<boolean> {
+    let workflows = await this.prisma.approvalWorkflow.findMany({
       where: { requestType: requestType as any },
       orderBy: { stepOrder: 'asc' },
     });
+
+    if (workflows.length === 0) return false;
+
+    // تخطي DIRECT_MANAGER إذا كان المدير المباشر هو CEO
+    if (employeeId && workflows.some(w => w.approverRole === 'DIRECT_MANAGER')) {
+      const isManagerCeo = await this.isDirectManagerCeo(employeeId);
+      if (isManagerCeo) {
+        workflows = workflows.filter(w => w.approverRole !== 'DIRECT_MANAGER');
+        // إعادة ترقيم stepOrder بشكل متسلسل
+        workflows = workflows.map((w, i) => ({ ...w, stepOrder: i + 1 }));
+      }
+    }
 
     if (workflows.length === 0) return false;
 
@@ -33,6 +45,27 @@ export class ApprovalService {
     });
 
     return true;
+  }
+
+  private async isDirectManagerCeo(employeeId: string): Promise<boolean> {
+    const result = await this.prisma.$queryRaw<Array<{ managerId: string | null }>>`
+      SELECT "managerId" FROM users.employees WHERE id = ${employeeId} AND "deletedAt" IS NULL LIMIT 1
+    `;
+    const managerId = result[0]?.managerId;
+    if (!managerId) return false;
+
+    // تحقق إذا المدير عنده صلاحية requests:ceo-approve
+    const ceoCheck = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) as count
+      FROM users.user_roles ur
+      JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+      JOIN users.permissions p ON p.id = rp."permissionId"
+      JOIN users.employees e ON e."userId" = ur."userId"
+      WHERE e.id = ${managerId}
+        AND p.key = 'requests:ceo-approve'
+        AND e."deletedAt" IS NULL
+    `;
+    return Number(ceoCheck[0]?.count ?? 0) > 0;
   }
 
   async approve(requestId: string, approverUserId: string, notes?: string) {

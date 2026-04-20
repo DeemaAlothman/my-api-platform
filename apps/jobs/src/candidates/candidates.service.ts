@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../infrastructure/mail.service';
 import { CreateCandidateDto } from './dto/create-candidate.dto';
 import { MoveStageDto } from './dto/move-stage.dto';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -11,6 +12,7 @@ export class CandidatesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly http: HttpService,
+    private readonly mail: MailService,
   ) {}
 
   // ==================== Candidates ====================
@@ -98,6 +100,18 @@ export class CandidatesService {
         },
       }),
     ]);
+
+    // إرسال إيميل رفض تلقائي عند الانتقال لـ REJECTED
+    if (dto.stage === 'REJECTED' && (candidate as any).email) {
+      const position = await this.prisma.interviewPosition.findFirst({
+        where: { id: (candidate as any).positionId },
+        select: { jobTitle: true },
+      }).catch(() => null);
+      await this.mail.sendRejectionEmail(
+        candidate as any,
+        position?.jobTitle ?? 'الوظيفة',
+      );
+    }
 
     return updated;
   }

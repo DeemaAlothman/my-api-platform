@@ -119,7 +119,7 @@ export class RequestsService {
       }
     }
 
-    const initialized = await this.approvalService.initializeApprovalSteps(id, request.type);
+    const initialized = await this.approvalService.initializeApprovalSteps(id, request.type, request.employeeId);
     const toStatus = initialized ? 'IN_APPROVAL' : 'PENDING_MANAGER';
 
     if (!initialized) {
