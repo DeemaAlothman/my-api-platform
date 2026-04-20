@@ -323,6 +323,14 @@ model ProbationEvaluation {
   employeeAcknowledged  Boolean             @default(false)
   employeeNotes         String?
   overallRating         ProbationRating?
+
+  // حقول جدولة الاجتماع
+  meetingProposedAt          DateTime?
+  meetingConfirmedByEmployee Boolean   @default(false)
+  meetingConfirmedByManager  Boolean   @default(false)
+  meetingConfirmedAt         DateTime?
+  decisionDocumentUrl        String?
+
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
@@ -337,6 +345,7 @@ enum ProbationStatus {
   PENDING_SENIOR_MANAGER
   PENDING_HR
   PENDING_CEO
+  PENDING_MEETING_SCHEDULE
   PENDING_EMPLOYEE_ACKNOWLEDGMENT
   COMPLETED
   REJECTED_BY_SENIOR
@@ -350,6 +359,7 @@ enum ProbationRecommendation {
   EXTEND_PROBATION
   CONFIRM_POSITION
   TRANSFER_POSITION
+  SALARY_RAISE
   TERMINATE
 
   @@schema("evaluation")

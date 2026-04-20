@@ -222,14 +222,86 @@ export class ProbationEvaluationsService {
     await this.prisma.probationEvaluation.update({
       where: { id },
       data: {
-        status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT',
+        status: 'PENDING_MEETING_SCHEDULE',
         ceoId: performedBy,
         finalRecommendation: dto.recommendation ?? evaluation.finalRecommendation,
         overallRating: dto.overallRating ?? evaluation.overallRating,
       },
     });
 
-    await this.logHistory(id, 'CEO_DECIDE', performedBy, dto.notes ?? 'أصدر الرئيس التنفيذي قراره');
+    await this.logHistory(id, 'CEO_DECIDE', performedBy, dto.notes ?? 'أصدر الرئيس التنفيذي قراره — في انتظار جدولة الاجتماع');
+
+    return this.findOne(id);
+  }
+
+  async scheduleMeeting(id: string, performedBy: string, meetingProposedAt: Date) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_MEETING_SCHEDULE') {
+      throw new BadRequestException('التقييم ليس في مرحلة جدولة الاجتماع');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: { meetingProposedAt },
+    });
+
+    await this.logHistory(id, 'MEETING_SCHEDULED', performedBy, `تم اقتراح موعد الاجتماع: ${meetingProposedAt.toISOString()}`);
+    return this.findOne(id);
+  }
+
+  async confirmMeeting(id: string, performedBy: string, role: 'employee' | 'manager') {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_MEETING_SCHEDULE') {
+      throw new BadRequestException('التقييم ليس في مرحلة جدولة الاجتماع');
+    }
+
+    const updateData: any = role === 'employee'
+      ? { meetingConfirmedByEmployee: true }
+      : { meetingConfirmedByManager: true };
+
+    const updatedByEmployee = role === 'employee' ? true : (evaluation as any).meetingConfirmedByEmployee;
+    const updatedByManager  = role === 'manager'  ? true : (evaluation as any).meetingConfirmedByManager;
+
+    if (updatedByEmployee && updatedByManager) {
+      updateData.meetingConfirmedAt = new Date();
+    }
+
+    await this.prisma.probationEvaluation.update({ where: { id }, data: updateData });
+    await this.logHistory(id, 'MEETING_CONFIRMED', performedBy, `تأكيد الاجتماع من قِبل: ${role}`);
+    return this.findOne(id);
+  }
+
+  async closeEvaluation(id: string, performedBy: string, decisionDocumentUrl?: string) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_MEETING_SCHEDULE') {
+      throw new BadRequestException('التقييم ليس في مرحلة جدولة الاجتماع');
+    }
+
+    const completedAt = new Date();
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: {
+        status: 'COMPLETED',
+        decisionDocumentUrl: decisionDocumentUrl ?? (evaluation as any).decisionDocumentUrl,
+        employeeAcknowledged: true,
+        employeeAcknowledgedAt: completedAt,
+      },
+    });
+
+    await this.logHistory(id, 'EVALUATION_CLOSED', performedBy, 'أغلق HR التقييم بعد الاجتماع');
+
+    if (evaluation.finalRecommendation && evaluation.employeeId) {
+      const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
+      this.http.post(`${usersUrl}/api/v1/employees/internal/probation-result`, {
+        employeeId: evaluation.employeeId,
+        result: evaluation.finalRecommendation,
+        completedAt: completedAt.toISOString(),
+      }).subscribe({ error: () => { /* silent fail */ } });
+    }
 
     return this.findOne(id);
   }

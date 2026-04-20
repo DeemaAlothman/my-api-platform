@@ -88,4 +88,19 @@ export class ProbationEvaluationsController {
   employeeAcknowledge(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
     return this.service.employeeAcknowledge(id, req.user?.userId ?? 'system', dto);
   }
+
+  @Post(':id/schedule-meeting')
+  scheduleMeeting(@Param('id') id: string, @Body() body: { meetingProposedAt: string }, @Request() req: any) {
+    return this.service.scheduleMeeting(id, req.user?.userId ?? 'system', new Date(body.meetingProposedAt));
+  }
+
+  @Post(':id/confirm-meeting')
+  confirmMeeting(@Param('id') id: string, @Body() body: { role: 'employee' | 'manager' }, @Request() req: any) {
+    return this.service.confirmMeeting(id, req.user?.userId ?? 'system', body.role);
+  }
+
+  @Post(':id/close-evaluation')
+  closeEvaluation(@Param('id') id: string, @Body() body: { decisionDocumentUrl?: string }, @Request() req: any) {
+    return this.service.closeEvaluation(id, req.user?.userId ?? 'system', body.decisionDocumentUrl);
+  }
 }
