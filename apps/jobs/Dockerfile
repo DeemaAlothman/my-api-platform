@@ -38,7 +38,7 @@ COPY --from=builder /app/apps/jobs/prisma ./prisma
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 COPY --from=builder /app/apps/jobs/dist   ./dist
 
-COPY entrypoint.sh ./entrypoint.sh
+COPY apps/jobs/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
 EXPOSE 4008
