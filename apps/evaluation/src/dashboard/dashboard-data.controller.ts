@@ -26,7 +26,7 @@ export class DashboardDataController {
     if (role === 'EMPLOYEE') {
       const goals = employeeId
         ? await this.prisma.employeeGoal.findMany({
-            where: { form: { employeeId, status: { not: 'CLOSED' } } },
+            where: { form: { employeeId, status: { not: 'COMPLETED' } } },
             select: { id: true, title: true, description: true, targetDate: true, weight: true, status: true },
             take: 10,
           })
