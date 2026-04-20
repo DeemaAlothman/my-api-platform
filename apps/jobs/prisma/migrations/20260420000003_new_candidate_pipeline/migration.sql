@@ -1,7 +1,10 @@
 -- Migration: New Candidate Pipeline
 -- Safely replaces CandidateStage enum values and adds new fields
 
--- Step 1: Convert enum columns to TEXT to release dependency on old enum
+-- Step 1: Drop default first, then convert enum columns to TEXT
+ALTER TABLE jobs.candidates
+  ALTER COLUMN "currentStage" DROP DEFAULT;
+
 ALTER TABLE jobs.candidates
   ALTER COLUMN "currentStage" TYPE TEXT;
 
