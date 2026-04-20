@@ -28,7 +28,7 @@ export class DashboardDataController {
         ? await this.prisma.request.findMany({
             where: {
               employeeId,
-              status: { in: ['PENDING_MANAGER', 'PENDING_HR', 'PENDING'] },
+              status: { in: ['PENDING_MANAGER', 'PENDING_HR', 'IN_APPROVAL'] },
             },
             select: { id: true, type: true, status: true, createdAt: true },
             orderBy: { createdAt: 'desc' },
