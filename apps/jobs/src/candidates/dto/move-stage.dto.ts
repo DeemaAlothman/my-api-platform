@@ -2,15 +2,13 @@ import { IsString, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum CandidateStage {
-  NEW = 'NEW',
-  INITIAL_REVIEW = 'INITIAL_REVIEW',
-  PHONE_INTERVIEW = 'PHONE_INTERVIEW',
-  TECHNICAL_INTERVIEW = 'TECHNICAL_INTERVIEW',
-  FINAL_INTERVIEW = 'FINAL_INTERVIEW',
-  OFFER_SENT = 'OFFER_SENT',
-  HIRED = 'HIRED',
-  REJECTED = 'REJECTED',
-  WITHDRAWN = 'WITHDRAWN',
+  PENDING                = 'PENDING',
+  ELIGIBLE_FOR_INTERVIEW = 'ELIGIBLE_FOR_INTERVIEW',
+  FINAL_ELIGIBLE         = 'FINAL_ELIGIBLE',
+  CEO_APPROVAL           = 'CEO_APPROVAL',
+  REFERENCE_CHECK        = 'REFERENCE_CHECK',
+  HIRED                  = 'HIRED',
+  REJECTED               = 'REJECTED',
 }
 
 export class MoveStageDto {

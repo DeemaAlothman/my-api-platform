@@ -28,7 +28,7 @@ export class DashboardDataController {
       const finalStageCandidates = await this.prisma.candidate.findMany({
         where: {
           deletedAt: null,
-          currentStage: { in: ['FINAL_INTERVIEW', 'OFFER_SENT'] },
+          currentStage: { in: ['CEO_APPROVAL', 'REFERENCE_CHECK'] },
         },
         select: {
           id: true,

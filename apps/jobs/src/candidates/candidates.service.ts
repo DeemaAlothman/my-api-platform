@@ -142,8 +142,8 @@ export class CandidatesService {
       },
     });
 
-    // نقل المتقدم لمرحلة OFFER_SENT تلقائياً
-    await this.moveStage(candidateId, { stage: 'OFFER_SENT' as any, notes: 'تم إرسال عرض عمل' }, userId);
+    // نقل المتقدم لمرحلة REFERENCE_CHECK تلقائياً
+    await this.moveStage(candidateId, { stage: 'REFERENCE_CHECK' as any, notes: 'تم إرسال عرض عمل' }, userId);
 
     return offer;
   }

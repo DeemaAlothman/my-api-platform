@@ -130,6 +130,8 @@ model InterviewEvaluation {
   yearsOfExperience Float?
   expectedSalary   Float?
   expectedJoinDate DateTime?           @db.Date
+  additionalConditions    String?
+  salaryAfterConfirmation Float?
   generalNotes     String?
   personalScore    Float?
   technicalScore   Float?
@@ -210,15 +212,13 @@ model ComputerCriteriaScore {
 // =============================================
 
 enum CandidateStage {
-  NEW
-  INITIAL_REVIEW
-  PHONE_INTERVIEW
-  TECHNICAL_INTERVIEW
-  FINAL_INTERVIEW
-  OFFER_SENT
+  PENDING
+  ELIGIBLE_FOR_INTERVIEW
+  FINAL_ELIGIBLE
+  CEO_APPROVAL
+  REFERENCE_CHECK
   HIRED
   REJECTED
-  WITHDRAWN
 
   @@schema("jobs")
 }
@@ -254,7 +254,7 @@ model Candidate {
   email          String?
   phone          String
   nationalId     String?
-  currentStage   CandidateStage  @default(NEW)
+  currentStage   CandidateStage  @default(PENDING)
   source         CandidateSource @default(WEBSITE)
   cvUrl          String?
   expectedSalary Decimal?        @db.Decimal(15, 2)
@@ -262,14 +262,19 @@ model Candidate {
   isTransferred  Boolean         @default(false)
   transferredEmployeeId String?
   rejectionReason String?
+  reference1Name  String?
+  reference1Phone String?
+  reference2Name  String?
+  reference2Phone String?
   createdBy      String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   deletedAt      DateTime?
 
-  position  InterviewPosition? @relation(fields: [positionId], references: [id])
-  stageHistory CandidateStageHistory[]
-  offers       JobOffer[]
+  position        InterviewPosition?       @relation(fields: [positionId], references: [id])
+  stageHistory    CandidateStageHistory[]
+  offers          JobOffer[]
+  referenceCheck  CandidateReferenceCheck?
 
   @@index([currentStage])
   @@index([positionId])
@@ -315,5 +320,22 @@ model JobOffer {
   @@index([candidateId])
   @@index([status])
   @@map("job_offers")
+  @@schema("jobs")
+}
+
+model CandidateReferenceCheck {
+  id                  String    @id @default(uuid())
+  candidateId         String    @unique
+  reference1ReportUrl String?
+  reference2ReportUrl String?
+  notes               String?
+  checkedBy           String
+  checkedAt           DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_reference_checks")
   @@schema("jobs")
 }
