@@ -112,6 +112,10 @@ export class UpdateEmployeeDto {
   interviewEvaluation?: InterviewEvaluation | null;
 
   @IsOptional()
+  @IsString()
+  exitInterviewEvaluation?: string | null;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({}, { message: 'Basic salary must be a number' })
   @Min(0)

@@ -99,6 +99,9 @@ model Employee {
   probationPeriod    ProbationPeriod?
   interviewEvaluation InterviewEvaluation?
 
+  // Exit Interview
+  exitInterviewEvaluation String?
+
   // Probation Evaluation Result (set by evaluation-service when probation is completed)
   probationResult      ProbationResult?
   probationCompletedAt DateTime?
