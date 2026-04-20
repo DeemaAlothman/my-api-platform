@@ -198,4 +198,41 @@ export class HrReportsService {
       items: rows,
     };
   }
+
+  // ─── 5. تقرير العهدة ──────────────────────────────────────────────────────
+
+  async custodies(status?: string, departmentId?: string) {
+    const statusFilter = status === 'RETURNED'
+      ? `AND c.status = 'RETURNED'`
+      : status === 'ACTIVE'
+      ? `AND c.status = 'WITH_EMPLOYEE'`
+      : '';
+
+    const deptFilter = departmentId
+      ? `AND e."departmentId" = '${departmentId}'`
+      : '';
+
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`
+      SELECT
+        e."employeeNumber",
+        e."firstNameAr" || ' ' || e."lastNameAr" AS "employeeNameAr",
+        COALESCE(d."nameAr", 'غير محدد') AS "departmentAr",
+        c.name AS "custodyName",
+        c.category AS "category",
+        c."handedOverAt" AS "handedOverAt",
+        c.status AS "status",
+        c."returnedAt" AS "returnedAt",
+        c.notes AS "notes"
+      FROM users.custodies c
+      JOIN users.employees e ON e.id = c."employeeId"
+      LEFT JOIN users.departments d ON d.id = e."departmentId"
+      WHERE c."deletedAt" IS NULL
+        AND e."deletedAt" IS NULL
+        ${statusFilter}
+        ${deptFilter}
+      ORDER BY e."employeeNumber", c."handedOverAt"
+    `);
+
+    return rows;
+  }
 }
