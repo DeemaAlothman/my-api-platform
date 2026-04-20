@@ -442,10 +442,10 @@ export class EmployeesService {
     // تحقق من الموظف موجود
     await this.findOne(id);
 
-    // soft delete
+    // soft delete — null out userId to free the unique constraint
     await this.prisma.employee.update({
       where: { id },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: new Date(), userId: null },
     });
   }
 
