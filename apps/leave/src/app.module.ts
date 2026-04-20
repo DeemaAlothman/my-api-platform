@@ -10,6 +10,7 @@ import { LeaveBalancesModule } from './leave-balances/leave-balances.module';
 import { LeaveTypesModule } from './leave-types/leave-types.module';
 import { HolidaysModule } from './holidays/holidays.module';
 import { LeaveReportsModule } from './leave-reports/leave-reports.module';
+import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 
 @Module({
@@ -25,6 +26,7 @@ import { JwtStrategy } from './common/strategies/jwt.strategy';
     LeaveTypesModule,
     HolidaysModule,
     LeaveReportsModule,
+    DashboardDataModule,
   ],
   providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })

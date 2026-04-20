@@ -9,6 +9,7 @@ import { InterviewPositionsModule } from './interview-positions/interview-positi
 import { InterviewCriteriaModule } from './interview-criteria/interview-criteria.module';
 import { InterviewEvaluationsModule } from './interview-evaluations/interview-evaluations.module';
 import { CandidatesModule } from './candidates/candidates.module';
+import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -26,6 +27,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     InterviewCriteriaModule,
     InterviewEvaluationsModule,
     CandidatesModule,
+    DashboardDataModule,
   ],
   providers: [JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })

@@ -12,6 +12,7 @@ import { ReportsModule } from './reports/reports.module';
 import { EmployeeConfigModule } from './employee-config/employee-config.module';
 import { DeductionPoliciesModule } from './deduction-policies/deduction-policies.module';
 import { PayrollModule } from './payroll/payroll.module';
+import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -27,6 +28,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     EmployeeConfigModule,
     DeductionPoliciesModule,
     PayrollModule,
+    DashboardDataModule,
   ],
   providers: [
     PrismaService,

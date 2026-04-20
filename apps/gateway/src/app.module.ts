@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { HealthController } from './health/health.controller';
 import { ProxyModule } from './proxy/proxy.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { ProxyModule } from './proxy/proxy.module';
       { name: 'long',   ttl: 3600000, limit: 1000 },
     ]),
     ProxyModule,
+    DashboardModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -5,6 +5,7 @@ import { PrismaService } from './prisma/prisma.service';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { RequestsModule } from './requests/requests.module';
+import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 
 @Module({
@@ -15,6 +16,7 @@ import { JwtStrategy } from './common/strategies/jwt.strategy';
       signOptions: { expiresIn: '15m' },
     }),
     RequestsModule,
+    DashboardDataModule,
   ],
   providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
 })
