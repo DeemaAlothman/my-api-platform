@@ -267,11 +267,18 @@ export class LeaveRequestsService {
       throw new BadRequestException('Insufficient leave balance');
     }
 
+    const hasSubstitute = !!request.substituteId;
+    const newStatus = hasSubstitute ? 'PENDING_SUBSTITUTE' : 'PENDING_MANAGER';
+
     // تحديث الحالة وحجز الأيام (داخل transaction لمنع race condition)
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.leaveRequest.update({
         where: { id },
-        data: { status: 'PENDING_MANAGER', managerStatus: 'PENDING' },
+        data: {
+          status: newStatus as any,
+          managerStatus: hasSubstitute ? null : 'PENDING',
+          substituteStatus: hasSubstitute ? 'PENDING' : null,
+        },
         include: { leaveType: true },
       });
       if (balance) {
@@ -280,16 +287,63 @@ export class LeaveRequestsService {
       return result;
     });
 
-    await this.addHistory(
-      id,
-      'SUBMIT',
-      'DRAFT',
-      'PENDING_MANAGER',
-      employeeId,
-      'Request submitted for manager approval',
+    await this.addHistory(id, 'SUBMIT', 'DRAFT', newStatus, employeeId,
+      hasSubstitute ? 'Request submitted — awaiting substitute approval' : 'Request submitted for manager approval',
     );
 
     return updated;
+  }
+
+  async substituteApprove(id: string, substituteEmployeeId: string, notes?: string) {
+    const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    if (!request) throw new NotFoundException('Leave request not found');
+    if (request.status !== 'PENDING_SUBSTITUTE') {
+      throw new BadRequestException('Request is not awaiting substitute approval');
+    }
+    if (request.substituteId !== substituteEmployeeId) {
+      throw new ForbiddenException('You are not the designated substitute for this request');
+    }
+
+    await this.prisma.leaveRequest.update({
+      where: { id },
+      data: {
+        status: 'PENDING_MANAGER' as any,
+        managerStatus: 'PENDING',
+        substituteStatus: 'APPROVED',
+        substituteApprovedAt: new Date(),
+        substituteNotes: notes,
+      },
+    });
+
+    await this.addHistory(id, 'SUBSTITUTE_APPROVED', 'PENDING_SUBSTITUTE', 'PENDING_MANAGER', substituteEmployeeId,
+      notes ?? 'Substitute approved the request',
+    );
+
+    return this.prisma.leaveRequest.findUnique({ where: { id }, include: { leaveType: true } });
+  }
+
+  async substituteReject(id: string, substituteEmployeeId: string, notes: string) {
+    const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    if (!request) throw new NotFoundException('Leave request not found');
+    if (request.status !== 'PENDING_SUBSTITUTE') {
+      throw new BadRequestException('Request is not awaiting substitute approval');
+    }
+    if (request.substituteId !== substituteEmployeeId) {
+      throw new ForbiddenException('You are not the designated substitute for this request');
+    }
+
+    await this.prisma.leaveRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED' as any,
+        substituteStatus: 'REJECTED',
+        substituteNotes: notes,
+      },
+    });
+
+    await this.addHistory(id, 'SUBSTITUTE_REJECTED', 'PENDING_SUBSTITUTE', 'REJECTED', substituteEmployeeId, notes);
+
+    return this.prisma.leaveRequest.findUnique({ where: { id }, include: { leaveType: true } });
   }
 
   // موافقة المدير

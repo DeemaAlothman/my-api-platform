@@ -10,6 +10,7 @@ generator client {
 
 enum LeaveRequestStatus {
   DRAFT
+  PENDING_SUBSTITUTE
   PENDING_MANAGER
   PENDING_HR
   APPROVED
@@ -90,6 +91,9 @@ model LeaveRequest {
   hrApprovedBy      String?
   hrApprovedAt      DateTime?
   hrNotes           String?
+  substituteStatus     String?
+  substituteApprovedAt DateTime?
+  substituteNotes      String?
   cancelReason      String?
   cancelledAt       DateTime?
   cancelledBy       String?

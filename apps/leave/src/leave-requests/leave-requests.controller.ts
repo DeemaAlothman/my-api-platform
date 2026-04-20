@@ -108,6 +108,28 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.cancel(id, dto, userId);
   }
 
+  // موافقة الموظف البديل
+  @Post(':id/substitute-approve')
+  @Permission('leave_requests:read')
+  substituteApprove(
+    @Param('id') id: string,
+    @Body() body: { notes?: string },
+    @EmployeeId() employeeId: string,
+  ) {
+    return this.leaveRequestsService.substituteApprove(id, employeeId, body.notes);
+  }
+
+  // رفض الموظف البديل
+  @Post(':id/substitute-reject')
+  @Permission('leave_requests:read')
+  substituteReject(
+    @Param('id') id: string,
+    @Body() body: { notes: string },
+    @EmployeeId() employeeId: string,
+  ) {
+    return this.leaveRequestsService.substituteReject(id, employeeId, body.notes);
+  }
+
   // قائمة طلبات الموظف الحالي
   @Get('my/requests')
   @Permission('leave_requests:read')
