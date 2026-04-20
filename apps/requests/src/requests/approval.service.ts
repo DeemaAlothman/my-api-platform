@@ -17,12 +17,12 @@ export class ApprovalService {
 
     if (workflows.length === 0) return false;
 
-    // تخطي DIRECT_MANAGER إذا كان المدير المباشر هو CEO
+    // إذا كان المدير المباشر هو CEO: احذف خطوة CEO المنفصلة وابقِ DIRECT_MANAGER → HR
+    // النتيجة: CEO يوافق أولاً (بصفته المدير المباشر) ثم HR
     if (employeeId && workflows.some(w => w.approverRole === 'DIRECT_MANAGER')) {
       const isManagerCeo = await this.isDirectManagerCeo(employeeId);
       if (isManagerCeo) {
-        workflows = workflows.filter(w => w.approverRole !== 'DIRECT_MANAGER');
-        // إعادة ترقيم stepOrder بشكل متسلسل
+        workflows = workflows.filter(w => w.approverRole !== 'CEO');
         workflows = workflows.map((w, i) => ({ ...w, stepOrder: i + 1 }));
       }
     }
