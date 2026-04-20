@@ -230,7 +230,7 @@ export class HrReportsService {
         AND e."deletedAt" IS NULL
         ${statusFilter}
         ${deptFilter}
-      ORDER BY e."employeeNumber", c."handedOverAt"
+      ORDER BY e."employeeNumber", c."assignedDate"
     `);
 
     return rows;
