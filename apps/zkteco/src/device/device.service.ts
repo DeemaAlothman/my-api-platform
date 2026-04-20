@@ -39,7 +39,12 @@ export class DeviceService {
 
   async remove(id: string) {
     await this.findOne(id);
-    return this.prisma.biometricDevice.delete({ where: { id } });
+    await this.prisma.$transaction([
+      this.prisma.rawAttendanceLog.deleteMany({ where: { deviceId: id } }),
+      this.prisma.employeeFingerprint.deleteMany({ where: { deviceId: id } }),
+      this.prisma.biometricDevice.delete({ where: { id } }),
+    ]);
+    return { message: 'Device deleted successfully' };
   }
 
   async getStatus(id: string) {
