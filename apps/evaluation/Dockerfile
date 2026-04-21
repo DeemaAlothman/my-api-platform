@@ -42,8 +42,10 @@ RUN npx prisma generate
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
+COPY apps/evaluation/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 # Expose port
 EXPOSE 4005
 
-# Start application
-CMD ["node", "dist/src/main.js"]
+CMD ["./entrypoint.sh"]
