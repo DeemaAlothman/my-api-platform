@@ -130,6 +130,13 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.substituteReject(id, employeeId, body.notes);
   }
 
+  // طلبات تنتظر موافقة الموظف كبديل
+  @Get('pending-substitute')
+  @Permission('leave_requests:read')
+  pendingSubstitute(@EmployeeId() employeeId: string) {
+    return this.leaveRequestsService.findPendingSubstitute(employeeId);
+  }
+
   // قائمة طلبات الموظف الحالي
   @Get('my/requests')
   @Permission('leave_requests:read')

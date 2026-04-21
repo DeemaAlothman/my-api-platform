@@ -294,6 +294,14 @@ export class LeaveRequestsService {
     return updated;
   }
 
+  async findPendingSubstitute(employeeId: string) {
+    return this.prisma.leaveRequest.findMany({
+      where: { substituteId: employeeId, status: 'PENDING_SUBSTITUTE' as any },
+      include: { leaveType: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async substituteApprove(id: string, substituteEmployeeId: string, notes?: string) {
     const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
     if (!request) throw new NotFoundException('Leave request not found');
