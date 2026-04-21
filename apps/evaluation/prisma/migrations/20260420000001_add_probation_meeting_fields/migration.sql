@@ -1,5 +1,5 @@
 -- Add meeting schedule fields to probation_evaluations
-ALTER TABLE evaluation.probation_evaluations
+ALTER TABLE evaluation."ProbationEvaluation"
   ADD COLUMN IF NOT EXISTS "meetingProposedAt"         TIMESTAMP,
   ADD COLUMN IF NOT EXISTS "meetingConfirmedByEmployee" BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS "meetingConfirmedByManager"  BOOLEAN NOT NULL DEFAULT false,
