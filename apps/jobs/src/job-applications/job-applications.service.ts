@@ -2,6 +2,7 @@ import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../infrastructure/mail.service';
 
 @Injectable()
 export class JobApplicationsService {
@@ -12,6 +13,7 @@ export class JobApplicationsService {
   constructor(
     private readonly http: HttpService,
     private readonly prisma: PrismaService,
+    private readonly mail: MailService,
   ) {
     this.baseUrl = process.env.VITASYR_API_URL || 'https://vitaxirpro.com/api/external';
     this.apiKey = process.env.VITASYR_API_KEY || '';
@@ -117,6 +119,18 @@ export class JobApplicationsService {
           headers: this.getHeaders(),
         }),
       );
+
+      // إرسال إيميل رفض تلقائي
+      if (data.status === 'REJECTED') {
+        const app = response.data?.data ?? response.data;
+        if (app?.email) {
+          const nameParts = (app.fullName || '').split(' ');
+          await this.mail.sendRejectionEmail(
+            { firstNameAr: nameParts[0] || app.fullName, lastNameAr: nameParts.slice(1).join(' ') || '', email: app.email },
+            app.specialization || 'الوظيفة',
+          );
+        }
+      }
 
       return response.data;
     } catch (error) {
