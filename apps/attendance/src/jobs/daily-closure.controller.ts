@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
 
-@Controller('api/v1/attendance/admin')
+@Controller('attendance-admin')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class DailyClosureController {
   constructor(private readonly dailyClosureService: DailyClosureService) {}
