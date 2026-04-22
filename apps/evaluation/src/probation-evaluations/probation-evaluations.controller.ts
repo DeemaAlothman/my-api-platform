@@ -9,7 +9,7 @@ import { Permissions } from '../common/decorators/permissions.decorator';
 @ApiTags('Probation Evaluations')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
-@Controller('probation/evaluations')
+@Controller('probation-evaluations')
 export class ProbationEvaluationsController {
   constructor(private readonly service: ProbationEvaluationsService) {}
 
