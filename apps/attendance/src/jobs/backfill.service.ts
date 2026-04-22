@@ -25,7 +25,7 @@ interface ScheduleRow {
   maxOvertimeHours: number | null;
 }
 
-interface ComputedResult {
+export interface ComputedResult {
   recordId: string;
   employeeId: string;
   dateStr: string;
