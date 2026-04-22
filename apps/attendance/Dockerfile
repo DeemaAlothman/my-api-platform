@@ -40,5 +40,8 @@ COPY --from=builder /app/apps/attendance/dist   ./dist
 COPY --from=builder /app/apps/attendance/prisma ./prisma
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 
+COPY apps/attendance/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 EXPOSE 4004
-CMD ["node", "dist/src/main.js"]
+CMD ["./entrypoint.sh"]

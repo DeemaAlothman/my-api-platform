@@ -313,6 +313,26 @@ model EmployeeAttendanceConfig {
   @@schema("attendance")
 }
 
+/// سجل تدقيق التعديلات الآلية على الحضور
+model AttendanceComputationLog {
+  id                 String    @id @default(uuid())
+  attendanceRecordId String?
+  employeeId         String
+  date               DateTime  @db.Date
+  action             String
+  source             String    @default("SYSTEM")
+  changedFields      String?
+  performedBy        String?   @default("SYSTEM")
+  notes              String?
+  createdAt          DateTime  @default(now())
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([attendanceRecordId])
+  @@map("attendance_computation_logs")
+  @@schema("attendance")
+}
+
 /// سياسة الحسميات
 model DeductionPolicy {
   id                      String  @id @default(uuid())
