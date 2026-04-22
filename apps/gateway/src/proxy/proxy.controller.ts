@@ -662,6 +662,21 @@ export class HrReportsProxyController {
   }
 }
 
+@Controller('attendance-admin')
+export class AttendanceAdminProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+}
+
 @Controller("audit-logs")
 export class AuditLogsProxyController {
   constructor(private readonly proxy: ProxyService) {}
