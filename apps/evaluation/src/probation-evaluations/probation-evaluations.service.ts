@@ -353,6 +353,7 @@ export class ProbationEvaluationsService {
         status: { in: ['DRAFT', 'REJECTED_BY_SENIOR', 'REJECTED_BY_HR', 'REJECTED_BY_CEO'] },
       },
       { seniorManagerId: userId, status: 'PENDING_SENIOR_MANAGER' },
+      ...(employeeId ? [{ seniorManagerId: employeeId, status: 'PENDING_SENIOR_MANAGER' }] : []),
     ];
 
     if (employeeId) {
