@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaService } from './prisma/prisma.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -13,12 +14,15 @@ import { EmployeeConfigModule } from './employee-config/employee-config.module';
 import { DeductionPoliciesModule } from './deduction-policies/deduction-policies.module';
 import { PayrollModule } from './payroll/payroll.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
+import { DailyClosureModule } from './jobs/daily-closure.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    DailyClosureModule,
     WorkSchedulesModule,
     AttendanceRecordsModule,
     AttendanceAlertsModule,
