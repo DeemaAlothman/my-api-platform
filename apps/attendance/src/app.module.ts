@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
-import { ScheduleModule } from '@nestjs/schedule';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaService } from './prisma/prisma.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -20,7 +19,6 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 @Module({
   imports: [
-    ScheduleModule.forRoot(),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     DailyClosureModule,
     WorkSchedulesModule,

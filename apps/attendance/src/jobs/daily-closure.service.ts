@@ -1,23 +1,42 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class DailyClosureService {
+export class DailyClosureService implements OnModuleInit {
   private readonly logger = new Logger(DailyClosureService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  // 21:00 UTC = منتصف الليل بتوقيت الرياض (UTC+3)
-  @Cron('0 21 * * *')
-  async handleDailyClosure() {
-    // نعالج اليوم الذي انتهى للتو بتوقيت الرياض
-    const date = new Date();
-    date.setUTCHours(date.getUTCHours() - 3); // تحويل لتوقيت الرياض
-    const dateStr = date.toISOString().split('T')[0];
-    this.logger.log(`Daily closure triggered for date: ${dateStr}`);
-    const result = await this.processDayForAllEmployees(dateStr);
-    this.logger.log(`Daily closure done: ${JSON.stringify(result)}`);
+  onModuleInit() {
+    this.scheduleNextRun();
+  }
+
+  /**
+   * يحسب الوقت المتبقي حتى 21:00 UTC (= منتصف الليل بتوقيت الرياض UTC+3)
+   * ويجدول التشغيل التلقائي التالي
+   */
+  private scheduleNextRun() {
+    const now = new Date();
+    const next = new Date(now);
+    next.setUTCHours(21, 0, 0, 0);
+    if (next.getTime() <= now.getTime()) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+    const delayMs = next.getTime() - now.getTime();
+    const delayMin = Math.round(delayMs / 60000);
+    this.logger.log(`Daily closure scheduled in ${delayMin} minutes (at ${next.toISOString()})`);
+
+    setTimeout(async () => {
+      const dateStr = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+      this.logger.log(`Daily closure running for date: ${dateStr}`);
+      try {
+        const result = await this.processDayForAllEmployees(dateStr);
+        this.logger.log(`Daily closure done: ${JSON.stringify(result)}`);
+      } catch (err) {
+        this.logger.error(`Daily closure failed: ${(err as any)?.message}`);
+      }
+      this.scheduleNextRun();
+    }, delayMs);
   }
 
   /**
@@ -91,7 +110,7 @@ export class DailyClosureService {
         // حالة إدارية موجودة → تجاهل
         skipped++;
       } else if (record.clockInTime && !record.clockOutTime) {
-        // دخل ولم يخرج → تنبيه MISSING_CLOCK_OUT
+        // دخل ولم يخرج → تنبيه
         await this.createMissingClockOutAlert(employeeId, dateStr);
         missingClockOutAlerts++;
       } else {
@@ -104,7 +123,7 @@ export class DailyClosureService {
 
   private async createAbsentRecord(employeeId: string, dateStr: string) {
     try {
-      // إنشاء سجل ABSENT — ON CONFLICT DO NOTHING لتجنب تعديل سجل موجود
+      // ON CONFLICT DO NOTHING — لا يعدل سجلاً موجوداً أبداً
       await this.prisma.$queryRawUnsafe(`
         INSERT INTO attendance.attendance_records
           (id, "employeeId", date, status, source,
@@ -116,7 +135,6 @@ export class DailyClosureService {
         ON CONFLICT ("employeeId", date) DO NOTHING
       `, employeeId, dateStr);
 
-      // إنشاء تنبيه
       await this.prisma.$queryRawUnsafe(`
         INSERT INTO attendance.attendance_alerts
           (id, "employeeId", date, "alertType", severity,
@@ -135,7 +153,7 @@ export class DailyClosureService {
 
   private async createMissingClockOutAlert(employeeId: string, dateStr: string) {
     try {
-      // تجنب تكرار التنبيه
+      // تجنب تكرار التنبيه لنفس اليوم
       const existing = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
         SELECT id FROM attendance.attendance_alerts
         WHERE "employeeId" = $1 AND date = $2::date AND "alertType" = 'MISSING_CLOCK_OUT'
@@ -156,7 +174,7 @@ export class DailyClosureService {
         `الموظف لم يسجل خروجاً يوم ${dateStr}`,
       );
     } catch (err) {
-      this.logger.error(`Failed to create MISSING_CLOCK_OUT alert for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
+      this.logger.error(`Failed to create MISSING_CLOCK_OUT for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
     }
   }
 }
