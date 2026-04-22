@@ -14,7 +14,7 @@ export class DailyClosureController {
    * Body: { "date": "2026-04-22" } أو فارغ ليأخذ اليوم الحالي
    */
   @Post('daily-closure/trigger')
-  @Permission('attendance.records.admin')
+  @Permission('attendance.records.create')
   trigger(@Body() body: { date?: string }) {
     const dateStr = body?.date ?? new Date().toISOString().split('T')[0];
     return this.dailyClosureService.processDayForAllEmployees(dateStr);
