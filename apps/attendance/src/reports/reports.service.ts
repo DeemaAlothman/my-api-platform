@@ -278,7 +278,6 @@ export class ReportsService {
 
     const latenessWhere: any = {
       date: { gte: new Date(query.dateFrom), lte: new Date(query.dateTo) },
-      status: { in: ['LATE'] },
       lateMinutes: { gte: minLate },
       ...(query.employeeId ? { employeeId: query.employeeId } : {}),
     };
@@ -688,7 +687,7 @@ export class ReportsService {
         gte: new Date(query.dateFrom),
         lte: new Date(query.dateTo),
       },
-      breakMinutes: { not: null },
+      totalBreakMinutes: { gt: 0 },
     };
     if (query.employeeId) where.employeeId = query.employeeId;
 
@@ -720,16 +719,16 @@ export class ReportsService {
         };
       }
       byEmployee[r.employeeId].totalDays++;
-      byEmployee[r.employeeId].totalBreakMinutes += r.breakMinutes || 0;
+      byEmployee[r.employeeId].totalBreakMinutes += r.totalBreakMinutes || 0;
       byEmployee[r.employeeId].records.push({
         id: r.id,
         date: r.date,
-        breakMinutes: r.breakMinutes,
+        totalBreakMinutes: r.totalBreakMinutes,
         workedMinutes: r.workedMinutes,
       });
     });
 
-    const totalBreakMinutes = filteredRecords.reduce((sum: number, r: any) => sum + (r.breakMinutes || 0), 0);
+    const totalBreakMinutes = filteredRecords.reduce((sum: number, r: any) => sum + (r.totalBreakMinutes || 0), 0);
 
     return {
       dateFrom: query.dateFrom,

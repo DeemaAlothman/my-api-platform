@@ -73,7 +73,7 @@ export class SyncService {
         }
 
         // 5. كتابة للـ attendance schema
-        await this.writeToAttendance(employeeId, timestamp, interpreted, tx);
+        await this.writeToAttendance(employeeId, timestamp, interpreted, deviceSN, tx);
 
         // 6. وضع علامة synced على السجل الجديد
         await tx.rawAttendanceLog.update({
@@ -202,6 +202,7 @@ export class SyncService {
     employeeId: string,
     timestamp: Date,
     interpreted: Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number }>,
+    deviceSN: string,
     tx: any,
   ) {
     const dateStr = toLocalDateString(timestamp);
@@ -237,10 +238,11 @@ export class SyncService {
         INSERT INTO attendance.attendance_records
           (id, "employeeId", date, "clockInTime", "clockOutTime", status,
            "isManualEntry", "lateMinutes", "earlyLeaveMinutes", "deductionApplied",
-           "createdAt", "updatedAt")
+           source, "deviceSN", "createdAt", "updatedAt")
         VALUES
           (gen_random_uuid(), ${employeeId}, ${dateStr}::date, ${clockInTime}, ${clockOutTime ?? null},
-           'PRESENT', false, 0, 0, false, NOW(), NOW())
+           'PRESENT', false, 0, 0, false,
+           'BIOMETRIC', ${deviceSN}, NOW(), NOW())
         ON CONFLICT ("employeeId", date) DO UPDATE SET "updatedAt" = NOW()
         RETURNING id
       `;
@@ -266,20 +268,38 @@ export class SyncService {
     // حساب أزواج الاستراحات وكتابتها
     const breakPairs = this.buildBreakPairs(interpreted, timestampMap as Map<string, Date>);
 
-    await tx.$executeRaw`
-      DELETE FROM attendance.attendance_breaks WHERE "attendanceRecordId" = ${recordId}
+    // جلب الاستراحات الموجودة للحفاظ على reason/isAuthorized المدخلة يدوياً
+    const existingBreaks = await tx.$queryRaw<Array<{ id: string; breakOut: Date }>>`
+      SELECT id, "breakOut" FROM attendance.attendance_breaks WHERE "attendanceRecordId" = ${recordId}
     `;
+    const existingByBreakOut = new Map<number, string>(
+      existingBreaks.map((b: { id: string; breakOut: Date }) => [b.breakOut.getTime(), b.id]),
+    );
 
     for (const pair of breakPairs) {
       const duration = pair.breakIn
         ? Math.floor((pair.breakIn.getTime() - pair.breakOut.getTime()) / 60000)
         : null;
-      await tx.$executeRaw`
-        INSERT INTO attendance.attendance_breaks
-          (id, "attendanceRecordId", "breakOut", "breakIn", "durationMinutes", "createdAt", "updatedAt")
-        VALUES
-          (gen_random_uuid(), ${recordId}, ${pair.breakOut}, ${pair.breakIn ?? null}, ${duration}, NOW(), NOW())
-      `;
+      const existingId = existingByBreakOut.get(pair.breakOut.getTime());
+
+      if (existingId) {
+        // تحديث التوقيت فقط — الحفاظ على reason/isAuthorized
+        await tx.$executeRaw`
+          UPDATE attendance.attendance_breaks
+          SET "breakIn"         = ${pair.breakIn ?? null},
+              "durationMinutes" = ${duration},
+              "updatedAt"       = NOW()
+          WHERE id = ${existingId}
+        `;
+      } else {
+        // استراحة جديدة من البصمة
+        await tx.$executeRaw`
+          INSERT INTO attendance.attendance_breaks
+            (id, "attendanceRecordId", "breakOut", "breakIn", "durationMinutes", "createdAt", "updatedAt")
+          VALUES
+            (gen_random_uuid(), ${recordId}, ${pair.breakOut}, ${pair.breakIn ?? null}, ${duration}, NOW(), NOW())
+        `;
+      }
     }
 
     // تحديث workedMinutes / totalBreakMinutes / netWorkedMinutes
@@ -299,10 +319,20 @@ export class SyncService {
       );
       const netWorkedMinutes = grossMinutes - totalBreakMinutes;
 
-      // حساب lateMinutes / earlyLeaveMinutes من جدول الدوام
-      const { lateMinutes, earlyLeaveMinutes } = await this.calcScheduleDeltas(
+      // حساب lateMinutes / earlyLeaveMinutes / overtimeMinutes من جدول الدوام
+      const { lateMinutes, earlyLeaveMinutes, overtimeMinutes } = await this.calcScheduleDeltas(
         employeeId, dateStr, fin.clockInTime, fin.clockOutTime, tx,
       );
+
+      // تحديد الحالة النهائية — لا نكتب فوق ON_LEAVE / HOLIDAY / WEEKEND
+      const currentStatusRow = await tx.$queryRaw<Array<{ status: string }>>`
+        SELECT status FROM attendance.attendance_records WHERE id = ${recordId}
+      `;
+      const currentStatus = currentStatusRow[0]?.status ?? 'PRESENT';
+      let newStatus = currentStatus;
+      if (!['ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'ABSENT'].includes(currentStatus)) {
+        newStatus = lateMinutes > 0 ? 'LATE' : earlyLeaveMinutes > 0 ? 'EARLY_LEAVE' : 'PRESENT';
+      }
 
       await tx.$executeRaw`
         UPDATE attendance.attendance_records
@@ -311,6 +341,8 @@ export class SyncService {
             "netWorkedMinutes"    = ${netWorkedMinutes},
             "lateMinutes"         = ${lateMinutes},
             "earlyLeaveMinutes"   = ${earlyLeaveMinutes},
+            "overtimeMinutes"     = ${overtimeMinutes},
+            status                = ${newStatus},
             "updatedAt"           = NOW()
         WHERE id = ${recordId}
       `;
@@ -326,15 +358,18 @@ export class SyncService {
     clockInTime: Date,
     clockOutTime: Date,
     tx: any,
-  ): Promise<{ lateMinutes: number; earlyLeaveMinutes: number }> {
+  ): Promise<{ lateMinutes: number; earlyLeaveMinutes: number; overtimeMinutes: number }> {
     const schedules = await tx.$queryRaw<Array<{
       workStartTime: string;
       workEndTime: string;
       lateToleranceMin: number;
       earlyLeaveToleranceMin: number;
+      allowOvertime: boolean;
+      maxOvertimeHours: number | null;
     }>>`
       SELECT ws."workStartTime", ws."workEndTime",
-             ws."lateToleranceMin", ws."earlyLeaveToleranceMin"
+             ws."lateToleranceMin", ws."earlyLeaveToleranceMin",
+             ws."allowOvertime", ws."maxOvertimeHours"
       FROM attendance.employee_schedules es
       JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
       WHERE es."employeeId" = ${employeeId}
@@ -344,7 +379,7 @@ export class SyncService {
       LIMIT 1
     `;
 
-    if (!schedules[0]) return { lateMinutes: 0, earlyLeaveMinutes: 0 };
+    if (!schedules[0]) return { lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0 };
 
     const s = schedules[0];
     const [startH, startM] = s.workStartTime.split(':').map(Number);
@@ -366,7 +401,15 @@ export class SyncService {
     const lateMinutes = Math.max(0, lateRaw - (s.lateToleranceMin || 0));
     const earlyLeaveMinutes = Math.max(0, earlyRaw - (s.earlyLeaveToleranceMin || 0));
 
-    return { lateMinutes, earlyLeaveMinutes };
+    // حساب الأوفرتايم: الوقت بعد نهاية الوردية (فقط إذا allowOvertime = true)
+    const overtimeRaw = Math.floor((clockOutTime.getTime() - scheduledEnd.getTime()) / 60000);
+    let overtimeMinutes = 0;
+    if (s.allowOvertime && overtimeRaw > 0) {
+      const maxMinutes = s.maxOvertimeHours ? s.maxOvertimeHours * 60 : Infinity;
+      overtimeMinutes = Math.min(overtimeRaw, maxMinutes);
+    }
+
+    return { lateMinutes, earlyLeaveMinutes, overtimeMinutes };
   }
 
   /**
