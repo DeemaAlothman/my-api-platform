@@ -265,6 +265,15 @@ export class SyncService {
 
     if (!recordId) return;
 
+    // تسجيل audit عند إنشاء سجل جديد أو تسجيل خروج
+    if (!existing[0]) {
+      await this.auditLog(tx, recordId, employeeId, dateStr, 'BIOMETRIC_CLOCK_IN', deviceSN,
+        `تسجيل دخول بيومتري: ${clockInTime?.toISOString()}`);
+    } else if (clockOutTime) {
+      await this.auditLog(tx, recordId, employeeId, dateStr, 'BIOMETRIC_CLOCK_OUT', deviceSN,
+        `تسجيل خروج بيومتري: ${clockOutTime.toISOString()}`);
+    }
+
     // حساب أزواج الاستراحات وكتابتها
     const breakPairs = this.buildBreakPairs(interpreted, timestampMap as Map<string, Date>);
 
@@ -346,6 +355,47 @@ export class SyncService {
             "updatedAt"           = NOW()
         WHERE id = ${recordId}
       `;
+
+      await this.auditLog(tx, recordId, employeeId, dateStr, 'BIOMETRIC_COMPUTED', deviceSN,
+        `حُسبت المقاييس: worked=${netWorkedMinutes}m late=${lateMinutes}m early=${earlyLeaveMinutes}m overtime=${overtimeMinutes}m status=${newStatus}`,
+        {
+          workedMinutes: { from: null, to: netWorkedMinutes },
+          lateMinutes: { from: null, to: lateMinutes },
+          earlyLeaveMinutes: { from: null, to: earlyLeaveMinutes },
+          overtimeMinutes: { from: null, to: overtimeMinutes },
+          status: { from: currentStatus, to: newStatus },
+        },
+      );
+    }
+  }
+
+  private async auditLog(
+    tx: any,
+    attendanceRecordId: string,
+    employeeId: string,
+    dateStr: string,
+    action: string,
+    source: string,
+    notes: string,
+    changedFields?: Record<string, { from: unknown; to: unknown }>,
+  ) {
+    try {
+      await tx.$queryRawUnsafe(
+        `INSERT INTO attendance.attendance_computation_logs
+           (id, "attendanceRecordId", "employeeId", date, action, source,
+            "changedFields", "performedBy", notes, "createdAt")
+         VALUES
+           (gen_random_uuid(), $1, $2, $3::date, $4, $5, $6, 'BIOMETRIC', $7, NOW())`,
+        attendanceRecordId,
+        employeeId,
+        dateStr,
+        action,
+        source,
+        changedFields ? JSON.stringify(changedFields) : null,
+        notes,
+      );
+    } catch {
+      // audit failure لا يوقف عملية الـ sync
     }
   }
 
