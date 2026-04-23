@@ -12,6 +12,9 @@ import * as path from 'path';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  app.use(require('express').json({ limit: '25mb' }));
+  app.use(require('express').urlencoded({ limit: '25mb', extended: true }));
+
   // إنشاء مجلد الرفع إن لم يوجد
   const uploadsDir = '/app/uploads/documents';
   if (!fs.existsSync(uploadsDir)) {
