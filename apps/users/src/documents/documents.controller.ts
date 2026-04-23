@@ -19,6 +19,7 @@ import { UpdateDocumentDto } from './dto/update-document.dto';
 const ALLOWED_MIMES = [
   'application/pdf',
   'image/jpeg', 'image/png', 'image/gif',
+  'image/heic', 'image/heif',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
@@ -63,7 +64,7 @@ export class DocumentsController {
       if (ALLOWED_MIMES.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        cb(new BadRequestException('نوع الملف غير مسموح به. المسموح: PDF, JPG, PNG, DOC, DOCX'), false);
+        cb(new BadRequestException('نوع الملف غير مسموح به. المسموح: PDF, JPG, PNG, HEIC, DOC, DOCX'), false);
       }
     },
   }))
