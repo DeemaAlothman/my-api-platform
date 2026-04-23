@@ -28,4 +28,12 @@ export class CreateDepartmentDto {
   @IsOptional()
   @IsUUID()
   gradeId?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  fileUrl?: string;
 }

@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { Permission } from '../common/decorators/permission.decorator';
 import { CreateRoleDto } from './dto/create-role.dto';
+import { UpdateRoleDto } from './dto/update-role.dto';
 import { UpdateRolePermissionsDto } from './dto/update-role-permissions.dto';
 
 @Controller('roles')
@@ -30,6 +31,13 @@ export class RolesController {
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateRoleDto) {
     return this.roles.create(dto);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('roles:update')
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
+    return this.roles.update(id, dto);
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)

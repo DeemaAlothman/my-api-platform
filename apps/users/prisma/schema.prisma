@@ -342,6 +342,9 @@ model Department {
   gradeId   String?
   grade     JobGrade? @relation("DepartmentGrade", fields: [gradeId], references: [id])
 
+  imageUrl  String?
+  fileUrl   String?
+
   employees Employee[]
 
   deletedAt DateTime?

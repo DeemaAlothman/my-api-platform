@@ -113,6 +113,18 @@ export class RolesService {
     return formattedRole;
   }
 
+  async update(id: string, dto: { displayNameAr?: string; displayNameEn?: string; description?: string }) {
+    await this.findOne(id);
+    return this.prisma.role.update({
+      where: { id },
+      data: {
+        ...(dto.displayNameAr !== undefined && { displayNameAr: dto.displayNameAr }),
+        ...(dto.displayNameEn !== undefined && { displayNameEn: dto.displayNameEn }),
+        ...(dto.description !== undefined && { description: dto.description }),
+      },
+    });
+  }
+
   async updatePermissions(id: string, dto: UpdateRolePermissionsDto) {
     // تحقق من الدور موجود
     await this.findOne(id);

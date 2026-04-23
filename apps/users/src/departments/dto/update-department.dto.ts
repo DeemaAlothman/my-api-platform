@@ -28,4 +28,12 @@ export class UpdateDepartmentDto {
   @IsOptional()
   @IsString()
   gradeId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  fileUrl?: string;
 }
