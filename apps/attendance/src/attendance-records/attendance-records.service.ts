@@ -402,6 +402,13 @@ export class AttendanceRecordsService {
   }
 
   async getMyAttendance(employeeId: string, filters?: { dateFrom?: string; dateTo?: string }) {
+    if (!employeeId) {
+      throw new NotFoundException({
+        code: 'EMPLOYEE_NOT_FOUND',
+        message: 'لا يوجد سجل موظف مرتبط بحسابك',
+        details: [],
+      });
+    }
     return this.findAll({ ...filters, employeeId });
   }
 
