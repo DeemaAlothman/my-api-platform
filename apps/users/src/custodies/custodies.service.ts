@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustodyDto } from './dto/create-custody.dto';
 import { UpdateCustodyDto } from './dto/update-custody.dto';
@@ -54,7 +58,14 @@ export class CustodiesService {
   }
 
   async findAll(query: ListCustodiesQueryDto) {
-    const { page = 1, limit = 10, employeeId, status, category, search } = query;
+    const {
+      page = 1,
+      limit = 10,
+      employeeId,
+      status,
+      category,
+      search,
+    } = query;
     const skip = (page - 1) * limit;
 
     const where: any = { deletedAt: null };
@@ -132,7 +143,9 @@ export class CustodiesService {
     const { attachments, ...custodyData } = dto;
 
     if (attachments !== undefined) {
-      await this.prisma.custodyAttachment.deleteMany({ where: { custodyId: id } });
+      await this.prisma.custodyAttachment.deleteMany({
+        where: { custodyId: id },
+      });
     }
 
     return this.prisma.custody.update({
@@ -140,9 +153,10 @@ export class CustodiesService {
       data: {
         ...custodyData,
         ...(dto.assignedDate && { assignedDate: new Date(dto.assignedDate) }),
-        ...(attachments !== undefined && attachments.length > 0 && {
-          attachments: { create: attachments },
-        }),
+        ...(attachments !== undefined &&
+          attachments.length > 0 && {
+            attachments: { create: attachments },
+          }),
       },
       include: { attachments: true },
     });
@@ -163,7 +177,9 @@ export class CustodiesService {
       where: { id },
       data: {
         status: dto.status,
-        returnedDate: dto.returnedDate ? new Date(dto.returnedDate) : new Date(),
+        returnedDate: dto.returnedDate
+          ? new Date(dto.returnedDate)
+          : new Date(),
         notes: dto.notes ?? custody.notes,
       },
     });
@@ -198,10 +214,22 @@ export class CustodiesService {
   async getEmployeeCustodySummary(employeeId: string) {
     const [total, withEmployee, returned, damaged, lost] = await Promise.all([
       this.prisma.custody.count({ where: { employeeId, deletedAt: null } }),
-      this.prisma.custody.count({ where: { employeeId, status: CustodyStatus.WITH_EMPLOYEE, deletedAt: null } }),
-      this.prisma.custody.count({ where: { employeeId, status: CustodyStatus.RETURNED, deletedAt: null } }),
-      this.prisma.custody.count({ where: { employeeId, status: CustodyStatus.DAMAGED, deletedAt: null } }),
-      this.prisma.custody.count({ where: { employeeId, status: CustodyStatus.LOST, deletedAt: null } }),
+      this.prisma.custody.count({
+        where: {
+          employeeId,
+          status: CustodyStatus.WITH_EMPLOYEE,
+          deletedAt: null,
+        },
+      }),
+      this.prisma.custody.count({
+        where: { employeeId, status: CustodyStatus.RETURNED, deletedAt: null },
+      }),
+      this.prisma.custody.count({
+        where: { employeeId, status: CustodyStatus.DAMAGED, deletedAt: null },
+      }),
+      this.prisma.custody.count({
+        where: { employeeId, status: CustodyStatus.LOST, deletedAt: null },
+      }),
     ]);
     return { total, withEmployee, returned, damaged, lost };
   }

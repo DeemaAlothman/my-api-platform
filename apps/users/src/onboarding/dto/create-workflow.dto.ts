@@ -1,7 +1,10 @@
 import { IsString, IsEnum, IsOptional, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-enum WorkflowType { ONBOARDING = 'ONBOARDING', OFFBOARDING = 'OFFBOARDING' }
+enum WorkflowType {
+  ONBOARDING = 'ONBOARDING',
+  OFFBOARDING = 'OFFBOARDING',
+}
 
 export class CreateWorkflowDto {
   @ApiProperty() @IsString() employeeId: string;

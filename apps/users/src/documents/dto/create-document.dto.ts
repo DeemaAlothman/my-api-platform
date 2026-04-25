@@ -1,7 +1,23 @@
-import { IsString, IsEnum, IsOptional, IsDateString, IsInt } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsOptional,
+  IsDateString,
+  IsInt,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-enum DocumentType { CONTRACT = 'CONTRACT', NATIONAL_ID = 'NATIONAL_ID', PASSPORT = 'PASSPORT', RESIDENCE = 'RESIDENCE', CERTIFICATE = 'CERTIFICATE', PHOTO = 'PHOTO', MEDICAL = 'MEDICAL', BANK_ACCOUNT = 'BANK_ACCOUNT', OTHER = 'OTHER' }
+enum DocumentType {
+  CONTRACT = 'CONTRACT',
+  NATIONAL_ID = 'NATIONAL_ID',
+  PASSPORT = 'PASSPORT',
+  RESIDENCE = 'RESIDENCE',
+  CERTIFICATE = 'CERTIFICATE',
+  PHOTO = 'PHOTO',
+  MEDICAL = 'MEDICAL',
+  BANK_ACCOUNT = 'BANK_ACCOUNT',
+  OTHER = 'OTHER',
+}
 
 export class CreateDocumentDto {
   @ApiProperty() @IsString() employeeId: string;

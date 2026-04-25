@@ -1,11 +1,15 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRolePermissionsDto } from './dto/update-role-permissions.dto';
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async list() {
     const roles = await this.prisma.role.findMany({
@@ -87,12 +91,12 @@ export class RolesService {
         description: dto.description,
         permissions: dto.permissionIds
           ? {
-            create: dto.permissionIds.map((permissionId) => ({
-              permission: {
-                connect: { id: permissionId },
-              },
-            })),
-          }
+              create: dto.permissionIds.map((permissionId) => ({
+                permission: {
+                  connect: { id: permissionId },
+                },
+              })),
+            }
           : undefined,
       },
       include: {
@@ -113,13 +117,24 @@ export class RolesService {
     return formattedRole;
   }
 
-  async update(id: string, dto: { displayNameAr?: string; displayNameEn?: string; description?: string }) {
+  async update(
+    id: string,
+    dto: {
+      displayNameAr?: string;
+      displayNameEn?: string;
+      description?: string;
+    },
+  ) {
     await this.findOne(id);
     return this.prisma.role.update({
       where: { id },
       data: {
-        ...(dto.displayNameAr !== undefined && { displayNameAr: dto.displayNameAr }),
-        ...(dto.displayNameEn !== undefined && { displayNameEn: dto.displayNameEn }),
+        ...(dto.displayNameAr !== undefined && {
+          displayNameAr: dto.displayNameAr,
+        }),
+        ...(dto.displayNameEn !== undefined && {
+          displayNameEn: dto.displayNameEn,
+        }),
         ...(dto.description !== undefined && { description: dto.description }),
       },
     });
@@ -155,7 +170,6 @@ export class RolesService {
 
     return permissions;
   }
-
 
   async remove(id: string) {
     // التحقق من وجود الدور

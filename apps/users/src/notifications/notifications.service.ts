@@ -20,7 +20,12 @@ export class NotificationsService {
     return this.prisma.notification.create({ data: dto });
   }
 
-  async findAll(userId: string, page: number, limit: number, unreadOnly: boolean) {
+  async findAll(
+    userId: string,
+    page: number,
+    limit: number,
+    unreadOnly: boolean,
+  ) {
     const skip = (page - 1) * limit;
     const where = { userId, ...(unreadOnly ? { isRead: false } : {}) };
 

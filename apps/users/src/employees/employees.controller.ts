@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Query,
+  Param,
+  Body,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { EmployeesService } from './employees.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -87,13 +99,23 @@ export class EmployeesController {
 
   // Internal endpoint — called by evaluation-service (no JWT required, service-to-service)
   @Post('internal/probation-result')
-  updateProbationResult(@Body() dto: { employeeId: string; result: string; completedAt: string }) {
+  updateProbationResult(
+    @Body() dto: { employeeId: string; result: string; completedAt: string },
+  ) {
     return this.employees.updateProbationResult(dto);
   }
 
   // Internal endpoint — called by jobs-service (no JWT required, service-to-service)
   @Post('internal/interview-result')
-  updateInterviewResult(@Body() dto: { jobApplicationId: string; totalScore: number; decision: string; proposedSalary?: number }) {
+  updateInterviewResult(
+    @Body()
+    dto: {
+      jobApplicationId: string;
+      totalScore: number;
+      decision: string;
+      proposedSalary?: number;
+    },
+  ) {
     return this.employees.updateInterviewResult(dto);
   }
 }

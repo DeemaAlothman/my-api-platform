@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobTitleDto } from './dto/create-job-title.dto';
 import { UpdateJobTitleDto } from './dto/update-job-title.dto';
@@ -33,7 +38,16 @@ export class JobTitlesService {
         skip,
         take: limit,
         include: {
-          grade: { select: { id: true, code: true, nameAr: true, nameEn: true, minSalary: true, maxSalary: true } },
+          grade: {
+            select: {
+              id: true,
+              code: true,
+              nameAr: true,
+              nameEn: true,
+              minSalary: true,
+              maxSalary: true,
+            },
+          },
           _count: { select: { employees: true } },
         },
       }),
@@ -49,7 +63,16 @@ export class JobTitlesService {
     const jobTitle = await this.prisma.jobTitle.findFirst({
       where: { id, deletedAt: null },
       include: {
-        grade: { select: { id: true, code: true, nameAr: true, nameEn: true, minSalary: true, maxSalary: true } },
+        grade: {
+          select: {
+            id: true,
+            code: true,
+            nameAr: true,
+            nameEn: true,
+            minSalary: true,
+            maxSalary: true,
+          },
+        },
         _count: { select: { employees: true } },
       },
     });
@@ -82,7 +105,9 @@ export class JobTitlesService {
       });
     }
 
-    return this.prisma.jobTitle.create({ data: { ...dto, code: dto.code!, gradeId: dto.gradeId } });
+    return this.prisma.jobTitle.create({
+      data: { ...dto, code: dto.code, gradeId: dto.gradeId },
+    });
   }
 
   async update(id: string, dto: UpdateJobTitleDto) {

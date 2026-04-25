@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobGradeDto } from './dto/create-job-grade.dto';
 import { UpdateJobGradeDto } from './dto/update-job-grade.dto';
@@ -84,7 +89,7 @@ export class JobGradesService {
       });
     }
 
-    return this.prisma.jobGrade.create({ data: { ...dto, code: dto.code! } });
+    return this.prisma.jobGrade.create({ data: { ...dto, code: dto.code } });
   }
 
   async update(id: string, dto: UpdateJobGradeDto) {

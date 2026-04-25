@@ -8,17 +8,27 @@ export async function sendExcel(
   rows: (string | number | Date | null | undefined)[][],
 ): Promise<void> {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Report', { views: [{ rightToLeft: true }] });
+  const sheet = workbook.addWorksheet('Report', {
+    views: [{ rightToLeft: true }],
+  });
 
   sheet.addRow(headers).font = { bold: true };
   for (const row of rows) {
     sheet.addRow(row);
   }
 
-  sheet.columns.forEach(col => { col.width = 20; });
+  sheet.columns.forEach((col) => {
+    col.width = 20;
+  });
 
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
+  res.setHeader(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${filename}.xlsx"`,
+  );
 
   await workbook.xlsx.write(res as any);
   res.end();

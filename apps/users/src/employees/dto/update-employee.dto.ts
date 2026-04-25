@@ -1,6 +1,31 @@
-import { IsEmail, IsEnum, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsUUID,
+  IsNumber,
+  IsInt,
+  IsBoolean,
+  Min,
+  Max,
+  ValidateNested,
+  IsArray,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-import { Gender, MaritalStatus, ContractType, BloodType, EducationLevel, EmployeeAttachmentDto, TrainingCertificateDto, EmployeeAllowanceDto, ProbationPeriod, WorkType } from './create-employee.dto';
+import {
+  Gender,
+  MaritalStatus,
+  ContractType,
+  BloodType,
+  EducationLevel,
+  EmployeeAttachmentDto,
+  TrainingCertificateDto,
+  EmployeeAllowanceDto,
+  ProbationPeriod,
+  WorkType,
+} from './create-employee.dto';
 
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',

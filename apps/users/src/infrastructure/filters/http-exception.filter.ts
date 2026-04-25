@@ -1,4 +1,10 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import type { Response, Request } from 'express';
 import { Prisma } from '@prisma/client';
 
@@ -48,7 +54,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof Prisma.PrismaClientValidationError) {
       status = HttpStatus.BAD_REQUEST;
       code = 'VALIDATION_ERROR';
-      message = exception.message.split('\n').filter(Boolean).pop() ?? 'Validation error';
+      message =
+        exception.message.split('\n').filter(Boolean).pop() ??
+        'Validation error';
     } else if (exception instanceof Error) {
       message = exception.message;
     }

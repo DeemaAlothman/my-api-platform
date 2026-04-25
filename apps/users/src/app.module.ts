@@ -40,6 +40,10 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     AuditLogsModule,
     DashboardDataModule,
   ],
-  providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
+  providers: [
+    PrismaService,
+    JwtStrategy,
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+  ],
 })
 export class AppModule {}

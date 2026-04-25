@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WorkflowType, WorkflowStatus, TaskStatus } from '@prisma/client';
 import { CreateTemplateDto } from './dto/create-template.dto';
@@ -59,7 +63,9 @@ export class OnboardingService {
     });
     if (!template) throw new NotFoundException('Template not found');
 
-    const employee = await this.prisma.employee.findFirst({ where: { id: dto.employeeId } });
+    const employee = await this.prisma.employee.findFirst({
+      where: { id: dto.employeeId },
+    });
     if (!employee) throw new NotFoundException('Employee not found');
 
     const startDate = new Date(dto.startDate);
@@ -78,21 +84,33 @@ export class OnboardingService {
             titleAr: t.titleAr,
             titleEn: t.titleEn,
             assignedTo: t.assignedTo,
-            dueDate: t.daysFromStart > 0
-              ? new Date(startDate.getTime() + t.daysFromStart * 86400000)
-              : null,
+            dueDate:
+              t.daysFromStart > 0
+                ? new Date(startDate.getTime() + t.daysFromStart * 86400000)
+                : null,
           })),
         },
       },
       include: {
         tasks: { orderBy: { dueDate: 'asc' } },
         template: true,
-        employee: { select: { firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true } },
+        employee: {
+          select: {
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
+          },
+        },
       },
     });
   }
 
-  async findWorkflows(employeeId?: string, status?: WorkflowStatus, type?: WorkflowType) {
+  async findWorkflows(
+    employeeId?: string,
+    status?: WorkflowStatus,
+    type?: WorkflowType,
+  ) {
     return this.prisma.onboardingWorkflow.findMany({
       where: {
         ...(employeeId ? { employeeId } : {}),
@@ -102,7 +120,14 @@ export class OnboardingService {
       include: {
         tasks: { orderBy: { dueDate: 'asc' } },
         template: { select: { nameAr: true, nameEn: true } },
-        employee: { select: { firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true } },
+        employee: {
+          select: {
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -114,14 +139,25 @@ export class OnboardingService {
       include: {
         tasks: { orderBy: { dueDate: 'asc' } },
         template: { include: { tasks: { orderBy: { order: 'asc' } } } },
-        employee: { select: { firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true } },
+        employee: {
+          select: {
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
+          },
+        },
       },
     });
     if (!workflow) throw new NotFoundException('Workflow not found');
     return workflow;
   }
 
-  async updateWorkflowTask(workflowId: string, taskId: string, dto: UpdateWorkflowTaskDto) {
+  async updateWorkflowTask(
+    workflowId: string,
+    taskId: string,
+    dto: UpdateWorkflowTaskDto,
+  ) {
     const task = await this.prisma.onboardingWorkflowTask.findFirst({
       where: { id: taskId, workflowId },
     });
@@ -132,7 +168,8 @@ export class OnboardingService {
       data: {
         ...dto,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-        completedAt: dto.status === TaskStatus.COMPLETED ? new Date() : undefined,
+        completedAt:
+          dto.status === TaskStatus.COMPLETED ? new Date() : undefined,
       },
     });
 
@@ -145,7 +182,9 @@ export class OnboardingService {
   async cancelWorkflow(id: string) {
     const workflow = await this.findOneWorkflow(id);
     if (workflow.status !== WorkflowStatus.IN_PROGRESS) {
-      throw new BadRequestException('Only IN_PROGRESS workflows can be cancelled');
+      throw new BadRequestException(
+        'Only IN_PROGRESS workflows can be cancelled',
+      );
     }
     return this.prisma.onboardingWorkflow.update({
       where: { id },
@@ -154,9 +193,12 @@ export class OnboardingService {
   }
 
   private async checkAndCompleteWorkflow(workflowId: string) {
-    const tasks = await this.prisma.onboardingWorkflowTask.findMany({ where: { workflowId } });
+    const tasks = await this.prisma.onboardingWorkflowTask.findMany({
+      where: { workflowId },
+    });
     const allDone = tasks.every(
-      (t) => t.status === TaskStatus.COMPLETED || t.status === TaskStatus.SKIPPED,
+      (t) =>
+        t.status === TaskStatus.COMPLETED || t.status === TaskStatus.SKIPPED,
     );
     if (allDone) {
       await this.prisma.onboardingWorkflow.update({

@@ -70,11 +70,11 @@ export class HrReportsService {
       arr.map((r) => ({ ...r, [countKey]: Number(r[countKey]) }));
 
     return {
-      byDepartment:   toNum(byDepartment),
-      byGender:       toNum(byGender),
-      byNationality:  toNum(byNationality),
+      byDepartment: toNum(byDepartment),
+      byGender: toNum(byGender),
+      byNationality: toNum(byNationality),
       byContractType: toNum(byContractType),
-      byStatus:       toNum(byStatus),
+      byStatus: toNum(byStatus),
     };
   }
 
@@ -148,14 +148,14 @@ export class HrReportsService {
     `;
 
     return rows.map((r) => ({
-      departmentAr:  r.departmentAr,
-      departmentEn:  r.departmentEn,
+      departmentAr: r.departmentAr,
+      departmentEn: r.departmentEn,
       employeeCount: Number(r.employeeCount),
-      totalSalary:   r.totalSalary ? parseFloat(r.totalSalary) : null,
-      avgSalary:     r.avgSalary   ? parseFloat(r.avgSalary)   : null,
-      minSalary:     r.minSalary   ? parseFloat(r.minSalary)   : null,
-      maxSalary:     r.maxSalary   ? parseFloat(r.maxSalary)   : null,
-      currency:      r.currency,
+      totalSalary: r.totalSalary ? parseFloat(r.totalSalary) : null,
+      avgSalary: r.avgSalary ? parseFloat(r.avgSalary) : null,
+      minSalary: r.minSalary ? parseFloat(r.minSalary) : null,
+      maxSalary: r.maxSalary ? parseFloat(r.maxSalary) : null,
+      currency: r.currency,
     }));
   }
 
@@ -202,11 +202,12 @@ export class HrReportsService {
   // ─── 5. تقرير العهدة ──────────────────────────────────────────────────────
 
   async custodies(status?: string, departmentId?: string) {
-    const statusFilter = status === 'RETURNED'
-      ? `AND c.status = 'RETURNED'`
-      : status === 'ACTIVE'
-      ? `AND c.status = 'WITH_EMPLOYEE'`
-      : '';
+    const statusFilter =
+      status === 'RETURNED'
+        ? `AND c.status = 'RETURNED'`
+        : status === 'ACTIVE'
+          ? `AND c.status = 'WITH_EMPLOYEE'`
+          : '';
 
     const deptFilter = departmentId
       ? `AND e."departmentId" = '${departmentId}'`

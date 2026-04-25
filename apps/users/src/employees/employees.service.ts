@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -245,7 +250,8 @@ export class EmployeesService {
       if (existingEmail.deletedAt !== null) {
         throw new ConflictException({
           code: 'EMPLOYEE_PREVIOUSLY_DELETED',
-          message: 'An employee with this email was previously deleted. Please contact the admin to restore the record.',
+          message:
+            'An employee with this email was previously deleted. Please contact the admin to restore the record.',
           details: [{ field: 'email', value: dto.email }],
         });
       }
@@ -285,7 +291,8 @@ export class EmployeesService {
       if (existingNumber.deletedAt !== null) {
         throw new ConflictException({
           code: 'EMPLOYEE_PREVIOUSLY_DELETED',
-          message: 'An employee with this number was previously deleted. Please contact the admin to restore the record.',
+          message:
+            'An employee with this number was previously deleted. Please contact the admin to restore the record.',
           details: [{ field: 'employeeNumber', value: employeeNumber }],
         });
       }
@@ -301,7 +308,8 @@ export class EmployeesService {
       await this.validateSalaryRange(dto.jobGradeId, dto.basicSalary);
     }
 
-    const { attachments, trainingCertificates, allowances, ...employeeData } = dto;
+    const { attachments, trainingCertificates, allowances, ...employeeData } =
+      dto;
 
     const employee = await this.prisma.employee.create({
       data: {
@@ -309,9 +317,15 @@ export class EmployeesService {
         employeeNumber,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
         hireDate: new Date(dto.hireDate),
-        contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : null,
-        ...(attachments?.length ? { attachments: { create: attachments } } : {}),
-        ...(trainingCertificates?.length ? { trainingCertificates: { create: trainingCertificates } } : {}),
+        contractEndDate: dto.contractEndDate
+          ? new Date(dto.contractEndDate)
+          : null,
+        ...(attachments?.length
+          ? { attachments: { create: attachments } }
+          : {}),
+        ...(trainingCertificates?.length
+          ? { trainingCertificates: { create: trainingCertificates } }
+          : {}),
         ...(allowances?.length ? { allowances: { create: allowances } } : {}),
       },
       include: {
@@ -373,14 +387,19 @@ export class EmployeesService {
     }
 
     // التحقق من الراتب ضمن حدود الدرجة الوظيفية
-    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
+    const employee = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
+    });
     const gradeId = dto.jobGradeId ?? employee?.jobGradeId;
-    const salary = dto.basicSalary ?? (employee?.basicSalary ? Number(employee.basicSalary) : undefined);
+    const salary =
+      dto.basicSalary ??
+      (employee?.basicSalary ? Number(employee.basicSalary) : undefined);
     if (gradeId && salary !== undefined) {
       await this.validateSalaryRange(gradeId, salary);
     }
 
-    const { attachments, trainingCertificates, allowances, ...employeeData } = dto;
+    const { attachments, trainingCertificates, allowances, ...employeeData } =
+      dto;
 
     const updated = await this.prisma.employee.update({
       where: { id },
@@ -388,16 +407,27 @@ export class EmployeesService {
         ...employeeData,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
-        contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : undefined,
-        ...(attachments !== undefined ? {
-          attachments: { deleteMany: {}, create: attachments },
-        } : {}),
-        ...(trainingCertificates !== undefined ? {
-          trainingCertificates: { deleteMany: {}, create: trainingCertificates },
-        } : {}),
-        ...(allowances !== undefined ? {
-          allowances: { deleteMany: {}, create: allowances },
-        } : {}),
+        contractEndDate: dto.contractEndDate
+          ? new Date(dto.contractEndDate)
+          : undefined,
+        ...(attachments !== undefined
+          ? {
+              attachments: { deleteMany: {}, create: attachments },
+            }
+          : {}),
+        ...(trainingCertificates !== undefined
+          ? {
+              trainingCertificates: {
+                deleteMany: {},
+                create: trainingCertificates,
+              },
+            }
+          : {}),
+        ...(allowances !== undefined
+          ? {
+              allowances: { deleteMany: {}, create: allowances },
+            }
+          : {}),
       },
       include: {
         department: true,
@@ -420,20 +450,26 @@ export class EmployeesService {
   }
 
   private async validateSalaryRange(jobGradeId: string, salary: number) {
-    const grade = await this.prisma.jobGrade.findFirst({ where: { id: jobGradeId } });
+    const grade = await this.prisma.jobGrade.findFirst({
+      where: { id: jobGradeId },
+    });
     if (!grade) return;
     if (grade.minSalary !== null && salary < Number(grade.minSalary)) {
       throw new BadRequestException({
         code: 'SALARY_OUT_OF_RANGE',
         message: `Salary ${salary} is below the minimum ${grade.minSalary} for job grade "${grade.nameAr}"`,
-        details: [{ field: 'basicSalary', min: grade.minSalary, max: grade.maxSalary }],
+        details: [
+          { field: 'basicSalary', min: grade.minSalary, max: grade.maxSalary },
+        ],
       });
     }
     if (grade.maxSalary !== null && salary > Number(grade.maxSalary)) {
       throw new BadRequestException({
         code: 'SALARY_OUT_OF_RANGE',
         message: `Salary ${salary} exceeds the maximum ${grade.maxSalary} for job grade "${grade.nameAr}"`,
-        details: [{ field: 'basicSalary', min: grade.minSalary, max: grade.maxSalary }],
+        details: [
+          { field: 'basicSalary', min: grade.minSalary, max: grade.maxSalary },
+        ],
       });
     }
   }
@@ -658,7 +694,12 @@ export class EmployeesService {
     return this.prisma.employee.update({
       where: { id: data.employeeId },
       data: updateData,
-      select: { id: true, employmentStatus: true, probationResult: true, probationCompletedAt: true },
+      select: {
+        id: true,
+        employmentStatus: true,
+        probationResult: true,
+        probationCompletedAt: true,
+      },
     });
   }
 

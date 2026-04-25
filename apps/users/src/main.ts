@@ -43,7 +43,11 @@ async function bootstrap() {
     .setVersion('1.0')
     .addBearerAuth()
     .build();
-  SwaggerModule.setup('api/v1/docs', app, SwaggerModule.createDocument(app, config));
+  SwaggerModule.setup(
+    'api/v1/docs',
+    app,
+    SwaggerModule.createDocument(app, config),
+  );
 
   await app.listen(4002);
 }
