@@ -693,11 +693,9 @@ export class EmployeesService {
     const invalidDepartmentIds: string[] = [];
 
     if (userIds?.length) {
-      const statusFilter = excludeInactive ? { employmentStatus: 'ACTIVE' } : {};
-      const found = await this.prisma.employee.findMany({
-        where: { userId: { in: userIds }, deletedAt: null, ...statusFilter },
-        select: { userId: true },
-      });
+      const where: any = { userId: { in: userIds }, deletedAt: null };
+      if (excludeInactive) where.employmentStatus = 'ACTIVE';
+      const found = await this.prisma.employee.findMany({ where, select: { userId: true } });
       const foundSet = new Set(found.map((e) => e.userId));
       for (const uid of userIds) {
         if (foundSet.has(uid)) resolvedSet.add(uid);
@@ -708,11 +706,9 @@ export class EmployeesService {
     for (const deptId of (departmentIds ?? [])) {
       const dept = await this.prisma.department.findFirst({ where: { id: deptId, deletedAt: null } });
       if (!dept) { invalidDepartmentIds.push(deptId); continue; }
-      const statusFilter = excludeInactive ? { employmentStatus: 'ACTIVE' } : {};
-      const emps = await this.prisma.employee.findMany({
-        where: { departmentId: deptId, deletedAt: null, userId: { not: null }, ...statusFilter },
-        select: { userId: true },
-      });
+      const where: any = { departmentId: deptId, deletedAt: null, userId: { not: null } };
+      if (excludeInactive) where.employmentStatus = 'ACTIVE';
+      const emps = await this.prisma.employee.findMany({ where, select: { userId: true } });
       for (const e of emps) { if (e.userId) resolvedSet.add(e.userId); }
     }
 
