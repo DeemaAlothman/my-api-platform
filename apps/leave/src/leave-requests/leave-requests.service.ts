@@ -4,6 +4,7 @@ import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
 import { UpdateLeaveRequestDto } from './dto/update-leave-request.dto';
 import { ApproveLeaveRequestDto, RejectLeaveRequestDto } from './dto/approve-leave-request.dto';
 import { CancelLeaveRequestDto } from './dto/cancel-leave-request.dto';
+import { CreateHourlyLeaveDto } from './dto/create-hourly-leave.dto';
 
 @Injectable()
 export class LeaveRequestsService {
@@ -99,6 +100,99 @@ export class LeaveRequestsService {
       where: { id: balance.id },
       data: { remainingDays: remaining },
     });
+  }
+
+  // === إجازة ساعية ===
+
+  async createHourlyLeave(dto: CreateHourlyLeaveDto, employeeId: string) {
+    const [sh, sm] = dto.startTime.split(':').map(Number);
+    const [eh, em] = dto.endTime.split(':').map(Number);
+    const durationMinutes = (eh * 60 + em) - (sh * 60 + sm);
+
+    if (durationMinutes <= 0) {
+      throw new BadRequestException('endTime يجب أن يكون بعد startTime');
+    }
+
+    const durationHours = durationMinutes / 60;
+
+    // جلب ساعات وردية الموظف من attendance schema
+    const shiftRows = (await this.prisma.$queryRawUnsafe(
+      `SELECT ws."workStartTime", ws."workEndTime"
+       FROM attendance.employee_schedules es
+       JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+       WHERE es."employeeId" = $1 AND es."isActive" = true
+       ORDER BY es."effectiveFrom" DESC LIMIT 1`,
+      employeeId,
+    )) as Array<{ workStartTime: string; workEndTime: string }>;
+
+    let shiftHours = 8; // افتراضي
+    if (shiftRows[0]) {
+      const [wsh, wsm] = shiftRows[0].workStartTime.split(':').map(Number);
+      const [weh, wem] = shiftRows[0].workEndTime.split(':').map(Number);
+      const computed = ((weh * 60 + wem) - (wsh * 60 + wsm)) / 60;
+      if (computed > 0) shiftHours = computed;
+    }
+
+    const equivalentDays = durationHours / shiftHours;
+    const year = new Date(dto.date).getFullYear();
+
+    // التحقق من الرصيد
+    const balance = await this.prisma.leaveBalance.findFirst({
+      where: { employeeId, leaveTypeId: dto.leaveTypeId, year },
+    });
+
+    if (!balance) {
+      throw new BadRequestException('لا يوجد رصيد إجازة لهذا النوع');
+    }
+
+    const pendingHours = (balance as any).pendingHours ?? 0;
+    const usedHours = (balance as any).usedHours ?? 0;
+    const remainingDays = (balance.totalDays + (balance.carriedOverDays ?? 0))
+      - balance.usedDays
+      - balance.pendingDays
+      - (usedHours / shiftHours)
+      - (pendingHours / shiftHours);
+
+    if (equivalentDays > remainingDays) {
+      throw new BadRequestException(
+        `رصيد الإجازة غير كافٍ. المتاح: ${remainingDays.toFixed(2)} يوم`,
+      );
+    }
+
+    // إنشاء الطلب في transaction
+    const request = await this.prisma.$transaction(async (tx) => {
+      const created = await (tx as any).leaveRequest.create({
+        data: {
+          employeeId,
+          leaveTypeId: dto.leaveTypeId,
+          startDate: new Date(dto.date),
+          endDate: new Date(dto.date),
+          totalDays: equivalentDays,
+          reason: dto.reason,
+          isHourlyLeave: true,
+          startTime: dto.startTime,
+          endTime: dto.endTime,
+          durationHours,
+          equivalentDays,
+          status: 'PENDING_MANAGER',
+        },
+      });
+
+      // تحديث الأرصدة
+      await (tx as any).leaveBalance.update({
+        where: { id: balance.id },
+        data: {
+          pendingDays: { increment: equivalentDays },
+          pendingHours: { increment: durationHours },
+          remainingDays: { decrement: equivalentDays },
+        },
+      });
+
+      return created;
+    });
+
+    await this.addHistory(request.id, 'SUBMIT', null, 'PENDING_MANAGER', employeeId, 'إجازة ساعية مقدّمة');
+    return request;
   }
 
   // إنشاء طلب إجازة (مسودة)
@@ -398,7 +492,12 @@ export class LeaveRequestsService {
     await this.addHistory(id, 'MANAGER_APPROVE', 'PENDING_MANAGER', newStatus, managerId, dto.notes || 'Approved by manager');
 
     if (newStatus === 'APPROVED') {
-      await this.createOnLeaveAttendanceRecords(request.employeeId, request.startDate, request.endDate);
+      if ((request as any).isHourlyLeave) {
+        await this.applyHourlyLeaveToBalance(request);
+        await this.createPartialLeaveAttendanceRecord(request);
+      } else {
+        await this.createOnLeaveAttendanceRecords(request.employeeId, request.startDate, request.endDate);
+      }
     }
 
     return updated;
@@ -476,7 +575,12 @@ export class LeaveRequestsService {
 
     await this.addHistory(id, 'HR_APPROVE', 'PENDING_HR', 'APPROVED', hrUserId, dto.notes || 'Approved by HR');
 
-    await this.createOnLeaveAttendanceRecords(request.employeeId, request.startDate, request.endDate);
+    if ((request as any).isHourlyLeave) {
+      await this.applyHourlyLeaveToBalance(request);
+      await this.createPartialLeaveAttendanceRecord(request);
+    } else {
+      await this.createOnLeaveAttendanceRecords(request.employeeId, request.startDate, request.endDate);
+    }
 
     return updated;
   }
@@ -568,6 +672,66 @@ export class LeaveRequestsService {
   }
 
   // إنشاء سجلات ON_LEAVE في جدول الحضور عند اعتماد الإجازة
+  private async applyHourlyLeaveToBalance(request: any): Promise<void> {
+    try {
+      const year = new Date(request.startDate).getFullYear();
+      const balance = await this.prisma.leaveBalance.findFirst({
+        where: { employeeId: request.employeeId, leaveTypeId: request.leaveTypeId, year },
+      });
+      if (!balance) return;
+
+      const durationHours: number = request.durationHours ?? 0;
+      const equivalentDays: number = request.equivalentDays ?? request.totalDays ?? 0;
+
+      await (this.prisma.leaveBalance as any).update({
+        where: { id: balance.id },
+        data: {
+          usedDays:     { increment: equivalentDays },
+          usedHours:    { increment: durationHours },
+          pendingDays:  { decrement: equivalentDays },
+          pendingHours: { decrement: durationHours },
+        },
+      });
+    } catch (err) {
+      console.error('[applyHourlyLeaveToBalance] failed:', (err as any)?.message);
+    }
+  }
+
+  private async createPartialLeaveAttendanceRecord(request: any): Promise<void> {
+    try {
+      const dateStr = new Date(request.startDate).toISOString().split('T')[0];
+      const startTime: string = request.startTime ?? null;
+      const endTime: string = request.endTime ?? null;
+      const durationHours: number = request.durationHours ?? 0;
+      const leaveStartTs = startTime ? new Date(`${dateStr}T${startTime}:00`) : null;
+      const leaveEndTs = endTime ? new Date(`${dateStr}T${endTime}:00`) : null;
+      const hourlyLeaveMinutes = Math.floor(durationHours * 60);
+
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO attendance.attendance_records
+           (id, "employeeId", date, status, source, "isManualEntry",
+            "lateMinutes", "earlyLeaveMinutes", "deductionApplied",
+            "hourlyLeaveMinutes", "leaveStartTime", "leaveEndTime",
+            "salaryLinked", "createdAt", "updatedAt")
+         VALUES
+           (gen_random_uuid(), $1, $2::date, 'PARTIAL_LEAVE', 'SYSTEM', false,
+            0, 0, false, $3, $4, $5, false, NOW(), NOW())
+         ON CONFLICT ("employeeId", date) DO UPDATE SET
+           status = CASE
+             WHEN attendance_records."clockInTime" IS NOT NULL THEN 'PARTIAL_LEAVE'
+             ELSE 'ON_LEAVE'
+           END,
+           "leaveStartTime"     = EXCLUDED."leaveStartTime",
+           "leaveEndTime"       = EXCLUDED."leaveEndTime",
+           "hourlyLeaveMinutes" = EXCLUDED."hourlyLeaveMinutes",
+           "updatedAt"          = NOW()`,
+        request.employeeId, dateStr, hourlyLeaveMinutes, leaveStartTs, leaveEndTs,
+      );
+    } catch (err) {
+      console.error('[createPartialLeaveAttendanceRecord] failed:', (err as any)?.message);
+    }
+  }
+
   private async createOnLeaveAttendanceRecords(employeeId: string, startDate: Date, endDate: Date): Promise<void> {
     try {
       const current = new Date(startDate);

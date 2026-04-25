@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { LeaveRequestsService } from './leave-requests.service';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
+import { CreateHourlyLeaveDto } from './dto/create-hourly-leave.dto';
 import { UpdateLeaveRequestDto } from './dto/update-leave-request.dto';
 import { ApproveLeaveRequestDto, RejectLeaveRequestDto } from './dto/approve-leave-request.dto';
 import { CancelLeaveRequestDto } from './dto/cancel-leave-request.dto';
@@ -33,6 +34,13 @@ export class LeaveRequestsController {
   @Permission('leave_requests:create')
   create(@Body() createDto: CreateLeaveRequestDto, @EmployeeId() employeeId: string) {
     return this.leaveRequestsService.create(createDto, employeeId);
+  }
+
+  // إنشاء طلب إجازة بالساعة
+  @Post('hourly')
+  @Permission('leave_requests:create')
+  createHourlyLeave(@Body() dto: CreateHourlyLeaveDto, @EmployeeId() employeeId: string) {
+    return this.leaveRequestsService.createHourlyLeave(dto, employeeId);
   }
 
   // تحديث طلب إجازة (فقط DRAFT)
