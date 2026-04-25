@@ -311,8 +311,8 @@ export class EmployeesService {
         hireDate: new Date(dto.hireDate),
         contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : null,
         ...(attachments?.length ? { attachments: { create: attachments } } : {}),
-        ...(trainingCertificates?.length ? { trainingCertificates: { create: trainingCertificates } } : {}),
-        ...(allowances?.length ? { allowances: { create: allowances } } : {}),
+        ...(trainingCertificates?.length ? { trainingCertificates: { create: trainingCertificates.map(({ name, attachmentUrl }) => ({ name, attachmentUrl })) } } : {}),
+        ...(allowances?.length ? { allowances: { create: allowances.map(({ type, amount }) => ({ type, amount })) } } : {}),
       },
       include: {
         department: true,
@@ -393,10 +393,10 @@ export class EmployeesService {
           attachments: { deleteMany: {}, create: attachments.map(({ fileUrl, fileName }) => ({ fileUrl, fileName })) },
         } : {}),
         ...(trainingCertificates !== undefined ? {
-          trainingCertificates: { deleteMany: {}, create: trainingCertificates },
+          trainingCertificates: { deleteMany: {}, create: trainingCertificates.map(({ name, attachmentUrl }) => ({ name, attachmentUrl })) },
         } : {}),
         ...(allowances !== undefined ? {
-          allowances: { deleteMany: {}, create: allowances },
+          allowances: { deleteMany: {}, create: allowances.map(({ type, amount }) => ({ type, amount })) },
         } : {}),
       },
       include: {

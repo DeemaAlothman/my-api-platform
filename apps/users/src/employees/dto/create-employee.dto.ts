@@ -35,6 +35,22 @@ export enum AllowanceType {
 }
 
 export class EmployeeAllowanceDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
+
+  @IsOptional()
+  @IsString()
+  createdAt?: string;
+
+  @IsOptional()
+  @IsString()
+  updatedAt?: string;
+
   @IsNotEmpty()
   @IsEnum(AllowanceType)
   type: AllowanceType;
@@ -47,6 +63,18 @@ export class EmployeeAllowanceDto {
 }
 
 export class TrainingCertificateDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
+
+  @IsOptional()
+  @IsString()
+  createdAt?: string;
+
   @IsNotEmpty()
   @IsString()
   name: string;
