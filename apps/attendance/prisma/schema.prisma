@@ -41,6 +41,12 @@ model WorkSchedule {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Business rules fields
+  minimumWorkMinutes     Int?
+  requiresContinuousWork Boolean @default(false)
+  holidayMultiplier      Float?
+  shiftType              String  @default("DAY")
+
   employeeSchedules EmployeeSchedule[]
   customSchedules   CustomWorkSchedule[]
 
@@ -162,6 +168,16 @@ model AttendanceRecord {
   deductionApplied Boolean @default(false)
   deductionMinutes Int?
 
+  // Business rules fields
+  lateCompensatedMinutes       Int       @default(0)
+  longestContinuousWorkMinutes Int       @default(0)
+  punchSequenceStatus          String    @default("VALID")
+  leaveStartTime               DateTime?
+  leaveEndTime                 DateTime?
+  hourlyLeaveMinutes           Int       @default(0)
+  computationVersion           Int       @default(1)
+  recomputedAt                 DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -169,6 +185,7 @@ model AttendanceRecord {
   @@index([employeeId])
   @@index([date])
   @@index([status])
+  @@index([employeeId, date, punchSequenceStatus])
   @@map("attendance_records")
   @@schema("attendance")
 }
@@ -324,6 +341,9 @@ model AttendanceComputationLog {
   changedFields      String?
   performedBy        String?   @default("SYSTEM")
   notes              String?
+  beforeSnapshot     Json?
+  afterSnapshot      Json?
+  computedBy         String?
   createdAt          DateTime  @default(now())
 
   @@index([employeeId])
@@ -357,12 +377,18 @@ model DeductionPolicy {
   // MINUTE_BY_MINUTE | IGNORE | DOUBLE
   breakOverLimitDeduction String  @default("MINUTE_BY_MINUTE")
 
+  // Business rules fields
+  monthlyLateToleranceMinutes Int      @default(120)
+  excludedAllowanceTypes      Json     @default("[\"FOOD\"]")
+  effectiveFrom               DateTime @default(now())
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   payrolls MonthlyPayroll[]
 
+  @@index([effectiveFrom])
   @@map("deduction_policies")
   @@schema("attendance")
 }
@@ -421,6 +447,17 @@ model MonthlyPayroll {
   generatedAt DateTime @default(now())
   confirmedBy String?
   confirmedAt DateTime?
+
+  // Business rules fields
+  deductibleBaseSalary      Decimal? @db.Decimal(15, 2) @default(0)
+  excludedAllowancesAmount  Decimal? @db.Decimal(15, 2) @default(0)
+  deductionBreakdown        Json?
+  totalLateMinutesGross     Int      @default(0)
+  totalLateMinutesEffective Int      @default(0)
+  totalCompensationMinutes  Int      @default(0)
+  employeeWorkingDays       Int      @default(0)
+  proRationFactor           Float    @default(1.0)
+  appliedPolicySnapshot     Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

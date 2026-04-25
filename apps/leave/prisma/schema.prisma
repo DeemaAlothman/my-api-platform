@@ -58,6 +58,8 @@ model LeaveBalance {
   carriedOverDays   Float      @default(0)
   adjustmentDays    Float      @default(0)
   adjustmentReason  String?
+  usedHours         Float      @default(0)
+  pendingHours      Float      @default(0)
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -99,6 +101,11 @@ model LeaveRequest {
   cancelledBy       String?
   hrNotifiedAt      DateTime?
   deletedAt         DateTime?
+  isHourlyLeave     Boolean               @default(false)
+  startTime         String?
+  endTime           String?
+  durationHours     Float?
+  equivalentDays    Float?
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
