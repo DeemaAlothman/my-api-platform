@@ -1,13 +1,20 @@
-import {
-  Injectable, NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import * as fs from 'fs';
 import * as path from 'path';
 
-type DocumentType = 'CONTRACT' | 'NATIONAL_ID' | 'PASSPORT' | 'RESIDENCE' | 'CERTIFICATE' | 'PHOTO' | 'MEDICAL' | 'BANK_ACCOUNT' | 'OTHER';
+type DocumentType =
+  | 'CONTRACT'
+  | 'NATIONAL_ID'
+  | 'PASSPORT'
+  | 'RESIDENCE'
+  | 'CERTIFICATE'
+  | 'PHOTO'
+  | 'MEDICAL'
+  | 'BANK_ACCOUNT'
+  | 'OTHER';
 type DocumentStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
 
 @Injectable()
@@ -42,7 +49,11 @@ export class DocumentsService {
     });
   }
 
-  async findAll(employeeId?: string, type?: DocumentType, status?: DocumentStatus) {
+  async findAll(
+    employeeId?: string,
+    type?: DocumentType,
+    status?: DocumentStatus,
+  ) {
     return this.prisma.employeeDocument.findMany({
       where: {
         deletedAt: null,
@@ -52,7 +63,13 @@ export class DocumentsService {
       },
       include: {
         employee: {
-          select: { firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true, employeeNumber: true },
+          select: {
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
+            employeeNumber: true,
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -64,7 +81,13 @@ export class DocumentsService {
       where: { id, deletedAt: null },
       include: {
         employee: {
-          select: { firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true, employeeNumber: true },
+          select: {
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
+            employeeNumber: true,
+          },
         },
       },
     });
@@ -116,7 +139,13 @@ export class DocumentsService {
       },
       include: {
         employee: {
-          select: { firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true, employeeNumber: true },
+          select: {
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
+            employeeNumber: true,
+          },
         },
       },
       orderBy: { expiryDate: 'asc' },

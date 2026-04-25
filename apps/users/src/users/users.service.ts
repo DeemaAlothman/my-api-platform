@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListUsersQueryDto, UserStatus } from './dto/list-users.query.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -25,15 +31,17 @@ export class UsersService {
 
     // فلترة بالـ role عبر user_roles
     if (query.roleId) {
-      const userIdsWithRole = (await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
-        `SELECT "userId" FROM users.user_roles WHERE "roleId" = $1`,
-        query.roleId,
-      )).map(r => r.userId);
+      const userIdsWithRole = (
+        await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+          `SELECT "userId" FROM users.user_roles WHERE "roleId" = $1`,
+          query.roleId,
+        )
+      ).map((r) => r.userId);
       where.id = { in: userIdsWithRole };
     }
 
     if (query.status) {
-      where.status = query.status as UserStatus;
+      where.status = query.status;
     }
 
     if (query.search) {
@@ -139,7 +147,8 @@ export class UsersService {
       if (existingUsername.deletedAt !== null) {
         throw new ConflictException({
           code: 'USER_PREVIOUSLY_DELETED',
-          message: 'A user with this username was previously deleted. Please contact the admin to restore the account.',
+          message:
+            'A user with this username was previously deleted. Please contact the admin to restore the account.',
           details: [{ field: 'username', value: dto.username }],
         });
       }
@@ -159,7 +168,8 @@ export class UsersService {
       if (existingEmail.deletedAt !== null) {
         throw new ConflictException({
           code: 'USER_PREVIOUSLY_DELETED',
-          message: 'A user with this email was previously deleted. Please contact the admin to restore the account.',
+          message:
+            'A user with this email was previously deleted. Please contact the admin to restore the account.',
           details: [{ field: 'email', value: dto.email }],
         });
       }
@@ -270,7 +280,11 @@ export class UsersService {
     });
   }
 
-  async changePassword(id: string, currentPassword: string, newPassword: string) {
+  async changePassword(
+    id: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.prisma.user.findFirst({
       where: { id, deletedAt: null },
       select: { id: true, password: true },

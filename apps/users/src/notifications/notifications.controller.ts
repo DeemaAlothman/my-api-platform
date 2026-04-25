@@ -1,9 +1,22 @@
 import {
-  Controller, Get, Patch, Param, Body, Query,
-  UseGuards, Request, ParseIntPipe, DefaultValuePipe,
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  Request,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notifications')
@@ -24,7 +37,12 @@ export class NotificationsController {
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
     @Query('unreadOnly') unreadOnly?: string,
   ) {
-    return this.service.findAll(req.user.userId, page, limit, unreadOnly === 'true');
+    return this.service.findAll(
+      req.user.userId,
+      page,
+      limit,
+      unreadOnly === 'true',
+    );
   }
 
   @Get('unread-count')

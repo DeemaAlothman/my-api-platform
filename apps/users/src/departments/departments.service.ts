@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -24,7 +29,13 @@ export class DepartmentsService {
           },
         },
         grade: {
-          select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+            color: true,
+            order: true,
+          },
         },
         _count: {
           select: { employees: true },
@@ -100,7 +111,13 @@ export class DepartmentsService {
             },
           },
           grade: {
-            select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
+            select: {
+              id: true,
+              nameAr: true,
+              nameEn: true,
+              color: true,
+              order: true,
+            },
           },
           _count: {
             select: {
@@ -150,7 +167,13 @@ export class DepartmentsService {
           },
         },
         grade: {
-          select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+            color: true,
+            order: true,
+          },
         },
         children: {
           where: { deletedAt: null },
@@ -181,7 +204,7 @@ export class DepartmentsService {
   }
 
   async create(dto: CreateDepartmentDto) {
-        // توليد code تلقائي إذا لم يُحدد
+    // توليد code تلقائي إذا لم يُحدد
     if (!dto.code) {
       const count = await this.prisma.department.count();
       dto.code = `VTX-DEP-${String(count + 1).padStart(6, '0')}`;
@@ -241,12 +264,22 @@ export class DepartmentsService {
         },
         manager: {
           select: {
-            id: true, employeeNumber: true,
-            firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true,
+            id: true,
+            employeeNumber: true,
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
           },
         },
         grade: {
-          select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+            color: true,
+            order: true,
+          },
         },
       },
     });
@@ -324,12 +357,22 @@ export class DepartmentsService {
         },
         manager: {
           select: {
-            id: true, employeeNumber: true,
-            firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true,
+            id: true,
+            employeeNumber: true,
+            firstNameAr: true,
+            lastNameAr: true,
+            firstNameEn: true,
+            lastNameEn: true,
           },
         },
         grade: {
-          select: { id: true, nameAr: true, nameEn: true, color: true, order: true },
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+            color: true,
+            order: true,
+          },
         },
       },
     });

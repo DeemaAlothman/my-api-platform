@@ -16,7 +16,7 @@ export class DashboardDataController {
       where: { userId, deletedAt: null },
       include: {
         department: { select: { id: true, nameAr: true, nameEn: true } },
-        jobTitle:   { select: { id: true, nameAr: true, nameEn: true } },
+        jobTitle: { select: { id: true, nameAr: true, nameEn: true } },
       },
     });
 
@@ -24,21 +24,31 @@ export class DashboardDataController {
       where: { userId, isRead: false },
       orderBy: { createdAt: 'desc' },
       take: 10,
-      select: { id: true, titleAr: true, titleEn: true, messageAr: true, messageEn: true, type: true, createdAt: true },
+      select: {
+        id: true,
+        titleAr: true,
+        titleEn: true,
+        messageAr: true,
+        messageEn: true,
+        type: true,
+        createdAt: true,
+      },
     });
 
-    const employeeProfile = employee ? {
-      id:             employee.id,
-      employeeNumber: employee.employeeNumber,
-      firstNameAr:    employee.firstNameAr,
-      lastNameAr:     employee.lastNameAr,
-      firstNameEn:    employee.firstNameEn,
-      lastNameEn:     employee.lastNameEn,
-      profilePhoto:   employee.profilePhoto,
-      department:     employee.department,
-      jobTitle:       employee.jobTitle,
-      employmentStatus: employee.employmentStatus,
-    } : null;
+    const employeeProfile = employee
+      ? {
+          id: employee.id,
+          employeeNumber: employee.employeeNumber,
+          firstNameAr: employee.firstNameAr,
+          lastNameAr: employee.lastNameAr,
+          firstNameEn: employee.firstNameEn,
+          lastNameEn: employee.lastNameEn,
+          profilePhoto: employee.profilePhoto,
+          department: employee.department,
+          jobTitle: employee.jobTitle,
+          employmentStatus: employee.employmentStatus,
+        }
+      : null;
 
     if (role === 'EMPLOYEE') {
       const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -49,7 +59,13 @@ export class DashboardDataController {
               expiryDate: { lte: thirtyDaysFromNow, gte: new Date() },
               deletedAt: null,
             },
-            select: { id: true, titleAr: true, titleEn: true, expiryDate: true, type: true },
+            select: {
+              id: true,
+              titleAr: true,
+              titleEn: true,
+              expiryDate: true,
+              type: true,
+            },
           })
         : [];
 
@@ -60,7 +76,15 @@ export class DashboardDataController {
       const subordinates = employee
         ? await this.prisma.employee.findMany({
             where: { managerId: employee.id, deletedAt: null },
-            select: { id: true, firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true, profilePhoto: true, employmentStatus: true },
+            select: {
+              id: true,
+              firstNameAr: true,
+              lastNameAr: true,
+              firstNameEn: true,
+              lastNameEn: true,
+              profilePhoto: true,
+              employmentStatus: true,
+            },
           })
         : [];
 
@@ -68,23 +92,38 @@ export class DashboardDataController {
       const teamAlerts = subordinates.length
         ? await this.prisma.employeeDocument.findMany({
             where: {
-              employeeId: { in: subordinates.map(s => s.id) },
+              employeeId: { in: subordinates.map((s) => s.id) },
               expiryDate: { lte: thirtyDaysFromNow, gte: new Date() },
               deletedAt: null,
             },
-            select: { id: true, employeeId: true, titleAr: true, expiryDate: true },
+            select: {
+              id: true,
+              employeeId: true,
+              titleAr: true,
+              expiryDate: true,
+            },
           })
         : [];
 
-      return { employee: employeeProfile, notifications, team: subordinates, teamAlerts };
+      return {
+        employee: employeeProfile,
+        notifications,
+        team: subordinates,
+        teamAlerts,
+      };
     }
 
     if (role === 'HR') {
-      const totalEmployees = await this.prisma.employee.count({ where: { deletedAt: null, employmentStatus: 'ACTIVE' } });
+      const totalEmployees = await this.prisma.employee.count({
+        where: { deletedAt: null, employmentStatus: 'ACTIVE' },
+      });
 
       const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const expiringDocs = await this.prisma.employeeDocument.count({
-        where: { expiryDate: { lte: thirtyDaysFromNow, gte: new Date() }, deletedAt: null },
+        where: {
+          expiryDate: { lte: thirtyDaysFromNow, gte: new Date() },
+          deletedAt: null,
+        },
       });
 
       const expiringContracts = await this.prisma.employee.count({
@@ -94,7 +133,13 @@ export class DashboardDataController {
         },
       });
 
-      return { employee: employeeProfile, notifications, totalEmployees, expiringDocsCount: expiringDocs, expiringContractsCount: expiringContracts };
+      return {
+        employee: employeeProfile,
+        notifications,
+        totalEmployees,
+        expiringDocsCount: expiringDocs,
+        expiringContractsCount: expiringContracts,
+      };
     }
 
     if (role === 'CEO') {
@@ -108,14 +153,28 @@ export class DashboardDataController {
             select: { type: true, amount: true },
           })
         : [];
-      const allowancesTotal = allowances.reduce((sum, a) => sum + Number(a.amount), 0);
-      return { employee: employeeProfile, notifications, allowances, allowancesTotal };
+      const allowancesTotal = allowances.reduce(
+        (sum, a) => sum + Number(a.amount),
+        0,
+      );
+      return {
+        employee: employeeProfile,
+        notifications,
+        allowances,
+        allowancesTotal,
+      };
     }
 
     // GENERAL_MANAGER
-    const totalEmployees = await this.prisma.employee.count({ where: { deletedAt: null, employmentStatus: 'ACTIVE' } });
+    const totalEmployees = await this.prisma.employee.count({
+      where: { deletedAt: null, employmentStatus: 'ACTIVE' },
+    });
 
-    const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const firstDayOfMonth = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth(),
+      1,
+    );
     const newEmployeesThisMonth = await this.prisma.employee.count({
       where: { hireDate: { gte: firstDayOfMonth }, deletedAt: null },
     });
@@ -123,11 +182,19 @@ export class DashboardDataController {
     const deptDistribution = await this.prisma.department.findMany({
       where: { deletedAt: null },
       select: {
-        id: true, nameAr: true, nameEn: true,
+        id: true,
+        nameAr: true,
+        nameEn: true,
         _count: { select: { employees: { where: { deletedAt: null } } } },
       },
     });
 
-    return { employee: employeeProfile, notifications, totalEmployees, newEmployeesThisMonth, departmentDistribution: deptDistribution };
+    return {
+      employee: employeeProfile,
+      notifications,
+      totalEmployees,
+      newEmployeesThisMonth,
+      departmentDistribution: deptDistribution,
+    };
   }
 }

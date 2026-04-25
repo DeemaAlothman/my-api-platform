@@ -1,16 +1,42 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Param, Body, Query, UseGuards, UseInterceptors,
-  UploadedFile, BadRequestException, Request,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 
-type DocumentType = 'CONTRACT' | 'NATIONAL_ID' | 'PASSPORT' | 'RESIDENCE' | 'CERTIFICATE' | 'PHOTO' | 'MEDICAL' | 'BANK_ACCOUNT' | 'OTHER';
+type DocumentType =
+  | 'CONTRACT'
+  | 'NATIONAL_ID'
+  | 'PASSPORT'
+  | 'RESIDENCE'
+  | 'CERTIFICATE'
+  | 'PHOTO'
+  | 'MEDICAL'
+  | 'BANK_ACCOUNT'
+  | 'OTHER';
 type DocumentStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
 import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
@@ -18,8 +44,11 @@ import { UpdateDocumentDto } from './dto/update-document.dto';
 
 const ALLOWED_MIMES = [
   'application/pdf',
-  'image/jpeg', 'image/png', 'image/gif',
-  'image/heic', 'image/heif',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/heic',
+  'image/heif',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
@@ -47,7 +76,20 @@ export class DocumentsController {
       properties: {
         file: { type: 'string', format: 'binary' },
         employeeId: { type: 'string' },
-        type: { type: 'string', enum: ['CONTRACT','NATIONAL_ID','PASSPORT','RESIDENCE','CERTIFICATE','PHOTO','MEDICAL','BANK_ACCOUNT','OTHER'] },
+        type: {
+          type: 'string',
+          enum: [
+            'CONTRACT',
+            'NATIONAL_ID',
+            'PASSPORT',
+            'RESIDENCE',
+            'CERTIFICATE',
+            'PHOTO',
+            'MEDICAL',
+            'BANK_ACCOUNT',
+            'OTHER',
+          ],
+        },
         titleAr: { type: 'string' },
         titleEn: { type: 'string' },
         notes: { type: 'string' },
@@ -57,17 +99,24 @@ export class DocumentsController {
       required: ['file', 'employeeId', 'type', 'titleAr'],
     },
   })
-  @UseInterceptors(FileInterceptor('file', {
-    storage,
-    limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
-    fileFilter: (_req, file, cb) => {
-      if (ALLOWED_MIMES.includes(file.mimetype)) {
-        cb(null, true);
-      } else {
-        cb(new BadRequestException('نوع الملف غير مسموح به. المسموح: PDF, JPG, PNG, HEIC, DOC, DOCX'), false);
-      }
-    },
-  }))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage,
+      limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
+      fileFilter: (_req, file, cb) => {
+        if (ALLOWED_MIMES.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException(
+              'نوع الملف غير مسموح به. المسموح: PDF, JPG, PNG, HEIC, DOC, DOCX',
+            ),
+            false,
+          );
+        }
+      },
+    }),
+  )
   upload(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: CreateDocumentDto,
@@ -80,8 +129,26 @@ export class DocumentsController {
   @Get()
   @ApiOperation({ summary: 'قائمة المستندات' })
   @ApiQuery({ name: 'employeeId', required: false })
-  @ApiQuery({ name: 'type', enum: ['CONTRACT','NATIONAL_ID','PASSPORT','RESIDENCE','CERTIFICATE','PHOTO','MEDICAL','BANK_ACCOUNT','OTHER'], required: false })
-  @ApiQuery({ name: 'status', enum: ['ACTIVE','EXPIRED','CANCELLED'], required: false })
+  @ApiQuery({
+    name: 'type',
+    enum: [
+      'CONTRACT',
+      'NATIONAL_ID',
+      'PASSPORT',
+      'RESIDENCE',
+      'CERTIFICATE',
+      'PHOTO',
+      'MEDICAL',
+      'BANK_ACCOUNT',
+      'OTHER',
+    ],
+    required: false,
+  })
+  @ApiQuery({
+    name: 'status',
+    enum: ['ACTIVE', 'EXPIRED', 'CANCELLED'],
+    required: false,
+  })
   findAll(
     @Query('employeeId') employeeId?: string,
     @Query('type') type?: DocumentType,
@@ -92,7 +159,11 @@ export class DocumentsController {
 
   @Get('expiring')
   @ApiOperation({ summary: 'المستندات المنتهية قريباً (خلال N يوم)' })
-  @ApiQuery({ name: 'days', required: false, description: 'عدد الأيام (افتراضي: 30)' })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    description: 'عدد الأيام (افتراضي: 30)',
+  })
   getExpiring(@Query('days') days?: string) {
     return this.service.getExpiringDocuments(days ? parseInt(days) : 30);
   }

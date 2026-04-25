@@ -1,6 +1,21 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray, IsDecimal } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsUUID,
+  IsNumber,
+  IsInt,
+  IsBoolean,
+  Min,
+  Max,
+  ValidateNested,
+  IsArray,
+  IsDecimal,
+} from 'class-validator';
 import { Type } from 'class-transformer';
-
 
 export enum Gender {
   MALE = 'MALE',
@@ -92,7 +107,6 @@ export enum ProbationPeriod {
   PERMANENT = 'PERMANENT',
   UNSPECIFIED = 'UNSPECIFIED',
 }
-
 
 export class EmployeeAttachmentDto {
   @IsNotEmpty()

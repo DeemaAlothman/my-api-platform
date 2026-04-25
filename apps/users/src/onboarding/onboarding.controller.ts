@@ -1,9 +1,21 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Param, Body, Query, UseGuards,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { WorkflowType, WorkflowStatus } from '@prisma/client';
 import { OnboardingService } from './onboarding.service';
 import { CreateTemplateDto } from './dto/create-template.dto';
@@ -47,7 +59,9 @@ export class OnboardingController {
   // ─── Workflows ────────────────────────────────────────────────────────────
 
   @Post('workflows')
-  @ApiOperation({ summary: 'Start onboarding/offboarding workflow for employee' })
+  @ApiOperation({
+    summary: 'Start onboarding/offboarding workflow for employee',
+  })
   createWorkflow(@Body() dto: CreateWorkflowDto) {
     return this.service.createWorkflow(dto);
   }

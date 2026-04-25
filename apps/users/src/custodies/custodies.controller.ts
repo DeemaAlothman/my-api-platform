@@ -1,6 +1,15 @@
 import {
-  Controller, Get, Post, Put, Delete, Patch,
-  Body, Param, Query, UseGuards, Req,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { CustodiesService } from './custodies.service';
 import { CreateCustodyDto } from './dto/create-custody.dto';
@@ -38,9 +47,9 @@ export class CustodiesController {
   @Get('employee/:employeeId/check')
   @Permission('custodies:read')
   checkUnreturned(@Param('employeeId') employeeId: string) {
-    return this.custodiesService.hasUnreturnedCustodies(employeeId).then(
-      (hasUnreturned) => ({ hasUnreturned }),
-    );
+    return this.custodiesService
+      .hasUnreturnedCustodies(employeeId)
+      .then((hasUnreturned) => ({ hasUnreturned }));
   }
 
   @Get('employee/:employeeId')

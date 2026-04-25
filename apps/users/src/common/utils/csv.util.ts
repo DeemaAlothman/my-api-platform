@@ -1,6 +1,8 @@
 import { Response } from 'express';
 
-export function toCsvRow(values: (string | number | Date | null | undefined)[]): string {
+export function toCsvRow(
+  values: (string | number | Date | null | undefined)[],
+): string {
   return values
     .map((v) => {
       if (v === null || v === undefined) return '';
@@ -22,6 +24,9 @@ export function sendCsv(
   // BOM for Excel Arabic support
   const bom = '\uFEFF';
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${filename}.csv"`,
+  );
   res.send(bom + lines);
 }
