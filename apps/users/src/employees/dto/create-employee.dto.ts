@@ -95,6 +95,18 @@ export enum ProbationPeriod {
 
 
 export class EmployeeAttachmentDto {
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
+
+  @IsOptional()
+  @IsString()
+  createdAt?: string;
+
   @IsNotEmpty()
   @IsString()
   fileUrl: string;

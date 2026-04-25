@@ -390,7 +390,7 @@ export class EmployeesService {
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
         contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : undefined,
         ...(attachments !== undefined ? {
-          attachments: { deleteMany: {}, create: attachments },
+          attachments: { deleteMany: {}, create: attachments.map(({ fileUrl, fileName }) => ({ fileUrl, fileName })) },
         } : {}),
         ...(trainingCertificates !== undefined ? {
           trainingCertificates: { deleteMany: {}, create: trainingCertificates },
