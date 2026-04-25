@@ -15,17 +15,17 @@ export class BackfillController {
    */
   @Post('backfill/dry-run')
   @Permission('attendance.records.create')
-  dryRun(@Body() body: { dateFrom?: string; dateTo?: string; employeeId?: string }) {
+  dryRun(@Body() body: { dateFrom?: string; dateTo?: string; employeeId?: string; useNewBusinessRules?: boolean }) {
     return this.backfillService.dryRun(body);
   }
 
   /**
    * Apply: يطبق التغييرات على دفعات — شغّله فقط بعد مراجعة dry-run
-   * Body: { "dateFrom": "2026-01-01", "dateTo": "2026-04-22", "employeeId": "optional", "batchSize": 50 }
+   * Body: { "dateFrom": "2026-01-01", "dateTo": "2026-04-22", "employeeId": "optional", "batchSize": 50, "useNewBusinessRules": true }
    */
   @Post('backfill/apply')
   @Permission('attendance.records.create')
-  apply(@Body() body: { dateFrom?: string; dateTo?: string; employeeId?: string; batchSize?: number }) {
+  apply(@Body() body: { dateFrom?: string; dateTo?: string; employeeId?: string; batchSize?: number; useNewBusinessRules?: boolean }) {
     return this.backfillService.apply(body);
   }
 }

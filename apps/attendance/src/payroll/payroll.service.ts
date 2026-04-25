@@ -133,6 +133,20 @@ export class PayrollService {
       justifications.forEach(j => justifiedIds.add(j.attendanceRecordId));
     }
 
+    // جلب التبريرات المقبولة للتأخير (deductionMinutes = الدقائق المبررة)
+    const lateRecordIds = records.filter(r => r.lateMinutes > 0).map(r => r.id);
+    let justifiedLateMinutes = 0;
+    if (lateRecordIds.length > 0) {
+      const lateJustifications = await this.prisma.attendanceJustification.findMany({
+        where: {
+          attendanceRecordId: { in: lateRecordIds },
+          status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] },
+        },
+        select: { deductionMinutes: true },
+      });
+      justifiedLateMinutes = lateJustifications.reduce((sum, j) => sum + (j.deductionMinutes ?? 0), 0);
+    }
+
     for (const r of records) {
       if (r.status === 'ABSENT') {
         absentDays++;
@@ -267,7 +281,8 @@ export class PayrollService {
     const totalCompensationMinutes = records.reduce(
       (sum, r) => sum + ((r as any).lateCompensatedMinutes || 0), 0,
     );
-    const totalLateMinutesEffective = Math.max(0, totalLateMinutes - totalCompensationMinutes);
+    // خصم التعويض والتبريرات المعتمدة من إجمالي دقائق التأخير
+    const totalLateMinutesEffective = Math.max(0, totalLateMinutes - totalCompensationMinutes - justifiedLateMinutes);
     const monthlyTolerance = policy?.monthlyLateToleranceMinutes ?? 120;
     const deductibleLateMinutes = Math.max(0, totalLateMinutesEffective - monthlyTolerance);
 
