@@ -63,7 +63,7 @@ export class DailyClosureService implements OnModuleInit {
       .map(emp => emp.employeeId);
 
     if (workingEmployeeIds.length === 0) {
-      return { date: dateStr, absentCreated: 0, missingClockOutAlerts: 0, skipped: 0 };
+      return { date: dateStr, absentCreated: 0, missingClockOutAlerts: 0, onLeaveApplied: 0, skipped: 0 };
     }
 
     const existingRecords = (await this.prisma.$queryRawUnsafe(
