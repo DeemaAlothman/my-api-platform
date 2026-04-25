@@ -207,6 +207,84 @@ export class ReportsController {
   }
 
   /**
+   * GET /attendance-reports/payroll-summary
+   * ملخص الرواتب الشهرية مع تفصيل الخصومات والبدلات
+   */
+  @Get('payroll-summary')
+  @Permission('attendance.reports.read')
+  payrollSummary(
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    const now = new Date();
+    return this.service.payrollSummaryReport({
+      year: year ? parseInt(year) : now.getFullYear(),
+      month: month ? parseInt(month) : now.getMonth() + 1,
+      departmentId,
+    });
+  }
+
+  /**
+   * GET /attendance-reports/deduction-breakdown
+   * تفصيل الخصومات لكل موظف (تأخير + غياب + استراحة)
+   */
+  @Get('deduction-breakdown')
+  @Permission('attendance.reports.read')
+  deductionBreakdown(
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('employeeId') employeeId?: string,
+  ) {
+    const now = new Date();
+    return this.service.deductionBreakdownReport({
+      year: year ? parseInt(year) : now.getFullYear(),
+      month: month ? parseInt(month) : now.getMonth() + 1,
+      departmentId,
+      employeeId,
+    });
+  }
+
+  /**
+   * GET /attendance-reports/department-attendance
+   * ملخص حضور الموظفين مجمعاً بالقسم
+   */
+  @Get('department-attendance')
+  @Permission('attendance.reports.read')
+  departmentAttendance(
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('departmentId') departmentId: string,
+  ) {
+    const now = new Date();
+    return this.service.departmentAttendanceReport({
+      year: year ? parseInt(year) : now.getFullYear(),
+      month: month ? parseInt(month) : now.getMonth() + 1,
+      departmentId,
+    });
+  }
+
+  /**
+   * GET /attendance-reports/lateness-accumulated
+   * التأخر التراكمي الشهري مقارنةً بسماحية الـ 2 ساعة
+   */
+  @Get('lateness-accumulated')
+  @Permission('attendance.reports.read')
+  latenessAccumulated(
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Query('departmentId') departmentId?: string,
+  ) {
+    const now = new Date();
+    return this.service.latenessAccumulatedReport({
+      year: year ? parseInt(year) : now.getFullYear(),
+      month: month ? parseInt(month) : now.getMonth() + 1,
+      departmentId,
+    });
+  }
+
+  /**
    * GET /attendance-reports/top-absences
    * الموظفون الأكثر غياباً وتأخراً
    */

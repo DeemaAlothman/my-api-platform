@@ -27,6 +27,20 @@ export class ReportsService {
     return new Map(employees.map(e => [e.id, e]));
   }
 
+  private async getDepartmentNames(deptIds: string[]) {
+    if (deptIds.length === 0) return new Map<string, string>();
+    const depts = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "nameAr" FROM users.departments WHERE id::text = ANY($1::text[])`,
+      deptIds,
+    )) as Array<{ id: string; nameAr: string }>;
+    return new Map(depts.map(d => [d.id, d.nameAr]));
+  }
+
+  private empFullName(emp: any): string {
+    if (!emp) return '';
+    return `${emp.firstNameAr} ${emp.lastNameAr}`;
+  }
+
   /**
    * تقرير يومي - Daily Report
    * جميع سجلات الحضور ليوم محدد
@@ -631,6 +645,7 @@ export class ReportsService {
           clockIn: r.clockInTime ? new Date(r.clockInTime).toTimeString().slice(0, 5) : null,
           clockOut: r.clockOutTime ? new Date(r.clockOutTime).toTimeString().slice(0, 5) : null,
           lateMinutes: r.lateMinutes || 0,
+          lateCompensatedMinutes: (r as any).lateCompensatedMinutes || 0,
           earlyLeaveMinutes: r.earlyLeaveMinutes || 0,
           workedMinutes: r.workedMinutes,
           overtimeMinutes: r.overtimeMinutes,
@@ -641,6 +656,10 @@ export class ReportsService {
           })),
           totalBreakMinutes: r.totalBreakMinutes || 0,
           netWorkedMinutes: r.netWorkedMinutes,
+          punchSequenceStatus: (r as any).punchSequenceStatus || 'VALID',
+          leaveStart: (r as any).leaveStartTime ? new Date((r as any).leaveStartTime).toTimeString().slice(0, 5) : null,
+          leaveEnd: (r as any).leaveEndTime ? new Date((r as any).leaveEndTime).toTimeString().slice(0, 5) : null,
+          hourlyLeaveMinutes: (r as any).hourlyLeaveMinutes || 0,
           source: r.source,
         });
       } else {
@@ -649,16 +668,24 @@ export class ReportsService {
     }
 
     const presentRecords = records.filter((r: any) => ['PRESENT', 'LATE', 'EARLY_LEAVE'].includes(r.status));
+    const totalLateMinutes = records.reduce((s: number, r: any) => s + (r.lateMinutes || 0), 0);
+    const totalCompensationMinutes = records.reduce((s: number, r: any) => s + ((r as any).lateCompensatedMinutes || 0), 0);
+    const totalWorkedMinutes = records.reduce((s: number, r: any) => s + (r.workedMinutes || 0), 0);
+    const totalHourlyLeaveMinutes = records.reduce((s: number, r: any) => s + ((r as any).hourlyLeaveMinutes || 0), 0);
     const summary = {
       workingDays: records.filter((r: any) => !['WEEKEND', 'ON_LEAVE'].includes(r.status)).length,
       presentDays: presentRecords.length,
       absentDays: records.filter((r: any) => r.status === 'ABSENT').length,
       lateDays: records.filter((r: any) => r.status === 'LATE').length,
-      totalLateMinutes: records.reduce((s: number, r: any) => s + (r.lateMinutes || 0), 0),
-      totalWorkedMinutes: records.reduce((s: number, r: any) => s + (r.workedMinutes || 0), 0),
-      totalWorkedHours: +(records.reduce((s: number, r: any) => s + (r.workedMinutes || 0), 0) / 60).toFixed(2),
+      onLeaveDays: records.filter((r: any) => ['ON_LEAVE', 'PARTIAL_LEAVE'].includes(r.status)).length,
+      totalLateMinutes,
+      compensationMinutes: totalCompensationMinutes,
+      effectiveLateMinutes: Math.max(0, totalLateMinutes - totalCompensationMinutes),
+      totalWorkedMinutes,
+      totalWorkedHours: +(totalWorkedMinutes / 60).toFixed(2),
       totalOvertimeMinutes: records.reduce((s: number, r: any) => s + (r.overtimeMinutes || 0), 0),
       totalBreakMinutes: records.reduce((s: number, r: any) => s + (r.totalBreakMinutes || 0), 0),
+      hourlyLeaveHours: +(totalHourlyLeaveMinutes / 60).toFixed(2),
     };
 
     return {
@@ -780,6 +807,302 @@ export class ReportsService {
         totalLateMinutes: parseInt(r.totalLateMinutes),
         totalLateHours: +(parseInt(r.totalLateMinutes) / 60).toFixed(2),
       })),
+    };
+  }
+
+  // ─── تقرير ملخص الرواتب الشهرية ─────────────────────────────────────────
+
+  async payrollSummaryReport(query: { year: number; month: number; departmentId?: string }) {
+    const payrolls = (await this.prisma.monthlyPayroll.findMany({
+      where: { year: query.year, month: query.month },
+    })) as any[];
+
+    const employeeIds = payrolls.map((p) => p.employeeId);
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    let filtered = payrolls;
+    if (query.departmentId) {
+      filtered = payrolls.filter((p) => employeeMap.get(p.employeeId)?.departmentId === query.departmentId);
+    }
+
+    const zero = {
+      employeeCount: 0, totalGross: 0, totalNet: 0, totalAllowances: 0,
+      totalExcludedAllowances: 0, lateD: 0, absenceD: 0, breakD: 0,
+      totalDeduction: 0, totalOvertimePay: 0,
+    };
+
+    const totals = filtered.reduce((acc, p) => {
+      const bd = (p.deductionBreakdown as any) || {};
+      return {
+        employeeCount: acc.employeeCount + 1,
+        totalGross: acc.totalGross + Number(p.grossSalary || 0),
+        totalNet: acc.totalNet + Number(p.netSalary || 0),
+        totalAllowances: acc.totalAllowances + Number(p.allowancesTotal || 0),
+        totalExcludedAllowances: acc.totalExcludedAllowances + Number(p.excludedAllowancesAmount || 0),
+        lateD: acc.lateD + Number(bd.lateDeduction || 0),
+        absenceD: acc.absenceD + Number(bd.absenceDeduction || 0),
+        breakD: acc.breakD + Number(bd.breakOverLimitDeduction || 0),
+        totalDeduction: acc.totalDeduction + Number(bd.totalDeduction || p.deductionAmount || 0),
+        totalOvertimePay: acc.totalOvertimePay + Number(p.overtimePay || 0),
+      };
+    }, zero);
+
+    return {
+      period: { year: query.year, month: query.month },
+      totals: {
+        employeeCount: totals.employeeCount,
+        totalGross: +totals.totalGross.toFixed(2),
+        totalNet: +totals.totalNet.toFixed(2),
+        totalAllowances: +totals.totalAllowances.toFixed(2),
+        totalExcludedAllowances: +totals.totalExcludedAllowances.toFixed(2),
+        totalDeductions: {
+          late: +totals.lateD.toFixed(2),
+          absence: +totals.absenceD.toFixed(2),
+          breakOverLimit: +totals.breakD.toFixed(2),
+          total: +totals.totalDeduction.toFixed(2),
+        },
+        totalOvertimePay: +totals.totalOvertimePay.toFixed(2),
+      },
+      employees: filtered.map((p) => {
+        const emp = employeeMap.get(p.employeeId);
+        const bd = (p.deductionBreakdown as any) || {};
+        return {
+          employeeId: p.employeeId,
+          employeeName: this.empFullName(emp),
+          employeeNumber: emp?.employeeNumber || '',
+          basicSalary: Number(p.basicSalary || 0),
+          totalAllowances: Number(p.allowancesTotal || 0),
+          excludedAllowancesAmount: Number(p.excludedAllowancesAmount || 0),
+          deductibleBaseSalary: Number(p.deductibleBaseSalary || 0),
+          proRationFactor: p.proRationFactor || 1,
+          grossSalary: Number(p.grossSalary || 0),
+          totalDeduction: Number(bd.totalDeduction || p.deductionAmount || 0),
+          netSalary: Number(p.netSalary || 0),
+          overtimePay: Number(p.overtimePay || 0),
+          status: p.status,
+        };
+      }),
+    };
+  }
+
+  // ─── تقرير تفصيل الخصومات ─────────────────────────────────────────────────
+
+  async deductionBreakdownReport(query: {
+    year: number;
+    month: number;
+    departmentId?: string;
+    employeeId?: string;
+  }) {
+    const where: any = { year: query.year, month: query.month };
+    if (query.employeeId) where.employeeId = query.employeeId;
+
+    let payrolls = (await this.prisma.monthlyPayroll.findMany({ where })) as any[];
+
+    const employeeIds = payrolls.map((p) => p.employeeId);
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    if (query.departmentId) {
+      payrolls = payrolls.filter((p) => employeeMap.get(p.employeeId)?.departmentId === query.departmentId);
+    }
+
+    const deptIds = [...new Set(payrolls.map((p) => employeeMap.get(p.employeeId)?.departmentId).filter(Boolean))] as string[];
+    const deptMap = await this.getDepartmentNames(deptIds);
+
+    const rows = payrolls.map((p) => {
+      const emp = employeeMap.get(p.employeeId);
+      const deptName = emp?.departmentId ? (deptMap.get(emp.departmentId) || '') : '';
+      const bd = (p.deductionBreakdown as any) || {};
+      const lateDeductibleMin = p.totalLateMinutesEffective || 0;
+      return {
+        employeeId: p.employeeId,
+        employeeName: this.empFullName(emp),
+        employeeNumber: emp?.employeeNumber || '',
+        departmentName: deptName,
+        totalLateMinutes: p.totalLateMinutesGross || p.totalLateMinutes || 0,
+        compensatedMinutes: p.totalCompensationMinutes || 0,
+        deductibleLateMinutes: lateDeductibleMin,
+        lateDeductionAmount: Number(bd.lateDeduction || 0),
+        absenceDays: p.absentUnjustified || 0,
+        absenceDeductionAmount: Number(bd.absenceDeduction || p.absenceDeductionAmount || 0),
+        breakOverLimitMinutes: p.breakOverLimitMinutes || 0,
+        breakDeductionAmount: Number(bd.breakOverLimitDeduction || 0),
+        totalDeduction: Number(bd.totalDeduction || p.deductionAmount || 0),
+        proRationFactor: p.proRationFactor || 1,
+      };
+    });
+
+    return {
+      period: { year: query.year, month: query.month },
+      rows: rows.sort((a, b) => b.totalDeduction - a.totalDeduction),
+    };
+  }
+
+  // ─── تقرير الحضور بالقسم ──────────────────────────────────────────────────
+
+  async departmentAttendanceReport(query: { year: number; month: number; departmentId: string }) {
+    const startDate = new Date(query.year, query.month - 1, 1);
+    const endDate = new Date(query.year, query.month, 0, 23, 59, 59, 999);
+
+    const deptEmployeeIds = (await this.prisma.$queryRawUnsafe(
+      `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
+      query.departmentId,
+    ) as Array<{ id: string }>).map((e) => e.id);
+
+    const deptMap = await this.getDepartmentNames([query.departmentId]);
+    const deptName = deptMap.get(query.departmentId) || '';
+
+    if (deptEmployeeIds.length === 0) {
+      return {
+        department: { id: query.departmentId, name: deptName },
+        period: { year: query.year, month: query.month },
+        summary: { employeeCount: 0 },
+        employees: [],
+      };
+    }
+
+    const records = await this.prisma.attendanceRecord.findMany({
+      where: {
+        employeeId: { in: deptEmployeeIds },
+        date: { gte: startDate, lte: endDate },
+      },
+      orderBy: [{ employeeId: 'asc' }, { date: 'asc' }],
+    });
+
+    const employeeMap = await this.getEmployeeNames(deptEmployeeIds);
+
+    const byEmployee: Record<string, any> = {};
+    for (const empId of deptEmployeeIds) {
+      const emp = employeeMap.get(empId);
+      byEmployee[empId] = {
+        employeeId: empId,
+        name: this.empFullName(emp),
+        employeeNumber: emp?.employeeNumber || '',
+        presentDays: 0, absentDays: 0, lateDays: 0, onLeaveDays: 0,
+        lateMinutes: 0, overtimeMinutes: 0,
+      };
+    }
+
+    (records as any[]).forEach((r) => {
+      const emp = byEmployee[r.employeeId];
+      if (!emp) return;
+      switch (r.status) {
+        case 'PRESENT': emp.presentDays++; break;
+        case 'LATE': emp.presentDays++; emp.lateDays++; emp.lateMinutes += r.lateMinutes || 0; break;
+        case 'ABSENT': emp.absentDays++; break;
+        case 'ON_LEAVE': case 'PARTIAL_LEAVE': emp.onLeaveDays++; break;
+        case 'EARLY_LEAVE': emp.presentDays++; break;
+        default: break;
+      }
+      emp.overtimeMinutes += r.overtimeMinutes || 0;
+    });
+
+    const employees = Object.values(byEmployee);
+    const totalLateMinutes = employees.reduce((s: number, e: any) => s + e.lateMinutes, 0);
+
+    const summary = {
+      employeeCount: employees.length,
+      totalWorkingDays: (records as any[]).filter((r) => r.status !== 'WEEKEND').length,
+      totalPresent: employees.reduce((s: number, e: any) => s + e.presentDays, 0),
+      totalAbsent: employees.reduce((s: number, e: any) => s + e.absentDays, 0),
+      totalLate: employees.reduce((s: number, e: any) => s + e.lateDays, 0),
+      totalOnLeave: employees.reduce((s: number, e: any) => s + e.onLeaveDays, 0),
+      totalLateMinutes,
+      totalOvertimeMinutes: employees.reduce((s: number, e: any) => s + e.overtimeMinutes, 0),
+      averageLatenessPerEmployee: employees.length > 0 ? +(totalLateMinutes / employees.length).toFixed(2) : 0,
+    };
+
+    return {
+      department: { id: query.departmentId, name: deptName },
+      period: { year: query.year, month: query.month },
+      summary,
+      employees,
+    };
+  }
+
+  // ─── تقرير التأخر التراكمي الشهري ────────────────────────────────────────
+
+  async latenessAccumulatedReport(query: { year: number; month: number; departmentId?: string }) {
+    const startDate = new Date(query.year, query.month - 1, 1);
+    const endDate = new Date(query.year, query.month, 0, 23, 59, 59, 999);
+
+    const policy = (await this.prisma.deductionPolicy.findFirst({
+      where: { effectiveFrom: { lte: endDate }, isActive: true },
+      orderBy: { effectiveFrom: 'desc' },
+    })) as any;
+    const tolerance = policy?.monthlyLateToleranceMinutes ?? 120;
+
+    const where: any = {
+      date: { gte: startDate, lte: endDate },
+      lateMinutes: { gt: 0 },
+    };
+
+    if (query.departmentId) {
+      const deptEmpIds = (await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
+        query.departmentId,
+      ) as Array<{ id: string }>).map((e) => e.id);
+      where.employeeId = { in: deptEmpIds };
+    }
+
+    const records = (await this.prisma.attendanceRecord.findMany({
+      where,
+      orderBy: [{ employeeId: 'asc' }, { date: 'asc' }],
+    })) as any[];
+
+    const employeeIds = [...new Set(records.map((r) => r.employeeId))] as string[];
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    const justifications = (await this.prisma.attendanceJustification.findMany({
+      where: {
+        employeeId: { in: employeeIds },
+        date: { gte: startDate, lte: endDate },
+        status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] },
+      },
+    })) as any[];
+
+    const justByEmployee: Record<string, number> = {};
+    justifications.forEach((j) => {
+      if (!justByEmployee[j.employeeId]) justByEmployee[j.employeeId] = 0;
+      justByEmployee[j.employeeId] += j.deductionMinutes || 0;
+    });
+
+    const byEmployee: Record<string, any> = {};
+    records.forEach((r) => {
+      if (!byEmployee[r.employeeId]) {
+        const emp = employeeMap.get(r.employeeId);
+        byEmployee[r.employeeId] = {
+          employeeId: r.employeeId,
+          employeeName: this.empFullName(emp),
+          employeeNumber: emp?.employeeNumber || '',
+          totalLateMinutes: 0,
+          compensationMinutes: 0,
+        };
+      }
+      byEmployee[r.employeeId].totalLateMinutes += r.lateMinutes || 0;
+      byEmployee[r.employeeId].compensationMinutes += (r as any).lateCompensatedMinutes || 0;
+    });
+
+    const rows = Object.values(byEmployee).map((e: any) => {
+      const justifiedMinutes = justByEmployee[e.employeeId] || 0;
+      const effectiveLate = Math.max(0, e.totalLateMinutes - e.compensationMinutes - justifiedMinutes);
+      const exceedsBy = Math.max(0, effectiveLate - tolerance);
+      return {
+        employeeId: e.employeeId,
+        employeeName: e.employeeName,
+        employeeNumber: e.employeeNumber,
+        totalLateMinutes: e.totalLateMinutes,
+        compensationMinutes: e.compensationMinutes,
+        justifiedMinutes,
+        effectiveLateMinutes: effectiveLate,
+        exceedsToleranceBy: exceedsBy,
+        willBeDeducted: exceedsBy > 0,
+      };
+    });
+
+    return {
+      period: { year: query.year, month: query.month },
+      monthlyTolerance: tolerance,
+      rows: rows.sort((a, b) => b.effectiveLateMinutes - a.effectiveLateMinutes),
     };
   }
 
