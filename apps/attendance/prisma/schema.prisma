@@ -177,6 +177,7 @@ model AttendanceRecord {
   hourlyLeaveMinutes           Int       @default(0)
   computationVersion           Int       @default(1)
   recomputedAt                 DateTime?
+  halfDayPeriod                String?   // "AM" | "PM" — نصف يوم إجازة
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -455,6 +456,7 @@ model MonthlyPayroll {
   totalLateMinutesGross     Int      @default(0)
   totalLateMinutesEffective Int      @default(0)
   totalCompensationMinutes  Int      @default(0)
+  workingDaysInMonth        Int      @default(0)
   employeeWorkingDays       Int      @default(0)
   proRationFactor           Float    @default(1.0)
   appliedPolicySnapshot     Json?

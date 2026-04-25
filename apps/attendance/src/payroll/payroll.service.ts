@@ -155,6 +155,19 @@ export class PayrollService {
       }
       if (['WEEKEND', 'HOLIDAY', 'ON_LEAVE'].includes(r.status)) continue;
 
+      // MISSING_CLOCK_OUT: بصم دخول فقط ولم يبصم خروج — بعد 48 ساعة يُعتبر نصف يوم
+      if ((r as any).clockInTime && !(r as any).clockOutTime) {
+        const daysSince = Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000);
+        if (daysSince < 2) continue; // أقل من 48 ساعة — HR لم تتدخل بعد
+        // أكثر من 48 ساعة → نصف يوم للراتب
+        presentDays++;
+        const halfMinutes = Math.floor(dailyWorkMinutes / 2);
+        totalWorkedMinutes += halfMinutes;
+        netWorkedMinutes += halfMinutes;
+        if (r.lateMinutes > 0) { lateDays++; totalLateMinutes += r.lateMinutes; }
+        continue;
+      }
+
       presentDays++;
       totalWorkedMinutes += r.workedMinutes || 0;
       netWorkedMinutes += r.netWorkedMinutes || r.workedMinutes || 0;
@@ -403,6 +416,7 @@ export class PayrollService {
       totalLateMinutesGross: totalLateMinutes,
       totalLateMinutesEffective,
       totalCompensationMinutes,
+      workingDaysInMonth: workingDays,
       employeeWorkingDays,
       proRationFactor: parseFloat(proRationFactor.toFixed(4)),
       deductionBreakdown: {

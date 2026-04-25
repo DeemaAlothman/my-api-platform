@@ -503,6 +503,23 @@ export class SyncService {
     scheduledEndLocal.setUTCHours(endH - 3, endM, 0, 0);
     const scheduledEnd = new Date(scheduledEndLocal.getTime());
 
+    // إذا كان نصف يوم، نعدّل وقت البداية/النهاية الفعّال
+    const halfDayRow = await tx.$queryRaw<Array<{ halfDayPeriod: string | null }>>`
+      SELECT "halfDayPeriod" FROM attendance.attendance_records
+      WHERE "employeeId" = ${employeeId} AND date = ${dateStr}::date
+      LIMIT 1
+    `;
+    const halfDayPeriod = halfDayRow[0]?.halfDayPeriod ?? null;
+    if (halfDayPeriod === 'AM') {
+      // الموظف إجازة الصباح — التأخير يُحسب من منتصف الوردية
+      const midMs = (scheduledStart.getTime() + scheduledEnd.getTime()) / 2;
+      scheduledStart.setTime(midMs);
+    } else if (halfDayPeriod === 'PM') {
+      // الموظف يعمل الصباح فقط — الخروج المبكر يُحسب من منتصف الوردية
+      const midMs = (scheduledStart.getTime() + scheduledEnd.getTime()) / 2;
+      scheduledEnd.setTime(midMs);
+    }
+
     const lateRaw = Math.floor((clockInTime.getTime() - scheduledStart.getTime()) / 60000);
     const earlyRaw = Math.floor((scheduledEnd.getTime() - clockOutTime.getTime()) / 60000);
 
