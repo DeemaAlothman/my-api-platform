@@ -212,14 +212,16 @@ export class PayrollService {
     const empFinancial = await this.prisma.$queryRaw<Array<{
       basicSalary: string | null;
       salaryCurrency: string | null;
+      hireDate: Date | null;
     }>>`
-      SELECT "basicSalary", "salaryCurrency"
+      SELECT "basicSalary", "salaryCurrency", "hireDate"
       FROM users.employees
       WHERE id = ${employeeId} AND "deletedAt" IS NULL
     `;
 
     const basicSalary = empFinancial[0]?.basicSalary ? parseFloat(empFinancial[0].basicSalary) : 0;
     const currency = empFinancial[0]?.salaryCurrency || 'SYP';
+    const hireDate = empFinancial[0]?.hireDate ? new Date(empFinancial[0].hireDate) : null;
 
     const allowancesRaw = await this.prisma.$queryRaw<Array<{ type: string; amount: string }>>`
       SELECT type, amount FROM users.employee_allowances
@@ -233,11 +235,50 @@ export class PayrollService {
       allowancesTotal += parseFloat(a.amount);
     }
 
-    const dailyRate = workingDays > 0 ? basicSalary / workingDays : 0;
-    const minuteRate = dailyRate > 0 ? dailyRate / dailyWorkMinutes : 0;
+    // === استثناء البدلات المحددة في السياسة (مثل بدل الطعام) ===
+    let excludedTypes: string[] = ['FOOD'];
+    if (policy?.excludedAllowanceTypes) {
+      try {
+        const parsed = typeof policy.excludedAllowanceTypes === 'string'
+          ? JSON.parse(policy.excludedAllowanceTypes)
+          : policy.excludedAllowanceTypes;
+        if (Array.isArray(parsed)) excludedTypes = parsed;
+      } catch {}
+    }
+    let excludedAllowancesAmount = 0;
+    for (const a of allowancesRaw) {
+      if (excludedTypes.includes(a.type)) excludedAllowancesAmount += parseFloat(a.amount);
+    }
+    const deductibleBase = basicSalary + allowancesTotal - excludedAllowancesAmount;
+
+    // === Pro-rating للموظف الجديد ===
+    const effectiveStart = hireDate && hireDate > startDate ? hireDate : startDate;
+    const employeeWorkingDays = this.countWorkingDaysInRange(effectiveStart, endDate, workDaysArray);
+    const proRationFactor = workingDays > 0 ? Math.min(1, employeeWorkingDays / workingDays) : 1.0;
+    const proRatedDeductible = deductibleBase * proRationFactor;
+
+    // === معدل الدقيقة المبني على القاعدة القابلة للخصم ===
+    const totalShiftMinutes = dailyWorkMinutes * workingDays;
+    const minuteRate = totalShiftMinutes > 0 ? proRatedDeductible / totalShiftMinutes : 0;
+    const dailyRate = workingDays > 0 ? proRatedDeductible / workingDays : 0;
     const overtimeRateMultiplier = 1.5;
 
-    const deductionAmount = totalDeductionMinutes * minuteRate;
+    // === سماحية التأخير الشهرية (2 ساعة افتراضياً) ===
+    const totalCompensationMinutes = records.reduce(
+      (sum, r) => sum + ((r as any).lateCompensatedMinutes || 0), 0,
+    );
+    const totalLateMinutesEffective = Math.max(0, totalLateMinutes - totalCompensationMinutes);
+    const monthlyTolerance = policy?.monthlyLateToleranceMinutes ?? 120;
+    const deductibleLateMinutes = Math.max(0, totalLateMinutesEffective - monthlyTolerance);
+
+    // إعادة حساب lateDeductionMinutes بالسماحية الشهرية
+    lateDeductionMinutes = this.calcDeduction(
+      deductibleLateMinutes,
+      policy?.lateDeductionType ?? 'MINUTE_BY_MINUTE',
+      policy?.lateDeductionTiers ?? null,
+    );
+
+    const deductionAmount = (lateDeductionMinutes + earlyLeaveDeductionMinutes + breakDeductionMinutes) * minuteRate;
     const absenceDeductionAmount = absenceDeductionDaysCalc * dailyRate;
     const repeatLatePenaltyAmount = repeatLatePenaltyDaysCalc * dailyRate;
     const overtimePay = overtimeMinutes * minuteRate * overtimeRateMultiplier;
@@ -294,7 +335,7 @@ export class PayrollService {
       console.error(`[payroll] failed to load reward/penalty requests for employee ${employeeId}:`, (err as any)?.message);
     }
 
-    const grossSalary = basicSalary + allowancesTotal + overtimePay;
+    const grossSalary = (basicSalary + allowancesTotal) * proRationFactor + overtimePay;
     const netSalary = parseFloat(Math.max(0, grossSalary + bonusAmount - deductionAmount - absenceDeductionAmount - repeatLatePenaltyAmount - penaltyAmount).toFixed(2));
 
     // أنشئ أو حدّث كشف الراتب
@@ -341,6 +382,26 @@ export class PayrollService {
       dailyRate: parseFloat(dailyRate.toFixed(4)),
       minuteRate: parseFloat(minuteRate.toFixed(6)),
       overtimeRateMultiplier,
+      // حقول قواعد العمل الجديدة
+      deductibleBaseSalary: parseFloat(deductibleBase.toFixed(2)),
+      excludedAllowancesAmount: parseFloat(excludedAllowancesAmount.toFixed(2)),
+      totalLateMinutesGross: totalLateMinutes,
+      totalLateMinutesEffective,
+      totalCompensationMinutes,
+      employeeWorkingDays,
+      proRationFactor: parseFloat(proRationFactor.toFixed(4)),
+      deductionBreakdown: {
+        lateDeduction: parseFloat((lateDeductionMinutes * minuteRate).toFixed(2)),
+        absenceDeduction: parseFloat(absenceDeductionAmount.toFixed(2)),
+        breakOverLimitDeduction: parseFloat((breakDeductionMinutes * minuteRate).toFixed(2)),
+        totalDeduction: parseFloat(deductionAmount.toFixed(2)),
+      },
+      appliedPolicySnapshot: policy ? {
+        policyId: policy.id,
+        monthlyLateToleranceMinutes: policy.monthlyLateToleranceMinutes ?? 120,
+        excludedAllowanceTypes: excludedTypes,
+        effectiveFrom: policy.effectiveFrom ?? null,
+      } : null,
     };
 
     return this.prisma.monthlyPayroll.upsert({
@@ -367,6 +428,16 @@ export class PayrollService {
       } catch {}
     }
     return minutes; // fallback
+  }
+
+  private countWorkingDaysInRange(from: Date, to: Date, workDaysArray: number[]): number {
+    let count = 0;
+    const current = new Date(from);
+    while (current <= to) {
+      if (workDaysArray.includes(current.getDay())) count++;
+      current.setDate(current.getDate() + 1);
+    }
+    return count;
   }
 
   private async getWorkingDaysInfo(employeeId: string, startDate: Date, endDate: Date): Promise<{ count: number; workDaysArray: number[]; dailyWorkMinutes: number }> {
