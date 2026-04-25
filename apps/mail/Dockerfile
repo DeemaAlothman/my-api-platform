@@ -25,7 +25,7 @@ COPY apps/mail ./apps/mail
 COPY tsconfig*.json ./
 
 WORKDIR /app/apps/mail
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma@6 generate
 RUN npm run build
 
 FROM node:20-alpine AS production
@@ -36,7 +36,7 @@ COPY --from=builder /app/apps/mail/package*.json ./
 RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=builder /app/apps/mail/dist   ./dist
 COPY --from=builder /app/apps/mail/prisma ./prisma
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma@6 generate
 
 RUN mkdir -p /app/uploads
 
