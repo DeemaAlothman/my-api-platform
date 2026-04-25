@@ -682,4 +682,40 @@ export class EmployeesService {
     // Just return ok — the caller can store jobApplicationId on their side
     return { ok: true, mapped: evalEnum };
   }
+
+  async resolveRecipients(
+    userIds: string[],
+    departmentIds: string[],
+    excludeInactive: boolean,
+  ): Promise<{ resolvedUserIds: string[]; invalidUserIds: string[]; invalidDepartmentIds: string[] }> {
+    const resolvedSet = new Set<string>();
+    const invalidUserIds: string[] = [];
+    const invalidDepartmentIds: string[] = [];
+
+    if (userIds?.length) {
+      const statusFilter = excludeInactive ? { employmentStatus: 'ACTIVE' } : {};
+      const found = await this.prisma.employee.findMany({
+        where: { userId: { in: userIds }, deletedAt: null, ...statusFilter },
+        select: { userId: true },
+      });
+      const foundSet = new Set(found.map((e) => e.userId));
+      for (const uid of userIds) {
+        if (foundSet.has(uid)) resolvedSet.add(uid);
+        else invalidUserIds.push(uid);
+      }
+    }
+
+    for (const deptId of (departmentIds ?? [])) {
+      const dept = await this.prisma.department.findFirst({ where: { id: deptId, deletedAt: null } });
+      if (!dept) { invalidDepartmentIds.push(deptId); continue; }
+      const statusFilter = excludeInactive ? { employmentStatus: 'ACTIVE' } : {};
+      const emps = await this.prisma.employee.findMany({
+        where: { departmentId: deptId, deletedAt: null, userId: { not: null }, ...statusFilter },
+        select: { userId: true },
+      });
+      for (const e of emps) { if (e.userId) resolvedSet.add(e.userId); }
+    }
+
+    return { resolvedUserIds: Array.from(resolvedSet), invalidUserIds, invalidDepartmentIds };
+  }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus, Headers, UnauthorizedException } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -95,5 +95,21 @@ export class EmployeesController {
   @Post('internal/interview-result')
   updateInterviewResult(@Body() dto: { jobApplicationId: string; totalScore: number; decision: string; proposedSalary?: number }) {
     return this.employees.updateInterviewResult(dto);
+  }
+
+  // Internal endpoint — called by mail-service to expand userIds and departmentIds
+  @Post('internal/resolve-recipients')
+  resolveRecipients(
+    @Headers('x-internal-token') token: string,
+    @Body() dto: { userIds?: string[]; departmentIds?: string[]; excludeInactive?: boolean },
+  ) {
+    if (!token || token !== process.env.INTERNAL_SERVICE_TOKEN) {
+      throw new UnauthorizedException('Invalid internal token');
+    }
+    return this.employees.resolveRecipients(
+      dto.userIds ?? [],
+      dto.departmentIds ?? [],
+      dto.excludeInactive !== false,
+    );
   }
 }

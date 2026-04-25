@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,18 +10,53 @@ import { ListMailQueryDto } from './dto/list-mail.query.dto';
 import { UpdateReadDto, UpdateStarDto } from './dto/update-read.dto';
 import { MoveMailDto, MailFolder } from './dto/move-mail.dto';
 
+const USERS_URL          = process.env.USERS_SERVICE_URL || 'http://localhost:4002';
+const INTERNAL_TOKEN     = process.env.INTERNAL_SERVICE_TOKEN || '';
+
+async function internalPost(url: string, body: any): Promise<any> {
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    const json = await res.json() as any;
+    return json?.data ?? json;
+  } catch {
+    return null;
+  }
+}
+
 @Injectable()
 export class MailService {
   constructor(private readonly prisma: PrismaService) {}
 
   async send(senderId: string, dto: SendMailDto) {
+    let allRecipients = [...dto.recipients];
+
+    // توسيع departmentIds إلى userIds عبر users-service
+    if (dto.departmentIds?.length) {
+      const resolved = await internalPost(
+        `${USERS_URL}/api/v1/employees/internal/resolve-recipients`,
+        { departmentIds: dto.departmentIds, userIds: [], excludeInactive: true },
+      );
+      if (resolved?.resolvedUserIds?.length) {
+        for (const uid of resolved.resolvedUserIds) {
+          if (!allRecipients.find((r) => r.userId === uid)) {
+            allRecipients.push({ userId: uid, type: RecipientType.TO });
+          }
+        }
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      const toRecipients = dto.recipients.filter((r) => r.type === RecipientType.TO);
+      const toRecipients = allRecipients.filter((r) => r.type === RecipientType.TO);
       if (toRecipients.length === 0) {
         throw new BadRequestException({ code: 'MAIL_NO_TO_RECIPIENT', message: 'At least one TO recipient is required', details: [] });
       }
 
-      const deduped = this.dedupRecipients(dto.recipients, senderId);
+      const deduped = this.dedupRecipients(allRecipients, senderId);
 
       const message = await (tx as any).mailMessage.create({
         data: {
@@ -57,6 +91,22 @@ export class MailService {
           readAt: new Date(),
         },
       }).catch(() => {});
+
+      // إشعار المستلمين (fire-and-forget — لا يوقف الإرسال عند الفشل)
+      const toIds = deduped.filter((r) => r.type === RecipientType.TO).map((r) => r.userId);
+      setImmediate(() => {
+        for (const recipientId of toIds) {
+          internalPost(`${USERS_URL}/api/v1/notifications/internal`, {
+            userId: recipientId,
+            type: 'INFO',
+            titleAr: 'رسالة داخلية جديدة',
+            titleEn: 'New Internal Message',
+            messageAr: `لديك رسالة جديدة بعنوان: ${dto.subject}`,
+            messageEn: `You received a new message: ${dto.subject}`,
+            data: { messageId: message.id },
+          });
+        }
+      });
 
       return message;
     });

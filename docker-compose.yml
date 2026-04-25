@@ -63,6 +63,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=users
       JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
+      INTERNAL_SERVICE_TOKEN: replace_me
       NODE_ENV: production
     ports:
       - "4002:4002"

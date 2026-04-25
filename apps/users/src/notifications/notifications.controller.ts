@@ -1,6 +1,7 @@
 import {
-  Controller, Get, Patch, Param, Body, Query,
+  Controller, Get, Post, Patch, Param, Body, Query,
   UseGuards, Request, ParseIntPipe, DefaultValuePipe,
+  Headers, UnauthorizedException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
@@ -43,5 +44,17 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Mark all notifications as read' })
   markAllAsRead(@Request() req) {
     return this.service.markAllAsRead(req.user.userId);
+  }
+
+  // Internal endpoint — called by mail-service (no JWT, service-to-service token)
+  @Post('internal')
+  createInternal(
+    @Headers('x-internal-token') token: string,
+    @Body() dto: any,
+  ) {
+    if (!token || token !== process.env.INTERNAL_SERVICE_TOKEN) {
+      throw new UnauthorizedException('Invalid internal token');
+    }
+    return this.service.create(dto);
   }
 }
