@@ -1055,7 +1055,7 @@ export class ReportsService {
     const justifications = (await this.prisma.attendanceJustification.findMany({
       where: {
         employeeId: { in: employeeIds },
-        date: { gte: startDate, lte: endDate },
+        createdAt: { gte: startDate, lte: endDate },
         status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] },
       },
     })) as any[];
