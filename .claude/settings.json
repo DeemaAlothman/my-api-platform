@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose:*)",
+      "Bash(curl -s \"http://localhost:4007/iclock/cdata?SN=GED7253402196&options=all\")",
+      "Bash(curl -s \"http://localhost:8000/iclock/cdata?SN=GED7253402196&options=all\")",
+      "Bash(curl -s \"http://217.76.53.136:4007/iclock/cdata?SN=GED7253402196&options=all\")",
+      "Bash(curl -s --connect-timeout 5 \"http://217.76.53.136:8000\")",
+      "Bash(curl -s --connect-timeout 5 \"http://217.76.53.136:4007\")",
+      "Bash(curl -s --connect-timeout 5 \"http://217.76.53.136:4004\")",
+      "Bash(curl -s --connect-timeout 5 \"http://217.76.53.136:4001\")",
+      "Bash(curl -s --connect-timeout 5 \"http://217.76.53.136:4002\")",
+      "Bash(curl -s --connect-timeout 5 -X POST \"http://217.76.53.136:4004/api/v1/attendance-records/check-in\" -H \"Content-Type: application/json\")",
+      "Bash(curl -s --connect-timeout 5 \"http://217.76.53.136:8000/api/v1/attendance-records/check-in\")",
+      "Bash(curl -s --connect-timeout 5 \"http://217.76.53.136:8000/iclock/cdata?SN=GED7253402196&options=all\")",
+      "Bash(curl -s \"http://217.76.53.136:8000/iclock/cdata?SN=GED7253402196&options=all\")",
+      "Bash(python3 -c ':*)",
+      "Bash(node -e ':*)",
+      "Bash(npm list:*)",
+      "Bash(npm install:*)",
+      "Bash(grep -E \"\\\\.\\(ts|module\\)$\")",
+      "Bash(grep \"\\\\.md$\")",
+      "Bash(xargs wc *)"
+    ]
+  }
+}

@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(grep -r \"device\\\\|biometric\\\\|nfc\\\\|rfid\\\\|card\\\\|external\" c:/Users/karam/my-api-platform/apps/attendance/src --include=*.ts)",
+      "Bash(xargs grep:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\karam\\.claude\\projects\\c--Users-karam-my-api-platform"
     ]
   }
 }
