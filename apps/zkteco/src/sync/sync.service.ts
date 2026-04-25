@@ -361,12 +361,13 @@ export class SyncService {
       const effectiveEarlyLeaveMinutes = shiftType === 'FLEXIBLE' ? 0 : earlyLeaveMinutes;
 
       // تحديد الحالة النهائية — لا نكتب فوق ON_LEAVE / HOLIDAY / WEEKEND
+      // ABSENT: يُسمح بالتحديث عند وصول بصمة فعلية (الموظف جاء متأخراً)
       const currentStatusRow = await tx.$queryRaw<Array<{ status: string }>>`
         SELECT status FROM attendance.attendance_records WHERE id = ${recordId}
       `;
       const currentStatus = currentStatusRow[0]?.status ?? 'PRESENT';
       let newStatus = currentStatus;
-      if (!['ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'ABSENT'].includes(currentStatus)) {
+      if (!['ON_LEAVE', 'HOLIDAY', 'WEEKEND'].includes(currentStatus)) {
         if (shiftType === 'FLEXIBLE') {
           // للوردية المرنة: الحضور يُحسب فقط بعدد الساعات (أو أطول فترة متواصلة)
           const checkMinutes = requiresContinuousWork ? longestContinuousWorkMinutes : netWorkedMinutes;
