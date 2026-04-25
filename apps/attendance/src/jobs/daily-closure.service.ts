@@ -38,6 +38,7 @@ export class DailyClosureService implements OnModuleInit {
     date: string;
     absentCreated: number;
     missingClockOutAlerts: number;
+    onLeaveApplied: number;
     skipped: number;
   }> {
     const date = new Date(dateStr + 'T00:00:00Z');
@@ -75,12 +76,25 @@ export class DailyClosureService implements OnModuleInit {
 
     const recordMap = new Map(existingRecords.map(r => [r.employeeId, r]));
 
+    // فحص الإجازات المعتمدة لهذا اليوم
+    const approvedLeaves = await this.getApprovedLeavesForDate(workingEmployeeIds, dateStr);
+    const leaveMap = new Map(approvedLeaves.map(l => [l.employeeId, l]));
+
     let absentCreated = 0;
     let missingClockOutAlerts = 0;
+    let onLeaveApplied = 0;
     let skipped = 0;
 
     for (const employeeId of workingEmployeeIds) {
       const record = recordMap.get(employeeId);
+
+      // موظف عنده إجازة معتمدة → ON_LEAVE أو PARTIAL_LEAVE
+      const leave = leaveMap.get(employeeId);
+      if (leave) {
+        await this.upsertLeaveRecord(employeeId, dateStr, leave);
+        onLeaveApplied++;
+        continue;
+      }
 
       if (!record) {
         await this.createAbsentRecord(employeeId, dateStr);
@@ -95,7 +109,82 @@ export class DailyClosureService implements OnModuleInit {
       }
     }
 
-    return { date: dateStr, absentCreated, missingClockOutAlerts, skipped };
+    return { date: dateStr, absentCreated, missingClockOutAlerts, onLeaveApplied, skipped };
+  }
+
+  private async getApprovedLeavesForDate(
+    employeeIds: string[],
+    dateStr: string,
+  ): Promise<Array<{
+    employeeId: string;
+    isHourlyLeave: boolean;
+    startTime: string | null;
+    endTime: string | null;
+    durationHours: number | null;
+  }>> {
+    if (employeeIds.length === 0) return [];
+    try {
+      return (await this.prisma.$queryRawUnsafe(
+        `SELECT "employeeId", "isHourlyLeave", "startTime", "endTime", "durationHours"
+         FROM leaves.leave_requests
+         WHERE "employeeId" = ANY($1::text[])
+           AND "startDate"::date <= $2::date
+           AND "endDate"::date >= $2::date
+           AND status = 'APPROVED'
+           AND "deletedAt" IS NULL
+         ORDER BY "createdAt" DESC`,
+        employeeIds,
+        dateStr,
+      )) as Array<{
+        employeeId: string;
+        isHourlyLeave: boolean;
+        startTime: string | null;
+        endTime: string | null;
+        durationHours: number | null;
+      }>;
+    } catch (err) {
+      this.logger.error(`Failed to fetch approved leaves: ${(err as any)?.message}`);
+      return [];
+    }
+  }
+
+  private async upsertLeaveRecord(
+    employeeId: string,
+    dateStr: string,
+    leave: { isHourlyLeave: boolean; startTime: string | null; endTime: string | null; durationHours: number | null },
+  ) {
+    try {
+      const status = leave.isHourlyLeave ? 'PARTIAL_LEAVE' : 'ON_LEAVE';
+      const hourlyLeaveMinutes = leave.durationHours ? Math.floor(leave.durationHours * 60) : 0;
+      const leaveStartTs = leave.startTime ? new Date(`${dateStr}T${leave.startTime}:00`) : null;
+      const leaveEndTs = leave.endTime ? new Date(`${dateStr}T${leave.endTime}:00`) : null;
+
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO attendance.attendance_records
+           (id, "employeeId", date, status, source, "isManualEntry",
+            "lateMinutes", "earlyLeaveMinutes", "deductionApplied",
+            "hourlyLeaveMinutes", "leaveStartTime", "leaveEndTime",
+            "salaryLinked", "createdAt", "updatedAt")
+         VALUES
+           (gen_random_uuid(), $1, $2::date, $3, 'SYSTEM', false,
+            0, 0, false, $4, $5, $6, false, NOW(), NOW())
+         ON CONFLICT ("employeeId", date) DO UPDATE SET
+           status = CASE
+             WHEN attendance_records."clockInTime" IS NOT NULL THEN 'PARTIAL_LEAVE'
+             ELSE EXCLUDED.status
+           END,
+           "leaveStartTime"      = EXCLUDED."leaveStartTime",
+           "leaveEndTime"        = EXCLUDED."leaveEndTime",
+           "hourlyLeaveMinutes"  = EXCLUDED."hourlyLeaveMinutes",
+           "updatedAt"           = NOW()`,
+        employeeId, dateStr, status, hourlyLeaveMinutes, leaveStartTs, leaveEndTs,
+      );
+
+      await this.auditLog(null, employeeId, dateStr, 'LEAVE_APPLIED', 'DAILY_CLOSURE',
+        `سجل إجازة ${leave.isHourlyLeave ? 'ساعية' : 'كاملة'} تم تطبيقه تلقائياً`);
+    } catch (err) {
+      this.logger.error(`Failed to upsert leave record for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
+    }
   }
 
   private async createAbsentRecord(employeeId: string, dateStr: string) {
