@@ -191,6 +191,29 @@ services:
     networks:
       - app-network
 
+  mail:
+    build:
+      context: .
+      dockerfile: apps/mail/Dockerfile
+    container_name: myapiplatform-mail
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=mail
+      JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
+      NODE_ENV: production
+      USERS_SERVICE_URL: http://users:4002
+      NOTIFICATIONS_SERVICE_URL: http://users:4002
+      INTERNAL_SERVICE_TOKEN: replace_me
+      MAX_ATTACHMENT_SIZE_MB: "25"
+      ALLOWED_ATTACHMENT_MIME: image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    ports:
+      - "4009:4009"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -206,6 +229,7 @@ services:
       REQUESTS_SERVICE_URL: http://requests:4006
       ZKTECO_SERVICE_URL: http://zkteco:4007
       JOBS_SERVICE_URL: http://jobs:4008
+      MAIL_SERVICE_URL: http://mail:4009
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3012,http://159.198.37.52:3000,http://159.198.37.52:3012
@@ -217,6 +241,7 @@ services:
       - leave
       - requests
       - jobs
+      - mail
     networks:
       - app-network
 
@@ -227,3 +252,4 @@ networks:
 volumes:
   pgdata:
   uploads_data:
+  mail_uploads_data:

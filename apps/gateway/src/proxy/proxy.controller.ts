@@ -691,3 +691,18 @@ export class AuditLogsProxyController {
     return this.proxy.forward(req, res, "users");
   }
 }
+
+@Controller('mail')
+export class MailProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'mail');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'mail');
+  }
+}

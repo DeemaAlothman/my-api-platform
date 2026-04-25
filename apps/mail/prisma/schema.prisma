@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MailMessage {
+  id              String           @id @default(uuid())
+  senderId        String
+  subject         String
+  body            String           @db.Text
+  threadRootId    String?
+  parentMessageId String?
+
+  isDraft         Boolean          @default(false)
+  deletedAt       DateTime?
+
+  recipients      MailRecipient[]
+  attachments     MailAttachment[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([senderId])
+  @@index([isDraft])
+  @@index([threadRootId])
+  @@map("mail_messages")
+}
+
+model MailRecipient {
+  id          String        @id @default(uuid())
+  messageId   String
+  recipientId String
+  type        RecipientType
+  folder      MailFolder    @default(INBOX)
+
+  isRead      Boolean       @default(false)
+  readAt      DateTime?
+  isStarred   Boolean       @default(false)
+  deletedAt   DateTime?
+
+  message     MailMessage   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([recipientId, folder])
+  @@index([recipientId, isRead])
+  @@index([recipientId, isStarred])
+  @@unique([messageId, recipientId])
+  @@map("mail_recipients")
+}
+
+model MailAttachment {
+  id        String      @id @default(uuid())
+  messageId String
+  fileUrl   String
+  fileName  String
+  fileSize  Int
+  mimeType  String
+
+  message   MailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime    @default(now())
+
+  @@index([messageId])
+  @@map("mail_attachments")
+}
+
+enum RecipientType {
+  TO
+  CC
+  BCC
+}
+
+enum MailFolder {
+  INBOX
+  SENT
+  DRAFTS
+  ARCHIVE
+  TRASH
+}
