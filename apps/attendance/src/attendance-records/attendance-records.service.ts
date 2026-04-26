@@ -384,13 +384,37 @@ export class AttendanceRecordsService {
     };
   }
 
-  async update(id: string, dto: UpdateAttendanceRecordDto) {
-    await this.findOne(id);
+  async update(id: string, dto: UpdateAttendanceRecordDto, userId?: string) {
+    const existing = await this.findOne(id);
 
-    return this.prisma.attendanceRecord.update({
+    const updated = await this.prisma.attendanceRecord.update({
       where: { id },
       data: dto,
     });
+
+    const trackedFields = ['status', 'lateMinutes', 'earlyLeaveMinutes', 'overtimeMinutes', 'clockInTime', 'clockOutTime', 'workedMinutes', 'netWorkedMinutes'];
+    const changedFields: Record<string, { from: unknown; to: unknown }> = {};
+    for (const key of trackedFields) {
+      const before = (existing as any)[key];
+      const after = (updated as any)[key];
+      if (String(before) !== String(after)) changedFields[key] = { from: before, to: after };
+    }
+
+    if (Object.keys(changedFields).length > 0) {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO attendance.attendance_computation_logs
+           (id, "attendanceRecordId", "employeeId", date, action, source, "changedFields", "performedBy", notes, "createdAt")
+         VALUES
+           (gen_random_uuid(), $1, $2, $3::date, 'MANUAL_UPDATE', 'HTTP', $4, $5, 'Manual update via API', NOW())`,
+        id,
+        existing.employeeId,
+        (existing as any).date,
+        JSON.stringify(changedFields),
+        userId || 'UNKNOWN',
+      ).catch(() => {});
+    }
+
+    return updated;
   }
 
   async remove(id: string) {

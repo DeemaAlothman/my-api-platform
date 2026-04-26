@@ -58,8 +58,8 @@ export class AttendanceRecordsController {
 
   @Patch(':id')
   @Permission('attendance.records.update')
-  update(@Param('id') id: string, @Body() dto: UpdateAttendanceRecordDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateAttendanceRecordDto, @UserId() userId: string) {
+    return this.service.update(id, dto, userId);
   }
 
   @Delete(':id')

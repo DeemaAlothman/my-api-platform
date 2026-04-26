@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsInt, Min } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
 
 export class CreateAttendanceRecordDto {
   @IsString()
@@ -23,21 +23,25 @@ export class CreateAttendanceRecordDto {
 
   @IsInt()
   @Min(0)
+  @Max(1440)
   @IsOptional()
   lateMinutes?: number;
 
   @IsInt()
   @Min(0)
+  @Max(1440)
   @IsOptional()
   earlyLeaveMinutes?: number;
 
   @IsInt()
   @Min(0)
+  @Max(1440)
   @IsOptional()
   overtimeMinutes?: number;
 
   @IsInt()
   @Min(0)
+  @Max(1440)
   @IsOptional()
   workedMinutes?: number;
 

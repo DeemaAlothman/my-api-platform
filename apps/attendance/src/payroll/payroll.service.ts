@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeneratePayrollDto } from './dto/generate-payroll.dto';
 
@@ -12,13 +13,13 @@ export class PayrollService {
     const { year, month, departmentId, policyId } = dto;
 
     // جيب كل الموظفين من users schema
-    const employees = (await this.prisma.$queryRawUnsafe(
-      `SELECT e.id, e."employeeNumber", e."departmentId"
-       FROM users.employees e
-       WHERE e."deletedAt" IS NULL
-         AND e."employmentStatus" = 'ACTIVE'
-       ${departmentId ? `AND e."departmentId" = '${departmentId}'` : ''}`,
-    )) as Array<{ id: string; employeeNumber: string; departmentId: string }>;
+    const employees = (await this.prisma.$queryRaw<Array<{ id: string; employeeNumber: string; departmentId: string }>>`
+      SELECT e.id, e."employeeNumber", e."departmentId"
+      FROM users.employees e
+      WHERE e."deletedAt" IS NULL
+        AND e."employmentStatus" = 'ACTIVE'
+        ${departmentId ? Prisma.sql`AND e."departmentId" = ${departmentId}` : Prisma.empty}
+    `);
 
     // جيب السياسة المحددة أو الافتراضية
     let policy: any = null;
@@ -36,11 +37,23 @@ export class PayrollService {
     const endDate = new Date(year, month, 0); // آخر يوم في الشهر
 
     let generated = 0;
+    let skipped = 0;
     let errors = 0;
     const results: any[] = [];
 
     for (const emp of employees) {
       try {
+        const existing = await this.prisma.monthlyPayroll.findUnique({
+          where: { employeeId_year_month: { employeeId: emp.id, year, month } },
+          select: { id: true, status: true },
+        });
+
+        if (existing?.status === 'CONFIRMED') {
+          results.push({ employeeId: emp.id, status: 'skipped', message: 'Payroll already confirmed', payrollId: existing.id });
+          skipped++;
+          continue;
+        }
+
         const result = await this.generateForEmployee(emp.id, year, month, startDate, endDate, policy);
         results.push({ employeeId: emp.id, status: 'ok', payrollId: result.id });
         generated++;
@@ -50,7 +63,7 @@ export class PayrollService {
       }
     }
 
-    return { year, month, generated, errors, results };
+    return { year, month, generated, skipped, errors, results };
   }
 
   private async generateForEmployee(
@@ -518,10 +531,10 @@ export class PayrollService {
     });
 
     if (query.departmentId) {
-      const empIds = (await this.prisma.$queryRawUnsafe(
-        `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
-        query.departmentId,
-      ) as Array<{ id: string }>).map(e => e.id);
+      const deptId = query.departmentId;
+      const empIds = (await this.prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM users.employees WHERE "departmentId" = ${deptId} AND "deletedAt" IS NULL
+      `).map(e => e.id);
       return payrolls.filter(p => empIds.includes(p.employeeId));
     }
 
