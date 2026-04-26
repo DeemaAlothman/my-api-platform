@@ -39,7 +39,7 @@ export class AttendanceRecordsController {
   }
 
   @Post()
-  @Permission('attendance.records.create')
+  @Permission('attendance.records.create-manual')
   create(@Body() dto: CreateAttendanceRecordDto, @UserId() userId: string) {
     return this.service.create(dto, userId);
   }
@@ -57,7 +57,7 @@ export class AttendanceRecordsController {
   }
 
   @Patch(':id')
-  @Permission('attendance.records.update')
+  @Permission('attendance.records.update-manual')
   update(@Param('id') id: string, @Body() dto: UpdateAttendanceRecordDto, @UserId() userId: string) {
     return this.service.update(id, dto, userId);
   }
