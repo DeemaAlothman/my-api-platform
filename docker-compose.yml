@@ -209,6 +209,8 @@ services:
       ALLOWED_ATTACHMENT_MIME: image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document
     ports:
       - "4009:4009"
+    volumes:
+      - mail_uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

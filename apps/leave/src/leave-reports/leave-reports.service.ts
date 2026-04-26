@@ -143,7 +143,7 @@ export class LeaveReportsService {
           lr.status::text   AS status
         FROM leaves.leave_requests lr
         JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
-        WHERE lr.status IN ('PENDING', 'PENDING_MANAGER', 'PENDING_HR')
+        WHERE lr.status IN ('PENDING_MANAGER', 'PENDING_HR', 'PENDING_SUBSTITUTE')
           AND EXTRACT(YEAR FROM lr."startDate") = ${year}
         ORDER BY lr."startDate" ASC
         LIMIT 50

@@ -1,13 +1,10 @@
 import {
-  Controller,
-  Post,
-  Param,
-  UploadedFile,
-  UseGuards,
-  UseInterceptors,
+  Controller, Get, Post, Param,
+  UploadedFile, UseGuards, UseInterceptors, Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { AttachmentsService } from './attachments.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -29,5 +26,20 @@ export class AttachmentsController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.attachmentsService.upload(messageId, file);
+  }
+
+  @Get(':attachmentId/file')
+  @Permission('mail:read_own')
+  async download(
+    @Param('attachmentId') attachmentId: string,
+    @Res() res: Response,
+  ) {
+    const attachment = await this.attachmentsService.getFileInfo(attachmentId);
+    res.set({
+      'Content-Type': attachment.mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(attachment.fileName)}"`,
+      'Content-Length': attachment.fileSize,
+    });
+    res.sendFile(attachment.fileUrl, { root: '/' });
   }
 }
