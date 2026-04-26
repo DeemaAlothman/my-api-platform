@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAttendanceAlertDto } from './dto/create-attendance-alert.dto';
 import { UpdateAttendanceAlertDto } from './dto/update-attendance-alert.dto';
@@ -141,7 +141,14 @@ export class AttendanceAlertsService {
     });
   }
 
-  async getMyAlerts(employeeId: string, filters?: { status?: string; type?: string }) {
+  async getMyAlerts(employeeId: string, filters?: { status?: string; type?: string; page?: number; limit?: number }) {
+    if (!employeeId) {
+      throw new BadRequestException({
+        code: 'EMPLOYEE_NOT_FOUND',
+        message: 'No employee record linked to your account',
+        details: [],
+      });
+    }
     return this.findAll({ ...filters, employeeId });
   }
 }
