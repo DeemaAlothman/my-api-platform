@@ -31,6 +31,12 @@ export class EmployeeSchedulesController {
     return this.service.findAll(filters);
   }
 
+  @Get('check/missing')
+  @Permission('attendance.employee-schedules.read')
+  findEmployeesWithoutSchedule() {
+    return this.service.findEmployeesWithoutSchedule();
+  }
+
   @Get('employee/:employeeId')
   @Permission('attendance.employee-schedules.read')
   findByEmployee(@Param('employeeId') employeeId: string) {

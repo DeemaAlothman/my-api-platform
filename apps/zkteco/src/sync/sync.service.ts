@@ -27,8 +27,13 @@ export class SyncService {
     const dateStr = toLocalDateString(timestamp);
     const lockKey = this.hashLockKey(employeeId + dateStr);
 
+    this.logger.log(
+      `[STAMP_START] logId=${logId} employeeId=${employeeId} deviceSN=${deviceSN} timestamp=${timestamp.toISOString()} date=${dateStr}`,
+    );
+
     // 3.3: نستعلم عن shiftType خارج الـ transaction لتجنب إلغاءها عند فشل الاستعلام
     const shiftType = await this.getEmployeeShiftType(employeeId, dateStr, this.prisma);
+    this.logger.log(`[SHIFT_TYPE] employeeId=${employeeId} date=${dateStr} resolvedShiftType=${shiftType}`);
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -46,11 +51,21 @@ export class SyncService {
           orderBy: { timestamp: 'asc' },
         });
 
-        if (todayLogs.length === 0) return;
+        this.logger.log(
+          `[STAMPS_FOUND] employeeId=${employeeId} date=${dateStr} totalStamps=${todayLogs.length} window=${startOfDay.toISOString()}→${endOfDay.toISOString()}`,
+        );
+
+        if (todayLogs.length === 0) {
+          this.logger.warn(`[STAMPS_EMPTY] employeeId=${employeeId} date=${dateStr} logId=${logId} — no stamps in window, skipping`);
+          return;
+        }
 
         // 2. تصفية البصمات المكررة (أقل من دقيقتين) وتعليمها
         const { kept: filteredLogs, duplicates: duplicateIds } = this.filterDuplicates(todayLogs);
         if (duplicateIds.length > 0) {
+          this.logger.log(
+            `[DUPLICATES] employeeId=${employeeId} date=${dateStr} duplicatesRemoved=${duplicateIds.length} kept=${filteredLogs.length}`,
+          );
           await tx.rawAttendanceLog.updateMany({
             where: { id: { in: duplicateIds } },
             data: { interpretedAs: 'DUPLICATE_IGNORED' },
@@ -59,6 +74,16 @@ export class SyncService {
 
         // 3. تطبيق Toggle Logic
         const interpreted = this.applyToggleLogic(filteredLogs);
+
+        const withErrors = interpreted.filter(i => i.syncError);
+        if (withErrors.length > 0) {
+          this.logger.warn(
+            `[TOGGLE_WARN] employeeId=${employeeId} date=${dateStr} stampsWithConflict=${withErrors.length} errors=${withErrors.map(i => i.syncError).join(' | ')}`,
+          );
+        }
+        this.logger.log(
+          `[TOGGLE_RESULT] employeeId=${employeeId} date=${dateStr} sequence=${interpreted.map(i => i.interpretedAs).join('→')}`,
+        );
 
         // 4. تحديث interpretedAs و pairIndex (وsyncError إذا وجد تعارض rawType)
         for (const item of interpreted) {
@@ -80,11 +105,16 @@ export class SyncService {
           where: { id: logId },
           data: { synced: true, syncedAt: new Date() },
         });
+
+        this.logger.log(`[STAMP_DONE] logId=${logId} employeeId=${employeeId} date=${dateStr} — synced successfully`);
       });
 
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Error processing stamp logId=${logId}: ${msg}`);
+      this.logger.error(
+        `[STAMP_ERROR] logId=${logId} employeeId=${employeeId} deviceSN=${deviceSN} date=${dateStr} — ${msg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       await this.prisma.rawAttendanceLog.update({
         where: { id: logId },
         data: { syncError: msg },
@@ -124,9 +154,18 @@ export class SyncService {
         LIMIT 1
       `;
       const val = rows[0]?.shiftType;
+      if (!rows[0]) {
+        this.logger.warn(
+          `[NO_SCHEDULE] employeeId=${employeeId} date=${dateStr} — no active employee_schedule found, defaulting to DAY shift`,
+        );
+        return 'DAY';
+      }
       return val === 'NIGHT' ? 'NIGHT' : 'DAY';
-    } catch {
-      // العمود shiftType غير موجود بعد أو لا يوجد جدول دوام → افتراضي DAY
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `[SCHEDULE_QUERY_FAILED] employeeId=${employeeId} date=${dateStr} — ${msg}, defaulting to DAY shift`,
+      );
       return 'DAY';
     }
   }

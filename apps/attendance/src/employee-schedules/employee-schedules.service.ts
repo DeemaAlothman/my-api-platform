@@ -177,4 +177,37 @@ export class EmployeeSchedulesService {
       where: { id },
     });
   }
+
+  /**
+   * يُرجع قائمة الموظفين النشطين الذين ليس لديهم جدول دوام نشط مُخصص.
+   */
+  async findEmployeesWithoutSchedule() {
+    const rows = await this.prisma.$queryRaw<Array<{
+      id: string;
+      employeeNumber: string;
+      firstNameAr: string;
+      lastNameAr: string;
+      firstNameEn: string | null;
+      lastNameEn: string | null;
+      departmentId: string | null;
+    }>>`
+      SELECT e.id, e."employeeNumber", e."firstNameAr", e."lastNameAr",
+             e."firstNameEn", e."lastNameEn", e."departmentId"
+      FROM users.employees e
+      WHERE e."employmentStatus" = 'ACTIVE'
+        AND NOT EXISTS (
+          SELECT 1 FROM attendance.employee_schedules es
+          WHERE es."employeeId" = e.id
+            AND es."isActive" = true
+            AND CURRENT_DATE BETWEEN es."effectiveFrom"::date
+                AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+        )
+      ORDER BY e."employeeNumber"
+    `;
+
+    return {
+      count: rows.length,
+      employees: rows,
+    };
+  }
 }
