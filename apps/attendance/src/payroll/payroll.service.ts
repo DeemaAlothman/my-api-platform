@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeneratePayrollDto } from './dto/generate-payroll.dto';
 
@@ -13,13 +12,10 @@ export class PayrollService {
     const { year, month, departmentId, policyId } = dto;
 
     // جيب كل الموظفين من users schema
-    const employees = (await this.prisma.$queryRaw<Array<{ id: string; employeeNumber: string; departmentId: string }>>`
-      SELECT e.id, e."employeeNumber", e."departmentId"
-      FROM users.employees e
-      WHERE e."deletedAt" IS NULL
-        AND e."employmentStatus" = 'ACTIVE'
-        ${departmentId ? Prisma.sql`AND e."departmentId" = ${departmentId}` : Prisma.empty}
-    `);
+    const empSql = departmentId
+      ? `SELECT e.id, e."employeeNumber", e."departmentId" FROM users.employees e WHERE e."deletedAt" IS NULL AND e."employmentStatus" = 'ACTIVE' AND e."departmentId" = $1`
+      : `SELECT e.id, e."employeeNumber", e."departmentId" FROM users.employees e WHERE e."deletedAt" IS NULL AND e."employmentStatus" = 'ACTIVE'`;
+    const employees = (await this.prisma.$queryRawUnsafe(empSql, ...(departmentId ? [departmentId] : []))) as Array<{ id: string; employeeNumber: string; departmentId: string }>;
 
     // جيب السياسة المحددة أو الافتراضية
     let policy: any = null;
@@ -531,10 +527,10 @@ export class PayrollService {
     });
 
     if (query.departmentId) {
-      const deptId = query.departmentId;
-      const empIds = (await this.prisma.$queryRaw<Array<{ id: string }>>`
-        SELECT id FROM users.employees WHERE "departmentId" = ${deptId} AND "deletedAt" IS NULL
-      `).map(e => e.id);
+      const empIds = (await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM users.employees WHERE "departmentId" = $1 AND "deletedAt" IS NULL`,
+        query.departmentId,
+      ) as Array<{ id: string }>).map(e => e.id);
       return payrolls.filter(p => empIds.includes(p.employeeId));
     }
 

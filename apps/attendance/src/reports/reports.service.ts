@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -775,21 +774,25 @@ export class ReportsService {
 
   async topAbsences(year: number, month?: number, limit = 10) {
     const safeLimit = Math.min(100, Math.max(1, Number(limit) || 10));
-    const rows = (await this.prisma.$queryRaw<Array<{ employeeId: string; absenceCount: string; lateCount: string; totalLateMinutes: string }>>`
+    const params: any[] = [year];
+    let monthClause = '';
+    if (month) { params.push(month); monthClause = `AND EXTRACT(MONTH FROM date) = $${params.length}`; }
+    params.push(safeLimit);
+    const rows = (await this.prisma.$queryRawUnsafe(`
       SELECT
         "employeeId",
         COUNT(*) FILTER (WHERE status = 'ABSENT')::text    AS "absenceCount",
         COUNT(*) FILTER (WHERE "lateMinutes" > 0)::text   AS "lateCount",
         COALESCE(SUM("lateMinutes"), 0)::text             AS "totalLateMinutes"
       FROM attendance.attendance_records
-      WHERE EXTRACT(YEAR FROM date) = ${year}
-        ${month ? Prisma.sql`AND EXTRACT(MONTH FROM date) = ${month}` : Prisma.empty}
+      WHERE EXTRACT(YEAR FROM date) = $1
+        ${monthClause}
       GROUP BY "employeeId"
       HAVING COUNT(*) FILTER (WHERE status = 'ABSENT') > 0
           OR SUM("lateMinutes") > 0
       ORDER BY "absenceCount" DESC, "totalLateMinutes" DESC
-      LIMIT ${safeLimit}
-    `);
+      LIMIT $${params.length}
+    `, ...params)) as Array<{ employeeId: string; absenceCount: string; lateCount: string; totalLateMinutes: string }>;
 
     const employeeIds = rows.map((r) => r.employeeId);
     const employeeMap = await this.getEmployeeNames(employeeIds);
@@ -1107,18 +1110,21 @@ export class ReportsService {
   // ─── تقرير الأوفرتايم المتراكم ────────────────────────────────────────────
 
   async overtime(year: number, month?: number) {
-    const rows = (await this.prisma.$queryRaw<Array<{ employeeId: string; overtimeDays: string; totalOvertimeMinutes: string }>>`
+    const params: any[] = [year];
+    let monthClause = '';
+    if (month) { params.push(month); monthClause = `AND EXTRACT(MONTH FROM date) = $${params.length}`; }
+    const rows = (await this.prisma.$queryRawUnsafe(`
       SELECT
         "employeeId",
         COUNT(*)::text                            AS "overtimeDays",
         COALESCE(SUM("overtimeMinutes"), 0)::text AS "totalOvertimeMinutes"
       FROM attendance.attendance_records
-      WHERE EXTRACT(YEAR FROM date) = ${year}
-        ${month ? Prisma.sql`AND EXTRACT(MONTH FROM date) = ${month}` : Prisma.empty}
+      WHERE EXTRACT(YEAR FROM date) = $1
+        ${monthClause}
         AND "overtimeMinutes" > 0
       GROUP BY "employeeId"
       ORDER BY "totalOvertimeMinutes" DESC
-    `);
+    `, ...params)) as Array<{ employeeId: string; overtimeDays: string; totalOvertimeMinutes: string }>;
 
     const employeeIds = rows.map((r) => r.employeeId);
     const employeeMap = await this.getEmployeeNames(employeeIds);
