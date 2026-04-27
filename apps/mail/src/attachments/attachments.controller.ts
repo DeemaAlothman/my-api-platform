@@ -1,10 +1,11 @@
 import {
   Controller, Get, Post, Param,
-  UploadedFile, UseGuards, UseInterceptors, Res,
+  UploadedFile, UseGuards, UseInterceptors, Res, StreamableFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
+import * as fs from 'fs';
 import { AttachmentsService } from './attachments.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -32,14 +33,15 @@ export class AttachmentsController {
   @Permission('mail:read_own')
   async download(
     @Param('attachmentId') attachmentId: string,
-    @Res() res: Response,
-  ) {
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
     const attachment = await this.attachmentsService.getFileInfo(attachmentId);
+    const buffer = fs.readFileSync(attachment.fileUrl);
     res.set({
       'Content-Type': attachment.mimeType,
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(attachment.fileName)}"`,
-      'Content-Length': attachment.fileSize,
+      'Content-Disposition': `inline; filename="${encodeURIComponent(attachment.fileName)}"`,
+      'Content-Length': String(attachment.fileSize),
     });
-    res.sendFile(attachment.fileUrl, { root: '/' });
+    return new StreamableFile(buffer);
   }
 }

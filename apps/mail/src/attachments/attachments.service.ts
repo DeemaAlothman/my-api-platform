@@ -15,6 +15,14 @@ export class AttachmentsService {
   }
 
   async upload(messageId: string, file: Express.Multer.File) {
+    if (!file || !file.buffer || file.size === 0) {
+      throw new BadRequestException({
+        code: 'EMPTY_FILE',
+        message: 'File is empty or was not received',
+        details: [],
+      });
+    }
+
     if (file.size > MAX_BYTES) {
       throw new BadRequestException({
         code: 'ATTACHMENT_TOO_LARGE',
