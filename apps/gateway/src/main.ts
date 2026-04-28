@@ -48,6 +48,18 @@ async function bootstrap() {
   // Proxy static file uploads to users service (before global prefix)
   const nodeHttp = require('http');
   const proxyUpload = (req: any, res: any) => {
+    const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',').map((o: string) => o.trim());
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.statusCode = 204;
+      return res.end();
+    }
     const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
     const urlObj = new URL(usersUrl);
     const filePath = '/uploads' + req.url;
