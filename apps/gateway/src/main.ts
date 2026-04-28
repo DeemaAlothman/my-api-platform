@@ -45,6 +45,26 @@ async function bootstrap() {
   // URL-encoded body parser
   expressApp.use(require('express').urlencoded({ extended: true, limit: '25mb' }));
 
+  // Proxy static file uploads to users service (before global prefix)
+  const nodeHttp = require('http');
+  const proxyUpload = (req: any, res: any) => {
+    const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
+    const urlObj = new URL(usersUrl);
+    const filePath = '/uploads' + req.url;
+    const proxyReq = nodeHttp.request(
+      { hostname: urlObj.hostname, port: parseInt(urlObj.port) || 80, path: filePath, method: 'GET', headers: { host: urlObj.host } },
+      (proxyRes: any) => {
+        res.statusCode = proxyRes.statusCode;
+        Object.keys(proxyRes.headers).forEach((k: string) => res.setHeader(k, proxyRes.headers[k]));
+        proxyRes.pipe(res);
+      },
+    );
+    proxyReq.on('error', () => res.status(502).end());
+    proxyReq.end();
+  };
+  expressApp.use('/uploads', proxyUpload);
+  expressApp.use('/app/uploads', proxyUpload);
+
   // Enable text body parsing for ZKTeco PUSH protocol (accepts text/plain, octet-stream, no Content-Type, form-urlencoded)
   expressApp.use(require('express').text({
     type: (req: any) => {
