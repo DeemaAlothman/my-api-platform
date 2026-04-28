@@ -46,6 +46,8 @@ services:
       ACCESS_TOKEN_TTL_SECONDS: 900
       REFRESH_TOKEN_TTL_DAYS: 30
       NODE_ENV: production
+      INTERNAL_SERVICE_TOKEN: 234e68ffff1c05602d59422b9bac982d69d17b701a82c01a8a6b1be7565fe03a
+      MAIL_SERVICE_URL: http://mail:4009
     ports:
       - "4001:4001"
     depends_on:
@@ -63,7 +65,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=users
       JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
-      INTERNAL_SERVICE_TOKEN: replace_me
+      INTERNAL_SERVICE_TOKEN: 234e68ffff1c05602d59422b9bac982d69d17b701a82c01a8a6b1be7565fe03a
       NODE_ENV: production
     ports:
       - "4002:4002"
@@ -181,6 +183,8 @@ services:
       VITASYR_API_URL: https://vitaxirpro.com/api/external
       VITASYR_API_KEY: 8d57edc1234696d504eb9d24187bc5d311aedf70a53ec963e8823eff7e05ae3a
       NODE_ENV: production
+      INTERNAL_SERVICE_TOKEN: 234e68ffff1c05602d59422b9bac982d69d17b701a82c01a8a6b1be7565fe03a
+      MAIL_SERVICE_URL: http://mail:4009
       MAIL_HOST: smtp.hostinger.com
       MAIL_PORT: "465"
       MAIL_SECURE: "true"
@@ -204,7 +208,8 @@ services:
       NODE_ENV: production
       USERS_SERVICE_URL: http://users:4002
       NOTIFICATIONS_SERVICE_URL: http://users:4002
-      INTERNAL_SERVICE_TOKEN: replace_me
+      INTERNAL_SERVICE_TOKEN: 234e68ffff1c05602d59422b9bac982d69d17b701a82c01a8a6b1be7565fe03a
+      SYSTEM_USER_ID: 00000000-0000-0000-0000-000000000001
       MAX_ATTACHMENT_SIZE_MB: "25"
       ALLOWED_ATTACHMENT_MIME: image/jpeg,image/png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document
     ports:
