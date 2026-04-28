@@ -1,4 +1,11 @@
-import { Controller, Get, Post, Query, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller, Get, Post, Query, Param, Body, UseGuards,
+  HttpCode, HttpStatus, UploadedFile, UseInterceptors, Res, StreamableFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { RequestsService } from './requests.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
@@ -133,5 +140,38 @@ export class RequestsController {
   @Post(':id/hr-reject')
   hrReject(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: RejectRequestDto) {
     return this.requests.hrReject(id, user.userId, dto);
+  }
+
+  // B.7: Upload hiring contract PDF
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('requests:hiring:complete')
+  @Post(':id/hiring-pdf')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('contractPdf'))
+  uploadHiringPdf(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: any,
+  ) {
+    return this.requests.uploadHiringPdf(id, file, user.userId);
+  }
+
+  // B.7: Download hiring contract PDF
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('requests:read')
+  @Get(':id/hiring-pdf')
+  async downloadHiringPdf(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { filePath, requestNumber } = await this.requests.getHiringPdfPath(id);
+    const buffer = fs.readFileSync(filePath);
+    const fileName = `hiring-contract-${requestNumber}${path.extname(filePath) || '.pdf'}`;
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${encodeURIComponent(fileName)}"`,
+      'Content-Length': String(buffer.length),
+    });
+    return new StreamableFile(buffer);
   }
 }

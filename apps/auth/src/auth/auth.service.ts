@@ -20,7 +20,7 @@ export class AuthService {
     this.logger.log(`Login attempt for user: ${username}`);
 
     const rows = await this.prisma.$queryRaw<any[]>`
-      SELECT id, username, email, "fullName", password
+      SELECT id, username, email, "fullName", password, "firstLoginAt"
       FROM users.users
       WHERE username = ${username}
         AND "deletedAt" IS NULL
@@ -85,6 +85,20 @@ export class AuthService {
     }
 
     this.logger.log(`Login successful for user: ${username} roles=[${finalRoles.join(',')}]`);
+
+    // B.5.3: Track first login and send welcome message once
+    if (user.firstLoginAt === null || user.firstLoginAt === undefined) {
+      await this.prisma.$queryRawUnsafe(
+        `UPDATE users.users SET "firstLoginAt" = NOW() WHERE id = $1`,
+        user.id,
+      );
+      setImmediate(() => {
+        this.sendWelcomeMessage(user.id, user.fullName).catch(err =>
+          this.logger.error(`Welcome message failed: ${err.message}`),
+        );
+      });
+    }
+
     const accessToken = this.signAccessToken(user.id, user.username, finalPermissions);
     const refreshToken = this.signRefreshToken(user.id);
 
@@ -252,6 +266,25 @@ export class AuthService {
     if (!jti) return false;
     const revoked = await this.prisma.revokedToken.findUnique({ where: { jti } });
     return !!revoked;
+  }
+
+  // B.5.4: Send welcome message via internal mail endpoint
+  private async sendWelcomeMessage(userId: string, fullName: string | null) {
+    const MAIL_URL = process.env.MAIL_SERVICE_URL || 'http://localhost:4007';
+    const TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+    try {
+      await fetch(`${MAIL_URL}/api/v1/mail/internal/system-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': TOKEN },
+        body: JSON.stringify({
+          recipientUserId: userId,
+          subject: 'مرحباً بك في النظام',
+          body: `مرحباً ${fullName || ''}،\n\nنرحب بانضمامك إلى الفريق. يسعدنا وجودك معنا!\n\nفريق الموارد البشرية`,
+        }),
+      });
+    } catch (err) {
+      this.logger.error(`sendWelcomeMessage HTTP error: ${err.message}`);
+    }
   }
 
   private signAccessToken(userId: string, username: string, permissions?: string[]) {

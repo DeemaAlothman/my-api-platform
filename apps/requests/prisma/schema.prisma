@@ -77,6 +77,10 @@ model Request {
   cancelledAt  DateTime?
   cancelledBy  String?
 
+  hiringContractPdfUrl String?
+  hiringCompletedAt    DateTime?
+  hiringCompletedBy    String?
+
   approvalSteps ApprovalStep[]
   history       RequestHistory[]
 

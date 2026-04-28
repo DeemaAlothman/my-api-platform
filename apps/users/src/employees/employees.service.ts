@@ -9,7 +9,7 @@ import { LinkUserDto } from './dto/link-user.dto';
 export class EmployeesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: ListEmployeesQueryDto) {
+  async list(query: ListEmployeesQueryDto, includeManagerNotes = false) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
@@ -106,7 +106,7 @@ export class EmployeesService {
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
     return {
-      items,
+      items: includeManagerNotes ? items : items.map(e => this.stripManagerNotes(e)),
       page,
       limit,
       total,
@@ -114,7 +114,7 @@ export class EmployeesService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, includeManagerNotes = false) {
     const employee = await this.prisma.employee.findFirst({
       where: {
         id,
@@ -166,7 +166,7 @@ export class EmployeesService {
       });
     }
 
-    return employee;
+    return includeManagerNotes ? employee : this.stripManagerNotes(employee);
   }
 
   async findByUsername(username: string) {
@@ -303,13 +303,20 @@ export class EmployeesService {
 
     const { attachments, trainingCertificates, allowances, ...employeeData } = dto;
 
+    // B.2: Default contractEndDate = Dec 31 of the hire year
+    let contractEndDate: Date | null = dto.contractEndDate ? new Date(dto.contractEndDate) : null;
+    if (!contractEndDate) {
+      const hireYear = new Date(dto.hireDate).getFullYear();
+      contractEndDate = new Date(`${hireYear}-12-31T23:59:59.000Z`);
+    }
+
     const employee = await this.prisma.employee.create({
       data: {
         ...employeeData,
         employeeNumber,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
         hireDate: new Date(dto.hireDate),
-        contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : null,
+        contractEndDate,
         ...(attachments?.length ? { attachments: { create: attachments } } : {}),
         ...(trainingCertificates?.length ? { trainingCertificates: { create: trainingCertificates.map(({ name, attachmentUrl }) => ({ name, attachmentUrl })) } } : {}),
         ...(allowances?.length ? { allowances: { create: allowances.map(({ type, amount }) => ({ type, amount })) } } : {}),
@@ -382,13 +389,24 @@ export class EmployeesService {
 
     const { attachments, trainingCertificates, allowances, ...employeeData } = dto;
 
+    // B.2: If contractEndDate is explicitly null in the DTO, reset to end of current year
+    let contractEndDateUpdate: Date | undefined | null = undefined;
+    if ('contractEndDate' in dto) {
+      if (dto.contractEndDate === null || dto.contractEndDate === undefined) {
+        const year = new Date().getFullYear();
+        contractEndDateUpdate = new Date(`${year}-12-31T23:59:59.000Z`);
+      } else {
+        contractEndDateUpdate = new Date(dto.contractEndDate as string);
+      }
+    }
+
     const updated = await this.prisma.employee.update({
       where: { id },
       data: {
         ...employeeData,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
-        contractEndDate: dto.contractEndDate ? new Date(dto.contractEndDate) : undefined,
+        contractEndDate: contractEndDateUpdate,
         ...(attachments !== undefined ? {
           attachments: { deleteMany: {}, create: attachments.map(({ fileUrl, fileName }) => ({ fileUrl, fileName })) },
         } : {}),
@@ -417,6 +435,120 @@ export class EmployeesService {
     });
 
     return updated;
+  }
+
+  // B.1: Manager notes — get
+  async getManagerNotes(id: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        managerNotes: true,
+        managerNotesUpdatedAt: true,
+        managerNotesUpdatedBy: true,
+      } as any,
+    });
+    if (!employee) {
+      throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Employee not found', details: [{ field: 'id', value: id }] });
+    }
+    return employee;
+  }
+
+  // B.1: Manager notes — update
+  async updateManagerNotes(id: string, notes: string, updatedBy: string) {
+    await this.findOne(id);
+    return this.prisma.employee.update({
+      where: { id },
+      data: {
+        managerNotes: notes,
+        managerNotesUpdatedAt: new Date(),
+        managerNotesUpdatedBy: updatedBy,
+      } as any,
+      select: {
+        id: true,
+        managerNotes: true,
+        managerNotesUpdatedAt: true,
+        managerNotesUpdatedBy: true,
+      } as any,
+    });
+  }
+
+  // B.1.3: Strip manager notes fields from any employee object
+  private stripManagerNotes<T extends Record<string, any>>(obj: T): T {
+    if (!obj || typeof obj !== 'object') return obj;
+    const copy = { ...obj } as any;
+    delete copy.managerNotes;
+    delete copy.managerNotesUpdatedAt;
+    delete copy.managerNotesUpdatedBy;
+    return copy;
+  }
+
+  // B.4: HR report — probation ending within N days
+  async getProbationEndingReport(days: number) {
+    const targetDate = new Date();
+    targetDate.setUTCDate(targetDate.getUTCDate() + days);
+    const targetStr = targetDate.toISOString().split('T')[0];
+
+    const items = await this.prisma.$queryRawUnsafe(`
+      SELECT
+        e.id,
+        e."employeeNumber",
+        CONCAT(e."firstNameAr", ' ', e."lastNameAr") AS "fullNameAr",
+        d."nameAr" AS "departmentName",
+        e."hireDate",
+        e."probationPeriod",
+        CASE
+          WHEN e."probationPeriod" = 'ONE_MONTH'     THEN (e."hireDate" + INTERVAL '1 month')::date
+          WHEN e."probationPeriod" = 'TWO_MONTHS'    THEN (e."hireDate" + INTERVAL '2 months')::date
+          WHEN e."probationPeriod" = 'THREE_MONTHS'  THEN (e."hireDate" + INTERVAL '3 months')::date
+        END AS "probationEndDate",
+        CASE
+          WHEN e."probationPeriod" = 'ONE_MONTH'     THEN (e."hireDate" + INTERVAL '1 month')::date - CURRENT_DATE
+          WHEN e."probationPeriod" = 'TWO_MONTHS'    THEN (e."hireDate" + INTERVAL '2 months')::date - CURRENT_DATE
+          WHEN e."probationPeriod" = 'THREE_MONTHS'  THEN (e."hireDate" + INTERVAL '3 months')::date - CURRENT_DATE
+        END AS "daysRemaining"
+      FROM users.employees e
+      LEFT JOIN users.departments d ON d.id = e."departmentId"
+      WHERE e."deletedAt" IS NULL
+        AND e."employmentStatus" = 'ACTIVE'
+        AND e."probationResult" IS NULL
+        AND e."probationPeriod" IN ('ONE_MONTH', 'TWO_MONTHS', 'THREE_MONTHS')
+        AND (
+          (e."probationPeriod" = 'ONE_MONTH'    AND (e."hireDate" + INTERVAL '1 month')::date    BETWEEN CURRENT_DATE AND $1::date)
+          OR (e."probationPeriod" = 'TWO_MONTHS'   AND (e."hireDate" + INTERVAL '2 months')::date   BETWEEN CURRENT_DATE AND $1::date)
+          OR (e."probationPeriod" = 'THREE_MONTHS' AND (e."hireDate" + INTERVAL '3 months')::date BETWEEN CURRENT_DATE AND $1::date)
+        )
+      ORDER BY "daysRemaining" ASC
+    `, targetStr) as any[];
+
+    return { items, total: items.length };
+  }
+
+  // B.4: HR report — contract ending within N days
+  async getContractEndingReport(days: number) {
+    const targetDate = new Date();
+    targetDate.setUTCDate(targetDate.getUTCDate() + days);
+    const targetStr = targetDate.toISOString().split('T')[0];
+
+    const items = await this.prisma.$queryRawUnsafe(`
+      SELECT
+        e.id,
+        e."employeeNumber",
+        CONCAT(e."firstNameAr", ' ', e."lastNameAr") AS "fullNameAr",
+        d."nameAr" AS "departmentName",
+        e."contractType",
+        e."contractEndDate",
+        (e."contractEndDate"::date - CURRENT_DATE) AS "daysRemaining"
+      FROM users.employees e
+      LEFT JOIN users.departments d ON d.id = e."departmentId"
+      WHERE e."deletedAt" IS NULL
+        AND e."employmentStatus" = 'ACTIVE'
+        AND e."contractEndDate" IS NOT NULL
+        AND e."contractEndDate"::date BETWEEN CURRENT_DATE AND $1::date
+      ORDER BY e."contractEndDate" ASC
+    `, targetStr) as any[];
+
+    return { items, total: items.length };
   }
 
   private async validateSalaryRange(jobGradeId: string, salary: number) {

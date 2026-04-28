@@ -7,6 +7,13 @@ import { CancelRequestDto } from './dto/cancel-request.dto';
 import { ListRequestsQueryDto } from './dto/list-requests.query.dto';
 import { ApprovalService } from './approval.service';
 import { validateRequestDetails } from './validators/request-details.validator';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const HIRING_PDF_DIR = process.env.UPLOAD_DIR
+  ? path.join(process.env.UPLOAD_DIR, 'hiring-contracts')
+  : '/app/uploads/hiring-contracts';
+const MAX_PDF_BYTES = 10 * 1024 * 1024; // 10MB
 
 @Injectable()
 export class RequestsService {
@@ -340,6 +347,63 @@ export class RequestsService {
         history: { orderBy: { createdAt: 'desc' }, take: 5 },
       },
     });
+  }
+
+  // B.7: Upload hiring contract PDF
+  async uploadHiringPdf(id: string, file: Express.Multer.File, userId: string) {
+    if (!file || !file.buffer || file.size === 0) {
+      throw new BadRequestException({ code: 'EMPTY_FILE', message: 'File is empty or was not received', details: [] });
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      throw new BadRequestException({ code: 'FILE_TOO_LARGE', message: 'File exceeds 10MB limit', details: [] });
+    }
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException({ code: 'INVALID_FILE_TYPE', message: 'Only PDF files are allowed', details: [] });
+    }
+
+    const request = await this.findRequestOrFail(id);
+    if (request.type !== 'HIRING_REQUEST') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Only HIRING_REQUEST type supports PDF upload', details: [] });
+    }
+    if (request.status !== 'APPROVED') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Request must be APPROVED before uploading contract PDF', details: [] });
+    }
+
+    if (!fs.existsSync(HIRING_PDF_DIR)) {
+      fs.mkdirSync(HIRING_PDF_DIR, { recursive: true });
+    }
+
+    const safeName = `${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+    const diskPath = path.join(HIRING_PDF_DIR, safeName);
+    fs.writeFileSync(diskPath, file.buffer);
+
+    return this.prisma.request.update({
+      where: { id },
+      data: {
+        hiringContractPdfUrl: diskPath,
+        hiringCompletedAt: new Date(),
+        hiringCompletedBy: userId,
+      } as any,
+      select: {
+        id: true,
+        hiringContractPdfUrl: true,
+        hiringCompletedAt: true,
+        hiringCompletedBy: true,
+      } as any,
+    });
+  }
+
+  // B.7: Get hiring contract PDF path for download
+  async getHiringPdfPath(id: string) {
+    const request = await this.findRequestOrFail(id);
+    const pdfUrl = (request as any).hiringContractPdfUrl;
+    if (!pdfUrl) {
+      throw new NotFoundException({ code: 'PDF_NOT_FOUND', message: 'No hiring contract PDF uploaded for this request', details: [] });
+    }
+    if (!fs.existsSync(pdfUrl)) {
+      throw new NotFoundException({ code: 'FILE_NOT_ON_DISK', message: 'PDF file no longer exists on disk', details: [] });
+    }
+    return { filePath: pdfUrl, requestNumber: request.requestNumber };
   }
 
   private async findRequestOrFail(id: string) {

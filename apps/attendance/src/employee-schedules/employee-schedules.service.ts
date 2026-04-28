@@ -46,7 +46,17 @@ export class EmployeeSchedulesService {
       });
     }
 
-    const effectiveFrom = new Date(dto.effectiveFrom);
+    // C.4: Schedule changes apply from next day to prevent mid-day conflicts
+    let effectiveFrom = new Date(dto.effectiveFrom);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const effectiveFromStr = effectiveFrom.toISOString().split('T')[0];
+    if (effectiveFromStr <= todayStr) {
+      const tomorrow = new Date();
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+      tomorrow.setUTCHours(0, 0, 0, 0);
+      effectiveFrom = tomorrow;
+    }
+
     const effectiveTo = dto.effectiveTo ? new Date(dto.effectiveTo) : null;
 
     if (effectiveTo && effectiveTo <= effectiveFrom) {

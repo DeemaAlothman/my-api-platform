@@ -39,16 +39,22 @@ export class DailyClosureService implements OnModuleInit {
     absentCreated: number;
     missingClockOutAlerts: number;
     onLeaveApplied: number;
+    holidayApplied: number;
+    orphanNotified: number;
     skipped: number;
   }> {
     const date = new Date(dateStr + 'T00:00:00Z');
     const dayOfWeek = date.getUTCDay();
 
+    // C.1: JOIN users.employees to filter out INACTIVE/TERMINATED employees
     const scheduledEmployees = (await this.prisma.$queryRawUnsafe(
       `SELECT es."employeeId", ws."workDays"
        FROM attendance.employee_schedules es
        JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+       JOIN users.employees e ON e.id = es."employeeId"
        WHERE es."isActive" = true
+         AND e."employmentStatus" = 'ACTIVE'
+         AND e."deletedAt" IS NULL
          AND $1::date BETWEEN es."effectiveFrom"::date
              AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)`,
       dateStr,
@@ -63,7 +69,22 @@ export class DailyClosureService implements OnModuleInit {
       .map(emp => emp.employeeId);
 
     if (workingEmployeeIds.length === 0) {
-      return { date: dateStr, absentCreated: 0, missingClockOutAlerts: 0, onLeaveApplied: 0, skipped: 0 };
+      return { date: dateStr, absentCreated: 0, missingClockOutAlerts: 0, onLeaveApplied: 0, holidayApplied: 0, orphanNotified: 0, skipped: 0 };
+    }
+
+    // C.2: Check if today is an official holiday before processing absences
+    const holiday = await this.getHolidayForDate(dateStr);
+
+    if (holiday) {
+      let holidayApplied = 0;
+      for (const employeeId of workingEmployeeIds) {
+        await this.upsertHolidayRecord(employeeId, dateStr, holiday.nameAr);
+        holidayApplied++;
+      }
+      this.logger.log(`Holiday detected (${holiday.nameAr}) for ${dateStr}: ${holidayApplied} records set to HOLIDAY`);
+      // C.3: Still check for orphans even on holidays
+      const orphanNotified = await this.checkAndNotifyOrphans(dateStr);
+      return { date: dateStr, absentCreated: 0, missingClockOutAlerts: 0, onLeaveApplied: 0, holidayApplied, orphanNotified, skipped: 0 };
     }
 
     const existingRecords = (await this.prisma.$queryRawUnsafe(
@@ -109,7 +130,124 @@ export class DailyClosureService implements OnModuleInit {
       }
     }
 
-    return { date: dateStr, absentCreated, missingClockOutAlerts, onLeaveApplied, skipped };
+    // C.3: Notify HR about active employees with no schedule assigned
+    const orphanNotified = await this.checkAndNotifyOrphans(dateStr);
+
+    return { date: dateStr, absentCreated, missingClockOutAlerts, onLeaveApplied, holidayApplied: 0, orphanNotified, skipped };
+  }
+
+  // C.2: Returns holiday info if the given date is a holiday (exact date or recurring by month/day)
+  private async getHolidayForDate(dateStr: string): Promise<{ nameAr: string } | null> {
+    try {
+      const date = new Date(dateStr + 'T00:00:00Z');
+      const month = date.getUTCMonth() + 1;
+      const day = date.getUTCDate();
+
+      const rows = await this.prisma.$queryRawUnsafe(
+        `SELECT "nameAr" FROM leaves.holidays
+         WHERE date::date = $1::date
+            OR ("isRecurring" = true
+                AND EXTRACT(MONTH FROM date) = $2
+                AND EXTRACT(DAY FROM date) = $3)
+         LIMIT 1`,
+        dateStr, month, day,
+      );
+      return (rows as any[])[0] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // C.2: Upsert HOLIDAY record — does not override existing clock-in records
+  private async upsertHolidayRecord(employeeId: string, dateStr: string, holidayName: string) {
+    try {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO attendance.attendance_records
+           (id, "employeeId", date, status, source, "isManualEntry",
+            "lateMinutes", "earlyLeaveMinutes", "deductionApplied",
+            "salaryLinked", notes, "createdAt", "updatedAt")
+         VALUES
+           (gen_random_uuid(), $1, $2::date, 'HOLIDAY', 'SYSTEM', false,
+            0, 0, false, true, $3, NOW(), NOW())
+         ON CONFLICT ("employeeId", date) DO UPDATE SET
+           status = CASE
+             WHEN attendance_records."clockInTime" IS NOT NULL
+                  THEN attendance_records.status
+             ELSE 'HOLIDAY'
+           END,
+           notes = COALESCE(attendance_records.notes, EXCLUDED.notes),
+           "updatedAt" = NOW()`,
+        employeeId, dateStr, `عطلة رسمية: ${holidayName}`,
+      );
+    } catch (err) {
+      this.logger.error(`Failed to upsert HOLIDAY record for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
+    }
+  }
+
+  // C.3: Query active employees with no active schedule and notify HR
+  private async checkAndNotifyOrphans(dateStr: string): Promise<number> {
+    try {
+      const orphans = (await this.prisma.$queryRawUnsafe(
+        `SELECT e.id, e."firstNameAr", e."lastNameAr", e."employeeNumber"
+         FROM users.employees e
+         WHERE e."employmentStatus" = 'ACTIVE'
+           AND e."deletedAt" IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM attendance.employee_schedules es
+             WHERE es."employeeId" = e.id
+               AND es."isActive" = true
+               AND $1::date BETWEEN es."effectiveFrom"::date
+                   AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+           )`,
+        dateStr,
+      )) as Array<{ id: string; firstNameAr: string; lastNameAr: string; employeeNumber: string }>;
+
+      if (orphans.length === 0) return 0;
+
+      await this.notifyHRAboutOrphans(orphans, dateStr);
+      return orphans.length;
+    } catch (err) {
+      this.logger.error(`Orphan check failed for ${dateStr}: ${(err as any)?.message}`);
+      return 0;
+    }
+  }
+
+  private async notifyHRAboutOrphans(
+    orphans: Array<{ id: string; firstNameAr: string; lastNameAr: string; employeeNumber: string }>,
+    dateStr: string,
+  ) {
+    try {
+      const hrUsers = (await this.prisma.$queryRawUnsafe(
+        `SELECT DISTINCT u.id
+         FROM users.users u
+         INNER JOIN users.user_roles ur ON ur."userId" = u.id
+         INNER JOIN users.roles r ON r.id = ur."roleId"
+         WHERE r.name IN ('hr_manager', 'super_admin')
+           AND u."deletedAt" IS NULL`,
+      )) as Array<{ id: string }>;
+
+      if (hrUsers.length === 0) return;
+
+      const names = orphans.map(e => `${e.firstNameAr} ${e.lastNameAr} (${e.employeeNumber})`).join('، ');
+
+      for (const hr of hrUsers) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'GENERAL',
+              'موظفون بدون جدول دوام',
+              'Employees Without Schedule',
+              $2, $3,
+              false, NOW())`,
+          hr.id,
+          `يوم ${dateStr}: ${orphans.length} موظف نشط بدون جدول دوام: ${names}`,
+          `Date ${dateStr}: ${orphans.length} active employee(s) with no assigned schedule: ${names}`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(`Failed to send orphan notifications: ${(err as any)?.message}`);
+    }
   }
 
   private async getApprovedLeavesForDate(

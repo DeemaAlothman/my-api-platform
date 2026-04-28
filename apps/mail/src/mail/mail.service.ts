@@ -370,6 +370,30 @@ export class MailService {
     return { deleted: true };
   }
 
+  // B.5.2: Internal system-send — used by auth, jobs cron services
+  async systemSend(dto: { recipientUserId: string; subject: string; body: string }) {
+    const senderId = process.env.SYSTEM_USER_ID || '00000000-0000-0000-0000-000000000001';
+
+    const message = await (this.prisma as any).mailMessage.create({
+      data: {
+        senderId,
+        subject: dto.subject,
+        body: dto.body,
+        isDraft: false,
+        recipients: {
+          create: {
+            recipientId: dto.recipientUserId,
+            type: RecipientType.TO,
+            folder: MailFolder.INBOX,
+          },
+        },
+      },
+      include: { recipients: true },
+    });
+
+    return { messageId: message.id };
+  }
+
   private dedupRecipients(recipients: Array<{ userId: string; type: RecipientType }>, senderId: string) {
     const seen = new Set<string>();
     const result: Array<{ userId: string; type: RecipientType }> = [];

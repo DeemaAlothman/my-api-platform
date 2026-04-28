@@ -19,6 +19,8 @@ model User {
   roles         UserRole[]
   notifications Notification[]
 
+  firstLoginAt  DateTime?
+
   deletedAt DateTime?
 
   createdAt DateTime @default(now())
@@ -98,6 +100,11 @@ model Employee {
   workType           WorkType?
   probationPeriod    ProbationPeriod?
   interviewEvaluation String?
+
+  // Manager Notes (only visible to users with employees:manager-notes:read permission)
+  managerNotes          String?    @db.Text
+  managerNotesUpdatedAt DateTime?
+  managerNotesUpdatedBy String?
 
   // Exit Interview
   exitInterviewEvaluation String?
@@ -555,6 +562,11 @@ enum NotificationType {
   OFFBOARDING_TASK
   DOCUMENT_EXPIRY
   GENERAL
+  CONTRACT_EXPIRY
+  PROBATION_END_REMINDER
+  BIRTHDAY
+  WELCOME
+  EMPLOYEES_WITHOUT_SCHEDULE
 }
 
 // ─── Onboarding / Offboarding ───────────────────────────────────────────────

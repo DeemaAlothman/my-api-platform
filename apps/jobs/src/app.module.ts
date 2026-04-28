@@ -12,6 +12,9 @@ import { CandidatesModule } from './candidates/candidates.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { JwtStrategy } from './common/strategies/jwt.strategy';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { ProbationEndNotifierService } from './hr-notifiers/probation-end-notifier.service';
+import { ContractEndNotifierService } from './hr-notifiers/contract-end-notifier.service';
+import { BirthdayMailerService } from './hr-notifiers/birthday-mailer.service';
 
 @Module({
   imports: [
@@ -29,6 +32,12 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     CandidatesModule,
     DashboardDataModule,
   ],
-  providers: [JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
+  providers: [
+    JwtStrategy,
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+    ProbationEndNotifierService,
+    ContractEndNotifierService,
+    BirthdayMailerService,
+  ],
 })
 export class AppModule {}
