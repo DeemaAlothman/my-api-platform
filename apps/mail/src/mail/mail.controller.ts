@@ -7,8 +7,6 @@ import {
   Body,
   Param,
   Query,
-  Headers,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -29,18 +27,6 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 @Controller('mail')
 export class MailController {
   constructor(private readonly mailService: MailService) {}
-
-  // B.5.2: Internal endpoint — only callable with INTERNAL_SERVICE_TOKEN header
-  @Post('internal/system-send')
-  systemSend(
-    @Headers('x-internal-token') token: string,
-    @Body() dto: { recipientUserId: string; subject: string; body: string },
-  ) {
-    if (!token || token !== process.env.INTERNAL_SERVICE_TOKEN) {
-      throw new UnauthorizedException('Invalid internal token');
-    }
-    return this.mailService.systemSend(dto);
-  }
 
   @Post('send')
   @Permission('mail:send')
