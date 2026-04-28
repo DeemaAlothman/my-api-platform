@@ -199,6 +199,14 @@ export class LeaveBalancesService {
   async initializeForEmployee(employeeId: string, year?: number) {
     const currentYear = year || new Date().getFullYear();
 
+    // جلب تاريخ التعيين للحساب التناسبي للإجازة السنوية
+    const empRows = await this.prisma.$queryRawUnsafe<Array<{ hireDate: Date | null }>>(
+      `SELECT "hireDate" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    );
+    const hireDate: Date | null = empRows[0]?.hireDate ?? null;
+    const hireYear = hireDate ? new Date(hireDate).getFullYear() : null;
+
     // جلب جميع أنواع الإجازات النشطة
     const leaveTypes = await this.prisma.leaveType.findMany({
       where: { isActive: true },
@@ -217,13 +225,24 @@ export class LeaveBalancesService {
       });
 
       if (!existing) {
+        let totalDays = leaveType.defaultDays;
+
+        // حساب تناسبي (Pro-rata) للإجازة السنوية في سنة التعيين الأولى
+        if (leaveType.code === 'ANNUAL' && hireDate && hireYear === currentYear) {
+          const hireMonth = new Date(hireDate).getMonth(); // 0=يناير
+          const remainingMonths = 12 - hireMonth;
+          const proRata = 14 * (remainingMonths / 12);
+          // تقريب لأقرب ربع يوم
+          totalDays = Math.round(proRata * 4) / 4;
+        }
+
         const balance = await this.prisma.leaveBalance.create({
           data: {
             employeeId,
             leaveTypeId: leaveType.id,
             year: currentYear,
-            totalDays: leaveType.defaultDays,
-            remainingDays: leaveType.defaultDays,
+            totalDays,
+            remainingDays: totalDays,
           },
           include: {
             leaveType: true,

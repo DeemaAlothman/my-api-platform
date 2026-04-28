@@ -115,6 +115,15 @@ export class LeaveRequestsService {
 
     const durationHours = durationMinutes / 60;
 
+    // جلب نوع الإجازة والتحقق من الأهلية
+    const leaveType = await this.prisma.leaveType.findUnique({ where: { id: dto.leaveTypeId } });
+    if (!leaveType || !leaveType.isActive) {
+      throw new BadRequestException('نوع الإجازة غير صالح أو غير نشط');
+    }
+    await this.validateMinServiceMonths(employeeId, leaveType);
+    await this.validateMaxLifetimeUsage(employeeId, leaveType);
+    await this.validateMaxHoursPerMonth(employeeId, leaveType, dto.date, durationHours);
+
     // جلب ساعات وردية الموظف من attendance schema
     const shiftRows = (await this.prisma.$queryRawUnsafe(
       `SELECT ws."workStartTime", ws."workEndTime"
@@ -216,8 +225,15 @@ export class LeaveRequestsService {
       throw new BadRequestException('Invalid or inactive leave type');
     }
 
+    // التحقق من شروط الأهلية
+    await this.validateMinServiceMonths(employeeId, leaveType);
+    await this.validateMaxLifetimeUsage(employeeId, leaveType);
+
     // حساب عدد الأيام
     const totalDays = this.calculateLeaveDays(new Date(startDate), new Date(endDate), isHalfDay);
+
+    // التحقق من الحد الأقصى للإجازة المرضية
+    await this.validateSickLeaveLimit(employeeId, leaveType, totalDays);
 
     // التحقق من الحد الأقصى للأيام
     if (leaveType.maxDaysPerRequest && totalDays > leaveType.maxDaysPerRequest) {
@@ -492,6 +508,7 @@ export class LeaveRequestsService {
     await this.addHistory(id, 'MANAGER_APPROVE', 'PENDING_MANAGER', newStatus, managerId, dto.notes || 'Approved by manager');
 
     if (newStatus === 'APPROVED') {
+      await this.applySickLeaveDeduction(id, request.leaveType, request.employeeId, request.totalDays);
       if ((request as any).isHourlyLeave) {
         await this.applyHourlyLeaveToBalance(request);
         await this.createPartialLeaveAttendanceRecord(request);
@@ -577,6 +594,8 @@ export class LeaveRequestsService {
     });
 
     await this.addHistory(id, 'HR_APPROVE', 'PENDING_HR', 'APPROVED', hrUserId, dto.notes || 'Approved by HR');
+
+    await this.applySickLeaveDeduction(id, (updated as any).leaveType, request.employeeId, request.totalDays);
 
     if ((request as any).isHourlyLeave) {
       await this.applyHourlyLeaveToBalance(request);
@@ -675,6 +694,172 @@ export class LeaveRequestsService {
     await this.addHistory(id, 'CANCEL', oldStatus, 'CANCELLED', userId, dto.cancelReason);
 
     return updated;
+  }
+
+  // === دوال التحقق من الأهلية والخصم ===
+
+  private async getTotalApprovedDays(
+    employeeId: string,
+    leaveTypeId: string,
+    excludeRequestId?: string,
+  ): Promise<number> {
+    if (excludeRequestId) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ total: number }>>(
+        `SELECT COALESCE(SUM("totalDays"), 0)::float as total
+         FROM leaves.leave_requests
+         WHERE "employeeId" = $1 AND "leaveTypeId" = $2 AND status = 'APPROVED' AND id != $3`,
+        employeeId,
+        leaveTypeId,
+        excludeRequestId,
+      );
+      return Number(rows[0]?.total ?? 0);
+    }
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ total: number }>>(
+      `SELECT COALESCE(SUM("totalDays"), 0)::float as total
+       FROM leaves.leave_requests
+       WHERE "employeeId" = $1 AND "leaveTypeId" = $2 AND status = 'APPROVED'`,
+      employeeId,
+      leaveTypeId,
+    );
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  private async validateMinServiceMonths(employeeId: string, leaveType: any): Promise<void> {
+    if (!leaveType.minServiceMonths) return;
+
+    const empRows = await this.prisma.$queryRawUnsafe<Array<{ hireDate: Date | null }>>(
+      `SELECT "hireDate" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    );
+    const hireDate = empRows[0]?.hireDate;
+    if (!hireDate) return;
+
+    const now = new Date();
+    const hire = new Date(hireDate);
+    const months =
+      (now.getFullYear() - hire.getFullYear()) * 12 + (now.getMonth() - hire.getMonth());
+
+    if (months < leaveType.minServiceMonths) {
+      throw new BadRequestException(
+        `يجب أن تكمل ${leaveType.minServiceMonths} شهراً على الأقل للتأهل لطلب ${leaveType.nameAr}`,
+      );
+    }
+  }
+
+  private async validateMaxLifetimeUsage(employeeId: string, leaveType: any): Promise<void> {
+    if (!leaveType.maxLifetimeUsage) return;
+
+    const count = await this.prisma.leaveRequest.count({
+      where: { employeeId, leaveTypeId: leaveType.id, status: 'APPROVED' },
+    });
+
+    if (count >= leaveType.maxLifetimeUsage) {
+      throw new BadRequestException(
+        `يحق لك أخذ ${leaveType.nameAr} مرة واحدة فقط خلال فترة توظيفك`,
+      );
+    }
+  }
+
+  private async validateMaxHoursPerMonth(
+    employeeId: string,
+    leaveType: any,
+    date: string,
+    requestedHours: number,
+  ): Promise<void> {
+    if (!leaveType.maxHoursPerMonth) return;
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ total: number }>>(
+      `SELECT COALESCE(SUM("durationHours"), 0)::float as total
+       FROM leaves.leave_requests
+       WHERE "employeeId" = $1
+         AND "leaveTypeId" = $2
+         AND "isHourlyLeave" = true
+         AND status IN ('APPROVED', 'PENDING_MANAGER', 'PENDING_HR', 'PENDING_SUBSTITUTE')
+         AND EXTRACT(MONTH FROM "startDate") = EXTRACT(MONTH FROM $3::date)
+         AND EXTRACT(YEAR  FROM "startDate") = EXTRACT(YEAR  FROM $3::date)`,
+      employeeId,
+      leaveType.id,
+      date,
+    );
+
+    const usedHours = Number(rows[0]?.total ?? 0);
+    if (usedHours + requestedHours > leaveType.maxHoursPerMonth) {
+      throw new BadRequestException(
+        `تجاوزت الحد الأقصى للإجازات الساعية في هذا الشهر (${leaveType.maxHoursPerMonth} ساعة). المستخدم: ${usedHours.toFixed(1)} ساعة`,
+      );
+    }
+  }
+
+  private async validateSickLeaveLimit(
+    employeeId: string,
+    leaveType: any,
+    requestedDays: number,
+  ): Promise<void> {
+    if (leaveType.code !== 'SICK') return;
+
+    const maxDays = leaveType.defaultDays ?? 180;
+    const usedDays = await this.getTotalApprovedDays(employeeId, leaveType.id);
+
+    if (usedDays >= maxDays) {
+      throw new BadRequestException(
+        `لقد استنفدت الحد الأقصى للإجازة المرضية (${maxDays} يوماً). يمكنك طلب إجازة بدون راتب`,
+      );
+    }
+
+    if (usedDays + requestedDays > maxDays) {
+      throw new BadRequestException(
+        `الأيام المطلوبة تتجاوز الحد الأقصى للإجازة المرضية. المتاح: ${maxDays - usedDays} يوم فقط`,
+      );
+    }
+  }
+
+  private calculateSickDeduction(
+    rules: Array<{ fromDay: number; toDay: number; deductionPercent: number }>,
+    alreadyUsedDays: number,
+    requestDays: number,
+  ): Array<{ fromDay: number; toDay: number; days: number; deductionPercent: number }> | null {
+    const segments: Array<{ fromDay: number; toDay: number; days: number; deductionPercent: number }> = [];
+    const reqStart = alreadyUsedDays + 1;
+    const reqEnd = alreadyUsedDays + requestDays;
+
+    for (const rule of rules) {
+      const overlapStart = Math.max(reqStart, rule.fromDay);
+      const overlapEnd = Math.min(reqEnd, rule.toDay);
+      if (overlapStart <= overlapEnd) {
+        segments.push({
+          fromDay: overlapStart,
+          toDay: overlapEnd,
+          days: overlapEnd - overlapStart + 1,
+          deductionPercent: rule.deductionPercent,
+        });
+      }
+    }
+
+    return segments.length > 0 ? segments : null;
+  }
+
+  private async applySickLeaveDeduction(
+    requestId: string,
+    leaveType: any,
+    employeeId: string,
+    requestDays: number,
+  ): Promise<void> {
+    try {
+      if (!leaveType || leaveType.code !== 'SICK') return;
+      const rules = leaveType.salaryDeductionRules;
+      if (!rules || !Array.isArray(rules)) return;
+
+      const alreadyUsed = await this.getTotalApprovedDays(employeeId, leaveType.id, requestId);
+      const deduction = this.calculateSickDeduction(rules, alreadyUsed, requestDays);
+      if (!deduction) return;
+
+      await this.prisma.leaveRequest.update({
+        where: { id: requestId },
+        data: { deductionInfo: deduction as any },
+      });
+    } catch (err) {
+      console.error('[applySickLeaveDeduction] failed:', (err as any)?.message);
+    }
   }
 
   // إنشاء سجلات ON_LEAVE في جدول الحضور عند اعتماد الإجازة

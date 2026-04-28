@@ -35,6 +35,10 @@ model LeaveType {
   allowHalfDay         Boolean        @default(false)
   color                String?
   isActive             Boolean        @default(true)
+  minServiceMonths     Int?
+  maxLifetimeUsage     Int?
+  salaryDeductionRules Json?
+  maxHoursPerMonth     Float?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
@@ -101,6 +105,7 @@ model LeaveRequest {
   cancelledBy       String?
   hrNotifiedAt      DateTime?
   deletedAt         DateTime?
+  deductionInfo     Json?
   isHourlyLeave     Boolean               @default(false)
   startTime         String?
   endTime           String?
