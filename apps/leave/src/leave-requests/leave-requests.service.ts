@@ -10,18 +10,65 @@ import { CreateHourlyLeaveDto } from './dto/create-hourly-leave.dto';
 export class LeaveRequestsService {
   constructor(private prisma: PrismaService) {}
 
-  // حساب عدد أيام الإجازة
-  private calculateLeaveDays(startDate: Date, endDate: Date, isHalfDay: boolean): number {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  // حساب عدد أيام الإجازة (يستثني العطل الرسمية وأيام العطلة الأسبوعية)
+  private async calculateLeaveDays(
+    startDate: Date,
+    endDate: Date,
+    isHalfDay: boolean,
+    employeeId: string,
+  ): Promise<number> {
+    if (isHalfDay) return 0.5;
 
-    if (isHalfDay) {
-      return 0.5;
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(0, 0, 0, 0);
+
+    // جلب أيام العمل من جدول دوام الموظف (fallback: الأحد-الخميس)
+    const scheduleRows = await this.prisma.$queryRaw<Array<{ workDays: string }>>`
+      SELECT ws."workDays"
+      FROM attendance.employee_schedules es
+      JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+      WHERE es."employeeId" = ${employeeId} AND es."isActive" = true
+      LIMIT 1
+    `;
+    const workDays: number[] = scheduleRows[0]?.workDays
+      ? JSON.parse(scheduleRows[0].workDays as unknown as string)
+      : [0, 1, 2, 3, 4];
+
+    // جلب العطل الرسمية في الفترة
+    const holidays = await this.prisma.holiday.findMany({
+      where: {
+        OR: [
+          { date: { gte: start, lte: end } },
+          { AND: [{ date: { lte: end } }, { endDate: { gte: start } }] },
+        ],
+      },
+    });
+    const holidayDates = new Set<string>();
+    for (const h of holidays) {
+      const d = new Date(h.date);
+      d.setHours(0, 0, 0, 0);
+      const e = h.endDate ? new Date(h.endDate) : new Date(h.date);
+      e.setHours(0, 0, 0, 0);
+      while (d <= e) {
+        holidayDates.add(d.toISOString().split('T')[0]);
+        d.setDate(d.getDate() + 1);
+      }
     }
 
-    return diffDays;
+    let count = 0;
+    const cur = new Date(start);
+    while (cur <= end) {
+      const dayOfWeek = cur.getDay();
+      const dateStr = cur.toISOString().split('T')[0];
+      if (workDays.includes(dayOfWeek) && !holidayDates.has(dateStr)) {
+        count++;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    return count;
   }
 
   // إضافة سجل في التاريخ
@@ -230,7 +277,7 @@ export class LeaveRequestsService {
     await this.validateMaxLifetimeUsage(employeeId, leaveType);
 
     // حساب عدد الأيام
-    const totalDays = this.calculateLeaveDays(new Date(startDate), new Date(endDate), isHalfDay);
+    const totalDays = await this.calculateLeaveDays(new Date(startDate), new Date(endDate), isHalfDay, employeeId);
 
     // التحقق من الحد الأقصى للإجازة المرضية
     await this.validateSickLeaveLimit(employeeId, leaveType, totalDays);
@@ -331,7 +378,7 @@ export class LeaveRequestsService {
       const start = updateDto.startDate ? new Date(updateDto.startDate) : request.startDate;
       const end = updateDto.endDate ? new Date(updateDto.endDate) : request.endDate;
       const isHalf = updateDto.isHalfDay !== undefined ? updateDto.isHalfDay : request.isHalfDay;
-      totalDays = this.calculateLeaveDays(start, end, isHalf);
+      totalDays = await this.calculateLeaveDays(start, end, isHalf, employeeId);
     }
 
     const updated = await this.prisma.leaveRequest.update({
