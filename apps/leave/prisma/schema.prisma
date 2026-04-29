@@ -106,6 +106,7 @@ model LeaveRequest {
   hrNotifiedAt      DateTime?
   deletedAt         DateTime?
   deductionInfo     Json?
+  deceasedRelation  String?
   isHourlyLeave     Boolean               @default(false)
   startTime         String?
   endTime           String?

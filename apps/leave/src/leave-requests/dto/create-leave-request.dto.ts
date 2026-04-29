@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsEnum, IsIn } from 'class-validator';
 
 export class CreateLeaveRequestDto {
   @IsString()
@@ -36,4 +36,8 @@ export class CreateLeaveRequestDto {
   @IsString()
   @IsOptional()
   attachmentUrl?: string;
+
+  @IsIn(['FIRST_DEGREE', 'SECOND_DEGREE'])
+  @IsOptional()
+  deceasedRelation?: 'FIRST_DEGREE' | 'SECOND_DEGREE';
 }

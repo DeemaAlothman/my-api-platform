@@ -264,6 +264,14 @@ export class LeaveRequestsService {
       throw new BadRequestException('هذا النوع من الإجازات لا يسمح بطلب نصف يوم');
     }
 
+    // التحقق من درجة القرابة لإجازة الوفاة
+    if (leaveType.code === 'BEREAVEMENT' && !createDto.deceasedRelation) {
+      throw new BadRequestException({
+        code: 'DECEASED_RELATION_REQUIRED',
+        message: 'يجب تحديد درجة القرابة للمتوفى (أولى أو ثانية)',
+      });
+    }
+
     // التحقق من تداخل التواريخ مع إجازة قائمة
     const overlapping = await this.prisma.leaveRequest.findFirst({
       where: {
