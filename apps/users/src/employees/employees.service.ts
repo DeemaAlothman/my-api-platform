@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -7,7 +8,11 @@ import { LinkUserDto } from './dto/link-user.dto';
 
 @Injectable()
 export class EmployeesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(EmployeesService.name);
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly http: HttpService,
+  ) {}
 
   async list(query: ListEmployeesQueryDto, includeManagerNotes = false) {
     const page = query.page ?? 1;
@@ -337,6 +342,18 @@ export class EmployeesService {
         allowances: true,
       },
     });
+
+    // تهيئة أرصدة الإجازات تلقائياً
+    try {
+      const leaveUrl = process.env.LEAVE_SERVICE_URL || 'http://leave:4003';
+      await this.http.axiosRef.post(
+        `${leaveUrl}/api/v1/internal/leave-balances/initialize`,
+        { employeeId: employee.id, year: new Date().getFullYear() },
+        { headers: { 'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN } },
+      );
+    } catch (err) {
+      this.logger.error(`Failed to init leave balances for ${employee.id}: ${err?.message}`);
+    }
 
     return employee;
   }

@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { LeaveBalancesController } from './leave-balances.controller';
+import { InternalLeaveBalancesController } from './internal-leave-balances.controller';
 import { LeaveBalancesService } from './leave-balances.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Module({
-  controllers: [LeaveBalancesController],
+  controllers: [LeaveBalancesController, InternalLeaveBalancesController],
   providers: [LeaveBalancesService, PrismaService],
   exports: [LeaveBalancesService],
 })

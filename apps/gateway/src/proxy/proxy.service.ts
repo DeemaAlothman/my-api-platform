@@ -137,40 +137,41 @@ export class ProxyService {
         });
       }
 
-      // إرسال الطلب للخدمة
+      // إرسال الطلب للخدمة — arraybuffer يحافظ على الـ binary files
       const response = await firstValueFrom(
         this.http.request({
           method: req.method,
           url: targetUrl,
           headers,
           data: req.body,
-          params: req.query, // query params تُرسل هنا
-          validateStatus: () => true, // نقبل كل status codes
-          responseType: 'text', // نقرأ كـ text ثم نحاول parse
+          params: req.query,
+          validateStatus: () => true,
+          responseType: 'arraybuffer',
         }),
       );
 
-      // إرجاع الـ response
       res.status(response.status);
 
-      // نسخ الـ headers من الـ response
       Object.keys(response.headers).forEach((key) => {
         if (key !== 'transfer-encoding') {
           res.setHeader(key, response.headers[key]);
         }
       });
 
-      // إذا كان الـ response text/plain (مثل iclock) نرجعه مباشرة
       const contentType = response.headers['content-type'] || '';
-      if (contentType.includes('text/plain') || typeof response.data === 'string') {
+      const isTextResponse = contentType.includes('application/json') || contentType.includes('text/');
+
+      if (isTextResponse) {
+        const text = Buffer.from(response.data).toString('utf8');
         try {
-          const parsed = JSON.parse(response.data);
-          return res.json(parsed);
+          return res.json(JSON.parse(text));
         } catch {
-          return res.send(response.data);
+          return res.send(text);
         }
       }
-      return res.json(response.data);
+
+      // binary response (PDF, image, etc.) — نرجعه كما هو
+      return res.send(Buffer.from(response.data));
     } catch (error) {
       console.error(`Error forwarding to ${serviceName}:`, error.message);
 
