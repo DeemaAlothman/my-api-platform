@@ -88,6 +88,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/platform?schema=leaves
       JWT_ACCESS_SECRET: your-jwt-secret-change-in-production
       NODE_ENV: production
+      INTERNAL_SERVICE_TOKEN: 234e68ffff1c05602d59422b9bac982d69d17b701a82c01a8a6b1be7565fe03a
     ports:
       - "4003:4003"
     depends_on:
