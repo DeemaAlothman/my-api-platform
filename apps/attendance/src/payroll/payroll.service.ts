@@ -320,6 +320,42 @@ export class PayrollService {
     const repeatLatePenaltyAmount = repeatLatePenaltyDaysCalc * dailyRate;
     const overtimePay = overtimeMinutes * minuteRate * overtimeRateMultiplier;
 
+    // خصم الإجازة المرضية حسب salaryDeductionRules
+    const sickLeaveRequests = await this.prisma.$queryRaw<Array<{ id: string; deductionInfo: any }>>`
+      SELECT lr.id, lr."deductionInfo"
+      FROM leaves.leave_requests lr
+      JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+      WHERE lr."employeeId" = ${employeeId}
+        AND lt.code = 'SICK'
+        AND lr.status = 'APPROVED'
+        AND lr."deductionInfo" IS NOT NULL
+        AND lr."startDate" <= ${endDate}
+        AND lr."endDate" >= ${startDate}
+        AND lr."deletedAt" IS NULL
+    `;
+
+    let sickLeaveDeductionAmount = 0;
+    const sickLeaveDetails: Array<{ requestId: string; fromDay: number; toDay: number; days: number; percent: number; amount: number }> = [];
+
+    for (const leave of sickLeaveRequests) {
+      const segments = leave.deductionInfo as Array<{ fromDay: number; toDay: number; days: number; deductionPercent: number }>;
+      if (!segments || !Array.isArray(segments)) continue;
+      for (const seg of segments) {
+        const segAmount = (basicSalary / 30) * seg.days * (seg.deductionPercent / 100);
+        sickLeaveDeductionAmount += segAmount;
+        sickLeaveDetails.push({
+          requestId: leave.id,
+          fromDay: seg.fromDay,
+          toDay: seg.toDay,
+          days: seg.days,
+          percent: seg.deductionPercent,
+          amount: parseFloat(segAmount.toFixed(2)),
+        });
+      }
+    }
+
+    const totalDeductionAmount = deductionAmount + sickLeaveDeductionAmount;
+
     // === مكافآت وجزاءات من requests schema ===
     let bonusAmount = 0;
     let penaltyAmount = 0;
@@ -373,7 +409,7 @@ export class PayrollService {
     }
 
     const grossSalary = (basicSalary + allowancesTotal) * proRationFactor + overtimePay;
-    const netSalary = parseFloat(Math.max(0, grossSalary + bonusAmount - deductionAmount - absenceDeductionAmount - repeatLatePenaltyAmount - penaltyAmount).toFixed(2));
+    const netSalary = parseFloat(Math.max(0, grossSalary + bonusAmount - totalDeductionAmount - absenceDeductionAmount - repeatLatePenaltyAmount - penaltyAmount).toFixed(2));
 
     // أنشئ أو حدّث كشف الراتب
     const data = {
@@ -407,7 +443,7 @@ export class PayrollService {
       allowancesTotal,
       allowancesBreakdown: JSON.stringify(allowancesBreakdownMap),
       overtimePay: parseFloat(overtimePay.toFixed(2)),
-      deductionAmount: parseFloat(deductionAmount.toFixed(2)),
+      deductionAmount: parseFloat(totalDeductionAmount.toFixed(2)),
       absenceDeductionAmount: parseFloat(absenceDeductionAmount.toFixed(2)),
       bonusAmount: parseFloat(bonusAmount.toFixed(2)),
       penaltyAmount: parseFloat(penaltyAmount.toFixed(2)),
@@ -432,7 +468,11 @@ export class PayrollService {
         lateDeduction: parseFloat((lateDeductionMinutes * minuteRate).toFixed(2)),
         absenceDeduction: parseFloat(absenceDeductionAmount.toFixed(2)),
         breakOverLimitDeduction: parseFloat((breakDeductionMinutes * minuteRate).toFixed(2)),
-        totalDeduction: parseFloat(deductionAmount.toFixed(2)),
+        sickLeaveDeduction: {
+          total: parseFloat(sickLeaveDeductionAmount.toFixed(2)),
+          details: sickLeaveDetails,
+        },
+        totalDeduction: parseFloat(totalDeductionAmount.toFixed(2)),
       },
       appliedPolicySnapshot: policy ? {
         policyId: policy.id,
