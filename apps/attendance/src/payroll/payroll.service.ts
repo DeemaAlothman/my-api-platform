@@ -354,7 +354,26 @@ export class PayrollService {
       }
     }
 
-    const totalDeductionAmount = deductionAmount + sickLeaveDeductionAmount;
+    // خصم إجازة UNPAID_DAILY (كل يومين نصف يوم = يوم كامل حسم)
+    const unpaidDailyLeaves = await this.prisma.$queryRaw<Array<{ totalDays: string }>>`
+      SELECT lr."totalDays"
+      FROM leaves.leave_requests lr
+      JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+      WHERE lr."employeeId" = ${employeeId}
+        AND lt.code = 'UNPAID_DAILY'
+        AND lr.status = 'APPROVED'
+        AND lr."startDate" <= ${endDate}
+        AND lr."endDate" >= ${startDate}
+        AND lr."deletedAt" IS NULL
+    `;
+
+    let totalUnpaidDailyDays = 0;
+    for (const leave of unpaidDailyLeaves) {
+      totalUnpaidDailyDays += Number(leave.totalDays);
+    }
+    const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
+
+    const totalDeductionAmount = deductionAmount + sickLeaveDeductionAmount + unpaidDailyDeductionAmount;
 
     // === مكافآت وجزاءات من requests schema ===
     let bonusAmount = 0;
@@ -471,6 +490,10 @@ export class PayrollService {
         sickLeaveDeduction: {
           total: parseFloat(sickLeaveDeductionAmount.toFixed(2)),
           details: sickLeaveDetails,
+        },
+        unpaidDailyDeduction: {
+          total: parseFloat(unpaidDailyDeductionAmount.toFixed(2)),
+          days: parseFloat(totalUnpaidDailyDays.toFixed(1)),
         },
         totalDeduction: parseFloat(totalDeductionAmount.toFixed(2)),
       },
