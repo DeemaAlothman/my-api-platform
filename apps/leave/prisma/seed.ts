@@ -216,7 +216,8 @@ async function main() {
   // إنشاء العطل الرسمية لعام 2024
   console.log('Creating holidays for 2024...');
 
-  const holidays2024 = [
+  const existing2024 = await prisma.holiday.count({ where: { year: 2024 } });
+  const holidays2024 = existing2024 > 0 ? [] : [
     {
       nameAr: 'رأس السنة الميلادية',
       nameEn: 'New Year',
@@ -270,17 +271,16 @@ async function main() {
   ];
 
   for (const holiday of holidays2024) {
-    await prisma.holiday.create({
-      data: holiday,
-    });
+    await prisma.holiday.create({ data: holiday });
   }
-
-  console.log(`Created ${holidays2024.length} holidays for 2024`);
+  if (existing2024 > 0) console.log('Holidays 2024 already exist, skipped');
+  else console.log(`Created ${holidays2024.length} holidays for 2024`);
 
   // إنشاء العطل الرسمية لعام 2025
   console.log('Creating holidays for 2025...');
 
-  const holidays2025 = [
+  const existing2025 = await prisma.holiday.count({ where: { year: 2025 } });
+  const holidays2025 = existing2025 > 0 ? [] : [
     {
       nameAr: 'رأس السنة الميلادية',
       nameEn: 'New Year',
@@ -334,17 +334,16 @@ async function main() {
   ];
 
   for (const holiday of holidays2025) {
-    await prisma.holiday.create({
-      data: holiday,
-    });
+    await prisma.holiday.create({ data: holiday });
   }
-
-  console.log(`Created ${holidays2025.length} holidays for 2025`);
+  if (existing2025 > 0) console.log('Holidays 2025 already exist, skipped');
+  else console.log(`Created ${holidays2025.length} holidays for 2025`);
 
   // إنشاء العطل الرسمية لعام 2026
   console.log('Creating holidays for 2026...');
 
-  const holidays2026 = [
+  const existing2026 = await prisma.holiday.count({ where: { year: 2026 } });
+  const holidays2026 = existing2026 > 0 ? [] : [
     {
       nameAr: 'رأس السنة الميلادية',
       nameEn: 'New Year',
@@ -398,12 +397,10 @@ async function main() {
   ];
 
   for (const holiday of holidays2026) {
-    await prisma.holiday.create({
-      data: holiday,
-    });
+    await prisma.holiday.create({ data: holiday });
   }
-
-  console.log(`Created ${holidays2026.length} holidays for 2026`);
+  if (existing2026 > 0) console.log('Holidays 2026 already exist, skipped');
+  else console.log(`Created ${holidays2026.length} holidays for 2026`);
 
   console.log('Seed completed successfully!');
 }
