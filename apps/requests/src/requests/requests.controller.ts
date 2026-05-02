@@ -66,7 +66,7 @@ export class RequestsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateRequestDto, @CurrentUser() user: any) {
-    return this.requests.create(dto, user.userId);
+    return this.requests.create(dto, user.userId, user.permissions ?? []);
   }
 
   // تقديم الطلب للمدير

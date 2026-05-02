@@ -15,6 +15,14 @@ const HIRING_PDF_DIR = process.env.UPLOAD_DIR
   : '/app/uploads/hiring-contracts';
 const MAX_PDF_BYTES = 10 * 1024 * 1024; // 10MB
 
+// أنواع الطلبات المخصصة للمدير/HR فقط — الموظف لا يمكنه إنشاؤها
+const MANAGER_ONLY_REQUEST_TYPES = [
+  'HIRING_REQUEST',
+  'REWARD',
+  'PENALTY_PROPOSAL',
+  'OVERTIME_MANAGER',
+];
+
 @Injectable()
 export class RequestsService {
   constructor(
@@ -60,7 +68,7 @@ export class RequestsService {
     return `VTX-LRQ-${String(lastNum + 1).padStart(6, '0')}`;
   }
 
-  async create(dto: CreateRequestDto, userId: string) {
+  async create(dto: CreateRequestDto, userId: string, permissions: string[] = []) {
     const employeeId = await this.getEmployeeIdByUserId(userId);
     if (!employeeId) {
       throw new BadRequestException({
@@ -68,6 +76,19 @@ export class RequestsService {
         message: 'No employee record found for this user',
         details: [],
       });
+    }
+
+    if (MANAGER_ONLY_REQUEST_TYPES.includes(dto.type)) {
+      const canCreate = permissions.includes('requests:hr-approve')
+        || permissions.includes('requests:approve')
+        || permissions.includes('requests:read-all-steps');
+      if (!canCreate) {
+        throw new ForbiddenException({
+          code: 'AUTH_INSUFFICIENT_PERMISSIONS',
+          message: 'ليس لديك صلاحية لإنشاء هذا النوع من الطلبات',
+          details: [{ field: 'type', value: dto.type }],
+        });
+      }
     }
 
     // Retry up to 5 times to handle concurrent request number collisions
