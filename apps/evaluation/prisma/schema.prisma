@@ -342,6 +342,7 @@ model ProbationEvaluation {
 
 enum ProbationStatus {
   DRAFT
+  PENDING_SELF_EVALUATION
   PENDING_SENIOR_MANAGER
   PENDING_HR
   PENDING_CEO
@@ -378,7 +379,8 @@ enum ProbationRating {
 model ProbationCriteriaScore {
   evaluationId String
   criteriaId   String
-  score        ProbationRating
+  selfScore    ProbationRating?
+  score        ProbationRating?
 
   evaluation ProbationEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   criteria   ProbationCriteria   @relation(fields: [criteriaId], references: [id])

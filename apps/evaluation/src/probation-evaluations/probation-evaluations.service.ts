@@ -23,22 +23,11 @@ export class ProbationEvaluationsService {
         delegationNote: dto.delegationNote,
         seniorManagerId: dto.seniorManagerId,
         workAreasNote: dto.workAreasNote,
-        status: 'DRAFT',
+        status: 'PENDING_SELF_EVALUATION',
       },
     });
 
-    if (dto.scores?.length) {
-      await this.prisma.probationCriteriaScore.createMany({
-        data: dto.scores.map(s => ({
-          evaluationId: evaluation.id,
-          criteriaId: s.criteriaId,
-          score: s.score,
-        })),
-        skipDuplicates: true,
-      });
-    }
-
-    await this.logHistory(evaluation.id, 'CREATE', dto.evaluatorId, 'تم إنشاء التقييم');
+    await this.logHistory(evaluation.id, 'CREATE', dto.evaluatorId, 'تم إنشاء التقييم — في انتظار التقييم الذاتي للموظف');
 
     return this.findOne(evaluation.id);
   }
@@ -76,10 +65,41 @@ export class ProbationEvaluationsService {
     });
   }
 
+  async selfEvaluate(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_SELF_EVALUATION') {
+      throw new BadRequestException('التقييم ليس في مرحلة التقييم الذاتي');
+    }
+
+    if (dto.scores?.length) {
+      await this.prisma.probationCriteriaScore.deleteMany({ where: { evaluationId: id } });
+      await this.prisma.probationCriteriaScore.createMany({
+        data: dto.scores.map(s => ({
+          evaluationId: id,
+          criteriaId: s.criteriaId,
+          selfScore: s.score,
+        })),
+      });
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: {
+        status: 'PENDING_SENIOR_MANAGER',
+        employeeNotes: dto.notes,
+      },
+    });
+
+    await this.logHistory(id, 'SELF_EVALUATE', performedBy, dto.notes ?? 'أكمل الموظف تقييمه الذاتي');
+
+    return this.findOne(id);
+  }
+
   async update(id: string, dto: Partial<CreateProbationEvaluationDto>) {
     const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
     if (!evaluation) throw new NotFoundException('التقييم غير موجود');
-    if (evaluation.status !== 'DRAFT') {
+    if (!['PENDING_SELF_EVALUATION'].includes(evaluation.status)) {
       throw new BadRequestException('لا يمكن تعديل التقييم بعد إرساله');
     }
 
@@ -142,14 +162,13 @@ export class ProbationEvaluationsService {
     };
 
     if (dto.scores?.length) {
-      await this.prisma.probationCriteriaScore.deleteMany({ where: { evaluationId: id } });
-      await this.prisma.probationCriteriaScore.createMany({
-        data: dto.scores.map(s => ({
-          evaluationId: id,
-          criteriaId: s.criteriaId,
-          score: s.score,
-        })),
-      });
+      for (const s of dto.scores) {
+        await this.prisma.probationCriteriaScore.upsert({
+          where: { evaluationId_criteriaId: { evaluationId: id, criteriaId: s.criteriaId } },
+          update: { score: s.score },
+          create: { evaluationId: id, criteriaId: s.criteriaId, score: s.score },
+        });
+      }
     }
 
     await this.prisma.probationEvaluation.update({ where: { id }, data: updateData });

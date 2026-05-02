@@ -49,6 +49,11 @@ export class ProbationEvaluationsController {
     return this.service.update(id, dto);
   }
 
+  @Post(':id/self-evaluate')
+  selfEvaluate(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.selfEvaluate(id, req.user?.userId ?? 'system', dto);
+  }
+
   @Post(':id/submit')
   submit(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
     return this.service.submit(id, req.user?.userId ?? 'system', dto);
