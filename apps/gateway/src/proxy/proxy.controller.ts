@@ -497,6 +497,36 @@ export class ProbationProxyController {
   }
 }
 
+@Controller('probation-evaluations')
+export class ProbationEvaluationsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+}
+
+@Controller('probation-criteria')
+export class ProbationCriteriaProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'evaluation');
+  }
+}
+
 @Controller('job-applications')
 export class JobApplicationsProxyController {
   constructor(private readonly proxy: ProxyService) {}

@@ -39,6 +39,8 @@ import {
   InterviewCriteriaProxyController,
   InterviewEvaluationsProxyController,
   ProbationProxyController,
+  ProbationEvaluationsProxyController,
+  ProbationCriteriaProxyController,
   NotificationsProxyController,
   OnboardingProxyController,
   DocumentsProxyController,
