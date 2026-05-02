@@ -27,6 +27,21 @@ export class ProbationEvaluationsService {
       },
     });
 
+    const allCriteria = await this.prisma.probationCriteria.findMany({
+      where: { isActive: true },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    if (allCriteria.length > 0) {
+      await this.prisma.probationCriteriaScore.createMany({
+        data: allCriteria.map(c => ({
+          evaluationId: evaluation.id,
+          criteriaId: c.id,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
     await this.logHistory(evaluation.id, 'CREATE', dto.evaluatorId, 'تم إنشاء التقييم — في انتظار التقييم الذاتي للموظف');
 
     return this.findOne(evaluation.id);
@@ -73,14 +88,13 @@ export class ProbationEvaluationsService {
     }
 
     if (dto.scores?.length) {
-      await this.prisma.probationCriteriaScore.deleteMany({ where: { evaluationId: id } });
-      await this.prisma.probationCriteriaScore.createMany({
-        data: dto.scores.map(s => ({
-          evaluationId: id,
-          criteriaId: s.criteriaId,
-          selfScore: s.score,
-        })),
-      });
+      for (const s of dto.scores) {
+        await this.prisma.probationCriteriaScore.upsert({
+          where: { evaluationId_criteriaId: { evaluationId: id, criteriaId: s.criteriaId } },
+          update: { selfScore: s.score },
+          create: { evaluationId: id, criteriaId: s.criteriaId, selfScore: s.score },
+        });
+      }
     }
 
     await this.prisma.probationEvaluation.update({
