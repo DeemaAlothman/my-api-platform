@@ -1,0 +1,1 @@
+ALTER TYPE users."ProbationResult" ADD VALUE IF NOT EXISTS 'SALARY_RAISE';

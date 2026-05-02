@@ -333,7 +333,9 @@ export class ProbationEvaluationsService {
         employeeId: evaluation.employeeId,
         result: evaluation.finalRecommendation,
         completedAt: completedAt.toISOString(),
-      }).subscribe({ error: () => { /* silent fail */ } });
+      }).subscribe({
+        error: (err) => console.error(`[ProbationEval] فشل تحديث سجل الموظف: ${err?.message}`),
+      });
     }
 
     return this.findOne(id);
