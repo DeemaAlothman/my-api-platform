@@ -322,7 +322,7 @@ model ProbationEvaluation {
   employeeAcknowledgedAt DateTime?
   employeeAcknowledged  Boolean             @default(false)
   employeeNotes         String?
-  overallRating         ProbationRating?
+  overallRating         Int?
 
   // حقول جدولة الاجتماع
   meetingProposedAt          DateTime?
@@ -366,21 +366,11 @@ enum ProbationRecommendation {
   @@schema("evaluation")
 }
 
-enum ProbationRating {
-  UNACCEPTABLE
-  ACCEPTABLE
-  GOOD
-  VERY_GOOD
-  EXCELLENT
-
-  @@schema("evaluation")
-}
-
 model ProbationCriteriaScore {
   evaluationId String
   criteriaId   String
-  selfScore    ProbationRating?
-  score        ProbationRating?
+  selfScore    Int?
+  score        Int?
 
   evaluation ProbationEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   criteria   ProbationCriteria   @relation(fields: [criteriaId], references: [id])

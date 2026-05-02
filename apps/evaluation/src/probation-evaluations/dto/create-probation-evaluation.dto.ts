@@ -1,14 +1,6 @@
-import { IsString, IsOptional, IsDateString, IsBoolean, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsBoolean, IsArray, ValidateNested, IsEnum, IsInt, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-
-export enum ProbationRating {
-  UNACCEPTABLE = 'UNACCEPTABLE',
-  ACCEPTABLE = 'ACCEPTABLE',
-  GOOD = 'GOOD',
-  VERY_GOOD = 'VERY_GOOD',
-  EXCELLENT = 'EXCELLENT',
-}
 
 export enum ProbationRecommendation {
   EXTEND_PROBATION = 'EXTEND_PROBATION',
@@ -19,7 +11,8 @@ export enum ProbationRecommendation {
 
 export class CriteriaScoreDto {
   @ApiProperty() @IsString() criteriaId: string;
-  @ApiProperty({ enum: ProbationRating }) @IsEnum(ProbationRating) score: ProbationRating;
+  @ApiProperty({ minimum: 1, maximum: 5, description: '1=غير مقبول، 2=مقبول، 3=جيد، 4=جيد جداً، 5=ممتاز' })
+  @IsInt() @Min(1) @Max(5) score: number;
 }
 
 export class CreateProbationEvaluationDto {
@@ -48,10 +41,10 @@ export class WorkflowActionDto {
   @IsOptional()
   @IsEnum(ProbationRecommendation)
   recommendation?: ProbationRecommendation;
-  @ApiPropertyOptional({ enum: ProbationRating })
+  @ApiPropertyOptional({ minimum: 1, maximum: 5, description: '1=غير مقبول، 2=مقبول، 3=جيد، 4=جيد جداً، 5=ممتاز' })
   @IsOptional()
-  @IsEnum(ProbationRating)
-  overallRating?: ProbationRating;
+  @IsInt() @Min(1) @Max(5)
+  overallRating?: number;
   @ApiPropertyOptional({ type: [CriteriaScoreDto] })
   @IsOptional()
   @IsArray()
