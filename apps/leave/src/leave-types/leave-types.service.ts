@@ -154,21 +154,23 @@ export class LeaveTypesService {
       throw new NotFoundException('Leave type not found');
     }
 
-    // التحقق من عدم وجود طلبات مرتبطة
-    const requestsCount = await this.prisma.leaveRequest.count({
-      where: { leaveTypeId: id },
-    });
+    const [requestsCount, balancesCount] = await Promise.all([
+      this.prisma.leaveRequest.count({ where: { leaveTypeId: id } }),
+      this.prisma.leaveBalance.count({ where: { leaveTypeId: id } }),
+    ]);
 
-    if (requestsCount > 0) {
-      throw new BadRequestException(
-        'Cannot delete leave type with existing requests. Consider deactivating it instead.',
-      );
+    if (requestsCount > 0 || balancesCount > 0) {
+      await this.prisma.leaveType.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { message: 'تم تعطيل نوع الإجازة لوجود بيانات مرتبطة به' };
     }
 
     await this.prisma.leaveType.delete({
       where: { id },
     });
 
-    return { message: 'Leave type deleted successfully' };
+    return { message: 'تم حذف نوع الإجازة بنجاح' };
   }
 }
