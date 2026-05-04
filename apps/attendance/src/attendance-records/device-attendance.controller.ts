@@ -72,7 +72,7 @@ export class DeviceAttendanceController {
       // أعد فتح السجل
       await prisma.attendanceRecord.update({
         where: { id: closedRecord.id },
-        data: { clockOutTime: null, workedMinutes: null, netWorkedMinutes: null, earlyLeaveMinutes: null, overtimeMinutes: null },
+        data: { clockOutTime: null, workedMinutes: null, netWorkedMinutes: null, earlyLeaveMinutes: 0, overtimeMinutes: null },
       });
 
       // سجّل البريك
