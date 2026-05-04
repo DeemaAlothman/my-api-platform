@@ -25,8 +25,10 @@ export class DeviceAttendanceController {
   async deviceCheckIn(@Body() dto: DeviceCheckInDto) {
     const date = dto.checkInTime.split('T')[0];
     const checkInTime = new Date(dto.checkInTime);
+    const prisma = (this.service as any).prisma;
 
-    const recent = await (this.service as any).prisma.attendanceRecord.findFirst({
+    // تجاهل بصمة مكررة خلال دقيقتين
+    const recent = await prisma.attendanceRecord.findFirst({
       where: {
         employeeId: dto.employeeId,
         date: new Date(date),
@@ -36,12 +38,53 @@ export class DeviceAttendanceController {
       orderBy: { clockInTime: 'desc' },
       select: { id: true, clockInTime: true },
     });
-
     if (recent) {
-      this.logger.warn(`[DUPLICATE_CHECKIN] employeeId=${dto.employeeId} deviceSN=${dto.deviceSN} — ignored duplicate within 2min`);
+      this.logger.warn(`[DUPLICATE_CHECKIN] employeeId=${dto.employeeId} deviceSN=${dto.deviceSN} — ignored`);
       return { message: 'Duplicate check-in ignored', status: 'ignored', existingRecord: recent };
     }
 
+    // هل في سجل مفتوح مع break مفتوح؟ → إغلاق البريك
+    const openRecord = await prisma.attendanceRecord.findFirst({
+      where: { employeeId: dto.employeeId, date: new Date(date), clockInTime: { not: null }, clockOutTime: null },
+    });
+    if (openRecord) {
+      const openBreak = await prisma.attendanceBreak.findFirst({
+        where: { attendanceRecordId: openRecord.id, breakIn: null },
+      });
+      if (openBreak) {
+        this.logger.log(`[BREAK_IN] employeeId=${dto.employeeId} — closing open break via check-in`);
+        return this.service.closeBreak(dto.employeeId, { breakIn: dto.checkInTime, date });
+      }
+      // سجل مفتوح بدون break → تجاهل (مكرر)
+      this.logger.warn(`[DUPLICATE_CHECKIN_OPEN] employeeId=${dto.employeeId} — already checked in`);
+      return { message: 'Already checked in', status: 'ignored' };
+    }
+
+    // هل في سجل مُغلق اليوم؟ → الموظف رجع من البريك (الجهاز ما يفرّق بين البريك والخروج الحقيقي)
+    const closedRecord = await prisma.attendanceRecord.findFirst({
+      where: { employeeId: dto.employeeId, date: new Date(date), clockInTime: { not: null }, clockOutTime: { not: null } },
+      orderBy: { clockOutTime: 'desc' },
+    });
+    if (closedRecord) {
+      const breakStartTime = closedRecord.clockOutTime;
+      const durationMinutes = Math.max(0, Math.round((checkInTime.getTime() - breakStartTime.getTime()) / 60000));
+
+      // أعد فتح السجل
+      await prisma.attendanceRecord.update({
+        where: { id: closedRecord.id },
+        data: { clockOutTime: null, workedMinutes: null, netWorkedMinutes: null, earlyLeaveMinutes: null, overtimeMinutes: null },
+      });
+
+      // سجّل البريك
+      await prisma.attendanceBreak.create({
+        data: { attendanceRecordId: closedRecord.id, breakOut: breakStartTime, breakIn: checkInTime, durationMinutes },
+      });
+
+      this.logger.log(`[BREAK_RETURN] employeeId=${dto.employeeId} breakDuration=${durationMinutes}min`);
+      return { message: 'Break return recorded', status: 'break_return', breakDurationMinutes: durationMinutes };
+    }
+
+    // دخول عادي
     return this.service.checkIn(dto.employeeId, {
       checkInTime: dto.checkInTime,
       date,
