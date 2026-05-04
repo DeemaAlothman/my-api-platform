@@ -1,4 +1,4 @@
-import { IsString, IsDateString } from 'class-validator';
+import { IsString, IsDateString, IsOptional } from 'class-validator';
 
 export class DeviceCheckOutDto {
   @IsString()
@@ -7,6 +7,7 @@ export class DeviceCheckOutDto {
   @IsDateString()
   checkOutTime: string;
 
+  @IsOptional()
   @IsString()
-  deviceSN: string;
+  deviceSN?: string;
 }
