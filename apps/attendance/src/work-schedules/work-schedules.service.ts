@@ -42,6 +42,19 @@ export class WorkSchedulesService {
   async findOne(id: string) {
     const schedule = await this.prisma.workSchedule.findUnique({
       where: { id },
+      include: {
+        employeeSchedules: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            employeeId: true,
+            effectiveFrom: true,
+            effectiveTo: true,
+            isActive: true,
+          },
+          orderBy: { effectiveFrom: 'asc' },
+        },
+      },
     });
 
     if (!schedule) {

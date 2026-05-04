@@ -202,6 +202,7 @@ export class EmployeesService {
       include: {
         department: true,
         jobTitle: true,
+        jobGrade: true,
         manager: {
           select: {
             id: true,
