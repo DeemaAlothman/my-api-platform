@@ -137,17 +137,14 @@ export class UsersService {
 
     if (existingUsername) {
       if (existingUsername.deletedAt !== null) {
+        await this.prisma.user.delete({ where: { id: existingUsername.id } });
+      } else {
         throw new ConflictException({
-          code: 'USER_PREVIOUSLY_DELETED',
-          message: 'A user with this username was previously deleted. Please contact the admin to restore the account.',
+          code: 'RESOURCE_ALREADY_EXISTS',
+          message: 'Username already exists',
           details: [{ field: 'username', value: dto.username }],
         });
       }
-      throw new ConflictException({
-        code: 'RESOURCE_ALREADY_EXISTS',
-        message: 'Username already exists',
-        details: [{ field: 'username', value: dto.username }],
-      });
     }
 
     // تحقق من email موجود (نشط أو محذوف سابقاً)
@@ -157,17 +154,14 @@ export class UsersService {
 
     if (existingEmail) {
       if (existingEmail.deletedAt !== null) {
+        await this.prisma.user.delete({ where: { id: existingEmail.id } });
+      } else {
         throw new ConflictException({
-          code: 'USER_PREVIOUSLY_DELETED',
-          message: 'A user with this email was previously deleted. Please contact the admin to restore the account.',
+          code: 'RESOURCE_ALREADY_EXISTS',
+          message: 'Email already exists',
           details: [{ field: 'email', value: dto.email }],
         });
       }
-      throw new ConflictException({
-        code: 'RESOURCE_ALREADY_EXISTS',
-        message: 'Email already exists',
-        details: [{ field: 'email', value: dto.email }],
-      });
     }
 
     // hash password
