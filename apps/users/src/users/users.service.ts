@@ -230,9 +230,14 @@ export class UsersService {
       }
     }
 
+    const updateData: any = { ...dto };
+    if (dto.password) {
+      updateData.password = await bcrypt.hash(dto.password, 10);
+    }
+
     const user = await this.prisma.user.update({
       where: { id },
-      data: dto,
+      data: updateData,
       select: {
         id: true,
         username: true,
