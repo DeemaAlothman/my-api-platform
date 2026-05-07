@@ -474,7 +474,7 @@ model Custody {
 
   name         String
   description  String?
-  serialNumber String?         @unique
+  serialNumber String?
   category     CustodyCategory @default(OTHER)
 
   employeeId   String

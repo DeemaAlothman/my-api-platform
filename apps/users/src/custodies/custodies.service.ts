@@ -19,11 +19,15 @@ export class CustodiesService {
     }
 
     if (dto.serialNumber) {
-      const existing = await this.prisma.custody.findUnique({
-        where: { serialNumber: dto.serialNumber },
+      const existing = await this.prisma.custody.findFirst({
+        where: {
+          serialNumber: dto.serialNumber,
+          status: CustodyStatus.WITH_EMPLOYEE,
+          deletedAt: null,
+        },
       });
-      if (existing && !existing.deletedAt) {
-        throw new BadRequestException('الرقم التسلسلي مستخدم مسبقاً');
+      if (existing) {
+        throw new BadRequestException('الرقم التسلسلي مستخدم في عهدة نشطة حالياً');
       }
     }
 
