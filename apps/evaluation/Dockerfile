@@ -1,51 +1,44 @@
-# Build stage
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY apps/evaluation/package*.json ./
-COPY apps/evaluation/prisma ./prisma/
+# Step 1: Copy ONLY package.json files (enables Docker layer caching)
+COPY package*.json ./
+COPY packages/shared/package*.json ./packages/shared/
+COPY apps/auth/package*.json       ./apps/auth/
+COPY apps/users/package*.json      ./apps/users/
+COPY apps/leave/package*.json      ./apps/leave/
+COPY apps/attendance/package*.json ./apps/attendance/
+COPY apps/evaluation/package*.json ./apps/evaluation/
+COPY apps/requests/package*.json   ./apps/requests/
+COPY apps/gateway/package*.json    ./apps/gateway/
 
-# Install dependencies
+# Step 2: Install all workspace deps (CACHED if no package.json changed)
 RUN npm install
 
-# Copy source code
-COPY apps/evaluation/ ./
+# Step 3: Copy source code (won't bust npm cache above)
+COPY packages ./packages
+COPY apps/evaluation ./apps/evaluation
+COPY tsconfig*.json ./
 
-# Generate Prisma Client
-RUN npx prisma generate
-
-# Build application
+WORKDIR /app/apps/evaluation
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 RUN npm run build
 
-# Production stage
-FROM node:20-alpine
+FROM node:20-alpine AS production
 
-# Install OpenSSL for Prisma
 RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-# Copy package files
-COPY apps/evaluation/package*.json ./
-
-# Install production dependencies only
+COPY --from=builder /app/apps/evaluation/package*.json ./
 RUN npm install --omit=dev
-
-# Copy prisma
-COPY apps/evaluation/prisma ./prisma/
-
-# Generate Prisma Client
-RUN npx prisma generate
-
-# Copy built application
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/apps/evaluation/prisma ./prisma
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+COPY --from=builder /app/apps/evaluation/dist   ./dist
 
 COPY apps/evaluation/entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
-# Expose port
 EXPOSE 4005
-
 CMD ["./entrypoint.sh"]
