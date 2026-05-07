@@ -20,6 +20,10 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@shared": ["../../packages/shared/src/index"],
+      "@shared/*": ["../../packages/shared/src/*"]
+    }
   }
 }
