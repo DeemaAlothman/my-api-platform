@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
-import { CurrentUser } from '../common/interfaces/user.interface';
+import type { CurrentUser } from '@shared/auth';
 
 @Injectable()
 export class EmployeeGoalsService {

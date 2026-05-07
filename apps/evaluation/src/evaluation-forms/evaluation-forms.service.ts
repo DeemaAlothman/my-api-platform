@@ -10,7 +10,7 @@ import { SaveManagerEvaluationDto } from './dto/save-manager-evaluation.dto';
 import { HRReviewDto } from './dto/hr-review.dto';
 import { GMApprovalDto } from './dto/gm-approval.dto';
 import { CreateEvaluationFormDto } from './dto/create-evaluation-form.dto';
-import { CurrentUser } from '../common/interfaces/user.interface';
+import type { CurrentUser } from '@shared/auth';
 
 @Injectable()
 export class EvaluationFormsService {

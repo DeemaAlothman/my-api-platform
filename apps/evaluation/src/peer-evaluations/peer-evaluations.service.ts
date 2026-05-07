@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePeerEvaluationDto } from './dto/create-peer-evaluation.dto';
-import { CurrentUser } from '../common/interfaces/user.interface';
+import type { CurrentUser } from '@shared/auth';
 
 @Injectable()
 export class PeerEvaluationsService {

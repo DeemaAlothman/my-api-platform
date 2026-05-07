@@ -11,10 +11,9 @@ import {
 import { EmployeeGoalsService } from './employee-goals.service';
 import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { User } from '../common/decorators/current-user.decorator';
-import { CurrentUser } from '../common/interfaces/user.interface';
+import { JwtAuthGuard, User } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import type { CurrentUser } from '@shared/auth';
 
 @Controller('employee-goals')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

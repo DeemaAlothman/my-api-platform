@@ -12,9 +12,8 @@ import {
 import { EvaluationCriteriaService } from './evaluation-criteria.service';
 import { CreateCriteriaDto } from './dto/create-criteria.dto';
 import { UpdateCriteriaDto } from './dto/update-criteria.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permissions } from '../common/decorators/permissions.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard, Permission } from '@shared';
 
 @Controller('evaluation-criteria')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -32,13 +31,13 @@ export class EvaluationCriteriaController {
   }
 
   @Post()
-  @Permissions('evaluation:criteria:create')
+  @Permission('evaluation:criteria:create')
   create(@Body() createCriteriaDto: CreateCriteriaDto) {
     return this.criteriaService.create(createCriteriaDto);
   }
 
   @Patch(':id')
-  @Permissions('evaluation:criteria:update')
+  @Permission('evaluation:criteria:update')
   update(
     @Param('id') id: string,
     @Body() updateCriteriaDto: UpdateCriteriaDto,
@@ -47,7 +46,7 @@ export class EvaluationCriteriaController {
   }
 
   @Delete(':id')
-  @Permissions('evaluation:criteria:delete')
+  @Permission('evaluation:criteria:delete')
   delete(@Param('id') id: string) {
     return this.criteriaService.delete(id);
   }

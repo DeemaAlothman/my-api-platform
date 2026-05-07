@@ -8,10 +8,9 @@ import {
 } from '@nestjs/common';
 import { PeerEvaluationsService } from './peer-evaluations.service';
 import { CreatePeerEvaluationDto } from './dto/create-peer-evaluation.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { User } from '../common/decorators/current-user.decorator';
-import { CurrentUser } from '../common/interfaces/user.interface';
+import { JwtAuthGuard, User } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import type { CurrentUser } from '@shared/auth';
 
 @Controller('peer-evaluations')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

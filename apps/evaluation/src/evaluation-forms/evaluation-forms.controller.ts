@@ -14,11 +14,9 @@ import { SaveSelfEvaluationDto } from './dto/save-self-evaluation.dto';
 import { SaveManagerEvaluationDto } from './dto/save-manager-evaluation.dto';
 import { HRReviewDto } from './dto/hr-review.dto';
 import { GMApprovalDto } from './dto/gm-approval.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permissions } from '../common/decorators/permissions.decorator';
-import { User } from '../common/decorators/current-user.decorator';
-import { CurrentUser } from '../common/interfaces/user.interface';
+import { JwtAuthGuard, User } from '@shared/auth';
+import { PermissionsGuard, Permission } from '@shared';
+import type { CurrentUser } from '@shared/auth';
 
 @Controller('evaluation-forms')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -26,7 +24,7 @@ export class EvaluationFormsController {
   constructor(private readonly formsService: EvaluationFormsService) {}
 
   @Post()
-  @Permissions('evaluation:forms:view-all')
+  @Permission('evaluation:forms:view-all')
   create(@Body() createFormDto: CreateEvaluationFormDto) {
     return this.formsService.create(createFormDto);
   }
@@ -42,7 +40,7 @@ export class EvaluationFormsController {
   }
 
   @Get()
-  @Permissions('evaluation:forms:view-all')
+  @Permission('evaluation:forms:view-all')
   findAll(
     @User() user: CurrentUser,
     @Query('periodId') periodId?: string,
@@ -74,7 +72,7 @@ export class EvaluationFormsController {
   }
 
   @Patch(':id/manager')
-  @Permissions('evaluation:forms:manager-evaluate')
+  @Permission('evaluation:forms:manager-evaluate')
   saveManagerEvaluation(
     @Param('id') id: string,
     @Body() dto: SaveManagerEvaluationDto,
@@ -84,7 +82,7 @@ export class EvaluationFormsController {
   }
 
   @Post(':id/manager/submit')
-  @Permissions('evaluation:forms:manager-evaluate')
+  @Permission('evaluation:forms:manager-evaluate')
   submitManagerEvaluation(
     @Param('id') id: string,
     @User() user: CurrentUser,
@@ -93,7 +91,7 @@ export class EvaluationFormsController {
   }
 
   @Post(':id/hr-review')
-  @Permissions('evaluation:forms:hr-review')
+  @Permission('evaluation:forms:hr-review')
   hrReview(
     @Param('id') id: string,
     @Body() dto: HRReviewDto,
@@ -103,7 +101,7 @@ export class EvaluationFormsController {
   }
 
   @Post(':id/gm-approval')
-  @Permissions('evaluation:forms:gm-approval')
+  @Permission('evaluation:forms:gm-approval')
   gmApproval(
     @Param('id') id: string,
     @Body() dto: GMApprovalDto,

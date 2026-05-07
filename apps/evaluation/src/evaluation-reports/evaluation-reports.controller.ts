@@ -2,9 +2,8 @@ import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { EvaluationReportsService } from './evaluation-reports.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permissions } from '../common/decorators/permissions.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard, Permission } from '@shared';
 import { sendCsv } from '../common/utils/csv.util';
 
 @ApiTags('Evaluation Reports')
@@ -15,7 +14,7 @@ export class EvaluationReportsController {
   constructor(private readonly service: EvaluationReportsService) {}
 
   @Get('grade-distribution')
-  @Permissions('evaluation:forms:view-all')
+  @Permission('evaluation:forms:view-all')
   @ApiOperation({ summary: 'توزيع درجات التقييم النهائية' })
   @ApiQuery({ name: 'periodId', required: false })
   @ApiQuery({ name: 'format', required: false, enum: ['json', 'csv'] })
@@ -38,7 +37,7 @@ export class EvaluationReportsController {
   }
 
   @Get('department-comparison')
-  @Permissions('evaluation:forms:view-all')
+  @Permission('evaluation:forms:view-all')
   @ApiOperation({ summary: 'مقارنة متوسط أداء الأقسام' })
   @ApiQuery({ name: 'periodId', required: false })
   @ApiQuery({ name: 'format', required: false, enum: ['json', 'csv'] })
@@ -67,7 +66,7 @@ export class EvaluationReportsController {
   }
 
   @Get('recommendations')
-  @Permissions('evaluation:forms:view-all')
+  @Permission('evaluation:forms:view-all')
   @ApiOperation({ summary: 'الموظفون الحاصلون على توصيات HR' })
   @ApiQuery({ name: 'periodId', required: false })
   @ApiQuery({ name: 'format', required: false, enum: ['json', 'csv'] })

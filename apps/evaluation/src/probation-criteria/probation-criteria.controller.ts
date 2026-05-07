@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nes
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProbationCriteriaService } from './probation-criteria.service';
 import { CreateProbationCriteriaDto, JobTitleCriteriaDto } from './dto/create-probation-criteria.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '@shared/auth';
 
 @ApiTags('Probation Criteria')
 @ApiBearerAuth()

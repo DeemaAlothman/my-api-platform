@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from './prisma/prisma.module';
+import { PrismaService } from './prisma/prisma.service';
 import { EvaluationPeriodsModule } from './evaluation-periods/evaluation-periods.module';
 import { EvaluationCriteriaModule } from './evaluation-criteria/evaluation-criteria.module';
 import { EvaluationFormsModule } from './evaluation-forms/evaluation-forms.module';
@@ -14,12 +17,18 @@ import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+    }),
+    PassportModule,
+    JwtModule.register({
+      secret: process.env.JWT_ACCESS_SECRET!,
+      signOptions: { expiresIn: '15m' },
     }),
     PrismaModule,
     EvaluationPeriodsModule,
@@ -33,6 +42,9 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     DashboardDataModule,
   ],
   providers: [
+    PrismaService,
+    JwtStrategy,
+    { provide: PRISMA_FOR_JWT, useExisting: PrismaService },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
