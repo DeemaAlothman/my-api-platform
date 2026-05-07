@@ -41,4 +41,4 @@ RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma@6 ge
 RUN mkdir -p /app/uploads
 
 EXPOSE 4009
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/apps/mail/src/main.js"]

@@ -42,4 +42,4 @@ COPY --from=builder /app/apps/zkteco/dist   ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 4007
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/apps/zkteco/src/main.js"]
