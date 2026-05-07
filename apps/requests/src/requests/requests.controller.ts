@@ -10,7 +10,7 @@ import { RequestsService } from './requests.service';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
-import { CurrentUser } from '@shared/auth';
+import { User } from '@shared/auth';
 import { CreateRequestDto } from './dto/create-request.dto';
 import { ApproveRequestDto } from './dto/approve-request.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
@@ -32,7 +32,7 @@ export class RequestsController {
   // طلباتي أنا
   @UseGuards(JwtAuthGuard)
   @Get('my')
-  myRequests(@CurrentUser() user: any, @Query() query: ListRequestsQueryDto) {
+  myRequests(@User() user: any, @Query() query: ListRequestsQueryDto) {
     return this.requests.myRequests(user.userId, query);
   }
 
@@ -40,7 +40,7 @@ export class RequestsController {
   @UseGuards(JwtAuthGuard)
   @Get('pending-my-approval')
   pendingMyApproval(
-    @CurrentUser() user: any,
+    @User() user: any,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
   ) {
@@ -50,7 +50,7 @@ export class RequestsController {
   // طلب واحد
   @UseGuards(JwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+  findOne(@Param('id') id: string, @User() user: any) {
     return this.requests.findOneScoped(id, user.userId, user.permissions ?? []);
   }
 
@@ -65,21 +65,21 @@ export class RequestsController {
   @UseGuards(JwtAuthGuard)
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateRequestDto, @CurrentUser() user: any) {
+  create(@Body() dto: CreateRequestDto, @User() user: any) {
     return this.requests.create(dto, user.userId, user.permissions ?? []);
   }
 
   // تقديم الطلب للمدير
   @UseGuards(JwtAuthGuard)
   @Post(':id/submit')
-  submit(@Param('id') id: string, @CurrentUser() user: any) {
+  submit(@Param('id') id: string, @User() user: any) {
     return this.requests.submit(id, user.userId);
   }
 
   // إلغاء الطلب
   @UseGuards(JwtAuthGuard)
   @Post(':id/cancel')
-  cancel(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: CancelRequestDto) {
+  cancel(@Param('id') id: string, @User() user: any, @Body() dto: CancelRequestDto) {
     return this.requests.cancel(id, user.userId, dto);
   }
 
@@ -88,7 +88,7 @@ export class RequestsController {
   @Post(':id/exit-interview')
   submitExitInterview(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @User() user: any,
     @Body() body: Record<string, any>,
   ) {
     return this.requests.submitExitInterview(id, user.userId, body);
@@ -98,7 +98,7 @@ export class RequestsController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:approve')
   @Post(':id/approve')
-  approveStep(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: ApproveRequestDto) {
+  approveStep(@Param('id') id: string, @User() user: any, @Body() dto: ApproveRequestDto) {
     return this.requests.approveStep(id, user.userId, dto);
   }
 
@@ -106,7 +106,7 @@ export class RequestsController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:reject')
   @Post(':id/reject')
-  rejectStep(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: RejectRequestDto) {
+  rejectStep(@Param('id') id: string, @User() user: any, @Body() dto: RejectRequestDto) {
     return this.requests.rejectStep(id, user.userId, dto);
   }
 
@@ -114,7 +114,7 @@ export class RequestsController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:manager-approve')
   @Post(':id/manager-approve')
-  managerApprove(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: ApproveRequestDto) {
+  managerApprove(@Param('id') id: string, @User() user: any, @Body() dto: ApproveRequestDto) {
     return this.requests.managerApprove(id, user.userId, dto);
   }
 
@@ -122,7 +122,7 @@ export class RequestsController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:manager-reject')
   @Post(':id/manager-reject')
-  managerReject(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: RejectRequestDto) {
+  managerReject(@Param('id') id: string, @User() user: any, @Body() dto: RejectRequestDto) {
     return this.requests.managerReject(id, user.userId, dto);
   }
 
@@ -130,7 +130,7 @@ export class RequestsController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:hr-approve')
   @Post(':id/hr-approve')
-  hrApprove(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: ApproveRequestDto) {
+  hrApprove(@Param('id') id: string, @User() user: any, @Body() dto: ApproveRequestDto) {
     return this.requests.hrApprove(id, user.userId, dto);
   }
 
@@ -138,7 +138,7 @@ export class RequestsController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('requests:hr-reject')
   @Post(':id/hr-reject')
-  hrReject(@Param('id') id: string, @CurrentUser() user: any, @Body() dto: RejectRequestDto) {
+  hrReject(@Param('id') id: string, @User() user: any, @Body() dto: RejectRequestDto) {
     return this.requests.hrReject(id, user.userId, dto);
   }
 
@@ -151,7 +151,7 @@ export class RequestsController {
   uploadHiringPdf(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() user: any,
+    @User() user: any,
   ) {
     return this.requests.uploadHiringPdf(id, file, user.userId);
   }
