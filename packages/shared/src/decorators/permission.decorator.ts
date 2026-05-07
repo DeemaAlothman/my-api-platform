@@ -5,7 +5,7 @@ export const PERMISSION_KEY = 'permission';
 export const PERMISSION_MODE_KEY = 'permission_mode';
 
 /** Require at least one of the given permissions (OR logic — default) */
-export const Permission = (...permissions: PermissionName[]) =>
+export const Permission = (...permissions: string[]) =>
   SetMetadata(PERMISSION_KEY, permissions.length === 1 ? permissions[0] : permissions);
 
 /** Require at least one of the given permissions (explicit OR) */

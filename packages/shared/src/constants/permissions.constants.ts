@@ -97,6 +97,30 @@ export const PERMISSIONS = {
     DELETE:        'attendance.records.delete',
     CHECK_IN:      'attendance.records.check-in',
     CHECK_OUT:     'attendance.records.check-out',
+    DEVICE:        'attendance.records.device',
+  },
+  DEDUCTION_POLICIES: {
+    READ:   'attendance.policies.read',
+    CREATE: 'attendance.policies.create',
+    UPDATE: 'attendance.policies.update',
+    DELETE: 'attendance.policies.delete',
+  },
+  ATTENDANCE_CONFIG: {
+    READ:   'attendance.config.read',
+    CREATE: 'attendance.config.create',
+    UPDATE: 'attendance.config.update',
+  },
+  EMPLOYEE_SCHEDULES: {
+    READ:   'attendance.employee-schedules.read',
+    CREATE: 'attendance.employee-schedules.create',
+    UPDATE: 'attendance.employee-schedules.update',
+    DELETE: 'attendance.employee-schedules.delete',
+  },
+  ATTENDANCE_PAYROLL: {
+    READ:    'attendance.payroll.read',
+    GENERATE:'attendance.payroll.generate',
+    CONFIRM: 'attendance.payroll.confirm',
+    EXPORT:  'attendance.payroll.export',
   },
   ATTENDANCE_ALERTS: {
     READ:     'attendance.alerts.read',
@@ -146,6 +170,27 @@ export const PERMISSIONS = {
     MANAGE: 'evaluation:goals:manage',
   },
 
+  // ── Biometric ──────────────────────────────────────────────────────────
+  BIOMETRIC_DEVICES: {
+    READ:   'biometric.devices.read',
+    CREATE: 'biometric.devices.create',
+    UPDATE: 'biometric.devices.update',
+    DELETE: 'biometric.devices.delete',
+  },
+  BIOMETRIC_MAPPINGS: {
+    READ:   'biometric.mappings.read',
+    CREATE: 'biometric.mappings.create',
+    UPDATE: 'biometric.mappings.update',
+    DELETE: 'biometric.mappings.delete',
+  },
+
+  // ── Jobs ───────────────────────────────────────────────────────────────
+  JOB_APPLICATIONS: {
+    READ:        'job-applications:read',
+    UPDATE:      'job-applications:update',
+    CEO_APPROVE: 'job-applications:ceo-approve',
+  },
+
   // ── Custodies ──────────────────────────────────────────────────────
   CUSTODIES: {
     READ:   'custodies:read',
@@ -177,6 +222,7 @@ export const PERMISSIONS = {
     CFO_APPROVE:      'requests:cfo-approve',
     READ_ALL_STEPS:   'requests:read-all-steps',
     MANAGE_WORKFLOWS: 'requests:manage-workflows',
+    HIRING_COMPLETE:  'requests:hiring:complete',
   },
 } as const;
 
