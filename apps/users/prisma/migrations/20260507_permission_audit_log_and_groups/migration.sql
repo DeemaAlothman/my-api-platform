@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS users.permission_groups (
 
 CREATE TABLE IF NOT EXISTS users.permission_group_items (
   group_id      UUID NOT NULL REFERENCES users.permission_groups(id) ON DELETE CASCADE,
-  permission_id UUID NOT NULL REFERENCES users.permissions(id) ON DELETE CASCADE,
+  permission_id TEXT NOT NULL REFERENCES users.permissions(id) ON DELETE CASCADE,
   PRIMARY KEY (group_id, permission_id)
 );
 
