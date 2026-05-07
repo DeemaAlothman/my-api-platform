@@ -8,6 +8,6 @@ ALTER TABLE users.custodies DROP CONSTRAINT IF EXISTS "custodies_serialNumber_ke
 
 -- Step 2: Create partial unique index (active custodies only)
 CREATE UNIQUE INDEX IF NOT EXISTS custodies_serial_number_active_unique
-  ON users.custodies (serial_number)
+  ON users.custodies ("serialNumber")
   WHERE status = 'WITH_EMPLOYEE'
-    AND serial_number IS NOT NULL;
+    AND "serialNumber" IS NOT NULL;
