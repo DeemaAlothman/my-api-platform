@@ -10,4 +10,4 @@ npx prisma migrate resolve --applied "20260411000002_add_position_requires_flags
 # Run only new/pending migrations
 npx prisma migrate deploy
 
-exec node dist/src/main.js
+exec node dist/apps/jobs/src/main.js

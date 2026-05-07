@@ -8,4 +8,4 @@ npx prisma migrate resolve --applied "20260413000001_payroll_bonus_penalty_field
 
 npx prisma migrate deploy
 
-exec node dist/src/main.js
+exec node dist/apps/attendance/src/main.js

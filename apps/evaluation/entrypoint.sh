@@ -6,4 +6,4 @@ npx prisma migrate resolve --applied "20260406000002_evaluation_probation" || tr
 
 npx prisma migrate deploy
 
-exec node dist/src/main.js
+exec node dist/apps/evaluation/src/main.js
