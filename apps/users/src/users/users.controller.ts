@@ -1,8 +1,9 @@
 import { Controller, Get, Post, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -31,6 +32,7 @@ export class UsersController {
     return this.users.findOne(id);
   }
 
+  @Throttle({ hour: { limit: 10, ttl: 3600000 } })
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('users:create')
   @Post('users')
@@ -46,6 +48,7 @@ export class UsersController {
     return this.users.update(id, dto);
   }
 
+  @Throttle({ hour: { limit: 5, ttl: 3600000 } })
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('users:delete')
   @Delete('users/:id')
@@ -61,6 +64,7 @@ export class UsersController {
     return this.users.changePassword(id, dto.currentPassword, dto.newPassword);
   }
 
+  @Throttle({ hour: { limit: 10, ttl: 3600000 } })
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('users:assign_roles')
   @Post('users/:id/roles')

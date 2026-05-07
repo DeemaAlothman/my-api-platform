@@ -14,7 +14,7 @@ import { DeductionPoliciesModule } from './deduction-policies/deduction-policies
 import { PayrollModule } from './payroll/payroll.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { DailyClosureModule } from './jobs/daily-closure.module';
-import { JwtStrategy } from './common/strategies/jwt.strategy';
+import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 @Module({
@@ -35,6 +35,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
   providers: [
     PrismaService,
     JwtStrategy,
+    { provide: PRISMA_FOR_JWT, useExisting: PrismaService },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],

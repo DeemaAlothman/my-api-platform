@@ -1,9 +1,9 @@
 import { Controller, Get, Param, Query, Res, UseGuards, UseInterceptors } from '@nestjs/common';
 import type { Response } from 'express';
 import { ReportsService } from './reports.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
 import { sendCsv } from '../common/utils/csv.util';
 

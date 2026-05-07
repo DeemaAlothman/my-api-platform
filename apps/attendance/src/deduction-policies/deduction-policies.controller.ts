@@ -5,9 +5,9 @@ import {
 import { DeductionPoliciesService } from './deduction-policies.service';
 import { CreateDeductionPolicyDto } from './dto/create-deduction-policy.dto';
 import { UpdateDeductionPolicyDto } from './dto/update-deduction-policy.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 
 @Controller('deduction-policies')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

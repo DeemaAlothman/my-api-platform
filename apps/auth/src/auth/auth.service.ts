@@ -1,5 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ROLES } from '@shared/constants/roles.constants';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -62,8 +63,8 @@ export class AuthService {
       `;
 
       // If user has super_admin role, give all permissions
-      if (userRoles.some(r => r.name === 'super_admin')) {
-        finalRoles = ['super_admin'];
+      if (userRoles.some(r => r.name === ROLES.SUPER_ADMIN)) {
+        finalRoles = [ROLES.SUPER_ADMIN];
         finalPermissions = await this.loadSuperAdminPermissions();
       } else if (userRoles.length > 0) {
         // Load permissions from database for other roles
@@ -181,7 +182,7 @@ export class AuthService {
           AND r."deletedAt" IS NULL
       `;
 
-      if (userRoles.some(r => r.name === 'super_admin')) {
+      if (userRoles.some(r => r.name === ROLES.SUPER_ADMIN)) {
         permissions = await this.loadSuperAdminPermissions();
       } else if (userRoles.length > 0) {
         const userPermissions = await this.prisma.$queryRaw<Array<{ code: string }>>`

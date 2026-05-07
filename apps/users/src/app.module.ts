@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { PrismaService } from './prisma/prisma.service';
 import { UsersModule } from './users/users.module';
 import { EmployeesModule } from './employees/employees.module';
@@ -16,11 +17,14 @@ import { DocumentsModule } from './documents/documents.module';
 import { HrReportsModule } from './hr-reports/hr-reports.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
-import { JwtStrategy } from './common/strategies/jwt.strategy';
+import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([
+      { name: 'hour', ttl: 3600000, limit: 1000 },
+    ]),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET!,
@@ -40,6 +44,12 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     AuditLogsModule,
     DashboardDataModule,
   ],
-  providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
+  providers: [
+    PrismaService,
+    JwtStrategy,
+    { provide: PRISMA_FOR_JWT, useExisting: PrismaService },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+  ],
 })
 export class AppModule {}

@@ -2,9 +2,9 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } f
 import { WorkSchedulesService } from './work-schedules.service';
 import { CreateWorkScheduleDto } from './dto/create-work-schedule.dto';
 import { UpdateWorkScheduleDto } from './dto/update-work-schedule.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 
 @Controller('work-schedules')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

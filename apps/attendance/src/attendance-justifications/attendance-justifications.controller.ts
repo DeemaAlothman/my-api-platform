@@ -4,11 +4,11 @@ import { CreateAttendanceJustificationDto } from './dto/create-attendance-justif
 import { ManagerReviewDto } from './dto/manager-review.dto';
 import { HrReviewDto } from './dto/hr-review.dto';
 import { ListAttendanceJustificationsQueryDto } from './dto/list-attendance-justifications.query.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
-import { EmployeeId, UserId } from '../common/decorators/employee.decorator';
+import { EmployeeId, UserId } from '@shared/auth';
 
 @Controller('attendance-justifications')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

@@ -435,6 +435,7 @@ model Permission {
   module      String
 
   roles       RolePermission[]
+  groups      PermissionGroupItem[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -678,3 +679,52 @@ enum TaskAssignee {
   EMPLOYEE
   OTHER
 }
+
+// ─── Permission Audit Log ────────────────────────────────────────────────────
+
+model PermissionAuditLog {
+  id           String   @id @default(uuid())
+  actorId      String
+  targetUserId String?
+  targetRoleId String?
+  action       String
+  beforeState  Json?
+  afterState   Json?
+  ipAddress    String?
+  userAgent    String?
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetUserId])
+  @@index([targetRoleId])
+  @@index([createdAt(sort: Desc)])
+  @@index([action])
+  @@map("permission_audit_log")
+}
+
+// ─── Permission Groups ───────────────────────────────────────────────────────
+
+model PermissionGroup {
+  id            String                @id @default(uuid())
+  name          String                @unique
+  displayNameAr String
+  displayNameEn String?
+  description   String?
+  items         PermissionGroupItem[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@map("permission_groups")
+}
+
+model PermissionGroupItem {
+  groupId      String
+  group        PermissionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission      @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, permissionId])
+  @@map("permission_group_items")
+}
+

@@ -14,9 +14,9 @@ import {
   CreateLeaveTypeDto,
   UpdateLeaveTypeDto,
 } from './leave-types.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 
 @Controller('leave-types')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

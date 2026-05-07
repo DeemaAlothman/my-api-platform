@@ -4,11 +4,11 @@ import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
 import { CreateAttendanceRecordDto } from './dto/create-attendance-record.dto';
 import { UpdateAttendanceRecordDto } from './dto/update-attendance-record.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
-import { EmployeeId, UserId } from '../common/decorators/employee.decorator';
+import { EmployeeId, UserId } from '@shared/auth';
 import { ListAttendanceRecordsQueryDto } from './dto/list-attendance-records.query.dto';
 
 @Controller('attendance-records')

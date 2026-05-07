@@ -10,10 +10,10 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { LeaveBalancesService } from './leave-balances.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
-import { EmployeeId } from '../common/decorators/employee.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
+import { EmployeeId } from '@shared/auth';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
 
 @Controller('leave-balances')

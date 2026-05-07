@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { JobGradesService } from './job-grades.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 import { CreateJobGradeDto } from './dto/create-job-grade.dto';
 import { UpdateJobGradeDto } from './dto/update-job-grade.dto';
 import { ListJobGradesQueryDto } from './dto/list-job-grades.query.dto';

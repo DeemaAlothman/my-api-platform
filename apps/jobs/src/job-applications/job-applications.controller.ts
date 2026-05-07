@@ -1,8 +1,8 @@
 import { Controller, Get, Put, Patch, Query, Param, Body, UseGuards } from '@nestjs/common';
 import { JobApplicationsService } from './job-applications.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 import { ListJobApplicationsQueryDto } from './dto/list-job-applications.query.dto';
 import { UpdateJobApplicationDto } from './dto/update-job-application.dto';
 

@@ -2,9 +2,9 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@n
 import { DeviceService } from './device.service';
 import { RegisterDeviceDto } from './dto/register-device.dto';
 import { UpdateDeviceDto } from './dto/update-device.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 
 @Controller('biometric-devices')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

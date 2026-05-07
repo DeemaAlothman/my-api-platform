@@ -17,10 +17,10 @@ import { UpdateLeaveRequestDto } from './dto/update-leave-request.dto';
 import { ApproveLeaveRequestDto, RejectLeaveRequestDto } from './dto/approve-leave-request.dto';
 import { CancelLeaveRequestDto } from './dto/cancel-leave-request.dto';
 import { ListLeaveRequestsQueryDto } from './dto/list-leave-requests.query.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
-import { EmployeeId, UserId } from '../common/decorators/employee.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
+import { EmployeeId, UserId } from '@shared/auth';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
 
 @Controller('leave-requests')

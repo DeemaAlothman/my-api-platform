@@ -2,9 +2,9 @@ import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/co
 import { EmployeeConfigService } from './employee-config.service';
 import { CreateEmployeeConfigDto } from './dto/create-employee-config.dto';
 import { UpdateEmployeeConfigDto } from './dto/update-employee-config.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 
 @Controller('employee-attendance-config')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

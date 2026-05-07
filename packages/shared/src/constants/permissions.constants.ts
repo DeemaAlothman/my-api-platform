@@ -12,10 +12,14 @@ export const PERMISSIONS = {
     ASSIGN_ROLES: 'users:assign_roles',
   },
   EMPLOYEES: {
-    READ:   'employees:read',
-    CREATE: 'employees:create',
-    UPDATE: 'employees:update',
-    DELETE: 'employees:delete',
+    READ:                 'employees:read',
+    CREATE:               'employees:create',
+    UPDATE:               'employees:update',
+    DELETE:               'employees:delete',
+    PROBATION_REPORT_READ:'employees:probation-report:read',
+    CONTRACT_REPORT_READ: 'employees:contract-report:read',
+    MANAGER_NOTES_READ:   'employees:manager-notes:read',
+    MANAGER_NOTES_WRITE:  'employees:manager-notes:write',
   },
   DEPARTMENTS: {
     READ:   'departments:read',
@@ -151,6 +155,15 @@ export const PERMISSIONS = {
   },
 
   // ── Requests ───────────────────────────────────────────────────────
+  // ── Mail ──────────────────────────────────────────────────────────────────
+  MAIL: {
+    READ_OWN: 'mail:read_own',
+    SEND:     'mail:send',
+    DRAFT:    'mail:draft',
+    UPDATE:   'mail:update',
+    DELETE:   'mail:delete',
+  },
+
   REQUESTS: {
     READ:             'requests:read',
     MANAGER_APPROVE:  'requests:manager-approve',
@@ -165,4 +178,39 @@ export const PERMISSIONS = {
     READ_ALL_STEPS:   'requests:read-all-steps',
     MANAGE_WORKFLOWS: 'requests:manage-workflows',
   },
+} as const;
+
+// ── Type Helpers ──────────────────────────────────────────────────────────────
+
+type ExtractValues<T> = T extends Record<string, infer U>
+  ? U extends string ? U : ExtractValues<U>
+  : never;
+
+/** Union type of every valid permission string */
+export type PermissionName = ExtractValues<typeof PERMISSIONS>;
+
+/** Returns all permission strings as an array */
+export function getAllPermissions(): PermissionName[] {
+  const result: string[] = [];
+  function traverse(obj: any) {
+    for (const key in obj) {
+      if (typeof obj[key] === 'string') result.push(obj[key]);
+      else if (typeof obj[key] === 'object') traverse(obj[key]);
+    }
+  }
+  traverse(PERMISSIONS);
+  return result as PermissionName[];
+}
+
+export const PERMISSION_MODULES = {
+  USERS:       'users',
+  EMPLOYEES:   'employees',
+  DEPARTMENTS: 'departments',
+  ROLES:       'roles',
+  LEAVES:      'leaves',
+  ATTENDANCE:  'attendance',
+  EVALUATION:  'evaluation',
+  REQUESTS:    'requests',
+  JOBS:        'jobs',
+  CUSTODIES:   'custodies',
 } as const;

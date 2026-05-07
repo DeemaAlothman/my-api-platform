@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Put, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus, Headers, UnauthorizedException } from '@nestjs/common';
 import { EmployeesService } from './employees.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
-import { User } from '../common/decorators/current-user.decorator';
-import type { CurrentUser } from '../common/interfaces/user.interface';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
+import { User } from '@shared/auth';
+import type { CurrentUser } from '@shared/auth';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees.query.dto';

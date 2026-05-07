@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Param, Body, UseGuards } from '@nestjs/comm
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InterviewCriteriaService } from './interview-criteria.service';
 import { CreateCriterionDto } from './dto/create-criterion.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '@shared/auth';
 
 @ApiTags('Interview Criteria')
 @ApiBearerAuth()

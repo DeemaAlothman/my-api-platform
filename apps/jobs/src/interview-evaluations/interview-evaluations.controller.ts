@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, Request } fr
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InterviewEvaluationsService } from './interview-evaluations.service';
 import { CreateInterviewEvaluationDto } from './dto/create-interview-evaluation.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '@shared/auth';
 
 @ApiTags('Interview Evaluations')
 @ApiBearerAuth()

@@ -3,7 +3,7 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaService } from './prisma/prisma.service';
-import { JwtStrategy } from './common/strategies/jwt.strategy';
+import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { DeviceModule } from './device/device.module';
@@ -23,6 +23,7 @@ import { SyncModule } from './sync/sync.module';
   providers: [
     PrismaService,
     JwtStrategy,
+    { provide: PRISMA_FOR_JWT, useExisting: PrismaService },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],

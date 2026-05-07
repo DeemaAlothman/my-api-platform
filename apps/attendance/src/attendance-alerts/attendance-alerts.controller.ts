@@ -2,11 +2,11 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Us
 import { AttendanceAlertsService } from './attendance-alerts.service';
 import { CreateAttendanceAlertDto } from './dto/create-attendance-alert.dto';
 import { UpdateAttendanceAlertDto } from './dto/update-attendance-alert.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
-import { EmployeeId, UserId } from '../common/decorators/employee.decorator';
+import { EmployeeId, UserId } from '@shared/auth';
 import { ListAttendanceAlertsQueryDto } from './dto/list-attendance-alerts.query.dto';
 
 @Controller('attendance-alerts')

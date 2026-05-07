@@ -4,7 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaService } from './prisma/prisma.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
-import { JwtStrategy } from './common/strategies/jwt.strategy';
+import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { MailModule } from './mail/mail.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 
@@ -18,6 +18,11 @@ import { AttachmentsModule } from './attachments/attachments.module';
     MailModule,
     AttachmentsModule,
   ],
-  providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
+  providers: [
+    PrismaService,
+    JwtStrategy,
+    { provide: PRISMA_FOR_JWT, useExisting: PrismaService },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+  ],
 })
 export class AppModule {}

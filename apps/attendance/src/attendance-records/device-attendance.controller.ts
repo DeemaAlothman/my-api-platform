@@ -3,9 +3,9 @@ import { AttendanceRecordsService } from './attendance-records.service';
 import { DeviceCheckInDto } from './dto/device-check-in.dto';
 import { DeviceCheckOutDto } from './dto/device-check-out.dto';
 import { DeviceBreakDto } from './dto/device-break.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 
 const DUPLICATE_WINDOW_MS = 2 * 60 * 1000; // دقيقتان
 

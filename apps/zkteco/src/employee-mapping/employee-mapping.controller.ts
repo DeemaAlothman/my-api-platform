@@ -2,9 +2,9 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } f
 import { EmployeeMappingService } from './employee-mapping.service';
 import { CreateMappingDto, BulkCreateMappingDto } from './dto/create-mapping.dto';
 import { UpdateMappingDto } from './dto/update-mapping.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 
 @Controller('employee-fingerprints')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

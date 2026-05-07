@@ -10,7 +10,8 @@ import { InterviewCriteriaModule } from './interview-criteria/interview-criteria
 import { InterviewEvaluationsModule } from './interview-evaluations/interview-evaluations.module';
 import { CandidatesModule } from './candidates/candidates.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
-import { JwtStrategy } from './common/strategies/jwt.strategy';
+import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
+import { PrismaService } from './prisma/prisma.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ProbationEndNotifierService } from './hr-notifiers/probation-end-notifier.service';
 import { ContractEndNotifierService } from './hr-notifiers/contract-end-notifier.service';
@@ -34,6 +35,7 @@ import { BirthdayMailerService } from './hr-notifiers/birthday-mailer.service';
   ],
   providers: [
     JwtStrategy,
+    { provide: PRISMA_FOR_JWT, useExisting: PrismaService },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     ProbationEndNotifierService,
     ContractEndNotifierService,

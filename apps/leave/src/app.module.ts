@@ -11,7 +11,7 @@ import { LeaveTypesModule } from './leave-types/leave-types.module';
 import { HolidaysModule } from './holidays/holidays.module';
 import { LeaveReportsModule } from './leave-reports/leave-reports.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
-import { JwtStrategy } from './common/strategies/jwt.strategy';
+import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 
 @Module({
   imports: [
@@ -28,6 +28,11 @@ import { JwtStrategy } from './common/strategies/jwt.strategy';
     LeaveReportsModule,
     DashboardDataModule,
   ],
-  providers: [PrismaService, JwtStrategy, { provide: APP_INTERCEPTOR, useClass: AuditInterceptor }],
+  providers: [
+    PrismaService,
+    JwtStrategy,
+    { provide: PRISMA_FOR_JWT, useExisting: PrismaService },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+  ],
 })
 export class AppModule {}

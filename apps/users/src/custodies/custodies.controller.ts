@@ -7,9 +7,9 @@ import { CreateCustodyDto } from './dto/create-custody.dto';
 import { UpdateCustodyDto } from './dto/update-custody.dto';
 import { ReturnCustodyDto } from './dto/return-custody.dto';
 import { ListCustodiesQueryDto } from './dto/list-custodies.query.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { PermissionsGuard } from '../common/guards/permissions.guard';
-import { Permission } from '../common/decorators/permission.decorator';
+import { JwtAuthGuard } from '@shared/auth';
+import { PermissionsGuard } from '@shared';
+import { Permission } from '@shared';
 
 @Controller('custodies')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

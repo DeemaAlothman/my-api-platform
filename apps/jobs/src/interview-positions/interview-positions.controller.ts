@@ -4,7 +4,7 @@ import { InterviewPositionsService } from './interview-positions.service';
 import { CreateInterviewPositionDto } from './dto/create-interview-position.dto';
 import { UpdateInterviewPositionDto } from './dto/update-interview-position.dto';
 import { CreateTechnicalQuestionDto } from './dto/create-technical-question.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '@shared/auth';
 
 @ApiTags('Interview Positions')
 @ApiBearerAuth()
