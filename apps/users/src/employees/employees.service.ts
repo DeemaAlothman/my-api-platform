@@ -70,6 +70,7 @@ export class EmployeesService {
               code: true,
               nameAr: true,
               nameEn: true,
+              description: true,
             },
           },
           manager: {
