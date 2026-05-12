@@ -178,10 +178,10 @@ export class AttendanceJustificationsService {
     page?: number | string;
     limit?: number | string;
   }) {
-    const subordinates = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    const subordinates = (await this.prisma.$queryRawUnsafe(
       `SELECT id FROM users.employees WHERE "managerId" = $1 AND "deletedAt" IS NULL`,
       managerEmployeeId,
-    );
+    )) as Array<{ id: string }>;
     if (!subordinates.length) {
       return { items: [], page: 1, limit: 10, total: 0, totalPages: 1 };
     }
