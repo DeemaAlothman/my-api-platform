@@ -32,7 +32,7 @@ export class CustodiesController {
   @Get('my')
   @UseGuards(JwtAuthGuard)
   getMyCustodies(@Req() req: any) {
-    return this.custodiesService.findMyCustodies(req.user.sub);
+    return this.custodiesService.findMyCustodies(req.user.username);
   }
 
   @Get('employee/:employeeId/summary')
