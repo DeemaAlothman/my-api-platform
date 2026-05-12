@@ -69,6 +69,12 @@ export class EmployeesController {
     return this.employees.getContractEndingReport(parseInt(days ?? '30', 10));
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/basic')
+  findBasic(@Param('id') id: string) {
+    return this.employees.findBasic(id);
+  }
+
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('employees:read')
   @Get(':id')

@@ -175,6 +175,38 @@ export class EmployeesService {
     return includeManagerNotes ? employee : this.stripManagerNotes(employee);
   }
 
+  async findBasic(id: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
+      select: {
+        id: true,
+        firstNameAr: true,
+        lastNameAr: true,
+        firstNameEn: true,
+        lastNameEn: true,
+        email: true,
+        employeeNumber: true,
+        employmentStatus: true,
+        hireDate: true,
+        department: {
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+          },
+        },
+      },
+    });
+    if (!employee) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Employee not found',
+        details: [{ field: 'id', value: id }],
+      });
+    }
+    return employee;
+  }
+
   async findByUsername(username: string) {
     // Query using username for cross-schema lookup (auth.User has different ID than users.users)
     const result = await this.prisma.$queryRaw<Array<{ id: string }>>`

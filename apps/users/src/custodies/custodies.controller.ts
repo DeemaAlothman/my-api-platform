@@ -29,6 +29,12 @@ export class CustodiesController {
   }
 
   // مهم: routes الثابتة قبل :id
+  @Get('my')
+  @UseGuards(JwtAuthGuard)
+  getMyCustodies(@Req() req: any) {
+    return this.custodiesService.findMyCustodies(req.user.sub);
+  }
+
   @Get('employee/:employeeId/summary')
   @Permission('custodies:read')
   getSummary(@Param('employeeId') employeeId: string) {

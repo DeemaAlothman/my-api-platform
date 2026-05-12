@@ -188,6 +188,22 @@ export class CustodiesService {
     });
   }
 
+  async findMyCustodies(userId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM users.employees
+      WHERE "userId" = ${userId} AND "deletedAt" IS NULL
+      LIMIT 1
+    `;
+    if (!rows[0]) {
+      return [];
+    }
+    return this.prisma.custody.findMany({
+      where: { employeeId: rows[0].id, deletedAt: null },
+      orderBy: { assignedDate: 'desc' },
+      include: { attachments: true },
+    });
+  }
+
   async hasUnreturnedCustodies(employeeId: string): Promise<boolean> {
     const count = await this.prisma.custody.count({
       where: {
