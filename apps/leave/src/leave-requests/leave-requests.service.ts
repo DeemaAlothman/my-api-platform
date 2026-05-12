@@ -118,6 +118,7 @@ export class LeaveRequestsService {
     usedDelta: number,
     pendingDelta: number,
     tx?: any,
+    isUnlimited?: boolean,
   ) {
     const client = tx ?? this.prisma;
     const balance = await client.leaveBalance.findFirst({
@@ -126,6 +127,7 @@ export class LeaveRequestsService {
     });
 
     if (!balance) {
+      if (isUnlimited) return;
       throw new BadRequestException('Leave balance not found for this employee');
     }
 
@@ -139,13 +141,13 @@ export class LeaveRequestsService {
     });
 
     const remaining = (updated.totalDays + (updated.carriedOverDays ?? 0)) - updated.usedDays - updated.pendingDays;
-    if (remaining < 0) {
+    if (!isUnlimited && remaining < 0) {
       throw new BadRequestException('Insufficient leave balance');
     }
 
     return client.leaveBalance.update({
       where: { id: balance.id },
-      data: { remainingDays: remaining },
+      data: { remainingDays: Math.max(0, remaining) },
     });
   }
 
@@ -197,22 +199,24 @@ export class LeaveRequestsService {
       where: { employeeId, leaveTypeId: dto.leaveTypeId, year },
     });
 
-    if (!balance) {
+    if (!balance && !leaveType.isUnlimited) {
       throw new BadRequestException('لا يوجد رصيد إجازة لهذا النوع');
     }
 
-    const pendingHours = (balance as any).pendingHours ?? 0;
-    const usedHours = (balance as any).usedHours ?? 0;
-    const remainingDays = (balance.totalDays + (balance.carriedOverDays ?? 0))
-      - balance.usedDays
-      - balance.pendingDays
-      - (usedHours / shiftHours)
-      - (pendingHours / shiftHours);
+    if (balance && !leaveType.isUnlimited) {
+      const pendingHours = (balance as any).pendingHours ?? 0;
+      const usedHours = (balance as any).usedHours ?? 0;
+      const remainingDays = (balance.totalDays + (balance.carriedOverDays ?? 0))
+        - balance.usedDays
+        - balance.pendingDays
+        - (usedHours / shiftHours)
+        - (pendingHours / shiftHours);
 
-    if (equivalentDays > remainingDays) {
-      throw new BadRequestException(
-        `رصيد الإجازة غير كافٍ. المتاح: ${remainingDays.toFixed(2)} يوم`,
-      );
+      if (equivalentDays > remainingDays) {
+        throw new BadRequestException(
+          `رصيد الإجازة غير كافٍ. المتاح: ${remainingDays.toFixed(2)} يوم`,
+        );
+      }
     }
 
     // إنشاء الطلب في transaction
@@ -234,15 +238,17 @@ export class LeaveRequestsService {
         },
       });
 
-      // تحديث الأرصدة
-      await (tx as any).leaveBalance.update({
-        where: { id: balance.id },
-        data: {
-          pendingDays: { increment: equivalentDays },
-          pendingHours: { increment: durationHours },
-          remainingDays: { decrement: equivalentDays },
-        },
-      });
+      // تحديث الأرصدة (إن وُجدت)
+      if (balance) {
+        await (tx as any).leaveBalance.update({
+          where: { id: balance.id },
+          data: {
+            pendingDays: { increment: equivalentDays },
+            pendingHours: { increment: durationHours },
+            remainingDays: leaveType.isUnlimited ? undefined : { decrement: equivalentDays },
+          },
+        });
+      }
 
       return created;
     });
@@ -428,7 +434,8 @@ export class LeaveRequestsService {
       },
     });
 
-    if (balance && balance.remainingDays < request.totalDays) {
+    const isUnlimited = (request as any).leaveType?.isUnlimited ?? false;
+    if (balance && !isUnlimited && balance.remainingDays < request.totalDays) {
       throw new BadRequestException('Insufficient leave balance');
     }
 
@@ -447,7 +454,7 @@ export class LeaveRequestsService {
         include: { leaveType: true },
       });
       if (balance) {
-        await this.updateLeaveBalance(employeeId, request.leaveTypeId, year, 0, request.totalDays, tx);
+        await this.updateLeaveBalance(employeeId, request.leaveTypeId, year, 0, request.totalDays, tx, isUnlimited);
       }
       return result;
     });
@@ -555,7 +562,7 @@ export class LeaveRequestsService {
       });
       if (newStatus === 'APPROVED') {
         const year = new Date(request.startDate).getFullYear();
-        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, request.totalDays, -request.totalDays, tx);
+        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, request.totalDays, -request.totalDays, tx, request.leaveType.isUnlimited);
       }
       return result;
     });
@@ -582,6 +589,7 @@ export class LeaveRequestsService {
   async rejectByManager(id: string, dto: RejectLeaveRequestDto, managerId: string) {
     const request = await this.prisma.leaveRequest.findUnique({
       where: { id },
+      include: { leaveType: true },
     });
 
     if (!request) {
@@ -608,7 +616,7 @@ export class LeaveRequestsService {
         },
         include: { leaveType: true },
       });
-      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx);
+      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx, (request as any).leaveType?.isUnlimited);
       return result;
     });
 
@@ -621,6 +629,7 @@ export class LeaveRequestsService {
   async approveByHR(id: string, dto: ApproveLeaveRequestDto, hrUserId: string) {
     const request = await this.prisma.leaveRequest.findUnique({
       where: { id },
+      include: { leaveType: true },
     });
 
     if (!request) {
@@ -644,7 +653,7 @@ export class LeaveRequestsService {
         },
         include: { leaveType: true },
       });
-      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, request.totalDays, -request.totalDays, tx);
+      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, request.totalDays, -request.totalDays, tx, (request as any).leaveType?.isUnlimited);
       return result;
     });
 
@@ -669,6 +678,7 @@ export class LeaveRequestsService {
   async rejectByHR(id: string, dto: RejectLeaveRequestDto, hrUserId: string) {
     const request = await this.prisma.leaveRequest.findUnique({
       where: { id },
+      include: { leaveType: true },
     });
 
     if (!request) {
@@ -692,7 +702,7 @@ export class LeaveRequestsService {
         },
         include: { leaveType: true },
       });
-      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx);
+      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx, (request as any).leaveType?.isUnlimited);
       return result;
     });
 
@@ -705,6 +715,7 @@ export class LeaveRequestsService {
   async cancel(id: string, dto: CancelLeaveRequestDto, userId: string) {
     const request = await this.prisma.leaveRequest.findUnique({
       where: { id },
+      include: { leaveType: true },
     });
 
     if (!request) {
@@ -738,10 +749,11 @@ export class LeaveRequestsService {
         },
         include: { leaveType: true },
       });
+      const cancelIsUnlimited = (request as any).leaveType?.isUnlimited;
       if (oldStatus === 'APPROVED') {
-        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, -request.totalDays, 0, tx);
+        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, -request.totalDays, 0, tx, cancelIsUnlimited);
       } else if (oldStatus === 'PENDING_MANAGER' || oldStatus === 'PENDING_HR') {
-        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx);
+        await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx, cancelIsUnlimited);
       }
       return result;
     });

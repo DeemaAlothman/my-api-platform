@@ -39,6 +39,7 @@ model LeaveType {
   maxLifetimeUsage     Int?
   salaryDeductionRules Json?
   maxHoursPerMonth     Float?
+  isUnlimited          Boolean        @default(false)
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 

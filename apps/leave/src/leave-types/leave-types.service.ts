@@ -14,6 +14,7 @@ export interface CreateLeaveTypeDto {
   allowHalfDay?: boolean;
   color?: string;
   isActive?: boolean;
+  isUnlimited?: boolean;
 }
 
 export interface UpdateLeaveTypeDto {
@@ -29,6 +30,7 @@ export interface UpdateLeaveTypeDto {
   allowHalfDay?: boolean;
   color?: string;
   isActive?: boolean;
+  isUnlimited?: boolean;
 }
 
 @Injectable()
