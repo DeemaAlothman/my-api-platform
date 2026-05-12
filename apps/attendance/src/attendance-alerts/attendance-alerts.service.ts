@@ -151,4 +151,50 @@ export class AttendanceAlertsService {
     }
     return this.findAll({ ...filters, employeeId });
   }
+
+  async getMyTeamAlerts(managerEmployeeId: string, filters?: {
+    type?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number | string;
+    limit?: number | string;
+  }) {
+    const subordinates = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM users.employees WHERE "managerId" = $1 AND "deletedAt" IS NULL`,
+      managerEmployeeId,
+    );
+    if (!subordinates.length) {
+      return { items: [], page: 1, limit: 10, total: 0, totalPages: 1 };
+    }
+    const subordinateIds = subordinates.map(s => s.id);
+
+    const where: any = { employeeId: { in: subordinateIds } };
+    if (filters?.type) where.alertType = filters.type;
+    if (filters?.status) where.status = filters.status;
+    if (filters?.dateFrom || filters?.dateTo) {
+      where.date = {};
+      if (filters.dateFrom) where.date.gte = new Date(filters.dateFrom);
+      if (filters.dateTo) where.date.lte = new Date(filters.dateTo);
+    }
+
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const [alerts, total] = await Promise.all([
+      this.prisma.attendanceAlert.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      this.prisma.attendanceAlert.count({ where }),
+    ]);
+
+    const employeeIds = [...new Set(alerts.map((a: any) => a.employeeId))] as string[];
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    const items = alerts.map((alert: any) => ({
+      ...alert,
+      employee: employeeMap.get(alert.employeeId) || null,
+    }));
+
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  }
 }

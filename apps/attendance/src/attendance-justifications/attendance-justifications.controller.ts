@@ -33,6 +33,16 @@ export class AttendanceJustificationsController {
     return this.service.findMine(employeeId, query);
   }
 
+  // المدير يرى تبريرات موظفيه
+  @Get('my-team')
+  @Permission('attendance.justifications.manager-review')
+  getMyTeamJustifications(
+    @EmployeeId() employeeId: string,
+    @Query() query: ListAttendanceJustificationsQueryDto,
+  ) {
+    return this.service.getMyTeamJustifications(employeeId, query);
+  }
+
   // الإدارة: معالجة التنبيهات المنتهية مهلتها
   @Post('process-expired')
   @Permission('attendance.justifications.read')

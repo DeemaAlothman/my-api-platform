@@ -24,6 +24,15 @@ export class AttendanceAlertsController {
     return this.service.getMyAlerts(employeeId, query);
   }
 
+  @Get('my-team')
+  @Permission('attendance.alerts.read-own')
+  getMyTeamAlerts(
+    @EmployeeId() employeeId: string,
+    @Query() query: ListAttendanceAlertsQueryDto,
+  ) {
+    return this.service.getMyTeamAlerts(employeeId, query);
+  }
+
   @Post()
   @Permission('attendance.alerts.create')
   create(@Body() dto: CreateAttendanceAlertDto) {

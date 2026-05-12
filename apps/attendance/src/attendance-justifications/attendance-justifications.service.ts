@@ -171,6 +171,53 @@ export class AttendanceJustificationsService {
     return this.findAll({ employeeId, ...filters });
   }
 
+  async getMyTeamJustifications(managerEmployeeId: string, filters?: {
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number | string;
+    limit?: number | string;
+  }) {
+    const subordinates = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM users.employees WHERE "managerId" = $1 AND "deletedAt" IS NULL`,
+      managerEmployeeId,
+    );
+    if (!subordinates.length) {
+      return { items: [], page: 1, limit: 10, total: 0, totalPages: 1 };
+    }
+    const subordinateIds = subordinates.map(s => s.id);
+
+    const where: any = { employeeId: { in: subordinateIds } };
+    if (filters?.status) where.status = filters.status;
+    if (filters?.dateFrom || filters?.dateTo) {
+      where.createdAt = {};
+      if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
+      if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
+    }
+
+    const page = Math.max(1, Number(filters?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const [records, total] = await Promise.all([
+      this.prisma.attendanceJustification.findMany({
+        where,
+        include: { alert: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.attendanceJustification.count({ where }),
+    ]);
+
+    const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    const items = records.map((r: any) => ({ ...r, employee: employeeMap.get(r.employeeId) || null }));
+
+    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  }
+
   async managerReview(id: string, managerId: string, dto: ManagerReviewDto) {
     const justification = await this.findOne(id);
 
