@@ -178,7 +178,7 @@ export class LeaveRequestsService {
     }
     await this.validateMinServiceMonths(employeeId, leaveType);
     await this.validateMaxLifetimeUsage(employeeId, leaveType);
-    await this.validateMaxHoursPerMonth(employeeId, leaveType, dto.date, durationHours);
+    const overLimitHours = await this.validateMaxHoursPerMonth(employeeId, leaveType, dto.date, durationHours);
 
     // جلب ساعات وردية الموظف من attendance schema
     const shiftRows = (await this.prisma.$queryRawUnsafe(
@@ -242,6 +242,14 @@ export class LeaveRequestsService {
           durationHours,
           equivalentDays,
           status: 'PENDING_MANAGER',
+          ...(overLimitHours > 0 && {
+            deductionInfo: {
+              overLimitHours,
+              paidHours: durationHours - overLimitHours,
+              monthlyLimit: leaveType.maxHoursPerMonth,
+              reason: 'تجاوز الحد الشهري للإجازات الساعية المدفوعة',
+            },
+          }),
         },
       });
 
@@ -841,13 +849,14 @@ export class LeaveRequestsService {
     }
   }
 
+  // يرجع عدد الساعات التي تتجاوز الحد المدفوع (0 إذا كان كل شيء ضمن الحد)
   private async validateMaxHoursPerMonth(
     employeeId: string,
     leaveType: any,
     date: string,
     requestedHours: number,
-  ): Promise<void> {
-    if (!leaveType.maxHoursPerMonth) return;
+  ): Promise<number> {
+    if (!leaveType.maxHoursPerMonth) return 0;
 
     const rows = await this.prisma.$queryRawUnsafe<Array<{ total: number }>>(
       `SELECT COALESCE(SUM("durationHours"), 0)::float as total
@@ -864,11 +873,15 @@ export class LeaveRequestsService {
     );
 
     const usedHours = Number(rows[0]?.total ?? 0);
-    if (usedHours + requestedHours > leaveType.maxHoursPerMonth) {
-      throw new BadRequestException(
-        `تجاوزت الحد الأقصى للإجازات الساعية في هذا الشهر (${leaveType.maxHoursPerMonth} ساعة). المستخدم: ${usedHours.toFixed(1)} ساعة`,
-      );
+    const paidLimit = leaveType.maxHoursPerMonth;
+
+    if (usedHours >= paidLimit) {
+      return requestedHours; // كل الساعات المطلوبة خارج الحد المدفوع
     }
+    if (usedHours + requestedHours > paidLimit) {
+      return (usedHours + requestedHours) - paidLimit; // جزء منها خارج الحد
+    }
+    return 0; // كل الساعات ضمن الحد المدفوع
   }
 
   private async validateSickLeaveLimit(
