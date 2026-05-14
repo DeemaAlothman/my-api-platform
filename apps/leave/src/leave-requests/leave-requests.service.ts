@@ -154,6 +154,13 @@ export class LeaveRequestsService {
   // === إجازة ساعية ===
 
   async createHourlyLeave(dto: CreateHourlyLeaveDto, employeeId: string) {
+    if (!employeeId) {
+      throw new BadRequestException({
+        code: 'EMPLOYEE_NOT_FOUND',
+        message: 'لا يوجد سجل موظف مرتبط بحسابك',
+      });
+    }
+
     const [sh, sm] = dto.startTime.split(':').map(Number);
     const [eh, em] = dto.endTime.split(':').map(Number);
     const durationMinutes = (eh * 60 + em) - (sh * 60 + sm);
@@ -259,6 +266,13 @@ export class LeaveRequestsService {
 
   // إنشاء طلب إجازة (مسودة)
   async create(createDto: CreateLeaveRequestDto, employeeId: string) {
+    if (!employeeId) {
+      throw new BadRequestException({
+        code: 'EMPLOYEE_NOT_FOUND',
+        message: 'لا يوجد سجل موظف مرتبط بحسابك',
+      });
+    }
+
     const { leaveTypeId, startDate, endDate, isHalfDay = false, ...rest } = createDto;
 
     // التحقق من أن الموظف غير محذوف

@@ -30,6 +30,7 @@ export class EmployeeInterceptor implements NestInterceptor {
         FROM users.employees e
         INNER JOIN users.users u ON e."userId" = u.id
         WHERE u.username = ${username}
+          AND e."deletedAt" IS NULL
         LIMIT 1
       `;
 
