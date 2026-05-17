@@ -127,7 +127,13 @@ export class EmployeesService {
         deletedAt: null,
       },
       include: {
-        department: true,
+        department: {
+          include: {
+            parent: {
+              select: { id: true, nameAr: true, nameEn: true },
+            },
+          },
+        },
         jobTitle: true,
         manager: {
           select: {
@@ -193,6 +199,9 @@ export class EmployeesService {
             id: true,
             nameAr: true,
             nameEn: true,
+            parent: {
+              select: { id: true, nameAr: true, nameEn: true },
+            },
           },
         },
       },
