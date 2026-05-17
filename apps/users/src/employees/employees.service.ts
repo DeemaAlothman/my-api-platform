@@ -906,4 +906,34 @@ export class EmployeesService {
 
     return { resolvedUserIds: Array.from(resolvedSet), invalidUserIds, invalidDepartmentIds };
   }
+
+  async buildExportFullData(id: string) {
+    const employee = await this.findOne(id);
+
+    const token = process.env.INTERNAL_SERVICE_TOKEN ?? '';
+    const attendanceUrl = process.env.ATTENDANCE_SERVICE_URL || 'http://attendance:4004';
+    const leaveUrl = process.env.LEAVE_SERVICE_URL || 'http://leave:4003';
+    const evaluationUrl = process.env.EVALUATION_SERVICE_URL || 'http://evaluation:4005';
+
+    const headers = { 'x-internal-token': token };
+
+    const [attendanceSummary, leaveRequests, leaveBalances, evaluations, payrolls, alerts] = await Promise.allSettled([
+      this.http.axiosRef.get(`${attendanceUrl}/api/v1/reports/employee-summary?employeeId=${id}`, { headers }).then(r => r.data).catch(() => []),
+      this.http.axiosRef.get(`${leaveUrl}/api/v1/leave-requests?employeeId=${id}&limit=200`, { headers }).then(r => r.data?.data?.items ?? r.data ?? []).catch(() => []),
+      this.http.axiosRef.get(`${leaveUrl}/api/v1/leave-balances?employeeId=${id}`, { headers }).then(r => r.data?.data ?? r.data ?? []).catch(() => []),
+      this.http.axiosRef.get(`${evaluationUrl}/api/v1/probation-evaluations?employeeId=${id}`, { headers }).then(r => r.data?.data ?? r.data ?? []).catch(() => []),
+      this.http.axiosRef.get(`${attendanceUrl}/api/v1/payroll?employeeId=${id}&limit=12`, { headers }).then(r => r.data?.data?.items ?? r.data ?? []).catch(() => []),
+      this.http.axiosRef.get(`${attendanceUrl}/api/v1/attendance-alerts?employeeId=${id}&limit=200`, { headers }).then(r => r.data?.data?.items ?? r.data ?? []).catch(() => []),
+    ]);
+
+    return {
+      employee,
+      attendanceSummary: attendanceSummary.status === 'fulfilled' ? attendanceSummary.value : [],
+      leaveRequests: leaveRequests.status === 'fulfilled' ? leaveRequests.value : [],
+      leaveBalances: leaveBalances.status === 'fulfilled' ? leaveBalances.value : [],
+      evaluations: evaluations.status === 'fulfilled' ? evaluations.value : [],
+      payrolls: payrolls.status === 'fulfilled' ? payrolls.value : [],
+      alerts: alerts.status === 'fulfilled' ? alerts.value : [],
+    };
+  }
 }

@@ -1,8 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-const MAIL_URL = () => process.env.MAIL_SERVICE_URL || 'http://localhost:4007';
-const INTERNAL_TOKEN = () => process.env.INTERNAL_SERVICE_TOKEN || '';
 const THRESHOLDS = [30, 14, 7];
 
 @Injectable()
@@ -42,9 +40,17 @@ export class ProbationEndNotifierService implements OnModuleInit {
     const targetStr = targetDate.toISOString().split('T')[0];
 
     const employees = await this.prisma.$queryRawUnsafe(`
-      SELECT e.id, e."firstNameAr", e."lastNameAr", e."employeeNumber",
-             e."hireDate", e."probationPeriod"
+      SELECT
+        e.id,
+        e."firstNameAr",
+        e."lastNameAr",
+        e."employeeNumber",
+        e."hireDate",
+        e."probationPeriod",
+        e."userId"             AS "employeeUserId",
+        mgr."userId"           AS "managerUserId"
       FROM users.employees e
+      LEFT JOIN users.employees mgr ON mgr.id = e."directManagerId" AND mgr."deletedAt" IS NULL
       WHERE e."deletedAt" IS NULL
         AND e."employmentStatus" = 'ACTIVE'
         AND e."probationResult" IS NULL
@@ -62,26 +68,64 @@ export class ProbationEndNotifierService implements OnModuleInit {
     if (employees.length === 0) return;
 
     const hrUserIds = await this.getHRUserIds();
-    if (hrUserIds.length === 0) return;
 
     for (const emp of employees) {
+      const name = `${emp.firstNameAr} ${emp.lastNameAr} (${emp.employeeNumber})`;
+
+      // HR notifications (existing behaviour)
       for (const hrUserId of hrUserIds) {
-        await this.prisma.$queryRawUnsafe(`
-          INSERT INTO users.notifications
-            (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
-          VALUES
-            (gen_random_uuid(), $1, 'PROBATION_END_REMINDER',
-             'تنبيه انتهاء فترة التجربة', 'Probation Period Ending Soon',
-             $2, $3, false, NOW())
-        `,
+        await this.insertNotification(
           hrUserId,
-          `تنتهي فترة تجربة الموظف ${emp.firstNameAr} ${emp.lastNameAr} (${emp.employeeNumber}) خلال ${daysAhead} يوم`,
-          `Employee ${emp.firstNameAr} ${emp.lastNameAr} probation ends in ${daysAhead} days`,
+          'PROBATION_END_REMINDER',
+          'تنبيه انتهاية فترة التجربة',
+          'Probation Period Ending Soon',
+          `تنتهي فترة تجربة الموظف ${name} خلال ${daysAhead} يوم`,
+          `Employee ${name} probation ends in ${daysAhead} days`,
+        );
+      }
+
+      // Notify the employee themselves
+      if (emp.employeeUserId) {
+        await this.insertNotification(
+          emp.employeeUserId,
+          'PROBATION_END_REMINDER',
+          'اقتربت نهاية فترة تجربتك',
+          'Your Probation Period is Ending Soon',
+          `تنتهي فترة تجربتك خلال ${daysAhead} يوم`,
+          `Your probation period ends in ${daysAhead} days`,
+        );
+      }
+
+      // Notify the direct manager
+      if (emp.managerUserId) {
+        await this.insertNotification(
+          emp.managerUserId,
+          'PROBATION_END_REMINDER',
+          'تنتهي فترة تجربة موظفك',
+          'Your Employee Probation Ending Soon',
+          `تنتهي فترة تجربة الموظف ${name} خلال ${daysAhead} يوم`,
+          `Employee ${name} probation ends in ${daysAhead} days`,
         );
       }
     }
 
-    this.logger.log(`ProbationEndNotifier: ${employees.length} employee(s) ending in ${daysAhead} days notified to ${hrUserIds.length} HR users`);
+    this.logger.log(`ProbationEndNotifier: ${employees.length} employee(s) ending in ${daysAhead} days — notifications sent`);
+  }
+
+  private async insertNotification(
+    userId: string,
+    type: string,
+    titleAr: string,
+    titleEn: string,
+    messageAr: string,
+    messageEn: string,
+  ) {
+    await this.prisma.$queryRawUnsafe(`
+      INSERT INTO users.notifications
+        (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+      VALUES
+        (gen_random_uuid(), $1, $2, $3, $4, $5, $6, false, NOW())
+    `, userId, type, titleAr, titleEn, messageAr, messageEn);
   }
 
   private async getHRUserIds(): Promise<string[]> {

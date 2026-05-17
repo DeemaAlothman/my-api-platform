@@ -42,15 +42,42 @@ export class BirthdayMailerService implements OnModuleInit {
         AND e."userId" IS NOT NULL
     `, month, day) as any[];
 
+    if (employees.length === 0) return;
+
+    // Get all active employee userIds to notify (excluding the birthday employees themselves)
+    const birthdayUserIds = new Set(employees.map((e: any) => e.userId));
+    const allActive = await this.prisma.$queryRawUnsafe(`
+      SELECT "userId" FROM users.employees
+      WHERE "deletedAt" IS NULL AND "employmentStatus" = 'ACTIVE' AND "userId" IS NOT NULL
+    `) as any[];
+
     for (const emp of employees) {
+      // Send birthday email to the employee
       await this.sendBirthdayMail(emp.userId, emp.firstNameAr).catch(err =>
         this.logger.error(`Birthday mail failed for userId=${emp.userId}: ${err.message}`),
       );
+
+      // Send in-app BIRTHDAY notification to all other active employees
+      const name = `${emp.firstNameAr} ${emp.lastNameAr}`;
+      for (const active of allActive) {
+        if (birthdayUserIds.has(active.userId)) continue; // skip the birthday employee
+        await this.prisma.$queryRawUnsafe(`
+          INSERT INTO users.notifications
+            (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+          VALUES
+            (gen_random_uuid(), $1, 'BIRTHDAY',
+             $2, $3, $4, $5, false, NOW())
+        `,
+          active.userId,
+          `عيد ميلاد سعيد لزميلنا ${name}`,
+          `Happy Birthday to our colleague ${name}`,
+          `اليوم هو عيد ميلاد زميلك ${name} — لا تنسَ تهنئته!`,
+          `Today is your colleague ${name}'s birthday — don't forget to congratulate them!`,
+        ).catch(() => { /* silent fail per employee */ });
+      }
     }
 
-    if (employees.length > 0) {
-      this.logger.log(`BirthdayMailer: sent to ${employees.length} employee(s)`);
-    }
+    this.logger.log(`BirthdayMailer: sent to ${employees.length} employee(s) + notified ${allActive.length - employees.length} colleagues`);
   }
 
   private async sendBirthdayMail(userId: string, firstName: string) {

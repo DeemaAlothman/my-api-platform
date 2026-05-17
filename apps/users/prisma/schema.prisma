@@ -569,6 +569,8 @@ enum NotificationType {
   BIRTHDAY
   WELCOME
   EMPLOYEES_WITHOUT_SCHEDULE
+  ADDITIONAL_ASSIGNMENT_REQUEST
+  ADDITIONAL_ASSIGNMENT_DECISION
 }
 
 // ─── Onboarding / Offboarding ───────────────────────────────────────────────

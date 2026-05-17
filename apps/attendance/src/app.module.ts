@@ -14,6 +14,7 @@ import { DeductionPoliciesModule } from './deduction-policies/deduction-policies
 import { PayrollModule } from './payroll/payroll.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { DailyClosureModule } from './jobs/daily-closure.module';
+import { AttendanceBreaksModule } from './attendance-breaks/attendance-breaks.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
@@ -31,6 +32,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
     DeductionPoliciesModule,
     PayrollModule,
     DashboardDataModule,
+    AttendanceBreaksModule,
   ],
   providers: [
     PrismaService,

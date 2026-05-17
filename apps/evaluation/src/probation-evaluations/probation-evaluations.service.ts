@@ -105,6 +105,21 @@ export class ProbationEvaluationsService {
       },
     });
 
+    await this.recomputeScores(id);
+
+    // Notify senior manager (evaluatorId acts as direct manager in submit flow)
+    if (evaluation.seniorManagerId) {
+      const mgrUserId = await this.resolveEmployeeUserId(evaluation.seniorManagerId);
+      if (mgrUserId) {
+        await this.sendNotification(mgrUserId, 'EVALUATION_ASSIGNED',
+          'بانتظار اعتمادك لتقييم فترة تجربة موظف',
+          'Probation Evaluation Awaiting Your Review',
+          'يوجد تقييم فترة تجربة بانتظار مراجعتك واعتمادك',
+          'A probation evaluation is awaiting your review and approval',
+        );
+      }
+    }
+
     await this.logHistory(id, 'SELF_EVALUATE', performedBy, dto.notes ?? 'أكمل الموظف تقييمه الذاتي');
 
     return this.findOne(id);
@@ -186,6 +201,25 @@ export class ProbationEvaluationsService {
     }
 
     await this.prisma.probationEvaluation.update({ where: { id }, data: updateData });
+    await this.recomputeScores(id);
+
+    // Notify HR users
+    const hrRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+      SELECT DISTINCT u.id FROM users.users u
+      INNER JOIN users.user_roles ur ON ur."userId" = u.id
+      INNER JOIN users.roles r ON r.id = ur."roleId"
+      WHERE r.name IN ('HR', 'HR_Specialist', 'super_admin')
+        AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+    `);
+    for (const hr of hrRows) {
+      await this.sendNotification(hr.id, 'EVALUATION_ASSIGNED',
+        'تقييم فترة تجربة بانتظار توثيق الموارد البشرية',
+        'Probation Evaluation Awaiting HR Documentation',
+        'تم اعتماد تقييم فترة التجربة من المدير المباشر وينتظر توثيقك',
+        'A probation evaluation has been approved by the manager and awaits your documentation',
+      );
+    }
+
     await this.logHistory(id, 'SENIOR_APPROVE', performedBy, dto.notes ?? 'اعتمد المدير المباشر التقييم');
 
     return this.findOne(id);
@@ -202,6 +236,16 @@ export class ProbationEvaluationsService {
       where: { id },
       data: { status: 'REJECTED_BY_SENIOR' },
     });
+
+    // Notify evaluator (creator) of rejection
+    if (evaluation.evaluatorId) {
+      await this.sendNotification(evaluation.evaluatorId, 'EVALUATION_ASSIGNED',
+        'تم رفض تقييم فترة التجربة',
+        'Probation Evaluation Rejected',
+        'رفض المدير المباشر تقييم فترة التجربة — يرجى المراجعة',
+        'The probation evaluation was rejected by the senior manager — please review',
+      );
+    }
 
     await this.logHistory(id, 'SENIOR_REJECT', performedBy, dto.notes ?? 'رفض المدير المباشر التقييم');
 
@@ -222,6 +266,23 @@ export class ProbationEvaluationsService {
         hrManagerId: performedBy,
       },
     });
+
+    // Notify CEO/super_admin users
+    const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+      SELECT DISTINCT u.id FROM users.users u
+      INNER JOIN users.user_roles ur ON ur."userId" = u.id
+      INNER JOIN users.roles r ON r.id = ur."roleId"
+      WHERE r.name IN ('CEO', 'super_admin')
+        AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+    `);
+    for (const ceo of ceoRows) {
+      await this.sendNotification(ceo.id, 'EVALUATION_ASSIGNED',
+        'بانتظار اعتمادك النهائي لتقييم فترة تجربة',
+        'Probation Evaluation Awaiting Your Final Approval',
+        'تقييم فترة تجربة موظف بانتظار اعتمادك النهائي',
+        'A probation evaluation is awaiting your final approval',
+      );
+    }
 
     await this.logHistory(id, 'HR_DOCUMENT', performedBy, dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية');
 
@@ -261,6 +322,19 @@ export class ProbationEvaluationsService {
         overallRating: dto.overallRating ?? evaluation.overallRating,
       },
     });
+
+    // Notify employee that decision is ready and meeting needs to be scheduled
+    if (evaluation.employeeId) {
+      const empUserId = await this.resolveEmployeeUserId(evaluation.employeeId);
+      if (empUserId) {
+        await this.sendNotification(empUserId, 'PROBATION_REMINDER',
+          'صدر قرار تقييم فترة تجربتك',
+          'Your Probation Evaluation Decision is Ready',
+          'صدر قرار تقييم فترة تجربتك — سيتم التواصل معك لجدولة الاجتماع',
+          'Your probation evaluation decision has been issued — you will be contacted to schedule the meeting',
+        );
+      }
+    }
 
     await this.logHistory(id, 'CEO_DECIDE', performedBy, dto.notes ?? 'أصدر الرئيس التنفيذي قراره — في انتظار جدولة الاجتماع');
 
@@ -315,6 +389,7 @@ export class ProbationEvaluationsService {
 
     const completedAt = new Date();
 
+    await this.recomputeScores(id);
     await this.prisma.probationEvaluation.update({
       where: { id },
       data: {
@@ -413,6 +488,70 @@ export class ProbationEvaluationsService {
       where: { evaluationId: id },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  async recomputeScores(evaluationId: string) {
+    const scores = await this.prisma.probationCriteriaScore.findMany({
+      where: { evaluationId },
+    });
+    if (scores.length === 0) return;
+
+    const MAX_SCORE = 5;
+
+    const managerScores = scores.filter(s => s.score !== null && s.score !== undefined);
+    const selfScores = scores.filter(s => s.selfScore !== null && s.selfScore !== undefined);
+
+    const managerScorePercent = managerScores.length > 0
+      ? managerScores.reduce((sum, s) => sum + ((s.score! / MAX_SCORE) * 100), 0) / managerScores.length
+      : null;
+
+    const selfScorePercent = selfScores.length > 0
+      ? selfScores.reduce((sum, s) => sum + ((s.selfScore! / MAX_SCORE) * 100), 0) / selfScores.length
+      : null;
+
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id: evaluationId } });
+    const mw = (evaluation as any)?.managerWeight ?? 0.7;
+    const sw = (evaluation as any)?.selfWeight ?? 0.3;
+
+    const finalScorePercent =
+      managerScorePercent !== null && selfScorePercent !== null
+        ? managerScorePercent * mw + selfScorePercent * sw
+        : managerScorePercent ?? selfScorePercent;
+
+    await this.prisma.probationEvaluation.update({
+      where: { id: evaluationId },
+      data: {
+        managerScorePercent: managerScorePercent ?? undefined,
+        selfScorePercent: selfScorePercent ?? undefined,
+        finalScorePercent: finalScorePercent ?? undefined,
+      } as any,
+    });
+  }
+
+  private async sendNotification(
+    userId: string,
+    type: string,
+    titleAr: string,
+    titleEn: string,
+    messageAr: string,
+    messageEn: string,
+  ) {
+    try {
+      await this.prisma.$queryRawUnsafe(`
+        INSERT INTO users.notifications
+          (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+        VALUES
+          (gen_random_uuid(), $1, $2, $3, $4, $5, $6, false, NOW())
+      `, userId, type, titleAr, titleEn, messageAr, messageEn);
+    } catch { /* silent fail — notification is non-critical */ }
+  }
+
+  private async resolveEmployeeUserId(employeeId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT "userId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    );
+    return rows.length > 0 ? rows[0].userId : null;
   }
 
   private async logHistory(evaluationId: string, action: string, performedBy: string, notes: string) {
