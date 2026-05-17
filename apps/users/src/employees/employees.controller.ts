@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Put, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus, Headers, UnauthorizedException, Res } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { EmployeesService } from './employees.service';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
