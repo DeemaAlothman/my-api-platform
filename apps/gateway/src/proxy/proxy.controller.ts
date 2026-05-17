@@ -722,6 +722,21 @@ export class AuditLogsProxyController {
   }
 }
 
+@Controller('attendance-breaks')
+export class AttendanceBreaksProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  forwardWithPath(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+
+  @All()
+  forward(@Req() req: Request, @Res() res: Response) {
+    return this.proxy.forward(req, res, 'attendance');
+  }
+}
+
 @Controller('mail')
 export class MailProxyController {
   constructor(private readonly proxy: ProxyService) {}

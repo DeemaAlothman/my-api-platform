@@ -50,6 +50,7 @@ import {
   EvaluationReportsProxyController,
   AuditLogsProxyController,
   AttendanceAdminProxyController,
+  AttendanceBreaksProxyController,
   MailProxyController,
 } from './proxy.controller';
 
@@ -104,6 +105,7 @@ import {
     EvaluationReportsProxyController,
     AuditLogsProxyController,
     AttendanceAdminProxyController,
+    AttendanceBreaksProxyController,
     MailProxyController,
   ],
   providers: [ProxyService],
