@@ -21,6 +21,7 @@ const MANAGER_ONLY_REQUEST_TYPES = [
   'REWARD',
   'PENALTY_PROPOSAL',
   'OVERTIME_MANAGER',
+  'BUSINESS_MISSION',
 ];
 
 @Injectable()
@@ -81,7 +82,8 @@ export class RequestsService {
     if (MANAGER_ONLY_REQUEST_TYPES.includes(dto.type)) {
       const canCreate = permissions.includes('requests:hr-approve')
         || permissions.includes('requests:approve')
-        || permissions.includes('requests:read-all-steps');
+        || permissions.includes('requests:read-all-steps')
+        || permissions.includes('requests:manager-approve');
       if (!canCreate) {
         throw new ForbiddenException({
           code: 'AUTH_INSUFFICIENT_PERMISSIONS',
