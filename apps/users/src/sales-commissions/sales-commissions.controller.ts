@@ -13,7 +13,7 @@ export class SalesCommissionsController {
   @Post()
   @Permission('payroll.commissions.create')
   create(@Body() dto: CreateSalesCommissionDto, @Req() req: any) {
-    return this.service.create(dto, req.user.sub);
+    return this.service.create(dto, req.user.userId);
   }
 
   @Get()
@@ -47,7 +47,7 @@ export class SalesCommissionsController {
   @Post(':id/confirm')
   @Permission('payroll.commissions.confirm')
   confirm(@Param('id') id: string, @Req() req: any) {
-    return this.service.confirm(id, req.user.sub);
+    return this.service.confirm(id, req.user.userId);
   }
 
   @Delete(':id')

@@ -79,7 +79,7 @@ export class PayrollController {
   @Patch(':id/confirm')
   @Permission('attendance.payroll.confirm')
   confirm(@Param('id') id: string, @Req() req: any) {
-    const confirmedBy = req.user?.sub || 'unknown';
+    const confirmedBy = req.user?.userId || req.user?.sub || 'unknown';
     return this.service.confirm(id, confirmedBy);
   }
 

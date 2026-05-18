@@ -13,7 +13,7 @@ export class SalaryAdvancesController {
   @Post()
   @Permission('payroll.advances.create')
   create(@Body() dto: CreateSalaryAdvanceDto, @Req() req: any) {
-    return this.service.create(dto, req.user.sub);
+    return this.service.create(dto, req.user.userId);
   }
 
   @Get()
@@ -49,7 +49,7 @@ export class SalaryAdvancesController {
     @Body('reason') reason: string,
     @Req() req: any,
   ) {
-    return this.service.cancel(id, reason, req.user.sub);
+    return this.service.cancel(id, reason, req.user.userId);
   }
 
   @Delete(':id')
