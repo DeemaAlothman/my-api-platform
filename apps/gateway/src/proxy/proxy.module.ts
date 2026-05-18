@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
+import * as http from 'http';
+import * as https from 'https';
 import { ProxyService } from './proxy.service';
 import {
   AuthProxyController,
@@ -57,7 +59,12 @@ import {
 } from './proxy.controller';
 
 @Module({
-  imports: [HttpModule],
+  imports: [
+    HttpModule.register({
+      httpAgent:  new http.Agent({ keepAlive: false }),
+      httpsAgent: new https.Agent({ keepAlive: false }),
+    }),
+  ],
   controllers: [
     AuthProxyController,
     UsersProxyController,
