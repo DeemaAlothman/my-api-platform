@@ -7,13 +7,13 @@ export class AuthProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'auth');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'auth');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'auth');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'auth');
   }
 }
 
@@ -22,13 +22,13 @@ export class UsersProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -37,13 +37,13 @@ export class EmployeesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -52,13 +52,13 @@ export class DepartmentsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -67,13 +67,13 @@ export class RolesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -82,13 +82,13 @@ export class PermissionsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -97,13 +97,13 @@ export class LeaveRequestsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 }
 
@@ -112,13 +112,13 @@ export class LeaveBalancesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 }
 
@@ -127,13 +127,13 @@ export class LeaveTypesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 }
 
@@ -142,13 +142,13 @@ export class HolidaysProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 }
 
@@ -157,13 +157,13 @@ export class WorkSchedulesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -172,13 +172,13 @@ export class AttendanceRecordsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -187,13 +187,13 @@ export class AttendanceAlertsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -202,13 +202,13 @@ export class AttendanceJustificationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -217,13 +217,13 @@ export class EmployeeSchedulesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -232,13 +232,13 @@ export class EvaluationPeriodsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -247,13 +247,13 @@ export class EvaluationCriteriaProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -262,13 +262,13 @@ export class EvaluationFormsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -277,13 +277,13 @@ export class PeerEvaluationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -292,13 +292,13 @@ export class EmployeeGoalsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -307,13 +307,13 @@ export class JobTitlesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -322,13 +322,13 @@ export class JobGradesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -337,13 +337,13 @@ export class RequestsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'requests');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'requests');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'requests');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'requests');
   }
 }
 
@@ -352,13 +352,13 @@ export class AttendanceReportsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -367,13 +367,13 @@ export class CustodiesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -382,13 +382,13 @@ export class BiometricDevicesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'zkteco');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'zkteco');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'zkteco');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'zkteco');
   }
 }
 
@@ -397,13 +397,13 @@ export class EmployeeFingerprintsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'zkteco');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'zkteco');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'zkteco');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'zkteco');
   }
 }
 
@@ -412,13 +412,13 @@ export class EmployeeAttendanceConfigProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -427,13 +427,13 @@ export class IclockProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'zkteco');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'zkteco');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'zkteco');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'zkteco');
   }
 }
 
@@ -442,13 +442,13 @@ export class InterviewPositionsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 }
 
@@ -457,13 +457,13 @@ export class InterviewCriteriaProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 }
 
@@ -472,13 +472,13 @@ export class InterviewEvaluationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 }
 
@@ -487,13 +487,13 @@ export class ProbationProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -502,13 +502,13 @@ export class ProbationEvaluationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -517,13 +517,13 @@ export class ProbationCriteriaProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -532,13 +532,13 @@ export class JobApplicationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 }
 
@@ -547,13 +547,13 @@ export class CandidatesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'jobs');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'jobs');
   }
 }
 
@@ -562,13 +562,13 @@ export class DeductionPoliciesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -577,13 +577,13 @@ export class PayrollProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -592,13 +592,13 @@ export class OnboardingProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -607,13 +607,13 @@ export class NotificationsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -622,13 +622,13 @@ export class DocumentsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -637,13 +637,13 @@ export class EvaluationReportsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'evaluation');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
   }
 }
 
@@ -652,13 +652,13 @@ export class AttendanceReportsNewProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -667,13 +667,13 @@ export class LeaveReportsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'leave');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'leave');
   }
 }
 
@@ -682,13 +682,13 @@ export class HrReportsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -697,13 +697,13 @@ export class AttendanceAdminProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -712,13 +712,13 @@ export class AuditLogsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All("*path")
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, "users");
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, "users");
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, "users");
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, "users");
   }
 }
 
@@ -727,13 +727,13 @@ export class AttendanceBreaksProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'attendance');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'attendance');
   }
 }
 
@@ -742,13 +742,13 @@ export class MailProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'mail');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'mail');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'mail');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'mail');
   }
 }
 
@@ -757,13 +757,13 @@ export class SalaryAdvancesProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
 
@@ -772,12 +772,12 @@ export class SalesCommissionsProxyController {
   constructor(private readonly proxy: ProxyService) {}
 
   @All('*path')
-  forwardWithPath(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 
   @All()
-  forward(@Req() req: Request, @Res() res: Response) {
-    return this.proxy.forward(req, res, 'users');
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'users');
   }
 }
