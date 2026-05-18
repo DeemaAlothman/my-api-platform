@@ -194,6 +194,8 @@ export class EmployeesService {
         employeeNumber: true,
         employmentStatus: true,
         hireDate: true,
+        phone: true,
+        mobile: true,
         department: {
           select: {
             id: true,
