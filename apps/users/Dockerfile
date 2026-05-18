@@ -15,7 +15,7 @@ COPY apps/requests/package*.json   ./apps/requests/
 COPY apps/gateway/package*.json    ./apps/gateway/
 
 # Step 2: Install all workspace deps (CACHED if no package.json changed)
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Step 3: Copy source code (won't bust npm cache above)
 COPY packages ./packages
