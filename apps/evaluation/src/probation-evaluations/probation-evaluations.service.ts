@@ -48,13 +48,31 @@ export class ProbationEvaluationsService {
   }
 
   async findAll() {
-    return this.prisma.probationEvaluation.findMany({
+    const evaluations = await this.prisma.probationEvaluation.findMany({
       include: {
         scores: { include: { criteria: true } },
         history: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (evaluations.length === 0) return evaluations;
+
+    const employeeIds = [...new Set(evaluations.map(e => e.employeeId))];
+    const employees = await this.prisma.$queryRawUnsafe<Array<{
+      id: string; firstNameAr: string; lastNameAr: string; firstNameEn: string; lastNameEn: string; employeeNumber: string;
+    }>>(
+      `SELECT id::text, "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn", "employeeNumber"
+       FROM users.employees
+       WHERE id::text IN (${employeeIds.map((_, i) => `$${i + 1}`).join(', ')})`,
+      ...employeeIds,
+    );
+    const empMap = new Map(employees.map(e => [e.id, e]));
+
+    return evaluations.map(ev => ({
+      ...ev,
+      employee: empMap.get(ev.employeeId) ?? null,
+    }));
   }
 
   async findOne(id: string) {
