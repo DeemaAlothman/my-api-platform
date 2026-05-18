@@ -50,7 +50,7 @@ export class ProbationEndNotifierService implements OnModuleInit {
         e."userId"             AS "employeeUserId",
         mgr."userId"           AS "managerUserId"
       FROM users.employees e
-      LEFT JOIN users.employees mgr ON mgr.id = e."directManagerId" AND mgr."deletedAt" IS NULL
+      LEFT JOIN users.employees mgr ON mgr.id = e."managerId" AND mgr."deletedAt" IS NULL
       WHERE e."deletedAt" IS NULL
         AND e."employmentStatus" = 'ACTIVE'
         AND e."probationResult" IS NULL
