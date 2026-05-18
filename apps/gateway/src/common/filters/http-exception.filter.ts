@@ -8,9 +8,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    if (!(exception instanceof HttpException)) {
-      console.error('[GlobalExceptionFilter] Unexpected exception:', exception);
-    }
+    console.error('[GlobalExceptionFilter] exception caught:', exception);
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_ERROR';
