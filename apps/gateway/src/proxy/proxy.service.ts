@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { Request, Response } from 'express';
 import { firstValueFrom } from 'rxjs';
+import * as dns from 'dns';
 
 interface ServiceConfig {
   url: string;
@@ -76,18 +77,17 @@ export class ProxyService {
       });
     }
 
-    try {
-      // بناء الـ URL الكامل
-      // إزالة /api/v1 من البداية وإزالة query string
-      let targetPath = req.originalUrl.replace(/^\/api\/v1/, '').split('?')[0];
-      const targetUrl = service.noApiPrefix
-        ? `${service.url}${targetPath}`
-        : `${service.url}/api/v1${targetPath}`;
+    // بناء الـ URL والـ headers خارج try حتى يكونوا متاحين في catch
+    let targetPath = req.originalUrl.replace(/^\/api\/v1/, '').split('?')[0];
+    const targetUrl = service.noApiPrefix
+      ? `${service.url}${targetPath}`
+      : `${service.url}/api/v1${targetPath}`;
 
-      // نسخ الـ headers (بدون host)
-      const headers = { ...req.headers };
-      delete headers.host;
-      delete headers['content-length'];
+    const headers = { ...req.headers };
+    delete headers.host;
+    delete headers['content-length'];
+
+    try {
 
       // multipart/form-data: pipe raw stream directly (axios can't reconstruct it)
       const reqContentType = req.headers['content-type'] || '';
@@ -173,14 +173,46 @@ export class ProxyService {
       // binary response (PDF, image, etc.) — نرجعه كما هو
       return res.send(Buffer.from(response.data));
     } catch (error) {
-      console.error(`Error forwarding to ${serviceName}:`, error.message);
+      // إذا فشل DNS، flush الـ cache وأعد المحاولة مرة واحدة
+      if ((error as any).code === 'ENOTFOUND' || (error as any).code === 'EAI_AGAIN' || !(error as any).message) {
+        try {
+          const hostname = new URL(service.url).hostname;
+          await new Promise<void>((resolve) => dns.resolve4(hostname, () => resolve()));
+          // أعد نفس الطلب
+          const response = await firstValueFrom(
+            this.http.request({
+              method: req.method,
+              url: targetUrl,
+              headers,
+              data: req.body,
+              params: req.query,
+              validateStatus: () => true,
+              responseType: 'arraybuffer',
+            }),
+          );
+          res.status(response.status);
+          Object.keys(response.headers).forEach((key) => {
+            if (key !== 'transfer-encoding') res.setHeader(key, response.headers[key]);
+          });
+          const ct = response.headers['content-type'] || '';
+          if (ct.includes('application/json') || ct.includes('text/')) {
+            const text = Buffer.from(response.data).toString('utf8');
+            try { return res.json(JSON.parse(text)); } catch { return res.send(text); }
+          }
+          return res.send(Buffer.from(response.data));
+        } catch (retryError) {
+          console.error(`Error forwarding to ${serviceName} (retry):`, (retryError as any).message);
+        }
+      } else {
+        console.error(`Error forwarding to ${serviceName}:`, (error as any).message);
+      }
 
       return res.status(503).json({
         success: false,
         error: {
           code: 'SERVICE_UNAVAILABLE',
           message: `Service ${serviceName} is unavailable`,
-          details: [{ error: error.message }],
+          details: [{ error: (error as any).message }],
         },
       });
     }
