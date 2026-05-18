@@ -45,6 +45,20 @@ export class PayrollController {
   }
 
   /**
+   * GET /payroll/export-xlsx/:year/:month
+   * تصدير كشوف الرواتب بصيغة Excel
+   */
+  @Get('export-xlsx/:year/:month')
+  @Permission('attendance.payroll.export-xlsx')
+  async exportXlsx(
+    @Param('year') year: string,
+    @Param('month') month: string,
+    @Res() res: Response,
+  ) {
+    return this.service.exportXlsx(parseInt(year), parseInt(month), res);
+  }
+
+  /**
    * GET /payroll/:employeeId/:year/:month
    * كشف موظف محدد
    */
@@ -132,17 +146,4 @@ export class PayrollController {
     return this.service.resetMonth(parseInt(year), parseInt(month));
   }
 
-  /**
-   * GET /payroll/export-xlsx/:year/:month
-   * تصدير كشوف الرواتب بصيغة Excel
-   */
-  @Get('export-xlsx/:year/:month')
-  @Permission('attendance.payroll.export-xlsx')
-  async exportXlsx(
-    @Param('year') year: string,
-    @Param('month') month: string,
-    @Res() res: Response,
-  ) {
-    return this.service.exportXlsx(parseInt(year), parseInt(month), res);
-  }
 }
