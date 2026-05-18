@@ -124,7 +124,7 @@ export class ProbationEndNotifierService implements OnModuleInit {
       INSERT INTO users.notifications
         (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
       VALUES
-        (gen_random_uuid(), $1, $2, $3, $4, $5, $6, false, NOW())
+        (gen_random_uuid(), $1, $2::users."NotificationType", $3, $4, $5, $6, false, NOW())
     `, userId, type, titleAr, titleEn, messageAr, messageEn);
   }
 

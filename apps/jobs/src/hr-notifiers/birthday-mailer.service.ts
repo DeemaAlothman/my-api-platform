@@ -65,7 +65,7 @@ export class BirthdayMailerService implements OnModuleInit {
           INSERT INTO users.notifications
             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
           VALUES
-            (gen_random_uuid(), $1, 'BIRTHDAY',
+            (gen_random_uuid(), $1, 'BIRTHDAY'::users."NotificationType",
              $2, $3, $4, $5, false, NOW())
         `,
           active.userId,
