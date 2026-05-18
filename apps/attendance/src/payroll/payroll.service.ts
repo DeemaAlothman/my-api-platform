@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeneratePayrollDto } from './dto/generate-payroll.dto';
 
@@ -11,11 +11,18 @@ export class PayrollService {
   async generate(dto: GeneratePayrollDto) {
     const { year, month, departmentId, policyId } = dto;
 
-    // جيب كل الموظفين من users schema
+    // جيب كل الموظفين (بما فيهم غير الفاعلين — لإظهار سطر صفر للمستقيلين)
     const empSql = departmentId
-      ? `SELECT e.id, e."employeeNumber", e."departmentId" FROM users.employees e WHERE e."deletedAt" IS NULL AND e."employmentStatus" = 'ACTIVE' AND e."departmentId" = $1`
-      : `SELECT e.id, e."employeeNumber", e."departmentId" FROM users.employees e WHERE e."deletedAt" IS NULL AND e."employmentStatus" = 'ACTIVE'`;
-    const employees = (await this.prisma.$queryRawUnsafe(empSql, ...(departmentId ? [departmentId] : []))) as Array<{ id: string; employeeNumber: string; departmentId: string }>;
+      ? `SELECT e.id, e."employeeNumber", e."departmentId", e."employmentStatus", e."dailyWage"
+         FROM users.employees e
+         WHERE e."deletedAt" IS NULL AND e."departmentId" = $1`
+      : `SELECT e.id, e."employeeNumber", e."departmentId", e."employmentStatus", e."dailyWage"
+         FROM users.employees e
+         WHERE e."deletedAt" IS NULL`;
+    const employees = (await this.prisma.$queryRawUnsafe(empSql, ...(departmentId ? [departmentId] : []))) as Array<{
+      id: string; employeeNumber: string; departmentId: string;
+      employmentStatus: string; dailyWage: string | null;
+    }>;
 
     // جيب السياسة المحددة أو الافتراضية
     let policy: any = null;
@@ -30,7 +37,7 @@ export class PayrollService {
 
     // نطاق الشهر
     const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // آخر يوم في الشهر
+    const endDate = new Date(year, month, 0);
 
     let generated = 0;
     let skipped = 0;
@@ -50,7 +57,10 @@ export class PayrollService {
           continue;
         }
 
-        const result = await this.generateForEmployee(emp.id, year, month, startDate, endDate, policy);
+        const result = await this.generateForEmployee(
+          emp.id, year, month, startDate, endDate, policy,
+          emp.employmentStatus, emp.dailyWage,
+        );
         results.push({ employeeId: emp.id, status: 'ok', payrollId: result.id });
         generated++;
       } catch (err) {
@@ -69,15 +79,65 @@ export class PayrollService {
     startDate: Date,
     endDate: Date,
     policy: any,
+    employmentStatus: string,
+    dailyWageRaw: string | null,
   ) {
-    // إعدادات الحضور-راتب للموظف
+    // B: كشف صفري للموظف غير الفاعل
+    if (employmentStatus !== 'ACTIVE') {
+      const zeroData: any = {
+        employeeId, year, month,
+        workingDays: 0, presentDays: 0, absentDays: 0, absentUnjustified: 0,
+        lateDays: 0, totalLateMinutes: 0, earlyLeaveDays: 0, totalEarlyLeaveMinutes: 0,
+        breakOverLimitMinutes: 0, overtimeMinutes: 0, totalWorkedMinutes: 0, netWorkedMinutes: 0,
+        lateDeductionMinutes: 0, earlyLeaveDeductionMinutes: 0, breakDeductionMinutes: 0,
+        absenceDeductionDays: 0, repeatLatePenaltyDays: 0, totalDeductionMinutes: 0,
+        salaryLinked: false, status: 'DRAFT', generatedAt: new Date(),
+        basicSalary: 0, allowancesTotal: 0, allowancesBreakdown: '{}',
+        overtimePay: 0, deductionAmount: 0, absenceDeductionAmount: 0,
+        bonusAmount: 0, penaltyAmount: 0, grossSalary: 0, netSalary: 0,
+        roundedNetSalary: 0, currency: 'USD',
+        dailyRate: 0, minuteRate: 0, overtimeRateMultiplier: 1.5,
+        deductibleBaseSalary: 0, excludedAllowancesAmount: 0,
+        totalLateMinutesGross: 0, totalLateMinutesEffective: 0, totalCompensationMinutes: 0,
+        workingDaysInMonth: 0, employeeWorkingDays: 0, proRationFactor: 0,
+        paidLeaveDays: 0, unpaidLeaveDays: 0, unpaidLeaveAmount: 0,
+        sickLeaveDays: 0, hourlyLeaveMinutes: 0, hourlyLeaveAmount: 0,
+        overtimeWorkdayMinutes: 0, overtimeWorkdayPay: 0,
+        overtimeHolidayMinutes: 0, overtimeHolidayPay: 0,
+        internalMissionDays: 0, internalMissionAmount: 0,
+        externalMissionDays: 0, externalMissionAmount: 0,
+        commissionAmount: 0, advanceDeduction: 0,
+        otherDeductionAmount: 0, otherDeductionNotes: null,
+        employmentStatusAtGenTime: employmentStatus,
+        notes: 'مستقيل',
+      };
+      return this.prisma.monthlyPayroll.upsert({
+        where: { employeeId_year_month: { employeeId, year, month } },
+        create: zeroData,
+        update: { employmentStatusAtGenTime: employmentStatus, notes: 'مستقيل' },
+      });
+    }
+
+    // I: احفظ الخصومات اليدوية من مسودة موجودة
+    const existingPayroll = await this.prisma.monthlyPayroll.findUnique({
+      where: { employeeId_year_month: { employeeId, year, month } },
+      select: { otherDeductionAmount: true, otherDeductionNotes: true, status: true },
+    });
+    const otherDeductionAmount = existingPayroll?.status === 'DRAFT'
+      ? Number(existingPayroll.otherDeductionAmount ?? 0)
+      : 0;
+    const otherDeductionNotes = existingPayroll?.status === 'DRAFT'
+      ? existingPayroll.otherDeductionNotes ?? null
+      : null;
+
+    // إعدادات الحضور-راتب
     const config = await this.prisma.employeeAttendanceConfig.findUnique({
       where: { employeeId },
     });
     const salaryLinked = config?.salaryLinked ?? true;
     const allowedBreakMinutes = config?.allowedBreakMinutes ?? 60;
 
-    // جيب كل سجلات الحضور للشهر
+    // سجلات الحضور للشهر
     const records = await this.prisma.attendanceRecord.findMany({
       where: {
         employeeId,
@@ -86,30 +146,64 @@ export class PayrollService {
       include: { breaks: true },
     });
 
-    // احسب أيام العمل من الجدول الزمني مع مصفوفة أيام الأسبوع
+    // أيام العمل من الجدول الزمني
     const { count: workingDays, workDaysArray, dailyWorkMinutes } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
 
-    // جلب الإجازات المعتمدة من leaves schema (لاستثنائها من الغياب)
-    const approvedLeaves = await this.prisma.$queryRawUnsafe(
-      `SELECT "startDate"::date as "startDate", "endDate"::date as "endDate"
-       FROM leaves.leave_requests
-       WHERE "employeeId" = $1 AND status = 'APPROVED'
-         AND "startDate" <= $2 AND "endDate" >= $3`,
-      employeeId, endDate, startDate,
-    ) as Array<{ startDate: Date; endDate: Date }>;
+    // D: جلب الإجازات المعتمدة مع نوعها (يحل محل استعلامَي approvedLeaves و unpaidDailyLeaves القديمَيْن)
+    const leavesWithType = await this.prisma.$queryRawUnsafe(`
+      SELECT lr."startDate", lr."endDate", lr."totalDays",
+             lr."isHourlyLeave", lr."durationHours",
+             lt.code as "typeCode", lt."isPaid"
+      FROM leaves.leave_requests lr
+      JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+      WHERE lr."employeeId" = $1 AND lr.status = 'APPROVED'
+        AND lr."deletedAt" IS NULL
+        AND lr."startDate" <= $2 AND lr."endDate" >= $3
+    `, employeeId, endDate, startDate) as Array<{
+      startDate: Date; endDate: Date; totalDays: number;
+      isHourlyLeave: boolean; durationHours: number | null;
+      typeCode: string; isPaid: boolean;
+    }>;
 
+    // بناء مجموعة أيام الإجازات (للاستثناء من الغياب) + تصنيف الإجازات
     const approvedLeaveDates = new Set<string>();
-    for (const leave of approvedLeaves) {
-      const d = new Date(leave.startDate);
-      const end = new Date(leave.endDate);
-      while (d <= end) {
-        if (d >= startDate && d <= endDate)
-          approvedLeaveDates.add(d.toISOString().split('T')[0]);
-        d.setDate(d.getDate() + 1);
+    let paidLeaveDays = 0;
+    let unpaidLeaveDays = 0;
+    let sickLeaveDays = 0;
+    let hourlyLeaveMinutes = 0;
+    let totalUnpaidDailyDays = 0;
+
+    for (const leave of leavesWithType) {
+      if (!leave.isHourlyLeave) {
+        const d = new Date(leave.startDate);
+        const end = new Date(leave.endDate);
+        while (d <= end) {
+          if (d >= startDate && d <= endDate)
+            approvedLeaveDates.add(d.toISOString().split('T')[0]);
+          d.setDate(d.getDate() + 1);
+        }
       }
+
+      if (leave.isHourlyLeave) {
+        hourlyLeaveMinutes += Math.round((leave.durationHours || 0) * 60);
+        continue;
+      }
+      if (leave.typeCode === 'SICK') {
+        sickLeaveDays += Number(leave.totalDays);
+        continue;
+      }
+      if (leave.typeCode === 'UNPAID_DAILY') {
+        totalUnpaidDailyDays += Number(leave.totalDays);
+        continue;
+      }
+      if (leave.typeCode === 'UNPAID' || !leave.isPaid) {
+        unpaidLeaveDays += Number(leave.totalDays);
+        continue;
+      }
+      paidLeaveDays += Number(leave.totalDays);
     }
 
-    // جلب العطل الرسمية من leaves schema
+    // العطل الرسمية
     const holidays = await this.prisma.$queryRawUnsafe(
       `SELECT date::date as date FROM leaves.holidays WHERE date >= $1 AND date <= $2`,
       startDate, endDate,
@@ -126,12 +220,14 @@ export class PayrollService {
     let totalEarlyLeaveMinutes = 0;
     let breakOverLimitMinutes = 0;
     let overtimeMinutes = 0;
+    let overtimeWorkdayMinutes = 0; // E: جديد
+    let overtimeHolidayMinutes = 0; // E: جديد
     let totalWorkedMinutes = 0;
     let netWorkedMinutes = 0;
 
     const recordedDates = new Set(records.map(r => r.date.toISOString().split('T')[0]));
 
-    // جلب التبريرات المقبولة دفعة واحدة
+    // التبريرات المقبولة للغياب
     const absentRecordIds = records.filter(r => r.status === 'ABSENT').map(r => r.id);
     const justifiedIds = new Set<string>();
     if (absentRecordIds.length > 0) {
@@ -142,7 +238,7 @@ export class PayrollService {
       justifications.forEach(j => justifiedIds.add(j.attendanceRecordId));
     }
 
-    // جلب التبريرات المقبولة للتأخير (deductionMinutes = الدقائق المبررة)
+    // التبريرات المقبولة للتأخير
     const lateRecordIds = records.filter(r => r.lateMinutes > 0).map(r => r.id);
     let justifiedLateMinutes = 0;
     if (lateRecordIds.length > 0) {
@@ -164,11 +260,9 @@ export class PayrollService {
       }
       if (['WEEKEND', 'HOLIDAY', 'ON_LEAVE'].includes(r.status)) continue;
 
-      // MISSING_CLOCK_OUT: بصم دخول فقط ولم يبصم خروج — بعد 48 ساعة يُعتبر نصف يوم
       if ((r as any).clockInTime && !(r as any).clockOutTime) {
         const daysSince = Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000);
-        if (daysSince < 2) continue; // أقل من 48 ساعة — HR لم تتدخل بعد
-        // أكثر من 48 ساعة → نصف يوم للراتب
+        if (daysSince < 2) continue;
         presentDays++;
         const halfMinutes = Math.floor(dailyWorkMinutes / 2);
         totalWorkedMinutes += halfMinutes;
@@ -181,6 +275,9 @@ export class PayrollService {
       totalWorkedMinutes += r.workedMinutes || 0;
       netWorkedMinutes += r.netWorkedMinutes || r.workedMinutes || 0;
       overtimeMinutes += r.overtimeMinutes || 0;
+      // E: إضافي مقسوم
+      overtimeWorkdayMinutes += (r as any).overtimeWorkdayMinutes || 0;
+      overtimeHolidayMinutes += (r as any).overtimeHolidayMinutes || 0;
 
       if (r.lateMinutes > 0) { lateDays++; totalLateMinutes += r.lateMinutes; }
       if (r.earlyLeaveMinutes > 0) { earlyLeaveDays++; totalEarlyLeaveMinutes += r.earlyLeaveMinutes; }
@@ -189,7 +286,7 @@ export class PayrollService {
       if (totalBreak > allowedBreakMinutes) breakOverLimitMinutes += totalBreak - allowedBreakMinutes;
     }
 
-    // أيام العمل بدون سجل حضور → غياب (ما لم تكن إجازة معتمدة أو عطلة)
+    // أيام العمل بدون سجل حضور → غياب
     const current = new Date(startDate);
     while (current <= endDate) {
       const dateStr = current.toISOString().split('T')[0];
@@ -210,7 +307,6 @@ export class PayrollService {
     let repeatLatePenaltyDaysCalc = 0;
 
     if (salaryLinked && policy) {
-      // حسم التأخير
       const effectiveLateMinutes = Math.max(0, totalLateMinutes - (policy.lateToleranceMinutes * lateDays));
       lateDeductionMinutes = this.calcDeduction(
         effectiveLateMinutes,
@@ -218,25 +314,20 @@ export class PayrollService {
         policy.lateDeductionTiers,
       );
 
-      // حسم الخروج المبكر
       earlyLeaveDeductionMinutes = this.calcDeduction(
         totalEarlyLeaveMinutes,
         policy.earlyLeaveDeductionType,
         null,
       );
 
-      // حسم الغياب
       absenceDeductionDaysCalc = absentUnjustified * policy.absenceDeductionDays;
 
-      // حسم الخروج المؤقت الزائد
       if (policy.breakOverLimitDeduction === 'MINUTE_BY_MINUTE') {
         breakDeductionMinutes = breakOverLimitMinutes;
       } else if (policy.breakOverLimitDeduction === 'DOUBLE') {
         breakDeductionMinutes = breakOverLimitMinutes * 2;
       }
-      // IGNORE → 0
 
-      // عقوبة التأخيرات المتكررة
       if (policy.repeatLateThreshold && lateDays > policy.repeatLateThreshold) {
         repeatLatePenaltyDaysCalc = policy.repeatLatePenaltyDays || 0;
       }
@@ -256,8 +347,17 @@ export class PayrollService {
     `;
 
     const basicSalary = empFinancial[0]?.basicSalary ? parseFloat(empFinancial[0].basicSalary) : 0;
-    const currency = empFinancial[0]?.salaryCurrency || 'SYP';
+    const currency = 'USD';
     const hireDate = empFinancial[0]?.hireDate ? new Date(empFinancial[0].hireDate) : null;
+
+    // C: منطق الأجر اليومي
+    const dailyWage = dailyWageRaw ? parseFloat(String(dailyWageRaw)) : 0;
+    let effectiveBasicSalary = basicSalary;
+    let isDailyWageEmployee = false;
+    if (dailyWage > 0) {
+      effectiveBasicSalary = dailyWage * presentDays;
+      isDailyWageEmployee = true;
+    }
 
     const allowancesRaw = await this.prisma.$queryRaw<Array<{ type: string; amount: string }>>`
       SELECT type, amount FROM users.employee_allowances
@@ -271,7 +371,7 @@ export class PayrollService {
       allowancesTotal += parseFloat(a.amount);
     }
 
-    // === استثناء البدلات المحددة في السياسة (مثل بدل الطعام) ===
+    // استثناء البدلات المحددة في السياسة
     let excludedTypes: string[] = ['FOOD'];
     if (policy?.excludedAllowanceTypes) {
       try {
@@ -285,30 +385,39 @@ export class PayrollService {
     for (const a of allowancesRaw) {
       if (excludedTypes.includes(a.type)) excludedAllowancesAmount += parseFloat(a.amount);
     }
-    const deductibleBase = basicSalary + allowancesTotal - excludedAllowancesAmount;
+    const deductibleBase = effectiveBasicSalary + allowancesTotal - excludedAllowancesAmount;
 
-    // === Pro-rating للموظف الجديد ===
+    // Pro-rating للموظف الجديد
     const effectiveStart = hireDate && hireDate > startDate ? hireDate : startDate;
     const employeeWorkingDays = this.countWorkingDaysInRange(effectiveStart, endDate, workDaysArray);
     const proRationFactor = workingDays > 0 ? Math.min(1, employeeWorkingDays / workingDays) : 1.0;
     const proRatedDeductible = deductibleBase * proRationFactor;
 
-    // === معدل الدقيقة المبني على القاعدة القابلة للخصم ===
+    // معدلات الدقيقة واليوم والساعة
     const totalShiftMinutes = dailyWorkMinutes * workingDays;
     const minuteRate = totalShiftMinutes > 0 ? proRatedDeductible / totalShiftMinutes : 0;
     const dailyRate = workingDays > 0 ? proRatedDeductible / workingDays : 0;
-    const overtimeRateMultiplier = 1.5;
+    const hourlyRate = minuteRate * 60;
 
-    // === سماحية التأخير الشهرية (2 ساعة افتراضياً) ===
+    // E: حساب الإضافي المقسوم
+    const overtimeWorkdayPay = overtimeWorkdayMinutes * minuteRate * 1.5;
+    const overtimeHolidayPay = overtimeHolidayMinutes * minuteRate *
+      Number(policy?.holidayOvertimeMultiplier ?? 2.0);
+    const overtimePay = overtimeWorkdayPay + overtimeHolidayPay;
+
+    // D: مبالغ الإجازات
+    const unpaidLeaveAmount = unpaidLeaveDays * dailyRate;
+    const hourlyLeaveAmount = hourlyLeaveMinutes * minuteRate;
+    const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
+
+    // سماحية التأخير الشهرية
     const totalCompensationMinutes = records.reduce(
       (sum, r) => sum + ((r as any).lateCompensatedMinutes || 0), 0,
     );
-    // خصم التعويض والتبريرات المعتمدة من إجمالي دقائق التأخير
     const totalLateMinutesEffective = Math.max(0, totalLateMinutes - totalCompensationMinutes - justifiedLateMinutes);
     const monthlyTolerance = policy?.monthlyLateToleranceMinutes ?? 120;
     const deductibleLateMinutes = Math.max(0, totalLateMinutesEffective - monthlyTolerance);
 
-    // إعادة حساب lateDeductionMinutes بالسماحية الشهرية
     lateDeductionMinutes = this.calcDeduction(
       deductibleLateMinutes,
       policy?.lateDeductionType ?? 'MINUTE_BY_MINUTE',
@@ -318,9 +427,8 @@ export class PayrollService {
     const deductionAmount = (lateDeductionMinutes + earlyLeaveDeductionMinutes + breakDeductionMinutes) * minuteRate;
     const absenceDeductionAmount = absenceDeductionDaysCalc * dailyRate;
     const repeatLatePenaltyAmount = repeatLatePenaltyDaysCalc * dailyRate;
-    const overtimePay = overtimeMinutes * minuteRate * overtimeRateMultiplier;
 
-    // خصم الإجازة المرضية حسب salaryDeductionRules
+    // خصم الإجازة المرضية حسب deductionInfo
     const sickLeaveRequests = await this.prisma.$queryRaw<Array<{ id: string; deductionInfo: any }>>`
       SELECT lr.id, lr."deductionInfo"
       FROM leaves.leave_requests lr
@@ -354,25 +462,7 @@ export class PayrollService {
       }
     }
 
-    // خصم إجازة UNPAID_DAILY (كل يومين نصف يوم = يوم كامل حسم)
-    const unpaidDailyLeaves = await this.prisma.$queryRaw<Array<{ totalDays: string }>>`
-      SELECT lr."totalDays"
-      FROM leaves.leave_requests lr
-      JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
-      WHERE lr."employeeId" = ${employeeId}
-        AND lt.code = 'UNPAID_DAILY'
-        AND lr.status = 'APPROVED'
-        AND lr."startDate" <= ${endDate}
-        AND lr."endDate" >= ${startDate}
-        AND lr."deletedAt" IS NULL
-    `;
-
-    let totalUnpaidDailyDays = 0;
-    for (const leave of unpaidDailyLeaves) {
-      totalUnpaidDailyDays += Number(leave.totalDays);
-    }
-    const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
-
+    // إجمالي خصومات الحضور (التأخير + المرضية + UNPAID_DAILY)
     const totalDeductionAmount = deductionAmount + sickLeaveDeductionAmount + unpaidDailyDeductionAmount;
 
     // === مكافآت وجزاءات من requests schema ===
@@ -382,7 +472,6 @@ export class PayrollService {
     const penaltyDetailsList: Array<{ requestId: string; amount: number; description: string }> = [];
 
     try {
-      // REWARD: طلبات مكافأة معتمدة تشمل هذا الموظف في الفترة
       const rewardRequests = await this.prisma.$queryRawUnsafe(
         `SELECT id, details FROM requests.requests
          WHERE type = 'REWARD' AND status = 'APPROVED'
@@ -392,9 +481,9 @@ export class PayrollService {
       ) as Array<{ id: string; details: any }>;
 
       for (const req of rewardRequests) {
-        const employees: Array<{ employeeId: string; amount: number; reason: string }> =
+        const empArr: Array<{ employeeId: string; amount: number; reason: string }> =
           req.details?.employees ?? [];
-        for (const e of employees) {
+        for (const e of empArr) {
           if (e.employeeId === employeeId && e.amount > 0) {
             bonusAmount += e.amount;
             bonusDetailsList.push({ requestId: req.id, amount: e.amount, reason: e.reason ?? '' });
@@ -402,7 +491,6 @@ export class PayrollService {
         }
       }
 
-      // PENALTY_PROPOSAL: جزاءات معتمدة تستهدف هذا الموظف في الفترة
       const penaltyRequests = await this.prisma.$queryRawUnsafe(
         `SELECT id, details FROM requests.requests
          WHERE type = 'PENALTY_PROPOSAL' AND status = 'APPROVED'
@@ -424,14 +512,103 @@ export class PayrollService {
         }
       }
     } catch (err) {
-      console.error(`[payroll] failed to load reward/penalty requests for employee ${employeeId}:`, (err as any)?.message);
+      console.error(`[payroll] reward/penalty load failed for ${employeeId}:`, (err as any)?.message);
     }
 
-    const grossSalary = (basicSalary + allowancesTotal) * proRationFactor + overtimePay;
-    const netSalary = parseFloat(Math.max(0, grossSalary + bonusAmount - totalDeductionAmount - absenceDeductionAmount - repeatLatePenaltyAmount - penaltyAmount).toFixed(2));
+    // F: المهمات
+    let internalMissionDays = 0;
+    let externalMissionDays = 0;
+    const internalRate = Number(policy?.internalMissionDailyRate ?? 0);
+    const externalRate = Number(policy?.externalMissionDailyRate ?? 0);
 
-    // أنشئ أو حدّث كشف الراتب
-    const data = {
+    try {
+      const missionRequests = await this.prisma.$queryRawUnsafe(`
+        SELECT id, details FROM requests.requests
+        WHERE type = 'BUSINESS_MISSION' AND status = 'APPROVED'
+          AND "deletedAt" IS NULL
+          AND ("employeeId" = $1 OR (details->>'targetEmployeeId') = $1)
+          AND (details->>'startDate')::date <= $2
+          AND (details->>'endDate')::date >= $3
+      `, employeeId, endDate, startDate) as Array<{ id: string; details: any }>;
+
+      for (const m of missionRequests) {
+        const days = parseFloat(m.details?.totalDays ?? '0') || 0;
+        if (m.details?.missionType === 'INTERNAL') internalMissionDays += days;
+        else if (m.details?.missionType === 'EXTERNAL') externalMissionDays += days;
+      }
+    } catch (err) {
+      console.error(`[payroll] missions load failed for ${employeeId}:`, (err as any)?.message);
+    }
+
+    const internalMissionAmount = internalMissionDays * internalRate;
+    const externalMissionAmount = externalMissionDays * externalRate;
+
+    // G: عمولات المبيعات المعتمدة
+    let commissionAmount = 0;
+    try {
+      const commissions = await this.prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(amount::numeric), 0) as total
+        FROM users.sales_commissions
+        WHERE "employeeId" = $1 AND year = $2 AND month = $3
+          AND status = 'CONFIRMED' AND "deletedAt" IS NULL
+      `, employeeId, year, month) as Array<{ total: string }>;
+      commissionAmount = parseFloat(commissions[0]?.total ?? '0') || 0;
+    } catch (err) {
+      console.error(`[payroll] commissions load failed for ${employeeId}:`, (err as any)?.message);
+    }
+
+    // H: السلف — اقرأ الأقساط المستحقة (التطبيق في transaction أدناه)
+    let advanceDeduction = 0;
+    const installmentsToCreate: Array<{ advanceId: string; amount: number }> = [];
+
+    try {
+      const activeAdvances = await this.prisma.$queryRawUnsafe(`
+        SELECT id, "installmentAmount", "remainingBalance", "totalInstallments", "paidInstallments"
+        FROM users.salary_advances
+        WHERE "employeeId" = $1 AND status = 'ACTIVE' AND "deletedAt" IS NULL
+          AND ("startYear" < $2 OR ("startYear" = $2 AND "startMonth" <= $3))
+          AND "remainingBalance" > 0
+      `, employeeId, year, month) as Array<{
+        id: string; installmentAmount: string; remainingBalance: string;
+        totalInstallments: number; paidInstallments: number;
+      }>;
+
+      for (const adv of activeAdvances) {
+        const installment = Math.min(
+          parseFloat(adv.installmentAmount),
+          parseFloat(adv.remainingBalance),
+        );
+        if (installment > 0) {
+          advanceDeduction += installment;
+          installmentsToCreate.push({ advanceId: adv.id, amount: installment });
+        }
+      }
+    } catch (err) {
+      console.error(`[payroll] advances load failed for ${employeeId}:`, (err as any)?.message);
+    }
+
+    // J: حساب الإجمالي والصافي المحدّث
+    const grossSalary = (effectiveBasicSalary + allowancesTotal) * proRationFactor
+      + overtimePay
+      + internalMissionAmount + externalMissionAmount;
+
+    const netSalaryRaw = Math.max(
+      0,
+      grossSalary + bonusAmount + commissionAmount
+        - totalDeductionAmount    // التأخير + المرضية + UNPAID_DAILY
+        - absenceDeductionAmount  // الغياب
+        - repeatLatePenaltyAmount // عقوبة التكرار
+        - unpaidLeaveAmount       // إجازة بدون راتب (UNPAID)
+        - hourlyLeaveAmount       // إجازة ساعية
+        - advanceDeduction        // قسط السلفة
+        - otherDeductionAmount    // خصم يدوي
+        - penaltyAmount,          // جزاء
+    );
+    const netSalary = parseFloat(netSalaryRaw.toFixed(2));
+    const roundedNetSalary = Math.round(netSalary);
+
+    // بناء كائن البيانات
+    const data: any = {
       employeeId,
       year,
       month,
@@ -457,11 +634,17 @@ export class PayrollService {
       policyId: policy?.id || null,
       status: 'DRAFT',
       generatedAt: new Date(),
-      // الحقول المالية
-      basicSalary,
+      // مالية
+      basicSalary: effectiveBasicSalary,
+      dailyWageSnapshot: dailyWage > 0 ? dailyWage : null,
+      hourlyRate: parseFloat(hourlyRate.toFixed(6)),
       allowancesTotal,
       allowancesBreakdown: JSON.stringify(allowancesBreakdownMap),
       overtimePay: parseFloat(overtimePay.toFixed(2)),
+      overtimeWorkdayMinutes,
+      overtimeWorkdayPay: parseFloat(overtimeWorkdayPay.toFixed(2)),
+      overtimeHolidayMinutes,
+      overtimeHolidayPay: parseFloat(overtimeHolidayPay.toFixed(2)),
       deductionAmount: parseFloat(totalDeductionAmount.toFixed(2)),
       absenceDeductionAmount: parseFloat(absenceDeductionAmount.toFixed(2)),
       bonusAmount: parseFloat(bonusAmount.toFixed(2)),
@@ -470,11 +653,11 @@ export class PayrollService {
       penaltyDetails: penaltyDetailsList.length > 0 ? JSON.stringify(penaltyDetailsList) : null,
       grossSalary: parseFloat(grossSalary.toFixed(2)),
       netSalary,
+      roundedNetSalary,
       currency,
       dailyRate: parseFloat(dailyRate.toFixed(4)),
       minuteRate: parseFloat(minuteRate.toFixed(6)),
-      overtimeRateMultiplier,
-      // حقول قواعد العمل الجديدة
+      overtimeRateMultiplier: 1.5,
       deductibleBaseSalary: parseFloat(deductibleBase.toFixed(2)),
       excludedAllowancesAmount: parseFloat(excludedAllowancesAmount.toFixed(2)),
       totalLateMinutesGross: totalLateMinutes,
@@ -483,6 +666,27 @@ export class PayrollService {
       workingDaysInMonth: workingDays,
       employeeWorkingDays,
       proRationFactor: parseFloat(proRationFactor.toFixed(4)),
+      // إجازات مفصّلة
+      paidLeaveDays,
+      unpaidLeaveDays,
+      unpaidLeaveAmount: parseFloat(unpaidLeaveAmount.toFixed(2)),
+      sickLeaveDays,
+      hourlyLeaveMinutes,
+      hourlyLeaveAmount: parseFloat(hourlyLeaveAmount.toFixed(2)),
+      // مهمات
+      internalMissionDays,
+      internalMissionAmount: parseFloat(internalMissionAmount.toFixed(2)),
+      externalMissionDays,
+      externalMissionAmount: parseFloat(externalMissionAmount.toFixed(2)),
+      // عمولات وسلف وخصومات أخرى
+      commissionAmount: parseFloat(commissionAmount.toFixed(2)),
+      advanceDeduction: parseFloat(advanceDeduction.toFixed(2)),
+      otherDeductionAmount: parseFloat(otherDeductionAmount.toFixed(2)),
+      otherDeductionNotes,
+      employmentStatusAtGenTime: employmentStatus,
+      notes: isDailyWageEmployee
+        ? `أجر يومي = ${dailyWage}$ × ${presentDays} يوم`
+        : null,
       deductionBreakdown: {
         lateDeduction: parseFloat((lateDeductionMinutes * minuteRate).toFixed(2)),
         absenceDeduction: parseFloat(absenceDeductionAmount.toFixed(2)),
@@ -495,20 +699,91 @@ export class PayrollService {
           total: parseFloat(unpaidDailyDeductionAmount.toFixed(2)),
           days: parseFloat(totalUnpaidDailyDays.toFixed(1)),
         },
-        totalDeduction: parseFloat(totalDeductionAmount.toFixed(2)),
+        unpaidLeaveDeduction: parseFloat(unpaidLeaveAmount.toFixed(2)),
+        hourlyLeaveDeduction: parseFloat(hourlyLeaveAmount.toFixed(2)),
+        advanceDeduction: parseFloat(advanceDeduction.toFixed(2)),
+        otherDeduction: parseFloat(otherDeductionAmount.toFixed(2)),
+        totalDeduction: parseFloat((
+          totalDeductionAmount + absenceDeductionAmount + repeatLatePenaltyAmount
+          + unpaidLeaveAmount + hourlyLeaveAmount + advanceDeduction
+          + otherDeductionAmount + penaltyAmount
+        ).toFixed(2)),
       },
+      // K: appliedPolicySnapshot موسّع
       appliedPolicySnapshot: policy ? {
         policyId: policy.id,
+        nameAr: policy.nameAr,
+        lateToleranceMinutes: policy.lateToleranceMinutes,
+        lateDeductionType: policy.lateDeductionType,
+        lateDeductionTiers: policy.lateDeductionTiers,
+        earlyLeaveDeductionType: policy.earlyLeaveDeductionType,
+        absenceDeductionDays: policy.absenceDeductionDays,
+        repeatLateThreshold: policy.repeatLateThreshold,
+        repeatLatePenaltyDays: policy.repeatLatePenaltyDays,
+        breakOverLimitDeduction: policy.breakOverLimitDeduction,
         monthlyLateToleranceMinutes: policy.monthlyLateToleranceMinutes ?? 120,
         excludedAllowanceTypes: excludedTypes,
+        holidayOvertimeMultiplier: policy.holidayOvertimeMultiplier ?? 2.0,
+        internalMissionDailyRate: policy.internalMissionDailyRate ?? 0,
+        externalMissionDailyRate: policy.externalMissionDailyRate ?? 0,
         effectiveFrom: policy.effectiveFrom ?? null,
       } : null,
     };
 
-    return this.prisma.monthlyPayroll.upsert({
-      where: { employeeId_year_month: { employeeId, year, month } },
-      create: data,
-      update: { ...data, confirmedBy: null, confirmedAt: null },
+    // H: Transaction — نظّف السلف القديمة، upsert الكشف، أنشئ الأقساط الجديدة
+    return this.prisma.$transaction(async (tx) => {
+      // احذف installments القديمة لنفس الموظف/الشهر (حالة إعادة التوليد)
+      const existingInstallments = await tx.$queryRawUnsafe(`
+        SELECT id, "advanceId", amount FROM users.salary_advance_installments
+        WHERE year = $1 AND month = $2 AND "advanceId" IN (
+          SELECT id FROM users.salary_advances WHERE "employeeId" = $3
+        )
+      `, year, month, employeeId) as Array<{ id: string; advanceId: string; amount: string }>;
+
+      for (const ei of existingInstallments) {
+        await tx.$executeRawUnsafe(`
+          UPDATE users.salary_advances
+          SET "remainingBalance" = "remainingBalance" + $1,
+              "paidInstallments" = GREATEST(0, "paidInstallments" - 1),
+              status = CASE WHEN status = 'COMPLETED' THEN 'ACTIVE' ELSE status END
+          WHERE id = $2
+        `, ei.amount, ei.advanceId);
+      }
+      await tx.$executeRawUnsafe(`
+        DELETE FROM users.salary_advance_installments
+        WHERE year = $1 AND month = $2 AND "advanceId" IN (
+          SELECT id FROM users.salary_advances WHERE "employeeId" = $3
+        )
+      `, year, month, employeeId);
+
+      // upsert الكشف
+      const payroll = await tx.monthlyPayroll.upsert({
+        where: { employeeId_year_month: { employeeId, year, month } },
+        create: data,
+        update: { ...data, confirmedBy: null, confirmedAt: null },
+      });
+
+      // أنشئ الأقساط الجديدة وحدّث رصيد السلف
+      for (const inst of installmentsToCreate) {
+        await tx.$executeRawUnsafe(`
+          INSERT INTO users.salary_advance_installments
+          ("id", "advanceId", year, month, amount, "payrollId")
+          VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+        `, inst.advanceId, year, month, inst.amount, payroll.id);
+
+        await tx.$executeRawUnsafe(`
+          UPDATE users.salary_advances
+          SET "remainingBalance" = "remainingBalance" - $1,
+              "paidInstallments" = "paidInstallments" + 1,
+              status = CASE
+                WHEN ("remainingBalance" - $1) <= 0.01 THEN 'COMPLETED'
+                ELSE status
+              END
+          WHERE id = $2
+        `, inst.amount, inst.advanceId);
+      }
+
+      return payroll;
     });
   }
 
@@ -523,12 +798,11 @@ export class PayrollService {
             return tier.deductMinutes;
           }
         }
-        // إذا تجاوز كل الشرائح → آخر شريحة
         const last = tiers[tiers.length - 1];
         if (last && minutes >= last.from) return last.deductMinutes;
       } catch {}
     }
-    return minutes; // fallback
+    return minutes;
   }
 
   private countWorkingDaysInRange(from: Date, to: Date, workDaysArray: number[]): number {
@@ -552,13 +826,12 @@ export class PayrollService {
       include: { schedule: true },
     });
 
-    let workDaysArray: number[] = [0, 1, 2, 3, 4]; // افتراضي: أحد-خميس
+    let workDaysArray: number[] = [0, 1, 2, 3, 4];
     if (schedule?.schedule?.workDays) {
       try { workDaysArray = JSON.parse(schedule.schedule.workDays); } catch {}
     }
 
-    // احسب dailyWorkMinutes من الجدول الفعلي
-    let dailyWorkMinutes = 480; // 8 ساعات افتراضي
+    let dailyWorkMinutes = 480;
     if (schedule?.schedule?.workStartTime && schedule?.schedule?.workEndTime) {
       const [sh, sm] = schedule.schedule.workStartTime.split(':').map(Number);
       const [eh, em] = schedule.schedule.workEndTime.split(':').map(Number);
@@ -629,7 +902,6 @@ export class PayrollService {
     });
     if (!payroll) throw new NotFoundException('كشف الراتب غير موجود');
 
-    // جلب بيانات الموظف
     const empData = await this.prisma.$queryRaw<Array<{
       employeeNumber: string;
       firstNameAr: string;
@@ -648,7 +920,7 @@ export class PayrollService {
       WHERE e.id = ${employeeId}
     `;
 
-    const emp = empData[0] as { employeeNumber: string; firstNameAr: string; lastNameAr: string; firstNameEn: string | null; lastNameEn: string | null; jobTitle: string | null; departmentName: string | null; hireDate: Date | null } | undefined;
+    const emp = empData[0] as typeof empData[0] | undefined;
     const allowancesBreakdown = payroll.allowancesBreakdown
       ? JSON.parse(payroll.allowancesBreakdown)
       : {};
@@ -680,15 +952,34 @@ export class PayrollService {
         lateDays: payroll.lateDays,
         totalLateMinutes: payroll.totalLateMinutes,
         overtimeMinutes: payroll.overtimeMinutes,
+        overtimeWorkdayMinutes: (payroll as any).overtimeWorkdayMinutes ?? 0,
+        overtimeHolidayMinutes: (payroll as any).overtimeHolidayMinutes ?? 0,
+      },
+      leaves: {
+        paidLeaveDays: (payroll as any).paidLeaveDays ?? 0,
+        unpaidLeaveDays: (payroll as any).unpaidLeaveDays ?? 0,
+        sickLeaveDays: (payroll as any).sickLeaveDays ?? 0,
+        hourlyLeaveMinutes: (payroll as any).hourlyLeaveMinutes ?? 0,
+      },
+      missions: {
+        internalMissionDays: (payroll as any).internalMissionDays ?? 0,
+        internalMissionAmount: Number((payroll as any).internalMissionAmount ?? 0),
+        externalMissionDays: (payroll as any).externalMissionDays ?? 0,
+        externalMissionAmount: Number((payroll as any).externalMissionAmount ?? 0),
       },
       salary: {
-        currency: payroll.currency || 'SYP',
+        currency: payroll.currency || 'USD',
         basicSalary: payroll.basicSalary ? Number(payroll.basicSalary) : 0,
+        dailyWageSnapshot: (payroll as any).dailyWageSnapshot ? Number((payroll as any).dailyWageSnapshot) : null,
+        hourlyRate: Number((payroll as any).hourlyRate ?? 0),
         allowances: {
           total: payroll.allowancesTotal ? Number(payroll.allowancesTotal) : 0,
           breakdown: allowancesBreakdown,
         },
         overtimePay: payroll.overtimePay ? Number(payroll.overtimePay) : 0,
+        overtimeWorkdayPay: Number((payroll as any).overtimeWorkdayPay ?? 0),
+        overtimeHolidayPay: Number((payroll as any).overtimeHolidayPay ?? 0),
+        commissionAmount: Number((payroll as any).commissionAmount ?? 0),
         grossSalary: payroll.grossSalary ? Number(payroll.grossSalary) : 0,
         bonusAmount: payroll.bonusAmount ? Number(payroll.bonusAmount) : 0,
         bonusDetails: payroll.bonusDetails ? JSON.parse(payroll.bonusDetails) : [],
@@ -697,12 +988,22 @@ export class PayrollService {
         deductions: {
           attendanceDeduction: payroll.deductionAmount ? Number(payroll.deductionAmount) : 0,
           absenceDeduction: payroll.absenceDeductionAmount ? Number(payroll.absenceDeductionAmount) : 0,
-          totalDeduction: (payroll.deductionAmount ? Number(payroll.deductionAmount) : 0)
-                        + (payroll.absenceDeductionAmount ? Number(payroll.absenceDeductionAmount) : 0),
+          unpaidLeaveAmount: Number((payroll as any).unpaidLeaveAmount ?? 0),
+          hourlyLeaveAmount: Number((payroll as any).hourlyLeaveAmount ?? 0),
+          advanceDeduction: Number((payroll as any).advanceDeduction ?? 0),
+          otherDeductionAmount: Number((payroll as any).otherDeductionAmount ?? 0),
+          otherDeductionNotes: (payroll as any).otherDeductionNotes ?? null,
+          totalDeduction: payroll.deductionBreakdown
+            ? (payroll.deductionBreakdown as any).totalDeduction ?? 0
+            : (payroll.deductionAmount ? Number(payroll.deductionAmount) : 0)
+              + (payroll.absenceDeductionAmount ? Number(payroll.absenceDeductionAmount) : 0),
         },
         netSalary: payroll.netSalary ? Number(payroll.netSalary) : 0,
+        roundedNetSalary: (payroll as any).roundedNetSalary ?? Math.round(payroll.netSalary ? Number(payroll.netSalary) : 0),
       },
       status: payroll.status,
+      employmentStatusAtGenTime: (payroll as any).employmentStatusAtGenTime ?? null,
+      notes: (payroll as any).notes ?? null,
       policy: payroll.policy,
       generatedAt: payroll.generatedAt,
       confirmedBy: payroll.confirmedBy,
@@ -726,14 +1027,15 @@ export class PayrollService {
       allowancesTotal: p.allowancesTotal ? Number(p.allowancesTotal) : 0,
       overtimePay: p.overtimePay ? Number(p.overtimePay) : 0,
       grossSalary: p.grossSalary ? Number(p.grossSalary) : 0,
-      totalDeductions: (p.deductionAmount ? Number(p.deductionAmount) : 0)
-                     + (p.absenceDeductionAmount ? Number(p.absenceDeductionAmount) : 0),
+      totalDeductions: (p.deductionBreakdown as any)?.totalDeduction
+        ?? ((p.deductionAmount ? Number(p.deductionAmount) : 0)
+          + (p.absenceDeductionAmount ? Number(p.absenceDeductionAmount) : 0)),
       netSalary: p.netSalary ? Number(p.netSalary) : 0,
+      roundedNetSalary: (p as any).roundedNetSalary ?? Math.round(p.netSalary ? Number(p.netSalary) : 0),
     }));
 
-    const totalNet = summary.reduce((sum, p) => sum + p.netSalary, 0);
+    const totalNet = summary.reduce((sum, p) => sum + p.roundedNetSalary, 0);
 
-    // تحديث الحالة إلى EXPORTED
     await this.prisma.monthlyPayroll.updateMany({
       where: { year, month, status: 'CONFIRMED' },
       data: { status: 'EXPORTED' },
@@ -746,5 +1048,72 @@ export class PayrollService {
       totalNetSalary: parseFloat(totalNet.toFixed(2)),
       payrolls: summary,
     };
+  }
+
+  // ==================== Phase 7 — endpoints إضافية ====================
+
+  async updateOtherDeduction(id: string, amount: number, notes?: string) {
+    const payroll = await this.prisma.monthlyPayroll.findUnique({ where: { id } });
+    if (!payroll) throw new NotFoundException('الكشف غير موجود');
+    if (payroll.status !== 'DRAFT')
+      throw new BadRequestException('لا يمكن تعديل كشف معتمد — اطلب إعادة فتحه');
+
+    const newNet = Math.max(0,
+      Number(payroll.netSalary) + Number((payroll as any).otherDeductionAmount ?? 0) - amount,
+    );
+
+    return this.prisma.monthlyPayroll.update({
+      where: { id },
+      data: {
+        otherDeductionAmount: amount,
+        otherDeductionNotes: notes ?? null,
+        netSalary: newNet,
+        roundedNetSalary: Math.round(newNet),
+      } as any,
+    });
+  }
+
+  async updateNote(id: string, notes: string) {
+    const payroll = await this.prisma.monthlyPayroll.findUnique({ where: { id } });
+    if (!payroll) throw new NotFoundException('الكشف غير موجود');
+    return this.prisma.monthlyPayroll.update({
+      where: { id },
+      data: { notes } as any,
+    });
+  }
+
+  async resetMonth(year: number, month: number) {
+    const draftPayrolls = await this.prisma.monthlyPayroll.findMany({
+      where: { year, month, status: 'DRAFT' },
+      select: { id: true, employeeId: true },
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      for (const p of draftPayrolls) {
+        const installments = await tx.$queryRawUnsafe(`
+          SELECT id, "advanceId", amount FROM users.salary_advance_installments
+          WHERE year = $1 AND month = $2 AND "payrollId" = $3
+        `, year, month, p.id) as Array<{ id: string; advanceId: string; amount: string }>;
+
+        for (const i of installments) {
+          await tx.$executeRawUnsafe(`
+            UPDATE users.salary_advances
+            SET "remainingBalance" = "remainingBalance" + $1,
+                "paidInstallments" = GREATEST(0, "paidInstallments" - 1),
+                status = CASE WHEN status = 'COMPLETED' THEN 'ACTIVE' ELSE status END
+            WHERE id = $2
+          `, i.amount, i.advanceId);
+        }
+        await tx.$executeRawUnsafe(`
+          DELETE FROM users.salary_advance_installments WHERE "payrollId" = $1
+        `, p.id);
+      }
+
+      const deleted = await tx.monthlyPayroll.deleteMany({
+        where: { year, month, status: 'DRAFT' },
+      });
+
+      return { deletedPayrolls: deleted.count, year, month };
+    });
   }
 }

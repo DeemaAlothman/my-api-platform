@@ -94,4 +94,40 @@ export class PayrollController {
   ) {
     return this.service.exportMonth(parseInt(year), parseInt(month));
   }
+
+  /**
+   * PATCH /payroll/:id/other-deduction
+   * تعديل الخصم الآخر (يدوي) على كشف DRAFT
+   */
+  @Patch(':id/other-deduction')
+  @Permission('attendance.payroll.edit-other-deduction')
+  updateOtherDeduction(
+    @Param('id') id: string,
+    @Body() body: { amount: number; notes?: string },
+  ) {
+    return this.service.updateOtherDeduction(id, body.amount, body.notes);
+  }
+
+  /**
+   * PATCH /payroll/:id/note
+   * تعديل ملاحظات الكشف
+   */
+  @Patch(':id/note')
+  @Permission('attendance.payroll.edit-notes')
+  updateNote(@Param('id') id: string, @Body() body: { notes: string }) {
+    return this.service.updateNote(id, body.notes);
+  }
+
+  /**
+   * POST /payroll/reset/:year/:month
+   * حذف كشوف DRAFT لشهر معين مع إرجاع أرصدة السلف
+   */
+  @Post('reset/:year/:month')
+  @Permission('attendance.payroll.generate')
+  resetMonth(
+    @Param('year') year: string,
+    @Param('month') month: string,
+  ) {
+    return this.service.resetMonth(parseInt(year), parseInt(month));
+  }
 }
