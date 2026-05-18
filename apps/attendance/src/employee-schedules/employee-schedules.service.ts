@@ -11,25 +11,39 @@ export class EmployeeSchedulesService {
     if (employeeIds.length === 0) return new Map<string, any>();
 
     const employees = (await this.prisma.$queryRawUnsafe(
-      `SELECT id, "employeeNumber", "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn"
-       FROM users.employees
-       WHERE id::text = ANY($1::text[])`,
-      employeeIds,
-    )) as Array<{
-      id: string;
-      employeeNumber: string;
-      firstNameAr: string;
-      lastNameAr: string;
-      firstNameEn: string | null;
-      lastNameEn: string | null;
-    }>;
+      `SELECT
+         e.id::text,
+         e."employeeNumber",
+         e."firstNameAr", e."lastNameAr",
+         e."firstNameEn", e."lastNameEn",
+         e."email", e."phone", e."mobile",
+         e."hireDate", e."employmentStatus",
+         e."jobTitleId",
+         e."departmentId",
+         d."nameAr"  AS "departmentNameAr",
+         d."nameEn"  AS "departmentNameEn",
+         jt."nameAr" AS "jobTitleNameAr",
+         jt."nameEn" AS "jobTitleNameEn"
+       FROM users.employees e
+       LEFT JOIN users.departments d  ON d.id = e."departmentId"
+       LEFT JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+       WHERE e.id::text IN (${employeeIds.map((_, i) => `$${i + 1}`).join(', ')})`,
+      ...employeeIds,
+    )) as Array<any>;
 
     return new Map(employees.map(e => [e.id, {
       employeeNumber: e.employeeNumber,
-      firstNameAr: e.firstNameAr,
-      lastNameAr: e.lastNameAr,
-      firstNameEn: e.firstNameEn,
-      lastNameEn: e.lastNameEn,
+      firstNameAr:    e.firstNameAr,
+      lastNameAr:     e.lastNameAr,
+      firstNameEn:    e.firstNameEn,
+      lastNameEn:     e.lastNameEn,
+      email:          e.email,
+      phone:          e.phone,
+      mobile:         e.mobile,
+      hireDate:       e.hireDate,
+      employmentStatus: e.employmentStatus,
+      department: e.departmentId ? { id: e.departmentId, nameAr: e.departmentNameAr, nameEn: e.departmentNameEn } : null,
+      jobTitle:   e.jobTitleId   ? { id: e.jobTitleId,   nameAr: e.jobTitleNameAr,   nameEn: e.jobTitleNameEn   } : null,
     }]));
   }
 
