@@ -125,6 +125,20 @@ export const PERMISSIONS = {
     EDIT_OTHER_DEDUCTION: 'attendance.payroll.edit-other-deduction',
     EDIT_NOTES:           'attendance.payroll.edit-notes',
   },
+  PAYROLL_ADVANCES: {
+    READ:   'payroll.advances.read',
+    CREATE: 'payroll.advances.create',
+    UPDATE: 'payroll.advances.update',
+    CANCEL: 'payroll.advances.cancel',
+    DELETE: 'payroll.advances.delete',
+  },
+  PAYROLL_COMMISSIONS: {
+    READ:    'payroll.commissions.read',
+    CREATE:  'payroll.commissions.create',
+    UPDATE:  'payroll.commissions.update',
+    CONFIRM: 'payroll.commissions.confirm',
+    DELETE:  'payroll.commissions.delete',
+  },
   ATTENDANCE_ALERTS: {
     READ:     'attendance.alerts.read',
     READ_OWN: 'attendance.alerts.read-own',

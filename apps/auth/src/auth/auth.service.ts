@@ -359,6 +359,8 @@ export class AuthService {
       'attendance.policies.read', 'attendance.policies.create', 'attendance.policies.update', 'attendance.policies.delete',
       'attendance.payroll.generate', 'attendance.payroll.read', 'attendance.payroll.confirm', 'attendance.payroll.export',
       'attendance.payroll.export-xlsx', 'attendance.payroll.edit-other-deduction', 'attendance.payroll.edit-notes',
+      'payroll.advances.read', 'payroll.advances.create', 'payroll.advances.update', 'payroll.advances.cancel', 'payroll.advances.delete',
+      'payroll.commissions.read', 'payroll.commissions.create', 'payroll.commissions.update', 'payroll.commissions.confirm', 'payroll.commissions.delete',
       'probation:view-all', 'probation:submit', 'probation:senior-review', 'probation:hr-review',
       'probation:ceo-review', 'probation:acknowledge',
     ];

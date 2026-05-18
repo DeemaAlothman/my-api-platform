@@ -36,9 +36,11 @@ WORKDIR /app
 
 COPY --from=builder /app/apps/users/package*.json ./
 RUN npm install --omit=dev --legacy-peer-deps
-COPY --from=builder /app/apps/users/dist   ./dist
-COPY --from=builder /app/apps/users/prisma ./prisma
+COPY --from=builder /app/apps/users/dist      ./dist
+COPY --from=builder /app/apps/users/prisma    ./prisma
+COPY apps/users/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 
 EXPOSE 4002
-CMD ["node", "dist/apps/users/src/main.js"]
+CMD ["./entrypoint.sh"]

@@ -46,7 +46,17 @@ export class DeductionPoliciesService {
         data: { isDefault: false },
       });
     }
-    return this.prisma.deductionPolicy.update({ where: { id }, data: dto });
+    const confirmedCount = await this.prisma.monthlyPayroll.count({
+      where: { policyId: id, status: { in: ['CONFIRMED', 'EXPORTED'] } },
+    });
+    const data = await this.prisma.deductionPolicy.update({ where: { id }, data: dto });
+    if (confirmedCount > 0) {
+      return {
+        warning: `هذه السياسة مستخدمة في ${confirmedCount} كشف معتمد — التعديل لن يؤثر عليها (محفوظة snapshot)، فقط على الكشوف المستقبلية.`,
+        data,
+      };
+    }
+    return data;
   }
 
   async remove(id: string) {
