@@ -41,7 +41,10 @@ export class SalaryAdvancesService {
 
     return this.prisma.salaryAdvance.findMany({
       where,
-      include: { installments: { orderBy: { year: 'asc' } } },
+      include: {
+        installments: { orderBy: { year: 'asc' } },
+        employee: { select: { id: true, firstNameAr: true, lastNameAr: true, employeeNumber: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -49,7 +52,10 @@ export class SalaryAdvancesService {
   async findOne(id: string) {
     const advance = await this.prisma.salaryAdvance.findFirst({
       where: { id, deletedAt: null },
-      include: { installments: { orderBy: { year: 'asc' } } },
+      include: {
+        installments: { orderBy: { year: 'asc' } },
+        employee: { select: { id: true, firstNameAr: true, lastNameAr: true, employeeNumber: true } },
+      },
     });
     if (!advance) throw new NotFoundException('السلفة غير موجودة');
     return advance;

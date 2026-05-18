@@ -35,6 +35,9 @@ export class SalesCommissionsService {
 
     return this.prisma.salesCommission.findMany({
       where,
+      include: {
+        employee: { select: { id: true, firstNameAr: true, lastNameAr: true, employeeNumber: true } },
+      },
       orderBy: [{ year: 'desc' }, { month: 'desc' }, { createdAt: 'desc' }],
     });
   }
@@ -42,6 +45,9 @@ export class SalesCommissionsService {
   async findOne(id: string) {
     const commission = await this.prisma.salesCommission.findFirst({
       where: { id, deletedAt: null },
+      include: {
+        employee: { select: { id: true, firstNameAr: true, lastNameAr: true, employeeNumber: true } },
+      },
     });
     if (!commission) throw new NotFoundException('العمولة غير موجودة');
     return commission;
