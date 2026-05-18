@@ -116,8 +116,8 @@ export class EmployeesService {
       ? await this.prisma.$queryRawUnsafe<Array<{ employeeId: string; salaryLinked: boolean; allowedBreakMinutes: number }>>(
           `SELECT "employeeId", "salaryLinked", "allowedBreakMinutes"
            FROM attendance.employee_attendance_configs
-           WHERE "employeeId" = ANY($1::uuid[])`,
-          employeeIds,
+           WHERE "employeeId" IN (${employeeIds.map((_, i) => `$${i + 1}::uuid`).join(', ')})`,
+          ...employeeIds,
         )
       : [];
     const configMap = new Map(configs.map(c => [c.employeeId, c]));
