@@ -16,8 +16,10 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ProbationEndNotifierService } from './hr-notifiers/probation-end-notifier.service';
 import { ContractEndNotifierService } from './hr-notifiers/contract-end-notifier.service';
 import { BirthdayMailerService } from './hr-notifiers/birthday-mailer.service';
+import { HrNotifiersTriggerController } from './hr-notifiers/hr-notifiers-trigger.controller';
 
 @Module({
+  controllers: [HrNotifiersTriggerController],
   imports: [
     PassportModule,
     JwtModule.register({
