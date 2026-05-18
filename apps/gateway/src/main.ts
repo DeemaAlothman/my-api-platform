@@ -26,6 +26,13 @@ function createLogger(service: string) {
   });
 }
 
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT EXCEPTION]', err?.message, err?.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[UNHANDLED REJECTION]', reason);
+});
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false, // نتحكم نحن بالـ body parser

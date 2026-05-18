@@ -66,6 +66,7 @@ export class ProxyService {
   async forward(req: Request, res: Response, serviceName: string) {
     console.log(`[ProxyService] ${req.method} ${req.originalUrl} → ${serviceName}`);
     const service = this.services.get(serviceName);
+    console.log(`[ProxyService] service found: ${!!service}`);
 
     if (!service) {
       return res.status(404).json({
