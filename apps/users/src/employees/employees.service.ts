@@ -104,12 +104,6 @@ export class EmployeesService {
           attachments: true,
           trainingCertificates: true,
           allowances: true,
-          attendanceConfig: {
-            select: {
-              salaryLinked: true,
-              allowedBreakMinutes: true,
-            },
-          },
         },
       }),
       this.prisma.employee.count({ where }),
@@ -117,8 +111,24 @@ export class EmployeesService {
 
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
+    const employeeIds = items.map(e => e.id);
+    const configs = employeeIds.length
+      ? await this.prisma.$queryRawUnsafe<Array<{ employeeId: string; salaryLinked: boolean; allowedBreakMinutes: number }>>(
+          `SELECT "employeeId", "salaryLinked", "allowedBreakMinutes"
+           FROM attendance.employee_attendance_configs
+           WHERE "employeeId" = ANY($1::uuid[])`,
+          employeeIds,
+        )
+      : [];
+    const configMap = new Map(configs.map(c => [c.employeeId, c]));
+
+    const itemsWithConfig = items.map(e => ({
+      ...e,
+      attendanceConfig: configMap.get(e.id) ?? null,
+    }));
+
     return {
-      items: includeManagerNotes ? items : items.map(e => this.stripManagerNotes(e)),
+      items: includeManagerNotes ? itemsWithConfig : itemsWithConfig.map(e => this.stripManagerNotes(e)),
       page,
       limit,
       total,
