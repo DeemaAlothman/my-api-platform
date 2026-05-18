@@ -1,7 +1,8 @@
 import {
   Controller, Get, Post, Patch,
-  Param, Body, Query, UseGuards, Req,
+  Param, Body, Query, UseGuards, Req, Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { PayrollService } from './payroll.service';
 import { GeneratePayrollDto } from './dto/generate-payroll.dto';
 import { JwtAuthGuard } from '@shared/auth';
@@ -129,5 +130,19 @@ export class PayrollController {
     @Param('month') month: string,
   ) {
     return this.service.resetMonth(parseInt(year), parseInt(month));
+  }
+
+  /**
+   * GET /payroll/export-xlsx/:year/:month
+   * تصدير كشوف الرواتب بصيغة Excel
+   */
+  @Get('export-xlsx/:year/:month')
+  @Permission('attendance.payroll.export-xlsx')
+  async exportXlsx(
+    @Param('year') year: string,
+    @Param('month') month: string,
+    @Res() res: Response,
+  ) {
+    return this.service.exportXlsx(parseInt(year), parseInt(month), res);
   }
 }

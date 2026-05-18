@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeneratePayrollDto } from './dto/generate-payroll.dto';
+import { sendExcel } from '../common/utils/excel.util';
 
 @Injectable()
 export class PayrollService {
@@ -1048,6 +1050,101 @@ export class PayrollService {
       totalNetSalary: parseFloat(totalNet.toFixed(2)),
       payrolls: summary,
     };
+  }
+
+  // ==================== XLSX Export ====================
+
+  async exportXlsx(year: number, month: number, res: Response) {
+    const payrolls = await this.prisma.monthlyPayroll.findMany({
+      where: { year, month },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const empIds = payrolls.map(p => p.employeeId);
+    let employees: any[] = [];
+    if (empIds.length > 0) {
+      employees = await this.prisma.$queryRawUnsafe(`
+        SELECT e.id, e."firstNameAr", e."lastNameAr", e."workType",
+               jt."nameAr" as "jobTitleAr"
+        FROM users.employees e
+        LEFT JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+        WHERE e.id = ANY($1::text[])
+      `, empIds) as any[];
+    }
+    const empMap = new Map(employees.map(e => [e.id, e]));
+
+    const workTypeAr = (wt: string | null): string => {
+      switch (wt) {
+        case 'FULL_TIME': return 'كامل';
+        case 'PART_TIME': return 'جزئي';
+        case 'REMOTE': return 'أونلاين';
+        default: return '—';
+      }
+    };
+
+    const headers = [
+      'اسم الموظف', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب المقطوع',
+      'بدل الطعام', 'الأجر الساعي', 'إجازات بأجر', 'إجازات بلا راتب',
+      'قيمة الإجازات بلا راتب', 'إجازات مرضية', 'قيمة الإجازات المرضية',
+      'إجازات ساعية', 'قيمة الإجازات الساعية', 'التأخير (د)', 'قيمة التأخير',
+      'إضافي أيام عادية (س)', 'قيمة إضافي عادي',
+      'إضافي أيام عطل (س)', 'قيمة إضافي عطل',
+      'أيام مهمة داخلية', 'قيمة المهمات الداخلية',
+      'أيام مهمة خارجية', 'قيمة المهمات الخارجية',
+      'مكافآت', 'عمولة مبيعات', 'سلف', 'خصومات أخرى',
+      'الراتب الصافي', 'تقريب', 'ملاحظات',
+    ];
+
+    const rows = payrolls.map(p => {
+      const emp = empMap.get(p.employeeId);
+      const allowances = p.allowancesBreakdown ? JSON.parse(p.allowancesBreakdown as string) : {};
+      const bd = p.deductionBreakdown as any;
+      return [
+        `${emp?.firstNameAr ?? ''} ${emp?.lastNameAr ?? ''}`.trim() || '—',
+        emp?.jobTitleAr ?? '—',
+        workTypeAr(emp?.workType),
+        Number(p.basicSalary ?? 0),
+        Number(allowances.FOOD ?? 0),
+        Number((p as any).hourlyRate ?? 0),
+        Number((p as any).paidLeaveDays ?? 0),
+        Number((p as any).unpaidLeaveDays ?? 0),
+        Number((p as any).unpaidLeaveAmount ?? 0),
+        Number((p as any).sickLeaveDays ?? 0),
+        Number(bd?.sickLeaveDeduction?.total ?? 0),
+        parseFloat((Number((p as any).hourlyLeaveMinutes ?? 0) / 60).toFixed(2)),
+        Number((p as any).hourlyLeaveAmount ?? 0),
+        Number(p.totalLateMinutesEffective ?? 0),
+        Number(bd?.lateDeduction ?? 0),
+        parseFloat((Number((p as any).overtimeWorkdayMinutes ?? 0) / 60).toFixed(2)),
+        Number((p as any).overtimeWorkdayPay ?? 0),
+        parseFloat((Number((p as any).overtimeHolidayMinutes ?? 0) / 60).toFixed(2)),
+        Number((p as any).overtimeHolidayPay ?? 0),
+        Number((p as any).internalMissionDays ?? 0),
+        Number((p as any).internalMissionAmount ?? 0),
+        Number((p as any).externalMissionDays ?? 0),
+        Number((p as any).externalMissionAmount ?? 0),
+        Number(p.bonusAmount ?? 0),
+        Number((p as any).commissionAmount ?? 0),
+        Number((p as any).advanceDeduction ?? 0),
+        Number((p as any).otherDeductionAmount ?? 0),
+        Number(p.netSalary ?? 0),
+        Number((p as any).roundedNetSalary ?? Math.round(Number(p.netSalary ?? 0))),
+        (p as any).notes ?? '',
+      ];
+    });
+
+    // صف الإجمالي
+    const totalNet = payrolls.reduce((s, p) => s + Number((p as any).roundedNetSalary ?? Math.round(Number(p.netSalary ?? 0))), 0);
+    rows.push([
+      'إجمالي كتلة الرواتب', '', '', '', '', '', '', '', '', '', '', '', '',
+      '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+      '', totalNet, '',
+    ]);
+
+    const monthNames = ['','يناير','فبراير','مارس','أبريل','مايو','يونيو',
+                        'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+
+    await sendExcel(res, `رواتب-${monthNames[month]}-${year}`, headers, rows);
   }
 
   // ==================== Phase 7 — endpoints إضافية ====================

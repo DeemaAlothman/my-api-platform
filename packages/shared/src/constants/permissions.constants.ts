@@ -117,10 +117,13 @@ export const PERMISSIONS = {
     DELETE: 'attendance.employee-schedules.delete',
   },
   ATTENDANCE_PAYROLL: {
-    READ:    'attendance.payroll.read',
-    GENERATE:'attendance.payroll.generate',
-    CONFIRM: 'attendance.payroll.confirm',
-    EXPORT:  'attendance.payroll.export',
+    READ:                 'attendance.payroll.read',
+    GENERATE:             'attendance.payroll.generate',
+    CONFIRM:              'attendance.payroll.confirm',
+    EXPORT:               'attendance.payroll.export',
+    EXPORT_XLSX:          'attendance.payroll.export-xlsx',
+    EDIT_OTHER_DEDUCTION: 'attendance.payroll.edit-other-deduction',
+    EDIT_NOTES:           'attendance.payroll.edit-notes',
   },
   ATTENDANCE_ALERTS: {
     READ:     'attendance.alerts.read',

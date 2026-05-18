@@ -358,6 +358,7 @@ export class AuthService {
       'job-applications:read', 'job-applications:update', 'job-applications:ceo-approve',
       'attendance.policies.read', 'attendance.policies.create', 'attendance.policies.update', 'attendance.policies.delete',
       'attendance.payroll.generate', 'attendance.payroll.read', 'attendance.payroll.confirm', 'attendance.payroll.export',
+      'attendance.payroll.export-xlsx', 'attendance.payroll.edit-other-deduction', 'attendance.payroll.edit-notes',
       'probation:view-all', 'probation:submit', 'probation:senior-review', 'probation:hr-review',
       'probation:ceo-review', 'probation:acknowledge',
     ];
