@@ -104,6 +104,12 @@ export class EmployeesService {
           attachments: true,
           trainingCertificates: true,
           allowances: true,
+          attendanceConfig: {
+            select: {
+              salaryLinked: true,
+              allowedBreakMinutes: true,
+            },
+          },
         },
       }),
       this.prisma.employee.count({ where }),
