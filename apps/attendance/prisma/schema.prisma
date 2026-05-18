@@ -123,6 +123,10 @@ model AttendanceRecord {
   overtimeMinutes Int?
   breakMinutes    Int?
 
+  // تقسيم الإضافي
+  overtimeWorkdayMinutes Int @default(0)
+  overtimeHolidayMinutes Int @default(0)
+
   // Status: PRESENT, ABSENT, LATE, EARLY_LEAVE, HALF_DAY, ON_LEAVE, HOLIDAY, WEEKEND
   status String @default("PRESENT")
 
@@ -390,6 +394,11 @@ model DeductionPolicy {
   // MINUTE_BY_MINUTE | IGNORE | DOUBLE
   breakOverLimitDeduction String  @default("MINUTE_BY_MINUTE")
 
+  // معاملات إضافية
+  holidayOvertimeMultiplier   Decimal  @db.Decimal(5, 2) @default(2.0)
+  internalMissionDailyRate    Decimal  @db.Decimal(15, 2) @default(0)
+  externalMissionDailyRate    Decimal  @db.Decimal(15, 2) @default(0)
+
   // Business rules fields
   monthlyLateToleranceMinutes Int      @default(120)
   excludedAllowanceTypes      Json     @default("[\"FOOD\"]")
@@ -451,10 +460,44 @@ model MonthlyPayroll {
   penaltyDetails         String?  // JSON: [{ requestId, amount, description }]
   grossSalary            Decimal? @db.Decimal(15, 2)
   netSalary              Decimal? @db.Decimal(15, 2)
-  currency               String?  @default("SYP")
+  currency               String?  @default("USD")
   dailyRate              Decimal? @db.Decimal(15, 2)
   minuteRate             Decimal? @db.Decimal(15, 4)
   overtimeRateMultiplier Decimal? @db.Decimal(5, 2) @default(1.5)
+
+  // أجر يومي
+  hourlyRate              Decimal? @db.Decimal(15, 4) @default(0)
+  dailyWageSnapshot       Decimal? @db.Decimal(15, 2)
+
+  // الإجازات بالتفصيل
+  paidLeaveDays           Float    @default(0)
+  unpaidLeaveDays         Float    @default(0)
+  unpaidLeaveAmount       Decimal? @db.Decimal(15, 2) @default(0)
+  sickLeaveDays           Float    @default(0)
+  hourlyLeaveMinutes      Int      @default(0)
+  hourlyLeaveAmount       Decimal? @db.Decimal(15, 2) @default(0)
+
+  // الإضافي مقسوم
+  overtimeWorkdayMinutes  Int      @default(0)
+  overtimeWorkdayPay      Decimal? @db.Decimal(15, 2) @default(0)
+  overtimeHolidayMinutes  Int      @default(0)
+  overtimeHolidayPay      Decimal? @db.Decimal(15, 2) @default(0)
+
+  // المهمات
+  internalMissionDays     Float    @default(0)
+  internalMissionAmount   Decimal? @db.Decimal(15, 2) @default(0)
+  externalMissionDays     Float    @default(0)
+  externalMissionAmount   Decimal? @db.Decimal(15, 2) @default(0)
+
+  // عمولات وسلف وخصومات أخرى
+  commissionAmount        Decimal? @db.Decimal(15, 2) @default(0)
+  advanceDeduction        Decimal? @db.Decimal(15, 2) @default(0)
+  otherDeductionAmount    Decimal? @db.Decimal(15, 2) @default(0)
+  otherDeductionNotes     String?
+
+  // التقريب وحالة الموظف
+  roundedNetSalary        Int?
+  employmentStatusAtGenTime String?
 
   notes       String?
   generatedAt DateTime @default(now())
