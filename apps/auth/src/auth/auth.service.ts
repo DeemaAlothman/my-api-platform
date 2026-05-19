@@ -18,12 +18,13 @@ export class AuthService {
   private refreshTtlDays = parseInt(process.env.REFRESH_TOKEN_TTL_DAYS || '30', 10);
 
   async login(username: string, password: string) {
+    username = username.trim();
     this.logger.log(`Login attempt for user: ${username}`);
 
     const rows = await this.prisma.$queryRaw<any[]>`
       SELECT id, username, email, "fullName", password, "firstLoginAt"
       FROM users.users
-      WHERE username = ${username}
+      WHERE TRIM(username) = ${username}
         AND "deletedAt" IS NULL
     `;
     const user = rows[0] ?? null;
