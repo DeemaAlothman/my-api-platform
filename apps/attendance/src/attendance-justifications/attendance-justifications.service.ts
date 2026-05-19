@@ -73,12 +73,12 @@ export class AttendanceJustificationsService {
       });
     }
 
-    // التحقق من المهلة (24 ساعة من إنشاء التنبيه)
-    const deadline = new Date(alert.createdAt.getTime() + 24 * 60 * 60 * 1000);
+    // التحقق من المهلة (7 أيام من إنشاء التنبيه)
+    const deadline = new Date(alert.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
     if (new Date() > deadline) {
       throw new BadRequestException({
         code: 'JUSTIFICATION_DEADLINE_PASSED',
-        message: 'The 24-hour deadline for submitting a justification has passed',
+        message: 'The 7-day deadline for submitting a justification has passed',
         details: [{ deadline: deadline.toISOString() }],
       });
     }
@@ -302,8 +302,8 @@ export class AttendanceJustificationsService {
   async processExpired() {
     const now = new Date();
 
-    // 1. تبريرات PENDING_MANAGER أو PENDING_HR انتهت مهلة المراجعة (72 ساعة من تقديم التبرير)
-    const managerDeadlineCutoff = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+    // 1. تبريرات PENDING_MANAGER أو PENDING_HR انتهت مهلة المراجعة (7 أيام من تقديم التبرير)
+    const managerDeadlineCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const expiredJustifications = await this.prisma.attendanceJustification.findMany({
       where: {
         status: { in: ['PENDING_MANAGER', 'PENDING_HR'] },
@@ -319,12 +319,12 @@ export class AttendanceJustificationsService {
       await this.applyDeduction(j.id, j.alertId);
     }
 
-    // 2. تنبيهات LATE/EARLY_LEAVE/ABSENT بدون تبرير انتهت مهلتها (createdAt + 24h)
+    // 2. تنبيهات LATE/EARLY_LEAVE/ABSENT بدون تبرير انتهت مهلتها (createdAt + 7 أيام)
     const alertsWithoutJustification = await this.prisma.attendanceAlert.findMany({
       where: {
         alertType: { in: ['LATE', 'EARLY_LEAVE', 'ABSENT'] },
         status: 'OPEN',
-        createdAt: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+        createdAt: { lt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
         justification: null,
       },
     });
@@ -338,7 +338,7 @@ export class AttendanceJustificationsService {
           attendanceRecordId: alert.attendanceRecordId,
           justificationType: 'OTHER',
           descriptionAr: 'لم يتم تقديم تبرير خلال المهلة المحددة',
-          deadline: new Date(alert.createdAt.getTime() + 24 * 60 * 60 * 1000),
+          deadline: new Date(alert.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000),
           status: 'AUTO_REJECTED',
           deductionApplied: false,
         },
