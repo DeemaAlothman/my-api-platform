@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsBoolean, IsNumber } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsBoolean, IsNumber, IsIn } from 'class-validator';
 
 export class CreateWorkScheduleDto {
   @IsString()
@@ -67,4 +67,18 @@ export class CreateWorkScheduleDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['DAY', 'NIGHT', 'SPLIT', 'FLEXIBLE'])
+  shiftType?: string;
+
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  minimumWorkMinutes?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  requiresContinuousWork?: boolean;
 }
