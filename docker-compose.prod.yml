@@ -48,6 +48,8 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=users
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       NODE_ENV: production
+    volumes:
+      - users_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -235,3 +237,4 @@ networks:
 
 volumes:
   pgdata:
+  users_uploads:
