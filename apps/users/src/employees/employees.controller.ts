@@ -238,6 +238,28 @@ export class EmployeesController {
     return this.employees.updateInterviewResult(dto);
   }
 
+  @Post('internal/basic-by-ids')
+  findBasicByIds(
+    @Headers('x-internal-token') token: string,
+    @Body() dto: { ids: string[] },
+  ) {
+    if (!token || token !== process.env.INTERNAL_SERVICE_TOKEN) {
+      throw new UnauthorizedException('Invalid internal token');
+    }
+    return this.employees.findBasicByIds(dto.ids ?? []);
+  }
+
+  @Post('internal/subordinate-ids')
+  getSubordinateIds(
+    @Headers('x-internal-token') token: string,
+    @Body() dto: { managerId: string },
+  ) {
+    if (!token || token !== process.env.INTERNAL_SERVICE_TOKEN) {
+      throw new UnauthorizedException('Invalid internal token');
+    }
+    return this.employees.getSubordinateIds(dto.managerId);
+  }
+
   // Internal endpoint — called by mail-service to expand userIds and departmentIds
   @Post('internal/resolve-recipients')
   resolveRecipients(

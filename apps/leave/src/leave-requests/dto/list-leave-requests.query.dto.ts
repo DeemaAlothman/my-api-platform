@@ -34,4 +34,8 @@ export class ListLeaveRequestsQueryDto {
   @IsOptional()
   @IsUUID()
   leaveTypeId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  managerId?: string;
 }

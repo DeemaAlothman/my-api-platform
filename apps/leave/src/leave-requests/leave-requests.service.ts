@@ -1157,6 +1157,23 @@ export class LeaveRequestsService {
       if (filters.dateTo) where.startDate.lte = new Date(filters.dateTo);
     }
 
+    // Filter by manager's subordinates
+    if (filters?.managerId) {
+      const usersUrl = process.env.USERS_SERVICE_URL;
+      const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+      if (usersUrl) {
+        try {
+          const res = await fetch(`${usersUrl}/api/v1/employees/internal/subordinate-ids`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-token': internalToken ?? '' },
+            body: JSON.stringify({ managerId: filters.managerId }),
+          });
+          const subordinateIds: string[] = await res.json();
+          where.employeeId = { in: subordinateIds.length ? subordinateIds : ['__none__'] };
+        } catch {}
+      }
+    }
+
     const page = Math.max(1, Number(filters?.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
     const skip = (page - 1) * limit;
@@ -1172,7 +1189,32 @@ export class LeaveRequestsService {
       this.prisma.leaveRequest.count({ where }),
     ]);
 
-    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    // Enrich with employee names
+    const employeeIds = [...new Set(items.map(i => i.employeeId))];
+    let employeeMap: Record<string, { firstNameAr: string; lastNameAr: string; firstNameEn?: string; lastNameEn?: string }> = {};
+    const usersUrl = process.env.USERS_SERVICE_URL;
+    const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
+    if (usersUrl && employeeIds.length) {
+      try {
+        const res = await fetch(`${usersUrl}/api/v1/employees/internal/basic-by-ids`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-internal-token': internalToken ?? '' },
+          body: JSON.stringify({ ids: employeeIds }),
+        });
+        const employees: any[] = await res.json();
+        for (const e of employees) employeeMap[e.id] = e;
+      } catch {}
+    }
+
+    const enriched = items.map(item => ({
+      ...item,
+      employeeFirstNameAr: employeeMap[item.employeeId]?.firstNameAr ?? null,
+      employeeLastNameAr: employeeMap[item.employeeId]?.lastNameAr ?? null,
+      employeeFirstNameEn: employeeMap[item.employeeId]?.firstNameEn ?? null,
+      employeeLastNameEn: employeeMap[item.employeeId]?.lastNameEn ?? null,
+    }));
+
+    return { items: enriched, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   // حذف طلب (soft-delete — فقط DRAFT)

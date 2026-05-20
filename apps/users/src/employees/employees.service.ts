@@ -235,6 +235,22 @@ export class EmployeesService {
     return employee;
   }
 
+  async findBasicByIds(ids: string[]) {
+    if (!ids.length) return [];
+    return this.prisma.employee.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+      select: { id: true, firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true },
+    });
+  }
+
+  async getSubordinateIds(managerId: string): Promise<string[]> {
+    const subordinates = await this.prisma.employee.findMany({
+      where: { managerId, deletedAt: null },
+      select: { id: true },
+    });
+    return subordinates.map(s => s.id);
+  }
+
   async findAllBasic() {
     return this.prisma.employee.findMany({
       where: { deletedAt: null },
