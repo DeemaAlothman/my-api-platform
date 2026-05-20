@@ -329,9 +329,9 @@ export class LeaveRequestsService {
       }
     }
 
-    // التحقق من المرفق المطلوب
-    if (leaveType.requiresAttachment && !createDto.attachmentUrl) {
-      throw new BadRequestException('هذا النوع من الإجازات يتطلب إرفاق مستند');
+    // التحقق من المرفق المطلوب (إجباري فقط إذا الإجازة يومين أو أكثر)
+    if (leaveType.requiresAttachment && !createDto.attachmentUrl && totalDays >= 2) {
+      throw new BadRequestException('هذا النوع من الإجازات يتطلب إرفاق مستند عند طلب يومين أو أكثر');
     }
 
     // التحقق من السماح بنصف يوم
