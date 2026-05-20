@@ -72,6 +72,12 @@ export class EmployeesController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('basic')
+  findAllBasic() {
+    return this.employees.findAllBasic();
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get(':id/basic')
   findBasic(@Param('id') id: string) {
     return this.employees.findBasic(id);

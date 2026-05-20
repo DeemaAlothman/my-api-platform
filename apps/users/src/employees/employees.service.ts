@@ -235,6 +235,37 @@ export class EmployeesService {
     return employee;
   }
 
+  async findAllBasic() {
+    return this.prisma.employee.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        firstNameAr: true,
+        lastNameAr: true,
+        firstNameEn: true,
+        lastNameEn: true,
+        email: true,
+        employeeNumber: true,
+        employmentStatus: true,
+        hireDate: true,
+        phone: true,
+        mobile: true,
+        profilePhoto: true,
+        department: {
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+            parent: {
+              select: { id: true, nameAr: true, nameEn: true },
+            },
+          },
+        },
+      },
+      orderBy: { firstNameAr: 'asc' },
+    });
+  }
+
   async findByUsername(username: string) {
     // Query using username for cross-schema lookup (auth.User has different ID than users.users)
     const result = await this.prisma.$queryRaw<Array<{ id: string }>>`
