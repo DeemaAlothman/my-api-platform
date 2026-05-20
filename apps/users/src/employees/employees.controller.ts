@@ -243,7 +243,8 @@ export class EmployeesController {
     @Headers('x-internal-token') token: string,
     @Body() dto: { ids: string[] },
   ) {
-    if (!token || token !== process.env.INTERNAL_SERVICE_TOKEN) {
+    const expected = process.env.INTERNAL_SERVICE_TOKEN;
+    if (expected && token !== expected) {
       throw new UnauthorizedException('Invalid internal token');
     }
     return this.employees.findBasicByIds(dto.ids ?? []);
@@ -254,7 +255,8 @@ export class EmployeesController {
     @Headers('x-internal-token') token: string,
     @Body() dto: { managerId: string },
   ) {
-    if (!token || token !== process.env.INTERNAL_SERVICE_TOKEN) {
+    const expected = process.env.INTERNAL_SERVICE_TOKEN;
+    if (expected && token !== expected) {
       throw new UnauthorizedException('Invalid internal token');
     }
     return this.employees.getSubordinateIds(dto.managerId);
