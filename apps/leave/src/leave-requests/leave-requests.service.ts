@@ -1168,7 +1168,8 @@ export class LeaveRequestsService {
             headers: { 'Content-Type': 'application/json', 'x-internal-token': internalToken ?? '' },
             body: JSON.stringify({ managerId: filters.managerId }),
           });
-          const subordinateIds: string[] = await res.json();
+          const body = await res.json();
+          const subordinateIds: string[] = Array.isArray(body) ? body : (body?.data ?? []);
           where.employeeId = { in: subordinateIds.length ? subordinateIds : ['__none__'] };
         } catch {}
       }
@@ -1201,7 +1202,8 @@ export class LeaveRequestsService {
           headers: { 'Content-Type': 'application/json', 'x-internal-token': internalToken ?? '' },
           body: JSON.stringify({ ids: employeeIds }),
         });
-        const employees: any[] = await res.json();
+        const body = await res.json();
+        const employees: any[] = Array.isArray(body) ? body : (body?.data ?? []);
         for (const e of employees) employeeMap[e.id] = e;
       } catch {}
     }
