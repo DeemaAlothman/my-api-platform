@@ -544,7 +544,49 @@ export class EmployeesService {
       },
     });
 
+    // إشعار HR إذا صار المدير المباشر غير نشط وعنده موظفين مرتبطين فيه
+    const inactiveStatuses = ['INACTIVE', 'TERMINATED', 'SUSPENDED'];
+    if (dto.employmentStatus && inactiveStatuses.includes(dto.employmentStatus)) {
+      setImmediate(() => {
+        this.notifyHrIfManagerInactive(id, `${updated.firstNameAr} ${updated.lastNameAr}`).catch(() => {});
+      });
+    }
+
     return updated;
+  }
+
+  private async notifyHrIfManagerInactive(managerId: string, managerName: string) {
+    const subordinates = await this.prisma.employee.findMany({
+      where: { managerId, deletedAt: null, employmentStatus: 'ACTIVE' },
+      select: { firstNameAr: true, lastNameAr: true },
+    });
+    if (subordinates.length === 0) return;
+
+    const hrUsers = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+      SELECT DISTINCT u.id as "userId"
+      FROM users.users u
+      INNER JOIN users.user_roles ur ON u.id = ur."userId"
+      INNER JOIN users.roles r ON ur."roleId" = r.id
+      WHERE r.name IN ('HR', 'HR_Specialist', 'super_admin')
+        AND u."deletedAt" IS NULL
+    `;
+    if (hrUsers.length === 0) return;
+
+    const MAIL_URL = process.env.MAIL_SERVICE_URL || 'http://localhost:4009';
+    const TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+    const subordinateNames = subordinates.map(s => `${s.firstNameAr} ${s.lastNameAr}`).join('، ');
+
+    for (const hr of hrUsers) {
+      await fetch(`${MAIL_URL}/api/v1/mail/internal/system-send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': TOKEN },
+        body: JSON.stringify({
+          recipientUserId: hr.userId,
+          subject: `تنبيه: مدير مباشر غير نشط — ${managerName}`,
+          body: `تم تغيير حالة الموظف "${managerName}" إلى غير نشط.\n\nالموظفون المرتبطون به كمدير مباشر (${subordinates.length}):\n${subordinateNames}\n\nيرجى تحديث المدير المباشر لهؤلاء الموظفين.`,
+        }),
+      }).catch(() => {});
+    }
   }
 
   // B.1: Manager notes — get
