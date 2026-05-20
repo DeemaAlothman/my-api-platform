@@ -212,6 +212,7 @@ export class EmployeesService {
         hireDate: true,
         phone: true,
         mobile: true,
+        profilePhoto: true,
         department: {
           select: {
             id: true,
