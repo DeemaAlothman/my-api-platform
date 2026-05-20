@@ -51,7 +51,7 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       NODE_ENV: production
     volumes:
-      - users_uploads:/app/uploads
+      - /var/data/users_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,7 +117,7 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       NODE_ENV: production
     volumes:
-      - requests_uploads:/app/uploads
+      - /var/data/requests_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -172,7 +172,7 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       NODE_ENV: production
     volumes:
-      - mail_uploads:/app/uploads
+      - /var/data/mail_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
