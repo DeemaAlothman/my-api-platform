@@ -14,12 +14,12 @@ export class CreateWorkScheduleDto {
   nameEn?: string;
 
   @IsString()
-  @IsNotEmpty()
-  workStartTime: string; // Format: "HH:mm"
+  @IsOptional()
+  workStartTime?: string; // Format: "HH:mm"
 
   @IsString()
-  @IsNotEmpty()
-  workEndTime: string; // Format: "HH:mm"
+  @IsOptional()
+  workEndTime?: string; // Format: "HH:mm"
 
   @IsString()
   @IsOptional()

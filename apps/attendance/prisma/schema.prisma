@@ -18,8 +18,8 @@ model WorkSchedule {
   description String?
 
   // Work hours (format: "HH:mm")
-  workStartTime    String
-  workEndTime      String
+  workStartTime    String?
+  workEndTime      String?
   breakStartTime   String?
   breakEndTime     String?
   breakDurationMin Int     @default(60)
@@ -83,8 +83,8 @@ model CustomWorkSchedule {
   description String?
 
   // Override work hours
-  workStartTime  String
-  workEndTime    String
+  workStartTime  String?
+  workEndTime    String?
   breakStartTime String?
   breakEndTime   String?
 

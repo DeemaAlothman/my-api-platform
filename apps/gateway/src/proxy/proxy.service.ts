@@ -84,15 +84,18 @@ export class ProxyService {
     const targetUrl = service.noApiPrefix
       ? `${service.url}${targetPath}`
       : `${service.url}/api/v1${targetPath}`;
+    console.log('[ProxyService] targetUrl:', targetUrl);
 
     const headers = { ...req.headers };
     delete headers.host;
     delete headers['content-length'];
+    console.log('[ProxyService] entering try block');
 
     try {
 
       // multipart/form-data: pipe raw stream directly (axios can't reconstruct it)
       const reqContentType = req.headers['content-type'] || '';
+      console.log('[ProxyService] content-type:', reqContentType);
       if (reqContentType.includes('multipart/form-data')) {
         return new Promise<void>((resolve, reject) => {
           const urlObj = new URL(targetUrl);
@@ -140,6 +143,7 @@ export class ProxyService {
       }
 
       // إرسال الطلب للخدمة — arraybuffer يحافظ على الـ binary files
+      console.log('[ProxyService] making HTTP request, method:', req.method, 'body type:', typeof req.body);
       const response = await firstValueFrom(
         this.http.request({
           method: req.method,
@@ -151,6 +155,7 @@ export class ProxyService {
           responseType: 'arraybuffer',
         }),
       );
+      console.log('[ProxyService] response received, status:', response.status);
 
       res.status(response.status);
 
@@ -162,17 +167,23 @@ export class ProxyService {
 
       const contentType = response.headers['content-type'] || '';
       const isTextResponse = contentType.includes('application/json') || contentType.includes('text/');
+      console.log('[ProxyService] content-type response:', contentType, 'isText:', isTextResponse);
 
       if (isTextResponse) {
         const text = Buffer.from(response.data).toString('utf8');
+        console.log('[ProxyService] sending json response, text length:', text.length);
         try {
-          return res.json(JSON.parse(text));
+          const parsed = JSON.parse(text);
+          console.log('[ProxyService] calling res.json');
+          return res.json(parsed);
         } catch {
+          console.log('[ProxyService] calling res.send (non-json text)');
           return res.send(text);
         }
       }
 
       // binary response (PDF, image, etc.) — نرجعه كما هو
+      console.log('[ProxyService] sending binary response');
       return res.send(Buffer.from(response.data));
     } catch (error) {
       // إذا فشل DNS، flush الـ cache وأعد المحاولة مرة واحدة
