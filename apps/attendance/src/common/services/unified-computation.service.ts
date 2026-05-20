@@ -85,6 +85,7 @@ export class UnifiedComputationService {
     let earlyLeaveMinutes = 0;
     let overtimeMinutes = 0;
     let lateCompensatedMinutes = 0;
+    let earlyArrivalMinutes = 0;
 
     if (req.clockInTime) {
       // التأخير = (وقت الدخول الفعلي - وقت البداية) مطروحاً منه tolerance
@@ -93,15 +94,21 @@ export class UnifiedComputationService {
         Math.round((req.clockInTime.getTime() - scheduledStart.getTime()) / 60000),
       );
       lateMinutes = Math.max(0, lateRaw - (schedule.lateToleranceMin ?? 0));
+
+      // الحضور المبكر: دقائق قبل بداية الوردية
+      earlyArrivalMinutes = Math.max(
+        0,
+        Math.round((scheduledStart.getTime() - req.clockInTime.getTime()) / 60000),
+      );
     }
 
     if (req.clockOutTime) {
-      // الخروج المبكر = (وقت النهاية - وقت الخروج الفعلي) مطروحاً منه tolerance
+      // الخروج المبكر = (وقت النهاية - وقت الخروج الفعلي) مطروحاً منه tolerance ثم مطروحاً من الحضور المبكر
       const earlyRaw = Math.max(
         0,
         Math.round((scheduledEnd.getTime() - req.clockOutTime.getTime()) / 60000),
       );
-      earlyLeaveMinutes = Math.max(0, earlyRaw - (schedule.earlyLeaveToleranceMin ?? 0));
+      earlyLeaveMinutes = Math.max(0, earlyRaw - (schedule.earlyLeaveToleranceMin ?? 0) - earlyArrivalMinutes);
 
       // الأوفرتايم: الوقت بعد نهاية الوردية
       if (schedule.allowOvertime && req.clockOutTime > scheduledEnd) {
