@@ -82,20 +82,15 @@ export function validateRequestDetails(type: string, details: any): void {
     }
 
     case 'OVERTIME_MANAGER': {
-      requireFields(details, ['overtimeDate', 'startTime', 'endTime', 'purpose'], 'OVERTIME_MANAGER');
-      const overtimeDate = new Date(details.overtimeDate);
-      const today = new Date();
-      const isSameDay =
-        overtimeDate.getFullYear() === today.getFullYear() &&
-        overtimeDate.getMonth() === today.getMonth() &&
-        overtimeDate.getDate() === today.getDate();
-      if (isSameDay && today.getHours() >= 12) {
+      requireFields(details, ['startDate', 'endDate', 'startTime', 'endTime', 'purpose'], 'OVERTIME_MANAGER');
+      if (!Array.isArray(details.employeeIds) || details.employeeIds.length === 0) {
         throw new BadRequestException({
           code: 'VALIDATION_ERROR',
-          message: 'Overtime requests for today cannot be submitted after 12:00 PM',
-          details: [{ field: 'overtimeDate' }],
+          message: 'OVERTIME_MANAGER requires at least one employee in employeeIds',
+          details: [{ field: 'employeeIds' }],
         });
       }
+      details.totalDays = calcDays(details.startDate, details.endDate);
       details.totalHours = calcHours(details.startTime, details.endTime);
       break;
     }
