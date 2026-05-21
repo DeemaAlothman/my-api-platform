@@ -476,4 +476,160 @@ export class AttendanceRecordsService {
       orderBy: { breakOut: 'asc' },
     });
   }
+
+  // ─── Phase 3: Manual stamp correction ────────────────────────────────────
+
+  async getRawStamps(recordId: string) {
+    const record = await this.findOne(recordId);
+    const date: Date = (record as any).date;
+    const dayStart = new Date(date.toISOString().split('T')[0] + 'T00:00:00Z');
+    const dayEnd = new Date(dayStart.getTime() + 30 * 60 * 60 * 1000); // 30h covers night shifts
+
+    return this.prisma.$queryRawUnsafe(
+      `SELECT id, "deviceSN", timestamp, "rawType", "interpretedAs", "pairIndex", "syncError", "createdAt"
+       FROM biometric.raw_attendance_logs
+       WHERE "employeeId" = $1
+         AND timestamp >= $2
+         AND timestamp < $3
+       ORDER BY timestamp ASC`,
+      (record as any).employeeId, dayStart, dayEnd,
+    );
+  }
+
+  async updateStampInterpretation(logId: string, interpretedAs: string, userId: string) {
+    const valid = ['CLOCK_IN', 'CLOCK_OUT', 'BREAK_OUT', 'BREAK_IN', 'EXCLUDED'];
+    if (!valid.includes(interpretedAs)) {
+      throw new BadRequestException(`interpretedAs must be one of: ${valid.join(', ')}`);
+    }
+
+    const existing = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "employeeId", timestamp FROM biometric.raw_attendance_logs WHERE id = $1 LIMIT 1`,
+      logId,
+    )) as Array<{ id: string; employeeId: string; timestamp: Date }>;
+
+    if (!existing[0]) throw new NotFoundException('Raw stamp not found');
+
+    await this.prisma.$queryRawUnsafe(
+      `UPDATE biometric.raw_attendance_logs SET "interpretedAs" = $1 WHERE id = $2`,
+      interpretedAs, logId,
+    );
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO attendance.attendance_computation_logs
+         (id, "attendanceRecordId", "employeeId", date, action, source, "changedFields", "performedBy", notes, "createdAt")
+       VALUES
+         (gen_random_uuid(), NULL, $1, $2::date, 'STAMP_INTERPRETATION_UPDATED', 'HTTP', $3, $4, 'Manual stamp interpretation update', NOW())`,
+      existing[0].employeeId,
+      existing[0].timestamp.toISOString().split('T')[0],
+      JSON.stringify({ interpretedAs: { to: interpretedAs } }),
+      userId,
+    ).catch(() => {});
+
+    return { id: logId, interpretedAs };
+  }
+
+  async deleteStamp(logId: string, userId: string) {
+    return this.updateStampInterpretation(logId, 'EXCLUDED', userId);
+  }
+
+  async recomputeRecord(recordId: string, userId: string) {
+    const record = await this.findOne(recordId);
+    const employeeId = (record as any).employeeId as string;
+    const date: Date = (record as any).date;
+    const dateStr = date.toISOString().split('T')[0];
+
+    const dayStart = new Date(dateStr + 'T00:00:00Z');
+    const dayEnd = new Date(dayStart.getTime() + 30 * 60 * 60 * 1000);
+
+    const stamps = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, timestamp, "interpretedAs"
+       FROM biometric.raw_attendance_logs
+       WHERE "employeeId" = $1
+         AND timestamp >= $2
+         AND timestamp < $3
+         AND "interpretedAs" != 'EXCLUDED'
+       ORDER BY timestamp ASC`,
+      employeeId, dayStart, dayEnd,
+    )) as Array<{ id: string; timestamp: Date; interpretedAs: string }>;
+
+    let clockInTime: Date | null = null;
+    let clockOutTime: Date | null = null;
+    let openBreakOut: Date | null = null;
+    let totalBreakMinutes = 0;
+
+    for (const s of stamps) {
+      if (s.interpretedAs === 'CLOCK_IN' && !clockInTime) {
+        clockInTime = s.timestamp;
+      } else if (s.interpretedAs === 'CLOCK_OUT') {
+        clockOutTime = s.timestamp;
+      } else if (s.interpretedAs === 'BREAK_OUT') {
+        openBreakOut = s.timestamp;
+      } else if (s.interpretedAs === 'BREAK_IN' && openBreakOut) {
+        totalBreakMinutes += Math.max(0, Math.round((s.timestamp.getTime() - openBreakOut.getTime()) / 60000));
+        openBreakOut = null;
+      }
+    }
+
+    const computed = await this.unifiedComputation.compute({
+      employeeId,
+      date,
+      clockInTime,
+      clockOutTime,
+      totalBreakMinutes,
+    });
+
+    const punchSequenceStatus = !clockOutTime ? 'PARTIAL' : 'VALID';
+
+    await this.prisma.$queryRawUnsafe(
+      `UPDATE attendance.attendance_records SET
+         "clockInTime" = $1, "clockOutTime" = $2,
+         "workedMinutes" = $3, "netWorkedMinutes" = $4,
+         "lateMinutes" = $5, "earlyLeaveMinutes" = $6,
+         "overtimeMinutes" = $7, "lateCompensatedMinutes" = $8,
+         "totalBreakMinutes" = $9, status = $10,
+         "punchSequenceStatus" = $11, "updatedAt" = NOW()
+       WHERE id = $12`,
+      clockInTime, clockOutTime,
+      computed.workedMinutes, computed.netWorkedMinutes,
+      computed.lateMinutes, computed.earlyLeaveMinutes,
+      computed.overtimeMinutes, computed.lateCompensatedMinutes,
+      totalBreakMinutes, computed.status, punchSequenceStatus,
+      recordId,
+    );
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO attendance.attendance_computation_logs
+         (id, "attendanceRecordId", "employeeId", date, action, source, "changedFields", "performedBy", notes, "createdAt")
+       VALUES
+         (gen_random_uuid(), $1, $2, $3::date, 'MANUAL_RECOMPUTE', 'HTTP', $4, $5, 'Manual recompute after stamp correction', NOW())`,
+      recordId, employeeId, dateStr,
+      JSON.stringify({ status: computed.status, lateMinutes: computed.lateMinutes, punchSequenceStatus }),
+      userId,
+    ).catch(() => {});
+
+    return this.findOne(recordId);
+  }
+
+  async approveRecord(recordId: string, userId: string) {
+    const record = await this.findOne(recordId);
+    const employeeId = (record as any).employeeId as string;
+    const dateStr = ((record as any).date as Date).toISOString().split('T')[0];
+
+    await this.prisma.$queryRawUnsafe(
+      `UPDATE attendance.attendance_records
+       SET "punchSequenceStatus" = 'VALID', "updatedAt" = NOW()
+       WHERE id = $1`,
+      recordId,
+    );
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO attendance.attendance_computation_logs
+         (id, "attendanceRecordId", "employeeId", date, action, source, "changedFields", "performedBy", notes, "createdAt")
+       VALUES
+         (gen_random_uuid(), $1, $2, $3::date, 'RECORD_APPROVED', 'HTTP', NULL, $4, 'Record manually approved by HR', NOW())`,
+      recordId, employeeId, dateStr, userId,
+    ).catch(() => {});
+
+    return this.findOne(recordId);
+  }
 }

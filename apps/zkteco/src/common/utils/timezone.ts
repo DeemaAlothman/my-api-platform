@@ -32,7 +32,12 @@ export function shiftDayRange(
   date: Date,
   shiftType: 'DAY' | 'NIGHT',
 ): { start: Date; end: Date } {
-  if (shiftType === 'DAY') return localDayRange(date);
+  if (shiftType === 'DAY') {
+    const range = localDayRange(date);
+    // extend window by 6h to capture cross-midnight overtime stamps
+    range.end = new Date(range.end.getTime() + 6 * 60 * 60 * 1000);
+    return range;
+  }
 
   // NIGHT: نافذة من 12:00 ظهراً إلى 11:59 صباحاً اليوم التالي
   const local = new Date(date.getTime() + TZ_OFFSET_MS);

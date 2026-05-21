@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, UseInterceptors, HttpCode, HttpStatus } from '@nestjs/common';
 import { AttendanceRecordsService } from './attendance-records.service';
 import { CheckInDto } from './dto/check-in.dto';
 import { CheckOutDto } from './dto/check-out.dto';
@@ -66,5 +66,42 @@ export class AttendanceRecordsController {
   @Permission('attendance.records.delete')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  // ─── Phase 3: Manual stamp correction ────────────────────────────────────
+
+  @Get(':id/raw-stamps')
+  @Permission('attendance.records.read')
+  getRawStamps(@Param('id') id: string) {
+    return this.service.getRawStamps(id);
+  }
+
+  @Patch('raw-stamps/:logId/interpretation')
+  @Permission('attendance.records.update-manual')
+  updateStampInterpretation(
+    @Param('logId') logId: string,
+    @Body() body: { interpretedAs: string },
+    @UserId() userId: string,
+  ) {
+    return this.service.updateStampInterpretation(logId, body.interpretedAs, userId);
+  }
+
+  @Delete('raw-stamps/:logId')
+  @Permission('attendance.records.update-manual')
+  @HttpCode(HttpStatus.OK)
+  deleteStamp(@Param('logId') logId: string, @UserId() userId: string) {
+    return this.service.deleteStamp(logId, userId);
+  }
+
+  @Post(':id/recompute')
+  @Permission('attendance.records.update-manual')
+  recomputeRecord(@Param('id') id: string, @UserId() userId: string) {
+    return this.service.recomputeRecord(id, userId);
+  }
+
+  @Post(':id/approve')
+  @Permission('attendance.records.update-manual')
+  approveRecord(@Param('id') id: string, @UserId() userId: string) {
+    return this.service.approveRecord(id, userId);
   }
 }

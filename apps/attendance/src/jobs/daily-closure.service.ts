@@ -209,6 +209,9 @@ export class DailyClosureService implements OnModuleInit {
     // C.4: Process tardiness offsets from hourly leave balance
     await this.processTardinessOffsets(dateStr);
 
+    // C.5: Flag employees who exceeded allowed break time
+    await this.processBreakOverLimit(dateStr);
+
     return { date: dateStr, absentCreated, missingClockOutAlerts, onLeaveApplied, holidayApplied: 0, orphanNotified, skipped };
   }
 
@@ -667,6 +670,49 @@ export class DailyClosureService implements OnModuleInit {
       );
     } catch {
       // إشعار فاشل لا يوقف العملية
+    }
+  }
+
+  /** Phase 4.2: تحديد تجاوز وقت الاستراحة المسموح به */
+  private async processBreakOverLimit(dateStr: string): Promise<void> {
+    try {
+      const records = (await this.prisma.$queryRawUnsafe(
+        `SELECT ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes"
+         FROM attendance.attendance_records ar
+         JOIN attendance.employee_schedules es
+           ON es."employeeId" = ar."employeeId"
+           AND $1::date BETWEEN es."effectiveFrom"::date
+               AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+           AND es."isActive" = true
+         JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+         WHERE ar.date = $1::date
+           AND ar."totalBreakMinutes" > ws."allowedBreakMinutes"
+           AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')`,
+        dateStr,
+      )) as Array<{ id: string; employeeId: string; totalBreakMinutes: number; allowedBreakMinutes: number }>;
+
+      for (const record of records) {
+        const overMinutes = record.totalBreakMinutes - record.allowedBreakMinutes;
+        try {
+          await this.prisma.$queryRawUnsafe(
+            `UPDATE attendance.attendance_records
+             SET "breakOverLimitMinutes" = $1, "updatedAt" = NOW()
+             WHERE id = $2`,
+            overMinutes, record.id,
+          );
+
+          await this.sendTardinessNotification(
+            record.employeeId,
+            'BREAK_EXCEEDED',
+            `تجاوزت وقت الاستراحة المسموح به بـ ${overMinutes} دقيقة اليوم`,
+            `You exceeded the allowed break time by ${overMinutes} minutes today`,
+          );
+        } catch (err) {
+          this.logger.error(`processBreakOverLimit failed for ${record.employeeId}: ${(err as any)?.message}`);
+        }
+      }
+    } catch (err) {
+      this.logger.error(`processBreakOverLimit failed for ${dateStr}: ${(err as any)?.message}`);
     }
   }
 
