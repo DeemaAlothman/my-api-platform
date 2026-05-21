@@ -78,6 +78,14 @@ export class MailService {
     // resolve employeeIds → userIds
     let allRecipients = await resolveEmployeeIdsToUserIds(dto.recipients);
 
+    if (allRecipients.length === 0 && dto.recipients.length > 0) {
+      throw new BadRequestException({
+        code: 'RECIPIENTS_NOT_RESOLVED',
+        message: 'None of the provided employeeIds could be resolved to users. Make sure each employee has a linked user account.',
+        details: dto.recipients.map(r => ({ employeeId: r.employeeId })),
+      });
+    }
+
     // توسيع departmentIds إلى userIds عبر users-service
     if (dto.departmentIds?.length) {
       const resolved = await internalPost(

@@ -6,15 +6,19 @@ import * as path from 'path';
 const MAX_MB    = parseInt(process.env.MAX_ATTACHMENT_SIZE_MB || '25', 10);
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 const ALLOWED_MIME = (process.env.ALLOWED_ATTACHMENT_MIME || [
-  'image/jpeg', 'image/png', 'application/pdf',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'application/pdf',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.oasis.opendocument.spreadsheet',
-  'text/csv',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+  'text/csv', 'text/plain',
   'application/octet-stream',
 ].join(',')).split(',');
 
-const EXCEL_EXTENSIONS = /\.(xlsx?|csv|ods)$/i;
+const OFFICE_EXTENSIONS = /\.(xlsx?|csv|ods|docx?|odt|txt|pdf)$/i;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
 
 @Injectable()
@@ -41,7 +45,7 @@ export class AttachmentsService {
     }
 
     const mimeAllowed = ALLOWED_MIME.includes(file.mimetype);
-    const excelByExtension = EXCEL_EXTENSIONS.test(file.originalname);
+    const excelByExtension = OFFICE_EXTENSIONS.test(file.originalname);
     if (!mimeAllowed && !excelByExtension) {
       throw new BadRequestException({
         code: 'ATTACHMENT_INVALID_TYPE',
