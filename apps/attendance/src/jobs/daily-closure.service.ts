@@ -205,7 +205,7 @@ export class DailyClosureService implements OnModuleInit {
            AND NOT EXISTS (
              SELECT 1 FROM attendance.employee_schedules es
              WHERE es."employeeId" = e.id
-               AND es."isActive" = true
+               AND (es."isActive" = true OR (es."isActive" = false AND es."effectiveTo" IS NOT NULL))
                AND $1::date BETWEEN es."effectiveFrom"::date
                    AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
            )`,

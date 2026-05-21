@@ -80,7 +80,12 @@ export class EmployeeSchedulesService {
       });
     }
 
-    // Deactivate any existing active schedule for the same employee (except the one being created)
+    // Deactivate any existing active schedule for the same employee.
+    // Set effectiveTo to the day before the new schedule starts so today stays covered.
+    const endOfPrevSchedule = new Date(effectiveFrom);
+    endOfPrevSchedule.setUTCDate(endOfPrevSchedule.getUTCDate() - 1);
+    endOfPrevSchedule.setUTCHours(23, 59, 59, 999);
+
     await this.prisma.employeeSchedule.updateMany({
       where: {
         employeeId: dto.employeeId,
@@ -92,7 +97,7 @@ export class EmployeeSchedulesService {
           ],
         },
       },
-      data: { isActive: false },
+      data: { isActive: false, effectiveTo: endOfPrevSchedule },
     });
 
     // Upsert: update if same (employeeId, scheduleId, effectiveFrom) already exists
@@ -222,7 +227,7 @@ export class EmployeeSchedulesService {
         AND NOT EXISTS (
           SELECT 1 FROM attendance.employee_schedules es
           WHERE es."employeeId" = e.id
-            AND es."isActive" = true
+            AND (es."isActive" = true OR (es."isActive" = false AND es."effectiveTo" IS NOT NULL))
             AND CURRENT_DATE BETWEEN es."effectiveFrom"::date
                 AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
         )
