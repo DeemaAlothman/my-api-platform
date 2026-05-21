@@ -151,6 +151,7 @@ export class SyncService {
           AND ${dateStr}::date BETWEEN es."effectiveFrom"::date
               AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
           AND es."isActive" = true
+        ORDER BY es."effectiveFrom" DESC
         LIMIT 1
       `;
       const val = rows[0]?.shiftType;
@@ -194,34 +195,85 @@ export class SyncService {
   }
 
   /**
-   * تطبيق Toggle Logic مع rawType tie-breaker (4.1):
-   * N=1: rawType=1 → CLOCK_OUT (خروج بلا دخول)، غير ذلك CLOCK_IN
-   * N=2: [CLOCK_IN, CLOCK_OUT]
-   * N>=3: [CLOCK_IN, BREAK_OUT/BREAK_IN alternating, CLOCK_OUT]
-   * tie-breaker: إذا آخر بصمتين لهما نفس rawType → تحذير في syncError
+   * Phase 1.2: اكتشف إذا الجهاز يبعت rawType مفيد (قيم مختلفة) → استخدم rawType مباشرة
+   * وإلا → applyOrderBasedToggle (Toggle Logic الموجود + Phase 1.3)
    */
   private applyToggleLogic(
     logs: any[],
   ): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> {
-    const n = logs.length;
+    const allRawTypes = logs.map(l => l.rawType).filter(t => t !== undefined && t !== null);
+    const uniqueRawTypes = new Set(allRawTypes);
+    const hasMeaningfulRawType = allRawTypes.length === logs.length && uniqueRawTypes.size > 1;
 
-    const result = logs.map((log, index) => {
+    if (hasMeaningfulRawType) {
+      this.logger.log(`[RAWTYPE_MODE] Using rawType-based interpretation (uniqueTypes=${[...uniqueRawTypes].join(',')})`);
+      return this.applyRawTypeLogic(logs);
+    }
+    return this.applyOrderBasedToggle(logs);
+  }
+
+  /** Phase 1.2: ZKTeco standard rawType: 0=CLOCK_IN, 1=CLOCK_OUT, 2=BREAK_OUT, 3=BREAK_IN */
+  private applyRawTypeLogic(
+    logs: any[],
+  ): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> {
+    return logs.map((log, idx) => {
       let interpretedAs: InterpretedType;
-
-      if (index === 0) {
-        // البصمة الأولى دائماً CLOCK_IN — أجهزة ZKTeco كثيراً ترسل rawType=1 حتى لبصمة الدخول
-        interpretedAs = 'CLOCK_IN';
-      } else if (index === n - 1) {
-        interpretedAs = 'CLOCK_OUT';
-      } else {
-        interpretedAs = index % 2 === 1 ? 'BREAK_OUT' : 'BREAK_IN';
+      switch (log.rawType) {
+        case 0: interpretedAs = 'CLOCK_IN'; break;
+        case 1: interpretedAs = 'CLOCK_OUT'; break;
+        case 2: interpretedAs = 'BREAK_OUT'; break;
+        case 3: interpretedAs = 'BREAK_IN'; break;
+        default: interpretedAs = idx === 0 ? 'CLOCK_IN' : 'CLOCK_OUT';
       }
-
-      return { id: log.id, interpretedAs, pairIndex: index + 1, syncError: undefined as string | undefined };
+      return { id: log.id, interpretedAs, pairIndex: idx + 1 };
     });
+  }
 
-    // 4.1: تحقق من تعارض rawType في آخر بصمتين
-    if (n >= 2) {
+  /**
+   * Phase 1.3: Toggle Logic بالترتيب مع معالجة البصمات الفردية
+   * إذا n فردي وآخر فجوة > 240 دقيقة → البصمة الأخيرة ضالة (stray)، اعتمد ما قبلها كـ CLOCK_OUT
+   */
+  private applyOrderBasedToggle(
+    logs: any[],
+  ): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> {
+    const n = logs.length;
+    let effectiveLogs = logs;
+    let strayStampId: string | undefined;
+    let strayWarning: string | undefined;
+
+    if (n >= 3 && n % 2 === 1) {
+      const last = logs[n - 1];
+      const prev = logs[n - 2];
+      const gapMinutes = (last.timestamp.getTime() - prev.timestamp.getTime()) / 60000;
+      if (gapMinutes > 240) {
+        effectiveLogs = logs.slice(0, n - 1);
+        strayStampId = last.id;
+        strayWarning = `odd stamp count (n=${n}), last stamp gap=${Math.round(gapMinutes)}min > 240 — treated as stray`;
+        this.logger.warn(`[STRAY_STAMP] ${strayWarning}`);
+      }
+    }
+
+    const en = effectiveLogs.length;
+    const result: Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> =
+      effectiveLogs.map((log, index) => {
+        let interpretedAs: InterpretedType;
+        if (index === 0) {
+          interpretedAs = 'CLOCK_IN';
+        } else if (index === en - 1) {
+          interpretedAs = 'CLOCK_OUT';
+        } else {
+          interpretedAs = index % 2 === 1 ? 'BREAK_OUT' : 'BREAK_IN';
+        }
+        return { id: log.id, interpretedAs, pairIndex: index + 1, syncError: undefined as string | undefined };
+      });
+
+    // أضف البصمة الضالة مع syncError
+    if (strayStampId && strayWarning) {
+      result.push({ id: strayStampId, interpretedAs: 'CLOCK_OUT', pairIndex: en + 1, syncError: strayWarning });
+    }
+
+    // rawType conflict في آخر بصمتين (بدون حالة stray)
+    if (!strayWarning && n >= 2) {
       const last = logs[n - 1];
       const prev = logs[n - 2];
       if (last.rawType === prev.rawType && last.rawType !== undefined) {
@@ -360,7 +412,20 @@ export class SyncService {
 
     // حساب punchSequenceStatus بناءً على البصمات المفسرة
     const hasSyncError = interpreted.some(i => (i as any).syncError);
+    const stampCount = interpreted.length;
+    const anyLongBreak = breakPairs.some(b =>
+      b.breakIn && (b.breakIn.getTime() - b.breakOut.getTime()) > 240 * 60 * 1000,
+    );
+    const isNeedsReview =
+      hasSyncError ||
+      (stampCount % 2 === 1 && stampCount >= 3) ||
+      anyLongBreak ||
+      stampCount > 8 ||
+      (fin?.clockInTime && fin?.clockOutTime &&
+        fin.clockOutTime.getTime() - fin.clockInTime.getTime() > 16 * 60 * 60 * 1000);
+
     const punchSequenceStatus = !fin?.clockOutTime ? 'PARTIAL'
+      : isNeedsReview ? 'NEEDS_REVIEW'
       : hasSyncError ? 'INVALID'
       : 'VALID';
 
@@ -462,8 +527,13 @@ export class SyncService {
         WHERE id = ${recordId}
       `;
 
+      // Phase 2: إشعار المدير إذا السجل يحتاج مراجعة
+      if (punchSequenceStatus === 'NEEDS_REVIEW') {
+        await this.notifyManagerNeedsReview(employeeId, dateStr, tx);
+      }
+
       await this.auditLog(tx, recordId, employeeId, dateStr, 'BIOMETRIC_COMPUTED', deviceSN,
-        `حُسبت المقاييس: worked=${netWorkedMinutes}m late=${effectiveLateMinutes}m early=${effectiveEarlyLeaveMinutes}m overtime=${overtimeMinutes}m lateComp=${lateCompensatedMinutes}m longestCont=${longestContinuousWorkMinutes}m status=${newStatus}`,
+        `حُسبت المقاييس: worked=${netWorkedMinutes}m late=${effectiveLateMinutes}m early=${effectiveEarlyLeaveMinutes}m overtime=${overtimeMinutes}m lateComp=${lateCompensatedMinutes}m longestCont=${longestContinuousWorkMinutes}m status=${newStatus} punchSeq=${punchSequenceStatus}`,
         {
           workedMinutes: { from: null, to: netWorkedMinutes },
           lateMinutes: { from: null, to: effectiveLateMinutes },
@@ -548,6 +618,7 @@ export class SyncService {
         AND ${dateStr}::date BETWEEN es."effectiveFrom"::date
             AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
         AND es."isActive" = true
+      ORDER BY es."effectiveFrom" DESC
       LIMIT 1
     `;
 
@@ -633,6 +704,37 @@ export class SyncService {
       minimumWorkMinutes: s.minimumWorkMinutes ?? null,
       requiresContinuousWork: s.requiresContinuousWork ?? false,
     };
+  }
+
+  /** Phase 2: إشعار المدير المباشر بأن سجل الحضور يحتاج مراجعة */
+  private async notifyManagerNeedsReview(employeeId: string, dateStr: string, tx: any): Promise<void> {
+    try {
+      const row = await tx.$queryRaw<Array<{
+        firstNameAr: string; lastNameAr: string; managerUserId: string | null;
+      }>>`
+        SELECT e."firstNameAr", e."lastNameAr", m."userId" AS "managerUserId"
+        FROM users.employees e
+        LEFT JOIN users.employees m ON m.id = e."managerId"
+        WHERE e.id = ${employeeId} AND e."deletedAt" IS NULL
+        LIMIT 1
+      `;
+      const managerUserId = row[0]?.managerUserId;
+      if (!managerUserId) return;
+      const empName = `${row[0].firstNameAr} ${row[0].lastNameAr}`;
+      await tx.$queryRawUnsafe(
+        `INSERT INTO users.notifications
+           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+         VALUES
+           (gen_random_uuid(), $1, 'ATTENDANCE_NEEDS_REVIEW',
+            'سجل حضور يحتاج مراجعة', 'Attendance Record Needs Review',
+            $2, $3, false, NOW())`,
+        managerUserId,
+        `سجل حضور الموظف ${empName} يوم ${dateStr} يحتاج مراجعة يدوية`,
+        `Attendance record for ${empName} on ${dateStr} requires manual review`,
+      );
+    } catch {
+      // إشعار فاشل لا يوقف العملية
+    }
   }
 
   /**

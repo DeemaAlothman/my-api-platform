@@ -9,6 +9,69 @@ export class DailyClosureService implements OnModuleInit {
 
   onModuleInit() {
     this.scheduleNextRun();
+    this.scheduleNextTardinessReminder();
+  }
+
+  /** Phase 0.7.3: تذكير الموظفين بتأخير غير معوَّض الساعة 4 ظ دمشق (13:00 UTC) */
+  private scheduleNextTardinessReminder() {
+    const now = new Date();
+    const next = new Date(now);
+    next.setUTCHours(13, 0, 0, 0);
+    if (next.getTime() <= now.getTime()) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
+    const delayMs = next.getTime() - now.getTime();
+    this.logger.log(`Tardiness reminder scheduled in ${Math.round(delayMs / 60000)} minutes (at ${next.toISOString()})`);
+
+    setTimeout(async () => {
+      const dateStr = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+      try {
+        await this.remindUncompensatedTardiness(dateStr);
+      } catch (err) {
+        this.logger.error(`Tardiness reminder failed: ${(err as any)?.message}`);
+      }
+      this.scheduleNextTardinessReminder();
+    }, delayMs);
+  }
+
+  private async remindUncompensatedTardiness(dateStr: string): Promise<void> {
+    try {
+      const records = (await this.prisma.$queryRawUnsafe(
+        `SELECT ar."employeeId", ar."lateMinutes", e."userId"
+         FROM attendance.attendance_records ar
+         JOIN users.employees e ON e.id = ar."employeeId"
+         WHERE ar.date = $1::date
+           AND ar."lateMinutes" > 0
+           AND ar."lateCompensatedMinutes" = 0
+           AND ar."clockOutTime" IS NULL
+           AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'HALF_DAY')
+           AND e."userId" IS NOT NULL
+           AND e."deletedAt" IS NULL`,
+        dateStr,
+      )) as Array<{ employeeId: string; lateMinutes: number; userId: string }>;
+
+      this.logger.log(`Tardiness reminder: ${records.length} employee(s) with uncompensated tardiness on ${dateStr}`);
+
+      for (const r of records) {
+        try {
+          await this.prisma.$queryRawUnsafe(
+            `INSERT INTO users.notifications
+               (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+             VALUES
+               (gen_random_uuid(), $1, 'TARDINESS_COMPENSATION_DUE',
+                'تذكير: تأخير غير معوَّض', 'Reminder: Uncompensated Tardiness',
+                $2, $3, false, NOW())`,
+            r.userId,
+            `لديك تأخير ${r.lateMinutes} دقيقة غير معوَّض اليوم — لتعويضه البق بعد نهاية الدوام بنفس المدة`,
+            `You have ${r.lateMinutes} uncompensated late minutes today — stay ${r.lateMinutes} min past your shift end to compensate`,
+          );
+        } catch {
+          // إشعار فاشل لا يوقف العملية
+        }
+      }
+    } catch (err) {
+      this.logger.error(`remindUncompensatedTardiness failed: ${(err as any)?.message}`);
+    }
   }
 
   private scheduleNextRun() {
