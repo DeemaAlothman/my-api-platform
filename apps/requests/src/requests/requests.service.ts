@@ -131,6 +131,12 @@ export class RequestsService {
 
     validateRequestDetails(request.type, request.details);
 
+    // حفظ القيم المحسوبة تلقائياً (totalHours, totalDays) في DB
+    await this.prisma.request.update({
+      where: { id },
+      data: { details: request.details as any },
+    });
+
     // التحقق من تسليم العهد قبل تقديم طلب الاستقالة
     if (request.type === 'RESIGNATION') {
       const unreturned = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
