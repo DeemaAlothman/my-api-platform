@@ -29,8 +29,8 @@ model WorkSchedule {
   workDays String @default("[0,1,2,3,4]")
 
   // Tolerance settings (minutes)
-  lateToleranceMin       Int @default(15)
-  earlyLeaveToleranceMin Int @default(15)
+  lateToleranceMin       Int @default(0)
+  earlyLeaveToleranceMin Int @default(0)
 
   // Overtime settings
   allowOvertime    Boolean @default(false)
