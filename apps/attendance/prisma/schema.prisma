@@ -183,6 +183,14 @@ model AttendanceRecord {
   recomputedAt                 DateTime?
   halfDayPeriod                String?   // "AM" | "PM" — نصف يوم إجازة
 
+  // Tardiness tracking (filled by daily-closure)
+  tardinessOffsetMinutes           Int @default(0)
+  tardinessPendingDeductionMinutes Int @default(0)
+
+  // Device tracking per stamp
+  clockInDeviceSN  String?
+  clockOutDeviceSN String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -515,6 +523,17 @@ model MonthlyPayroll {
   employeeWorkingDays       Int      @default(0)
   proRationFactor           Float    @default(1.0)
   appliedPolicySnapshot     Json?
+
+  // Tardiness & hourly leave breakdown
+  paidHourlyLeaveMinutes        Int      @default(0)
+  unpaidHourlyLeaveMinutes      Int      @default(0)
+  tardinessOffsetMinutes        Int      @default(0)
+  tardinessJustifiedMinutes     Int      @default(0)
+  tardinessCompensatedMinutes   Int      @default(0)
+  tardinessUncompensatedMinutes Int      @default(0)
+  tardinessDeductionAmount      Decimal  @db.Decimal(15, 2) @default(0)
+  hourlyBalanceUsedTotal        Float    @default(0)
+  hourlyBalanceRemaining        Float    @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

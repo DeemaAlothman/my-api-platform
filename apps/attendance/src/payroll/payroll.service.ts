@@ -155,7 +155,8 @@ export class PayrollService {
     const leavesWithType = await this.prisma.$queryRawUnsafe(`
       SELECT lr."startDate", lr."endDate", lr."totalDays",
              lr."isHourlyLeave", lr."durationHours",
-             lt.code as "typeCode", lt."isPaid"
+             lt.code as "typeCode", lt."isPaid",
+             COALESCE(lr.source, 'EMPLOYEE_REQUEST') as source
       FROM leaves.leave_requests lr
       JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
       WHERE lr."employeeId" = $1 AND lr.status = 'APPROVED'
@@ -164,7 +165,7 @@ export class PayrollService {
     `, employeeId, endDate, startDate) as Array<{
       startDate: Date; endDate: Date; totalDays: number;
       isHourlyLeave: boolean; durationHours: number | null;
-      typeCode: string; isPaid: boolean;
+      typeCode: string; isPaid: boolean; source: string;
     }>;
 
     // بناء مجموعة أيام الإجازات (للاستثناء من الغياب) + تصنيف الإجازات
@@ -172,7 +173,12 @@ export class PayrollService {
     let paidLeaveDays = 0;
     let unpaidLeaveDays = 0;
     let sickLeaveDays = 0;
-    let hourlyLeaveMinutes = 0;
+    // إجازة ساعية مدفوعة بطلب موظف (لا تُحسم)
+    let paidHourlyLeaveMinutes = 0;
+    // إجازة ساعية غير مدفوعة (تُحسم)
+    let unpaidHourlyLeaveMinutes = 0;
+    // تعويض تأخير تلقائي من الرصيد (لا تُحسم — مدفوعة)
+    let tardinessOffsetMinutesPayroll = 0;
     let totalUnpaidDailyDays = 0;
 
     for (const leave of leavesWithType) {
@@ -187,7 +193,14 @@ export class PayrollService {
       }
 
       if (leave.isHourlyLeave) {
-        hourlyLeaveMinutes += Math.round((leave.durationHours || 0) * 60);
+        const minutes = Math.round((leave.durationHours || 0) * 60);
+        if (leave.source === 'TARDINESS_AUTO') {
+          tardinessOffsetMinutesPayroll += minutes;
+        } else if (leave.isPaid) {
+          paidHourlyLeaveMinutes += minutes;
+        } else {
+          unpaidHourlyLeaveMinutes += minutes;
+        }
         continue;
       }
       if (leave.typeCode === 'SICK') {
@@ -204,6 +217,8 @@ export class PayrollService {
       }
       paidLeaveDays += Number(leave.totalDays);
     }
+    // المجموع الإجمالي للإجازة الساعية (للعرض)
+    const hourlyLeaveMinutes = paidHourlyLeaveMinutes + unpaidHourlyLeaveMinutes + tardinessOffsetMinutesPayroll;
 
     // العطل الرسمية
     const holidays = await this.prisma.$queryRawUnsafe(
@@ -395,11 +410,10 @@ export class PayrollService {
     const proRationFactor = workingDays > 0 ? Math.min(1, employeeWorkingDays / workingDays) : 1.0;
     const proRatedDeductible = deductibleBase * proRationFactor;
 
-    // معدلات الدقيقة واليوم والساعة
-    const totalShiftMinutes = dailyWorkMinutes * workingDays;
-    const minuteRate = totalShiftMinutes > 0 ? proRatedDeductible / totalShiftMinutes : 0;
-    const dailyRate = workingDays > 0 ? proRatedDeductible / workingDays : 0;
-    const hourlyRate = minuteRate * 60;
+    // معدلات الدقيقة واليوم والساعة (القاعدة: Salary / 30 / 8)
+    const dailyRate   = proRatedDeductible / 30;
+    const hourlyRate  = dailyRate / 8;
+    const minuteRate  = hourlyRate / 60;
 
     // E: حساب الإضافي المقسوم
     const overtimeWorkdayPay = overtimeWorkdayMinutes * minuteRate * 1.5;
@@ -407,18 +421,21 @@ export class PayrollService {
       Number(policy?.holidayOvertimeMultiplier ?? 2.0);
     const overtimePay = overtimeWorkdayPay + overtimeHolidayPay;
 
-    // D: مبالغ الإجازات
+    // D: مبالغ الإجازات — الإجازة الساعية المدفوعة وتعويض التأخير لا يُحسمان
     const unpaidLeaveAmount = unpaidLeaveDays * dailyRate;
-    const hourlyLeaveAmount = hourlyLeaveMinutes * minuteRate;
+    const hourlyLeaveAmount = unpaidHourlyLeaveMinutes * minuteRate;
     const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
 
-    // سماحية التأخير الشهرية
+    // حساب الدقائق القابلة للحسم — تستخدم tardinessPendingDeductionMinutes من السجلات
+    // (daily-closure يحسبها بعد خصم رصيد HOURLY_PAID، لا حاجة لـ monthlyTolerance)
     const totalCompensationMinutes = records.reduce(
       (sum, r) => sum + ((r as any).lateCompensatedMinutes || 0), 0,
     );
     const totalLateMinutesEffective = Math.max(0, totalLateMinutes - totalCompensationMinutes - justifiedLateMinutes);
-    const monthlyTolerance = policy?.monthlyLateToleranceMinutes ?? 120;
-    const deductibleLateMinutes = Math.max(0, totalLateMinutesEffective - monthlyTolerance);
+    const totalPendingDeductionMinutes = records.reduce(
+      (sum, r) => sum + ((r as any).tardinessPendingDeductionMinutes || 0), 0,
+    );
+    const deductibleLateMinutes = totalPendingDeductionMinutes;
 
     lateDeductionMinutes = this.calcDeduction(
       deductibleLateMinutes,
@@ -675,6 +692,16 @@ export class PayrollService {
       sickLeaveDays,
       hourlyLeaveMinutes,
       hourlyLeaveAmount: parseFloat(hourlyLeaveAmount.toFixed(2)),
+      // تفاصيل التأخير والإجازة الساعية
+      paidHourlyLeaveMinutes,
+      unpaidHourlyLeaveMinutes,
+      tardinessOffsetMinutes: tardinessOffsetMinutesPayroll,
+      tardinessCompensatedMinutes: totalCompensationMinutes,
+      tardinessUncompensatedMinutes: Math.max(0, totalLateMinutes - totalCompensationMinutes - justifiedLateMinutes - tardinessOffsetMinutesPayroll),
+      tardinessJustifiedMinutes: justifiedLateMinutes,
+      tardinessDeductionAmount: parseFloat((lateDeductionMinutes * minuteRate).toFixed(2)),
+      hourlyBalanceUsedTotal: (paidHourlyLeaveMinutes + tardinessOffsetMinutesPayroll) / 60,
+      hourlyBalanceRemaining: 0, // يُحسب لاحقاً إذا لزم
       // مهمات
       internalMissionDays,
       internalMissionAmount: parseFloat(internalMissionAmount.toFixed(2)),
@@ -690,21 +717,45 @@ export class PayrollService {
         ? `أجر يومي = ${dailyWage}$ × ${presentDays} يوم`
         : null,
       deductionBreakdown: {
-        lateDeduction: parseFloat((lateDeductionMinutes * minuteRate).toFixed(2)),
-        absenceDeduction: parseFloat(absenceDeductionAmount.toFixed(2)),
-        breakOverLimitDeduction: parseFloat((breakDeductionMinutes * minuteRate).toFixed(2)),
-        sickLeaveDeduction: {
+        tardiness: {
+          totalMinutes: totalLateMinutes,
+          compensatedByWork: totalCompensationMinutes,
+          justified: justifiedLateMinutes,
+          coveredByHourlyBalance: tardinessOffsetMinutesPayroll,
+          deductibleMinutes: deductibleLateMinutes,
+          amount: parseFloat((lateDeductionMinutes * minuteRate).toFixed(2)),
+        },
+        earlyLeave: {
+          totalMinutes: totalEarlyLeaveMinutes,
+          deductibleMinutes: earlyLeaveDeductionMinutes,
+          amount: parseFloat((earlyLeaveDeductionMinutes * minuteRate).toFixed(2)),
+        },
+        breakOverLimit: {
+          totalMinutes: breakOverLimitMinutes,
+          deductibleMinutes: breakDeductionMinutes,
+          amount: parseFloat((breakDeductionMinutes * minuteRate).toFixed(2)),
+        },
+        absence: {
+          days: absenceDeductionDaysCalc,
+          amount: parseFloat(absenceDeductionAmount.toFixed(2)),
+        },
+        hourlyLeave: {
+          paidMinutes: paidHourlyLeaveMinutes,
+          unpaidMinutes: unpaidHourlyLeaveMinutes,
+          tardinessOffsetMinutes: tardinessOffsetMinutesPayroll,
+          deductionAmount: parseFloat(hourlyLeaveAmount.toFixed(2)),
+        },
+        sickLeave: {
           total: parseFloat(sickLeaveDeductionAmount.toFixed(2)),
           details: sickLeaveDetails,
         },
-        unpaidDailyDeduction: {
+        unpaidDailyLeave: {
           total: parseFloat(unpaidDailyDeductionAmount.toFixed(2)),
           days: parseFloat(totalUnpaidDailyDays.toFixed(1)),
         },
-        unpaidLeaveDeduction: parseFloat(unpaidLeaveAmount.toFixed(2)),
-        hourlyLeaveDeduction: parseFloat(hourlyLeaveAmount.toFixed(2)),
-        advanceDeduction: parseFloat(advanceDeduction.toFixed(2)),
-        otherDeduction: parseFloat(otherDeductionAmount.toFixed(2)),
+        unpaidLeave: parseFloat(unpaidLeaveAmount.toFixed(2)),
+        advance: parseFloat(advanceDeduction.toFixed(2)),
+        other: parseFloat(otherDeductionAmount.toFixed(2)),
         totalDeduction: parseFloat((
           totalDeductionAmount + absenceDeductionAmount + repeatLatePenaltyAmount
           + unpaidLeaveAmount + hourlyLeaveAmount + advanceDeduction

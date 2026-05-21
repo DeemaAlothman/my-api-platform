@@ -1,0 +1,12 @@
+-- Add tardiness-related notification types to NotificationType enum
+-- These are used by daily-closure cron and justification approval flow
+
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'TARDINESS_BALANCE_USED';
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'TARDINESS_BALANCE_LOW';
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'TARDINESS_BALANCE_DEPLETED';
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'TARDINESS_COMPENSATION_DUE';
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'TARDINESS_DEDUCTION_PENDING';
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'TARDINESS_OFFSET_RESTORED';
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'MONTHLY_PAYROLL_READY';
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'ATTENDANCE_NEEDS_REVIEW';
+ALTER TYPE users."NotificationType" ADD VALUE IF NOT EXISTS 'BREAK_EXCEEDED';

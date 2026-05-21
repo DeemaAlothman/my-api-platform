@@ -7,6 +7,9 @@ export interface ComputeRequest {
   clockInTime: Date | null;
   clockOutTime: Date | null;
   totalBreakMinutes: number;
+  hourlyLeaveMinutes?: number;   // دقائق الإجازة الساعية المسجلة في attendance_records
+  leaveStartTime?: Date | null;  // بداية الإجازة الساعية
+  leaveEndTime?: Date | null;    // نهاية الإجازة الساعية
 }
 
 export interface ComputeResult {
@@ -67,6 +70,16 @@ export class UnifiedComputationService {
     const minWorkMin = (schedule as any).minimumWorkMinutes ?? null;
     const requiresContinuous = (schedule as any).requiresContinuousWork ?? false;
 
+    // إصلاح 0.2: تعديل scheduledStart/scheduledEnd بناءً على الإجازة الساعية
+    if (req.leaveStartTime && req.leaveEndTime) {
+      if (req.leaveStartTime.getTime() <= scheduledStart.getTime() && req.leaveEndTime.getTime() > scheduledStart.getTime()) {
+        scheduledStart = new Date(req.leaveEndTime);
+      }
+      if (req.leaveStartTime.getTime() < scheduledEnd.getTime() && req.leaveEndTime.getTime() >= scheduledEnd.getTime()) {
+        scheduledEnd = new Date(req.leaveStartTime);
+      }
+    }
+
     // === وردية مرنة: لا تأخير ولا خروج مبكر ===
     if (shiftType === 'FLEXIBLE') {
       if (!req.clockInTime || !req.clockOutTime) {
@@ -76,7 +89,9 @@ export class UnifiedComputationService {
         ? this.longestContinuousBlock(req.clockInTime, req.clockOutTime, req.totalBreakMinutes)
         : zero.netWorkedMinutes;
 
-      const status = (minWorkMin != null && checkMinutes < minWorkMin) ? 'EARLY_LEAVE' : 'PRESENT';
+      // إصلاح 0.5: طرح الإجازة الساعية من الحد الأدنى المطلوب
+      const adjustedMinWorkMin = (minWorkMin ?? 0) - (req.hourlyLeaveMinutes ?? 0);
+      const status = (adjustedMinWorkMin > 0 && checkMinutes < adjustedMinWorkMin) ? 'EARLY_LEAVE' : 'PRESENT';
       return { ...zero, status };
     }
 
@@ -110,23 +125,26 @@ export class UnifiedComputationService {
       );
       earlyLeaveMinutes = Math.max(0, earlyRaw - (schedule.earlyLeaveToleranceMin ?? 0) - earlyArrivalMinutes);
 
-      // الأوفرتايم: الوقت بعد نهاية الوردية
+      // إصلاح 0.5.1: الأوفرتايم بعد طرح دقائق التعويض، والتعويض فقط للتأخير ≤ 15 دقيقة
       if (schedule.allowOvertime && req.clockOutTime > scheduledEnd) {
-        const overtimeRaw = Math.round(
+        const excessMinutes = Math.round(
           (req.clockOutTime.getTime() - scheduledEnd.getTime()) / 60000,
         );
-        overtimeMinutes = schedule.maxOvertimeHours
-          ? Math.min(overtimeRaw, schedule.maxOvertimeHours * 60)
-          : overtimeRaw;
 
-        // التعويض: الخروج المتأخر يُعوّض عن التأخير الصباحي
-        lateCompensatedMinutes = Math.min(overtimeRaw, lateMinutes);
+        if (lateMinutes > 0 && lateMinutes <= 15) {
+          lateCompensatedMinutes = Math.min(excessMinutes, lateMinutes);
+        }
+
+        const overtimeAfterComp = Math.max(0, excessMinutes - lateCompensatedMinutes);
+        overtimeMinutes = schedule.maxOvertimeHours
+          ? Math.min(overtimeAfterComp, schedule.maxOvertimeHours * 60)
+          : overtimeAfterComp;
       }
     }
 
-    // تحديد الحالة — لا نكتب فوق WEEKEND
+    // تحديد الحالة — لا نكتب فوق WEEKEND / HOLIDAY / ON_LEAVE / PARTIAL_LEAVE / HALF_DAY
     let status = zero.status;
-    if (!['WEEKEND', 'HOLIDAY', 'ON_LEAVE'].includes(status)) {
+    if (!['WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'PARTIAL_LEAVE', 'HALF_DAY'].includes(status)) {
       if (lateMinutes > 0 && earlyLeaveMinutes > 0) status = 'LATE';
       else if (lateMinutes > 0) status = 'LATE';
       else if (earlyLeaveMinutes > 0) status = 'EARLY_LEAVE';

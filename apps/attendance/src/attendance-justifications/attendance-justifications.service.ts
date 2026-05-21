@@ -241,6 +241,7 @@ export class AttendanceJustificationsService {
           managerNotesAr: dto.notesAr,
         },
       });
+      await this.restoreTardinessOffset(justification);
       return this.findOne(id);
     } else {
       // المدير رفض → ينتقل لـ HR
@@ -281,6 +282,7 @@ export class AttendanceJustificationsService {
           hrNotesAr: dto.notesAr,
         },
       });
+      await this.restoreTardinessOffset(justification);
       return this.findOne(id);
     } else {
       // HR رفضت → تطبيق الخصم أولاً ثم تحديث التبرير
@@ -392,6 +394,84 @@ export class AttendanceJustificationsService {
       where: { id: alertId },
       data: { status: 'RESOLVED', resolutionNotes: 'Deduction applied' },
     });
+  }
+
+  /**
+   * عند اعتماد تبرير التأخير: ابحث عن TARDINESS_AUTO للتاريخ نفسه وأعِد الرصيد
+   */
+  private async restoreTardinessOffset(justification: any): Promise<void> {
+    try {
+      if (!justification.attendanceRecordId) return;
+
+      const recRow = (await this.prisma.$queryRawUnsafe(
+        `SELECT date, "employeeId" FROM attendance.attendance_records WHERE id = $1 LIMIT 1`,
+        justification.attendanceRecordId,
+      )) as Array<{ date: Date; employeeId: string }>;
+
+      if (!recRow[0]) return;
+
+      const dateStr = recRow[0].date.toISOString().split('T')[0];
+      const employeeId = recRow[0].employeeId;
+
+      const autoOffset = (await this.prisma.$queryRawUnsafe(
+        `SELECT id, "durationHours", "leaveTypeId"
+         FROM leaves.leave_requests
+         WHERE "employeeId" = $1
+           AND "isHourlyLeave" = true
+           AND COALESCE(source, 'EMPLOYEE_REQUEST') = 'TARDINESS_AUTO'
+           AND status = 'APPROVED'
+           AND "startDate"::date = $2::date
+           AND "deletedAt" IS NULL
+         LIMIT 1`,
+        employeeId, dateStr,
+      )) as Array<{ id: string; durationHours: number; leaveTypeId: string }>;
+
+      if (!autoOffset[0]) return;
+
+      const { id: offsetId, durationHours, leaveTypeId } = autoOffset[0];
+      const year = new Date(dateStr).getFullYear();
+
+      // إلغاء leave_request التلقائي
+      await this.prisma.$queryRawUnsafe(
+        `UPDATE leaves.leave_requests
+         SET status = 'CANCELLED', "cancelReason" = 'تم اعتماد تبرير التأخير', "cancelledAt" = NOW(), "updatedAt" = NOW()
+         WHERE id = $1`,
+        offsetId,
+      );
+
+      // استعادة usedHours
+      await this.prisma.$queryRawUnsafe(
+        `UPDATE leaves.leave_balances
+         SET "usedHours" = GREATEST(0, "usedHours" - $1), "updatedAt" = NOW()
+         WHERE "employeeId" = $2 AND "leaveTypeId" = $3 AND year = $4`,
+        durationHours, employeeId, leaveTypeId, year,
+      );
+
+      // إشعار للموظف
+      const userRow = (await this.prisma.$queryRawUnsafe(
+        `SELECT "userId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      )) as Array<{ userId: string | null }>;
+
+      const userId = userRow[0]?.userId;
+      if (userId) {
+        const minutesRestored = Math.round(durationHours * 60);
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'TARDINESS_OFFSET_RESTORED',
+              'استعادة رصيد الإجازة الساعية', 'Hourly Leave Balance Restored',
+              $2, $3, false, NOW())`,
+          userId,
+          `تمت إعادة ${minutesRestored} دقيقة لرصيدك بعد اعتماد تبرير التأخير بتاريخ ${dateStr}`,
+          `${minutesRestored} min restored to your balance after tardiness justification approved on ${dateStr}`,
+        );
+      }
+    } catch (err) {
+      // استعادة الرصيد اختيارية — لا توقف عملية الاعتماد
+      console.error(`[restoreTardinessOffset] failed: ${(err as any)?.message}`);
+    }
   }
 
   private async resolveAlert(alertId: string, resolvedBy: string, notes: string) {

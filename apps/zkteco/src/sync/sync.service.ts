@@ -184,7 +184,7 @@ export class SyncService {
       }
       const last = kept[kept.length - 1];
       const diffMs = log.timestamp.getTime() - last.timestamp.getTime();
-      if (diffMs >= 2 * 60 * 1000) { // 2 دقائق
+      if (diffMs >= 5 * 60 * 1000) { // 5 دقائق
         kept.push(log);
       } else {
         duplicates.push(log.id); // تعليم كـ DUPLICATE_IGNORED
@@ -277,11 +277,11 @@ export class SyncService {
         INSERT INTO attendance.attendance_records
           (id, "employeeId", date, "clockInTime", "clockOutTime", status,
            "isManualEntry", "lateMinutes", "earlyLeaveMinutes", "deductionApplied",
-           source, "deviceSN", "createdAt", "updatedAt")
+           source, "deviceSN", "clockInDeviceSN", "createdAt", "updatedAt")
         VALUES
           (gen_random_uuid(), ${employeeId}, ${dateStr}::date, ${clockInTime}, ${clockOutTime ?? null},
            'PRESENT', false, 0, 0, false,
-           'BIOMETRIC', ${deviceSN}, NOW(), NOW())
+           'BIOMETRIC', ${deviceSN}, ${deviceSN}, NOW(), NOW())
         ON CONFLICT ("employeeId", date) DO UPDATE SET "updatedAt" = NOW()
         RETURNING id
       `;
@@ -296,7 +296,8 @@ export class SyncService {
       }
       if (clockOutTime) {
         await tx.$executeRaw`
-          UPDATE attendance.attendance_records SET "clockOutTime" = ${clockOutTime}, "updatedAt" = NOW()
+          UPDATE attendance.attendance_records
+          SET "clockOutTime" = ${clockOutTime}, "clockOutDeviceSN" = ${deviceSN}, "updatedAt" = NOW()
           WHERE id = ${recordId}
         `;
       }
@@ -380,14 +381,39 @@ export class SyncService {
       const grossMinutes = Math.floor(
         (fin.clockOutTime.getTime() - fin.clockInTime.getTime()) / 60000,
       );
-      const netWorkedMinutes = grossMinutes - totalBreakMinutes;
+
+      // جلب ساعات الإجازة الساعية للتقاطع مع ساعات العمل (Fix 0.2/0.3)
+      const leaveRow = await tx.$queryRaw<Array<{
+        leaveStartTime: Date | null;
+        leaveEndTime: Date | null;
+        hourlyLeaveMinutes: number | null;
+      }>>`
+        SELECT "leaveStartTime", "leaveEndTime", "hourlyLeaveMinutes"
+        FROM attendance.attendance_records
+        WHERE id = ${recordId}
+        LIMIT 1
+      `;
+      const leaveStart = leaveRow[0]?.leaveStartTime ?? null;
+      const leaveEnd   = leaveRow[0]?.leaveEndTime   ?? null;
+      const hourlyLeaveMinutesDB = leaveRow[0]?.hourlyLeaveMinutes ?? 0;
+
+      // طرح الإجازة الساعية المتقاطعة مع ساعات العمل من الوقت الفعلي
+      let hourlyLeaveInWorkday = 0;
+      if (leaveStart && leaveEnd) {
+        const overlapStart = Math.max(leaveStart.getTime(), fin.clockInTime.getTime());
+        const overlapEnd   = Math.min(leaveEnd.getTime(),   fin.clockOutTime.getTime());
+        if (overlapEnd > overlapStart) {
+          hourlyLeaveInWorkday = Math.floor((overlapEnd - overlapStart) / 60000);
+        }
+      }
+      const netWorkedMinutes = grossMinutes - totalBreakMinutes - hourlyLeaveInWorkday;
 
       // حساب lateMinutes / earlyLeaveMinutes / overtimeMinutes والحقول الجديدة من جدول الدوام
       const {
         lateMinutes, earlyLeaveMinutes, overtimeMinutes,
         lateCompensatedMinutes, shiftType, minimumWorkMinutes, requiresContinuousWork,
       } = await this.calcScheduleDeltas(
-        employeeId, dateStr, fin.clockInTime, fin.clockOutTime, tx,
+        employeeId, dateStr, fin.clockInTime, fin.clockOutTime, tx, leaveStart, leaveEnd,
       );
 
       // حساب longestContinuousWorkMinutes (لورديات FLEXIBLE)
@@ -399,18 +425,20 @@ export class SyncService {
       const effectiveLateMinutes = shiftType === 'FLEXIBLE' ? 0 : lateMinutes;
       const effectiveEarlyLeaveMinutes = shiftType === 'FLEXIBLE' ? 0 : earlyLeaveMinutes;
 
-      // تحديد الحالة النهائية — لا نكتب فوق ON_LEAVE / HOLIDAY / WEEKEND
+      // تحديد الحالة النهائية — لا نكتب فوق ON_LEAVE/HOLIDAY/WEEKEND/PARTIAL_LEAVE/HALF_DAY
       // ABSENT: يُسمح بالتحديث عند وصول بصمة فعلية (الموظف جاء متأخراً)
       const currentStatusRow = await tx.$queryRaw<Array<{ status: string }>>`
         SELECT status FROM attendance.attendance_records WHERE id = ${recordId}
       `;
       const currentStatus = currentStatusRow[0]?.status ?? 'PRESENT';
+      const PROTECTED_STATUSES = ['ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'HALF_DAY'];
       let newStatus = currentStatus;
-      if (!['ON_LEAVE', 'HOLIDAY', 'WEEKEND'].includes(currentStatus)) {
+      if (!PROTECTED_STATUSES.includes(currentStatus)) {
         if (shiftType === 'FLEXIBLE') {
-          // للوردية المرنة: الحضور يُحسب فقط بعدد الساعات (أو أطول فترة متواصلة)
+          // للوردية المرنة: الحضور يُحسب بعدد الساعات مع طرح الإجازة الساعية من الحد الأدنى
           const checkMinutes = requiresContinuousWork ? longestContinuousWorkMinutes : netWorkedMinutes;
-          newStatus = (minimumWorkMinutes != null && checkMinutes < minimumWorkMinutes)
+          const adjustedMinWorkMin = (minimumWorkMinutes ?? 0) - hourlyLeaveMinutesDB;
+          newStatus = (adjustedMinWorkMin > 0 && checkMinutes < adjustedMinWorkMin)
             ? 'EARLY_LEAVE'
             : 'PRESENT';
         } else {
@@ -488,6 +516,8 @@ export class SyncService {
     clockInTime: Date,
     clockOutTime: Date,
     tx: any,
+    leaveStartTime?: Date | null,
+    leaveEndTime?: Date | null,
   ): Promise<{
     lateMinutes: number;
     earlyLeaveMinutes: number;
@@ -559,22 +589,39 @@ export class SyncService {
       scheduledEnd.setTime(midMs);
     }
 
-    const lateRaw = Math.floor((clockInTime.getTime() - scheduledStart.getTime()) / 60000);
-    const earlyRaw = Math.floor((scheduledEnd.getTime() - clockOutTime.getTime()) / 60000);
+    // إصلاح 0.2: تعديل scheduledStart/scheduledEnd بناءً على الإجازة الساعية
+    let effectiveScheduledStart = new Date(scheduledStart);
+    let effectiveScheduledEnd   = new Date(scheduledEnd);
+    if (leaveStartTime && leaveEndTime) {
+      // إذا الإجازة تغطي بداية الوردية → ابدأ التأخير من نهاية الإجازة
+      if (leaveStartTime.getTime() <= scheduledStart.getTime() && leaveEndTime.getTime() > scheduledStart.getTime()) {
+        effectiveScheduledStart = new Date(leaveEndTime);
+      }
+      // إذا الإجازة تغطي نهاية الوردية → احسب الخروج المبكر من بداية الإجازة
+      if (leaveStartTime.getTime() < scheduledEnd.getTime() && leaveEndTime.getTime() >= scheduledEnd.getTime()) {
+        effectiveScheduledEnd = new Date(leaveStartTime);
+      }
+    }
+
+    const lateRaw = Math.floor((clockInTime.getTime() - effectiveScheduledStart.getTime()) / 60000);
+    const earlyRaw = Math.floor((effectiveScheduledEnd.getTime() - clockOutTime.getTime()) / 60000);
 
     const lateMinutes = Math.max(0, lateRaw - (s.lateToleranceMin || 0));
     const earlyLeaveMinutes = Math.max(0, earlyRaw - (s.earlyLeaveToleranceMin || 0));
 
-    // التعويض: إذا خرج بعد نهاية الوردية يعوّض عن جزء من التأخير
-    const excessMinutes = Math.max(0, Math.floor((clockOutTime.getTime() - scheduledEnd.getTime()) / 60000));
-    const lateCompensatedMinutes = Math.min(excessMinutes, lateMinutes);
+    // إصلاح 0.5.1: التعويض فقط للتأخير ≤ 15 دقيقة، والأوفرتايم بعد طرح التعويض
+    const excessMinutes = Math.max(0, Math.floor((clockOutTime.getTime() - effectiveScheduledEnd.getTime()) / 60000));
+    let lateCompensatedMinutes = 0;
+    if (lateMinutes > 0 && lateMinutes <= 15) {
+      lateCompensatedMinutes = Math.min(excessMinutes, lateMinutes);
+    }
 
-    // حساب الأوفرتايم: الوقت بعد نهاية الوردية (فقط إذا allowOvertime = true)
-    const overtimeRaw = Math.floor((clockOutTime.getTime() - scheduledEnd.getTime()) / 60000);
+    // الأوفرتايم بعد طرح دقائق التعويض (لا double counting)
     let overtimeMinutes = 0;
-    if (s.allowOvertime && overtimeRaw > 0) {
+    if (s.allowOvertime && excessMinutes > 0) {
+      const overtimeAfterComp = Math.max(0, excessMinutes - lateCompensatedMinutes);
       const maxMinutes = s.maxOvertimeHours ? s.maxOvertimeHours * 60 : Infinity;
-      overtimeMinutes = Math.min(overtimeRaw, maxMinutes);
+      overtimeMinutes = Math.min(overtimeAfterComp, maxMinutes);
     }
 
     return {
