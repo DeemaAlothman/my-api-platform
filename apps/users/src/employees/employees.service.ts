@@ -267,6 +267,28 @@ export class EmployeesService {
       .map(e => ({ employeeId: e.id, userId: e.userId! }));
   }
 
+  async findManyByUserIds(userIds: string[]): Promise<Array<{
+    userId: string; employeeId: string;
+    firstNameAr: string; lastNameAr: string;
+    firstNameEn: string | null; lastNameEn: string | null;
+  }>> {
+    if (!userIds.length) return [];
+    const employees = await this.prisma.employee.findMany({
+      where: { userId: { in: userIds }, deletedAt: null },
+      select: { id: true, userId: true, firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true },
+    });
+    return employees
+      .filter(e => e.userId)
+      .map(e => ({
+        userId: e.userId!,
+        employeeId: e.id,
+        firstNameAr: e.firstNameAr,
+        lastNameAr: e.lastNameAr,
+        firstNameEn: e.firstNameEn,
+        lastNameEn: e.lastNameEn,
+      }));
+  }
+
   async getSubordinateIds(managerId: string): Promise<string[]> {
     const subordinates = await this.prisma.employee.findMany({
       where: { managerId, deletedAt: null },

@@ -28,6 +28,30 @@ async function internalPost(url: string, body: any): Promise<any> {
   }
 }
 
+async function resolveUserIdsToNames(
+  userIds: string[],
+): Promise<Record<string, { firstNameAr: string; lastNameAr: string; firstNameEn?: string | null; lastNameEn?: string | null; employeeId?: string }>> {
+  if (!userIds.length) return {};
+  const resolved = await internalPost(
+    `${USERS_URL}/api/v1/employees/internal/find-by-user-ids`,
+    { userIds },
+  );
+  const list: any[] = Array.isArray(resolved) ? resolved : (resolved?.data ?? []);
+  const map: Record<string, any> = {};
+  for (const item of list) {
+    if (item.userId) {
+      map[item.userId] = {
+        firstNameAr: item.firstNameAr,
+        lastNameAr: item.lastNameAr,
+        firstNameEn: item.firstNameEn,
+        lastNameEn: item.lastNameEn,
+        employeeId: item.employeeId,
+      };
+    }
+  }
+  return map;
+}
+
 async function resolveEmployeeIdsToUserIds(
   recipients: Array<{ employeeId: string; type: RecipientType }>,
 ): Promise<Array<{ userId: string; type: RecipientType }>> {
@@ -188,6 +212,29 @@ export class MailService {
     return this.send(senderId, { ...dto, parentMessageId: parentId });
   }
 
+  async forward(senderId: string, originalMessageId: string, dto: SendMailDto) {
+    const original = await (this.prisma as any).mailMessage.findUnique({
+      where: { id: originalMessageId, deletedAt: null },
+    });
+    if (!original) {
+      throw new NotFoundException({ code: 'MAIL_NOT_FOUND', message: 'Original message not found', details: [] });
+    }
+
+    const forwardSubject = original.subject.startsWith('Fwd: ')
+      ? original.subject
+      : `Fwd: ${original.subject}`;
+
+    const separator = '\n\n---------- رسالة محوَّلة ----------\n';
+    const forwardBody = dto.body ? dto.body + separator + original.body : original.body;
+
+    return this.send(senderId, {
+      ...dto,
+      subject: forwardSubject,
+      body: forwardBody,
+      parentMessageId: originalMessageId,
+    });
+  }
+
   async replyAll(senderId: string, parentId: string, dto: SendMailDto) {
     const parent = await (this.prisma as any).mailMessage.findUnique({
       where: { id: parentId },
@@ -256,6 +303,10 @@ export class MailService {
       message: {
         include: {
           attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
+          recipients: {
+            where: { type: { not: 'BCC' } },
+            select: { recipientId: true, type: true },
+          },
         },
       },
     };
@@ -271,47 +322,78 @@ export class MailService {
       (this.prisma as any).mailRecipient.count({ where }),
     ]);
 
-    return { items, total, page, limit };
+    // enrich sender names
+    const senderIds = [...new Set(items.map((i: any) => i.message?.senderId).filter(Boolean))];
+    const nameMap = await resolveUserIdsToNames(senderIds as string[]);
+    const enriched = items.map((i: any) => ({
+      ...i,
+      message: i.message ? { ...i.message, senderInfo: nameMap[i.message.senderId] ?? null } : null,
+    }));
+
+    return { items: enriched, total, page, limit };
   }
 
   async getSent(userId: string, query: ListMailQueryDto) {
     const { page = 1, limit = 20, search, dateFrom, dateTo } = query;
     const skip = (page - 1) * limit;
 
+    // Query via mailRecipient (folder=SENT) so archive/delete is respected
     const where: any = {
-      senderId: userId,
-      isDraft: false,
+      recipientId: userId,
+      folder: MailFolder.SENT,
       deletedAt: null,
     };
 
+    const messageFilter: any = {};
     if (search) {
-      where.OR = [
+      messageFilter.OR = [
         { subject: { contains: search, mode: 'insensitive' } },
         { body: { contains: search, mode: 'insensitive' } },
       ];
     }
     if (dateFrom || dateTo) {
-      where.createdAt = {
+      messageFilter.createdAt = {
         ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
         ...(dateTo ? { lte: new Date(dateTo) } : {}),
       };
     }
+    if (Object.keys(messageFilter).length > 0) where.message = messageFilter;
+
+    const include = {
+      message: {
+        include: {
+          attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
+          recipients: {
+            where: { type: { not: 'BCC' } },
+            select: { recipientId: true, type: true },
+          },
+        },
+      },
+    };
 
     const [items, total] = await Promise.all([
-      (this.prisma as any).mailMessage.findMany({
-        where,
-        include: {
-          recipients: { where: { folder: MailFolder.SENT } },
-          attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+      (this.prisma as any).mailRecipient.findMany({
+        where, include, orderBy: { createdAt: 'desc' }, skip, take: limit,
       }),
-      (this.prisma as any).mailMessage.count({ where }),
+      (this.prisma as any).mailRecipient.count({ where }),
     ]);
 
-    return { items, total, page, limit };
+    // enrich recipient names for the TO list
+    const allRecipientIds = [...new Set(
+      items.flatMap((i: any) => (i.message?.recipients ?? []).map((r: any) => r.recipientId))
+    )];
+    const nameMap = await resolveUserIdsToNames(allRecipientIds as string[]);
+    const enriched = items.map((i: any) => ({
+      ...i,
+      message: i.message ? {
+        ...i.message,
+        recipients: (i.message.recipients ?? []).map((r: any) => ({
+          ...r, employeeInfo: nameMap[r.recipientId] ?? null,
+        })),
+      } : null,
+    }));
+
+    return { items: enriched, total, page, limit };
   }
 
   async getDrafts(userId: string, query: ListMailQueryDto) {
@@ -361,7 +443,20 @@ export class MailService {
       data: { isRead: true, readAt: new Date() },
     });
 
-    return messages;
+    // enrich sender + recipients with employee names
+    const userIds = [...new Set(messages.flatMap((m: any) => [
+      m.senderId,
+      ...(m.recipients ?? []).map((r: any) => r.recipientId),
+    ]).filter(Boolean))];
+    const nameMap = await resolveUserIdsToNames(userIds as string[]);
+
+    return messages.map((m: any) => ({
+      ...m,
+      senderInfo: nameMap[m.senderId] ?? null,
+      recipients: (m.recipients ?? []).map((r: any) => ({
+        ...r, employeeInfo: nameMap[r.recipientId] ?? null,
+      })),
+    }));
   }
 
   async getById(userId: string, messageId: string) {
@@ -370,14 +465,14 @@ export class MailService {
       include: {
         message: {
           include: {
-            recipients: {
-              where: { type: { not: 'BCC' } },
-            },
+            recipients: { where: { type: { not: 'BCC' } } },
             attachments: true,
           },
         },
       },
     });
+
+    let message: any = null;
 
     if (recipient) {
       if (!recipient.isRead) {
@@ -386,23 +481,35 @@ export class MailService {
           data: { isRead: true, readAt: new Date() },
         });
       }
-      return { ...recipient, message: recipient.message };
-    }
-
-    const sent = await (this.prisma as any).mailMessage.findFirst({
-      where: { id: messageId, senderId: userId, deletedAt: null },
-      include: {
-        recipients: {
-          where: { type: { not: 'BCC' } },
+      message = recipient.message;
+    } else {
+      const sent = await (this.prisma as any).mailMessage.findFirst({
+        where: { id: messageId, senderId: userId, deletedAt: null },
+        include: {
+          recipients: { where: { type: { not: 'BCC' } } },
+          attachments: true,
         },
-        attachments: true,
-      },
-    });
-
-    if (!sent) {
-      throw new NotFoundException({ code: 'MAIL_NOT_FOUND', message: 'Message not found', details: [] });
+      });
+      if (!sent) throw new NotFoundException({ code: 'MAIL_NOT_FOUND', message: 'Message not found', details: [] });
+      message = sent;
     }
-    return sent;
+
+    // enrich sender + recipients with employee names
+    const userIds = [
+      message.senderId,
+      ...(message.recipients ?? []).map((r: any) => r.recipientId),
+    ].filter(Boolean);
+    const nameMap = await resolveUserIdsToNames([...new Set(userIds)] as string[]);
+
+    const enrichedMessage = {
+      ...message,
+      senderInfo: nameMap[message.senderId] ?? null,
+      recipients: (message.recipients ?? []).map((r: any) => ({
+        ...r, employeeInfo: nameMap[r.recipientId] ?? null,
+      })),
+    };
+
+    return recipient ? { ...recipient, message: enrichedMessage } : enrichedMessage;
   }
 
   async updateRead(userId: string, dto: UpdateReadDto) {

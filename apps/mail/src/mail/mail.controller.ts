@@ -52,6 +52,12 @@ export class MailController {
     return this.mailService.replyAll(user.userId, id, dto);
   }
 
+  @Post(':id/forward')
+  @Permission('mail:send')
+  forward(@User() user: any, @Param('id') id: string, @Body() dto: SendMailDto) {
+    return this.mailService.forward(user.userId, id, dto);
+  }
+
   @Get('inbox')
   @Permission('mail:read_own')
   getInbox(@User() user: any, @Query() query: ListMailQueryDto) {
