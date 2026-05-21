@@ -1,5 +1,21 @@
 import { BadRequestException } from '@nestjs/common';
 
+function calcDays(startDate: string, endDate: string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffMs = end.getTime() - start.getTime();
+  return Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1);
+}
+
+function calcHours(startTime: string, endTime: string): number {
+  const [startH, startM] = startTime.split(':').map(Number);
+  const [endH, endM] = endTime.split(':').map(Number);
+  const startMinutes = startH * 60 + startM;
+  const endMinutes = endH * 60 + endM;
+  const diff = endMinutes > startMinutes ? endMinutes - startMinutes : (24 * 60) - startMinutes + endMinutes;
+  return Math.round((diff / 60) * 100) / 100;
+}
+
 function requireFields(details: any, fields: string[], typeName: string) {
   if (!details || typeof details !== 'object') {
     throw new BadRequestException({
@@ -47,7 +63,7 @@ export function validateRequestDetails(type: string, details: any): void {
     }
 
     case 'OVERTIME_EMPLOYEE': {
-      requireFields(details, ['overtimeDate', 'startTime', 'endTime', 'totalHours', 'tasks'], 'OVERTIME_EMPLOYEE');
+      requireFields(details, ['overtimeDate', 'startTime', 'endTime', 'tasks'], 'OVERTIME_EMPLOYEE');
       const overtimeDate = new Date(details.overtimeDate);
       const today = new Date();
       const isSameDay =
@@ -61,11 +77,12 @@ export function validateRequestDetails(type: string, details: any): void {
           details: [{ field: 'overtimeDate' }],
         });
       }
+      details.totalHours = calcHours(details.startTime, details.endTime);
       break;
     }
 
     case 'OVERTIME_MANAGER': {
-      requireFields(details, ['overtimeDate', 'startTime', 'endTime', 'totalHours', 'purpose'], 'OVERTIME_MANAGER');
+      requireFields(details, ['overtimeDate', 'startTime', 'endTime', 'purpose'], 'OVERTIME_MANAGER');
       const overtimeDate = new Date(details.overtimeDate);
       const today = new Date();
       const isSameDay =
@@ -79,11 +96,12 @@ export function validateRequestDetails(type: string, details: any): void {
           details: [{ field: 'overtimeDate' }],
         });
       }
+      details.totalHours = calcHours(details.startTime, details.endTime);
       break;
     }
 
     case 'BUSINESS_MISSION': {
-      requireFields(details, ['missionType', 'startDate', 'endDate', 'totalDays', 'destination', 'missionReason'], 'BUSINESS_MISSION');
+      requireFields(details, ['missionType', 'startDate', 'endDate', 'destination', 'missionReason'], 'BUSINESS_MISSION');
       if (!['INTERNAL', 'EXTERNAL'].includes(details.missionType)) {
         throw new BadRequestException({
           code: 'VALIDATION_ERROR',
@@ -91,6 +109,7 @@ export function validateRequestDetails(type: string, details: any): void {
           details: [{ field: 'missionType' }],
         });
       }
+      details.totalDays = calcDays(details.startDate, details.endDate);
       break;
     }
 
