@@ -495,11 +495,11 @@ export class DailyClosureService implements OnModuleInit {
 
       const hourlyTypes = (await this.prisma.$queryRawUnsafe(
         `SELECT id, "maxHoursPerMonth" FROM leaves.leave_types
-         WHERE code = 'HOURLY_PAID' AND "isActive" = true LIMIT 1`,
+         WHERE code = 'HOURLY' AND "isActive" = true LIMIT 1`,
       )) as Array<{ id: string; maxHoursPerMonth: number }>;
 
       if (!hourlyTypes[0]) {
-        this.logger.warn('processTardinessOffsets: HOURLY_PAID leave type not found — skipping');
+        this.logger.warn('processTardinessOffsets: HOURLY leave type not found — skipping');
         return;
       }
 

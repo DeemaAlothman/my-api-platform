@@ -674,9 +674,9 @@ export class AttendanceRecordsService {
 
     await this.prisma.$queryRawUnsafe(
       `INSERT INTO biometric.raw_attendance_logs
-         (id, "employeeId", "deviceSN", timestamp, "rawType", "interpretedAs", "syncError", "createdAt")
+         (id, "employeeId", "deviceSN", timestamp, "rawType", "interpretedAs", "synced", "createdAt")
        VALUES
-         (gen_random_uuid(), $1, 'MANUAL', $2, 'MANUAL', $3, false, NOW())`,
+         (gen_random_uuid(), $1, 'MANUAL', $2, 0, $3, false, NOW())`,
       employeeId, ts, body.interpretedAs,
     );
 

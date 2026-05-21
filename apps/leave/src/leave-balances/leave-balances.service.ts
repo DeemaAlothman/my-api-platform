@@ -279,11 +279,11 @@ export class LeaveBalancesService {
 
     const leaveType = (await this.prisma.$queryRawUnsafe(
       `SELECT id, "maxHoursPerMonth" FROM leaves.leave_types
-       WHERE code = 'HOURLY_PAID' AND "isActive" = true LIMIT 1`,
+       WHERE code = 'HOURLY' AND "isActive" = true LIMIT 1`,
     )) as Array<{ id: string; maxHoursPerMonth: number }>;
 
     if (!leaveType[0]) {
-      throw new NotFoundException('HOURLY_PAID leave type not configured');
+      throw new NotFoundException('HOURLY leave type not configured');
     }
 
     const { id: leaveTypeId, maxHoursPerMonth } = leaveType[0];
