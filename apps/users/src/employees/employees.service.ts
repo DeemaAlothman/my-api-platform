@@ -243,6 +243,30 @@ export class EmployeesService {
     });
   }
 
+  async findByUserIdInternal(userId: string) {
+    return this.prisma.employee.findFirst({
+      where: { userId, deletedAt: null },
+      select: {
+        firstNameAr: true,
+        lastNameAr: true,
+        firstNameEn: true,
+        lastNameEn: true,
+        jobTitle: { select: { nameAr: true, nameEn: true } },
+      },
+    });
+  }
+
+  async resolveEmployeeIds(employeeIds: string[]): Promise<{ employeeId: string; userId: string }[]> {
+    if (!employeeIds.length) return [];
+    const employees = await this.prisma.employee.findMany({
+      where: { id: { in: employeeIds }, deletedAt: null, userId: { not: null } },
+      select: { id: true, userId: true },
+    });
+    return employees
+      .filter(e => e.userId)
+      .map(e => ({ employeeId: e.id, userId: e.userId! }));
+  }
+
   async getSubordinateIds(managerId: string): Promise<string[]> {
     const subordinates = await this.prisma.employee.findMany({
       where: { managerId, deletedAt: null },

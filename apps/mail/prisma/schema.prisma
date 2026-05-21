@@ -31,27 +31,43 @@ model MailMessage {
 }
 
 model MailRecipient {
-  id          String        @id @default(uuid())
-  messageId   String
-  recipientId String
-  type        RecipientType
-  folder      MailFolder    @default(INBOX)
+  id              String             @id @default(uuid())
+  messageId       String
+  recipientId     String
+  type            RecipientType
+  folder          MailFolder         @default(INBOX)
 
-  isRead      Boolean       @default(false)
-  readAt      DateTime?
-  isStarred   Boolean       @default(false)
-  deletedAt   DateTime?
+  isRead          Boolean            @default(false)
+  readAt          DateTime?
+  isStarred       Boolean            @default(false)
+  deletedAt       DateTime?
 
-  message     MailMessage   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  archiveFolderId String?
+  archiveFolder   MailArchiveFolder? @relation(fields: [archiveFolderId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  message         MailMessage        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   @@index([recipientId, folder])
   @@index([recipientId, isRead])
   @@index([recipientId, isStarred])
   @@unique([messageId, recipientId])
   @@map("mail_recipients")
+}
+
+model MailArchiveFolder {
+  id         String          @id @default(uuid())
+  ownerId    String
+  name       String
+  recipients MailRecipient[]
+
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([ownerId])
+  @@map("mail_archive_folders")
 }
 
 model MailAttachment {

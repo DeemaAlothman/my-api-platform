@@ -250,6 +250,30 @@ export class EmployeesController {
     return this.employees.findBasicByIds(dto.ids ?? []);
   }
 
+  @Post('internal/find-by-user-id')
+  findByUserIdInternal(
+    @Headers('x-internal-token') token: string,
+    @Body() dto: { userId: string },
+  ) {
+    const expected = process.env.INTERNAL_SERVICE_TOKEN;
+    if (expected && token !== expected) {
+      throw new UnauthorizedException('Invalid internal token');
+    }
+    return this.employees.findByUserIdInternal(dto.userId);
+  }
+
+  @Post('internal/resolve-employee-ids')
+  resolveEmployeeIds(
+    @Headers('x-internal-token') token: string,
+    @Body() dto: { employeeIds: string[] },
+  ) {
+    const expected = process.env.INTERNAL_SERVICE_TOKEN;
+    if (expected && token !== expected) {
+      throw new UnauthorizedException('Invalid internal token');
+    }
+    return this.employees.resolveEmployeeIds(dto.employeeIds ?? []);
+  }
+
   @Post('internal/subordinate-ids')
   getSubordinateIds(
     @Headers('x-internal-token') token: string,

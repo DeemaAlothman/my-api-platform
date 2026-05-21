@@ -28,12 +28,31 @@ async function internalPost(url: string, body: any): Promise<any> {
   }
 }
 
+async function resolveEmployeeIdsToUserIds(
+  recipients: Array<{ employeeId: string; type: RecipientType }>,
+): Promise<Array<{ userId: string; type: RecipientType }>> {
+  const employeeIds = recipients.map(r => r.employeeId);
+  const resolved = await internalPost(
+    `${USERS_URL}/api/v1/employees/internal/resolve-employee-ids`,
+    { employeeIds },
+  );
+  const mapping: Record<string, string> = {};
+  const list: any[] = Array.isArray(resolved) ? resolved : (resolved?.data ?? []);
+  for (const item of list) {
+    if (item.employeeId && item.userId) mapping[item.employeeId] = item.userId;
+  }
+  return recipients
+    .filter(r => mapping[r.employeeId])
+    .map(r => ({ userId: mapping[r.employeeId], type: r.type }));
+}
+
 @Injectable()
 export class MailService {
   constructor(private readonly prisma: PrismaService) {}
 
   async send(senderId: string, dto: SendMailDto) {
-    let allRecipients = [...dto.recipients];
+    // resolve employeeIds → userIds
+    let allRecipients = await resolveEmployeeIdsToUserIds(dto.recipients);
 
     // توسيع departmentIds إلى userIds عبر users-service
     if (dto.departmentIds?.length) {
@@ -50,6 +69,28 @@ export class MailService {
       }
     }
 
+    return this.sendWithUserIds(senderId, allRecipients, {
+      subject: dto.subject,
+      body: dto.body,
+      parentMessageId: dto.parentMessageId,
+    });
+  }
+
+  private async sendWithUserIds(
+    senderId: string,
+    allRecipients: Array<{ userId: string; type: RecipientType }>,
+    dto: { subject: string; body: string; parentMessageId?: string },
+  ) {
+    // Append sender signature
+    const senderInfo = await internalPost(
+      `${USERS_URL}/api/v1/employees/internal/find-by-user-id`,
+      { userId: senderId },
+    );
+    const signature = senderInfo
+      ? `\n\n---\n${senderInfo.firstNameAr ?? ''} ${senderInfo.lastNameAr ?? ''}${senderInfo.jobTitle?.nameAr ? '\n' + senderInfo.jobTitle.nameAr : ''}`
+      : '';
+    const bodyWithSignature = dto.body + signature;
+
     return this.prisma.$transaction(async (tx) => {
       const toRecipients = allRecipients.filter((r) => r.type === RecipientType.TO);
       if (toRecipients.length === 0) {
@@ -62,7 +103,7 @@ export class MailService {
         data: {
           senderId,
           subject: dto.subject,
-          body: dto.body,
+          body: bodyWithSignature,
           isDraft: false,
           parentMessageId: dto.parentMessageId ?? null,
           threadRootId: dto.parentMessageId
@@ -113,7 +154,8 @@ export class MailService {
   }
 
   async saveDraft(senderId: string, dto: SaveDraftDto) {
-    const deduped = dto.recipients ? this.dedupRecipients(dto.recipients, senderId) : [];
+    const resolved = dto.recipients ? await resolveEmployeeIdsToUserIds(dto.recipients) : [];
+    const deduped = resolved.length ? this.dedupRecipients(resolved, senderId) : [];
 
     const message = await (this.prisma as any).mailMessage.create({
       data: {
@@ -153,8 +195,11 @@ export class MailService {
     });
     if (!parent) throw new NotFoundException({ code: 'MAIL_NOT_FOUND', message: 'Parent message not found', details: [] });
 
+    // resolve dto.recipients (employeeIds) to userIds first
+    const resolvedDtoRecipients = await resolveEmployeeIdsToUserIds(dto.recipients);
+
     const existing = new Map<string, RecipientType>();
-    for (const r of dto.recipients) {
+    for (const r of resolvedDtoRecipients) {
       existing.set(r.userId, r.type);
     }
 
@@ -169,11 +214,15 @@ export class MailService {
     }
 
     const merged = Array.from(existing.entries()).map(([userId, type]) => ({ userId, type }));
-    return this.send(senderId, { ...dto, recipients: merged, parentMessageId: parentId });
+    return this.sendWithUserIds(senderId, merged, {
+      subject: dto.subject,
+      body: dto.body,
+      parentMessageId: parentId,
+    });
   }
 
   async getFolder(userId: string, folder: MailFolder, query: ListMailQueryDto) {
-    const { page = 1, limit = 20, search } = query;
+    const { page = 1, limit = 20, search, dateFrom, dateTo, archiveFolderId } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {
@@ -182,6 +231,27 @@ export class MailService {
       deletedAt: null,
     };
 
+    if (folder === MailFolder.ARCHIVE && archiveFolderId) {
+      where.archiveFolderId = archiveFolderId;
+    }
+
+    const messageFilter: any = {};
+    if (search) {
+      messageFilter.OR = [
+        { subject: { contains: search, mode: 'insensitive' } },
+        { body: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (dateFrom || dateTo) {
+      messageFilter.createdAt = {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo ? { lte: new Date(dateTo) } : {}),
+      };
+    }
+    if (Object.keys(messageFilter).length > 0) {
+      where.message = messageFilter;
+    }
+
     const include = {
       message: {
         include: {
@@ -189,15 +259,6 @@ export class MailService {
         },
       },
     };
-
-    if (search) {
-      where.message = {
-        OR: [
-          { subject: { contains: search, mode: 'insensitive' } },
-          { body: { contains: search, mode: 'insensitive' } },
-        ],
-      };
-    }
 
     const [items, total] = await Promise.all([
       (this.prisma as any).mailRecipient.findMany({
@@ -214,7 +275,7 @@ export class MailService {
   }
 
   async getSent(userId: string, query: ListMailQueryDto) {
-    const { page = 1, limit = 20, search } = query;
+    const { page = 1, limit = 20, search, dateFrom, dateTo } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {
@@ -228,6 +289,12 @@ export class MailService {
         { subject: { contains: search, mode: 'insensitive' } },
         { body: { contains: search, mode: 'insensitive' } },
       ];
+    }
+    if (dateFrom || dateTo) {
+      where.createdAt = {
+        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
+        ...(dateTo ? { lte: new Date(dateTo) } : {}),
+      };
     }
 
     const [items, total] = await Promise.all([
@@ -265,6 +332,36 @@ export class MailService {
     ]);
 
     return { items, total, page, limit };
+  }
+
+  async getThread(userId: string, messageId: string) {
+    const message = await (this.prisma as any).mailMessage.findUnique({
+      where: { id: messageId },
+      select: { id: true, threadRootId: true },
+    });
+    if (!message) throw new NotFoundException({ code: 'MAIL_NOT_FOUND', message: 'Message not found', details: [] });
+
+    const rootId = message.threadRootId ?? messageId;
+
+    const messages = await (this.prisma as any).mailMessage.findMany({
+      where: {
+        OR: [{ id: rootId }, { threadRootId: rootId }],
+        deletedAt: null,
+      },
+      include: {
+        attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
+        recipients: { where: { type: { not: 'BCC' } } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const messageIds = messages.map((m: any) => m.id);
+    await (this.prisma as any).mailRecipient.updateMany({
+      where: { messageId: { in: messageIds }, recipientId: userId, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+
+    return messages;
   }
 
   async getById(userId: string, messageId: string) {
@@ -327,11 +424,43 @@ export class MailService {
   }
 
   async move(userId: string, dto: MoveMailDto) {
+    const data: any = { folder: dto.folder };
+    if (dto.folder === MailFolder.ARCHIVE && dto.archiveFolderId) {
+      data.archiveFolderId = dto.archiveFolderId;
+    } else {
+      data.archiveFolderId = null;
+    }
     await (this.prisma as any).mailRecipient.updateMany({
       where: { messageId: { in: dto.messageIds }, recipientId: userId, deletedAt: null },
-      data: { folder: dto.folder },
+      data,
     });
     return { moved: dto.messageIds.length };
+  }
+
+  async listArchiveFolders(userId: string) {
+    return (this.prisma as any).mailArchiveFolder.findMany({
+      where: { ownerId: userId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createArchiveFolder(userId: string, name: string) {
+    return (this.prisma as any).mailArchiveFolder.create({
+      data: { ownerId: userId, name },
+    });
+  }
+
+  async deleteArchiveFolder(userId: string, folderId: string) {
+    const folder = await (this.prisma as any).mailArchiveFolder.findFirst({
+      where: { id: folderId, ownerId: userId },
+    });
+    if (!folder) throw new NotFoundException({ code: 'FOLDER_NOT_FOUND', message: 'Archive folder not found', details: [] });
+    await (this.prisma as any).mailRecipient.updateMany({
+      where: { archiveFolderId: folderId },
+      data: { archiveFolderId: null },
+    });
+    await (this.prisma as any).mailArchiveFolder.delete({ where: { id: folderId } });
+    return { deleted: true };
   }
 
   async deleteMessage(userId: string, messageId: string) {

@@ -9,9 +9,9 @@ export enum RecipientType {
 }
 
 export class RecipientDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'Employee ID of the recipient' })
   @IsString()
-  userId: string;
+  employeeId: string;
 
   @ApiProperty({ enum: RecipientType })
   @IsEnum(RecipientType)

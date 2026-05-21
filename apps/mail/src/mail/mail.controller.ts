@@ -70,6 +70,24 @@ export class MailController {
     return this.mailService.getDrafts(user.userId, query);
   }
 
+  @Get('archive-folders')
+  @Permission('mail:read_own')
+  listArchiveFolders(@User() user: any) {
+    return this.mailService.listArchiveFolders(user.userId);
+  }
+
+  @Post('archive-folders')
+  @Permission('mail:update')
+  createArchiveFolder(@User() user: any, @Body() dto: { name: string }) {
+    return this.mailService.createArchiveFolder(user.userId, dto.name);
+  }
+
+  @Delete('archive-folders/:id')
+  @Permission('mail:delete')
+  deleteArchiveFolder(@User() user: any, @Param('id') id: string) {
+    return this.mailService.deleteArchiveFolder(user.userId, id);
+  }
+
   @Get('archive')
   @Permission('mail:read_own')
   getArchive(@User() user: any, @Query() query: ListMailQueryDto) {
@@ -80,6 +98,12 @@ export class MailController {
   @Permission('mail:read_own')
   getTrash(@User() user: any, @Query() query: ListMailQueryDto) {
     return this.mailService.getFolder(user.userId, MailFolder.TRASH, query);
+  }
+
+  @Get('thread/:id')
+  @Permission('mail:read_own')
+  getThread(@User() user: any, @Param('id') id: string) {
+    return this.mailService.getThread(user.userId, id);
   }
 
   @Get(':id')

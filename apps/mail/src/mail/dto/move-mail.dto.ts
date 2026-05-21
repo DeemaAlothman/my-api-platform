@@ -1,5 +1,5 @@
-import { IsArray, IsEnum, IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsArray, IsEnum, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum MailFolder {
   INBOX   = 'INBOX',
@@ -18,4 +18,9 @@ export class MoveMailDto {
   @ApiProperty({ enum: MailFolder })
   @IsEnum(MailFolder)
   folder: MailFolder;
+
+  @ApiPropertyOptional({ description: 'Archive folder ID — used only when folder is ARCHIVE' })
+  @IsOptional()
+  @IsString()
+  archiveFolderId?: string;
 }
