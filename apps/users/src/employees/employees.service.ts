@@ -258,13 +258,29 @@ export class EmployeesService {
 
   async resolveEmployeeIds(employeeIds: string[]): Promise<{ employeeId: string; userId: string }[]> {
     if (!employeeIds.length) return [];
-    const employees = await this.prisma.employee.findMany({
+
+    // First pass: treat as employee IDs
+    const byEmpId = await this.prisma.employee.findMany({
       where: { id: { in: employeeIds }, deletedAt: null, userId: { not: null } },
       select: { id: true, userId: true },
     });
-    return employees
-      .filter(e => e.userId)
-      .map(e => ({ employeeId: e.id, userId: e.userId! }));
+
+    const resolved = new Set(byEmpId.map(e => e.id));
+    const remaining = employeeIds.filter(id => !resolved.has(id));
+
+    // Second pass: treat remaining as userIds (frontend may send senderId directly)
+    let byUserId: Array<{ id: string; userId: string | null }> = [];
+    if (remaining.length > 0) {
+      byUserId = await this.prisma.employee.findMany({
+        where: { userId: { in: remaining }, deletedAt: null },
+        select: { id: true, userId: true },
+      });
+    }
+
+    return [
+      ...byEmpId.filter(e => e.userId).map(e => ({ employeeId: e.id, userId: e.userId! })),
+      ...byUserId.filter(e => e.userId).map(e => ({ employeeId: e.id, userId: e.userId! })),
+    ];
   }
 
   async findManyByUserIds(userIds: string[]): Promise<Array<{
