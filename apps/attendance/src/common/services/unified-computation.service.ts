@@ -58,7 +58,7 @@ export class UnifiedComputationService {
       return { ...zero, status: 'WEEKEND' };
     }
 
-    const scheduledStart = this.parseTime(req.date, schedule.workStartTime);
+    let scheduledStart = this.parseTime(req.date, schedule.workStartTime);
     let scheduledEnd   = this.parseTime(req.date, schedule.workEndTime);
 
     // معالجة الوردية الليلية: إذا وقت النهاية قبل البداية → النهاية في اليوم التالي
