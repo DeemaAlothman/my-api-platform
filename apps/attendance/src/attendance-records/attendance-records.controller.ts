@@ -50,6 +50,14 @@ export class AttendanceRecordsController {
     return this.service.findAll(query);
   }
 
+  // ─── Needs-review list ───────────────────────────────────────────────────
+
+  @Get('needs-review')
+  @Permission('attendance.records.read')
+  getNeedsReview(@Query() query: { employeeId?: string; dateFrom?: string; dateTo?: string; page?: string; limit?: string }) {
+    return this.service.getNeedsReview(query);
+  }
+
   @Get(':id')
   @Permission('attendance.records.read')
   findOne(@Param('id') id: string) {
@@ -103,5 +111,15 @@ export class AttendanceRecordsController {
   @Permission('attendance.records.update-manual')
   approveRecord(@Param('id') id: string, @UserId() userId: string) {
     return this.service.approveRecord(id, userId);
+  }
+
+  @Post(':id/add-manual-stamp')
+  @Permission('attendance.records.update-manual')
+  addManualStamp(
+    @Param('id') id: string,
+    @Body() body: { timestamp: string; interpretedAs: string },
+    @UserId() userId: string,
+  ) {
+    return this.service.addManualStamp(id, body, userId);
   }
 }

@@ -272,4 +272,62 @@ export class LeaveBalancesService {
 
     return { message: 'Leave balance deleted successfully' };
   }
+
+  async getHourlyMonthly(employeeId: string, year?: number, month?: number) {
+    const currentYear = year || new Date().getFullYear();
+    const currentMonth = month || new Date().getMonth() + 1;
+
+    const leaveType = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "maxHoursPerMonth" FROM leaves.leave_types
+       WHERE code = 'HOURLY_PAID' AND "isActive" = true LIMIT 1`,
+    )) as Array<{ id: string; maxHoursPerMonth: number }>;
+
+    if (!leaveType[0]) {
+      throw new NotFoundException('HOURLY_PAID leave type not configured');
+    }
+
+    const { id: leaveTypeId, maxHoursPerMonth } = leaveType[0];
+    const monthStart = new Date(`${currentYear}-${String(currentMonth).padStart(2, '0')}-01T00:00:00Z`);
+    const nextMonth = new Date(monthStart);
+    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+
+    // كل طلبات HOURLY_PAID في الشهر المحدد
+    const requests = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "durationHours", status, source, "startDate"
+       FROM leaves.leave_requests
+       WHERE "employeeId" = $1
+         AND "leaveTypeId" = $2
+         AND "isHourlyLeave" = true
+         AND "startDate" >= $3
+         AND "startDate" < $4
+         AND "deletedAt" IS NULL
+       ORDER BY "startDate" ASC`,
+      employeeId, leaveTypeId, monthStart, nextMonth,
+    )) as Array<{ id: string; durationHours: number; status: string; source: string; startDate: Date }>;
+
+    const approved = requests.filter(r => r.status === 'APPROVED');
+    const byRequests = approved.filter(r => !r.source || r.source === 'EMPLOYEE_REQUEST');
+    const byTardiness = approved.filter(r => r.source === 'TARDINESS_AUTO');
+
+    const usedByRequestsHours = byRequests.reduce((s, r) => s + (r.durationHours || 0), 0);
+    const usedByTardinessHours = byTardiness.reduce((s, r) => s + (r.durationHours || 0), 0);
+    const totalUsedHours = usedByRequestsHours + usedByTardinessHours;
+    const remainingHours = Math.max(0, (maxHoursPerMonth || 2) - totalUsedHours);
+
+    return {
+      employeeId,
+      year: currentYear,
+      month: currentMonth,
+      leaveTypeId,
+      totalHours: maxHoursPerMonth || 2,
+      usedByRequestsHours: Math.round(usedByRequestsHours * 100) / 100,
+      usedByTardinessHours: Math.round(usedByTardinessHours * 100) / 100,
+      totalUsedHours: Math.round(totalUsedHours * 100) / 100,
+      remainingHours: Math.round(remainingHours * 100) / 100,
+      usedByRequestsMinutes: Math.round(usedByRequestsHours * 60),
+      usedByTardinessMinutes: Math.round(usedByTardinessHours * 60),
+      totalUsedMinutes: Math.round(totalUsedHours * 60),
+      remainingMinutes: Math.round(remainingHours * 60),
+    };
+  }
 }

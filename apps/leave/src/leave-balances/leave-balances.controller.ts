@@ -46,6 +46,19 @@ export class LeaveBalancesController {
     return this.leaveBalancesService.findByEmployee(employeeId, yearNum);
   }
 
+  // تفاصيل رصيد HOURLY_PAID الشهري — الطلبات مقابل التأخيرات
+  @Get(':employeeId/hourly-monthly')
+  @Permission('leave_balances:read_all')
+  getHourlyMonthly(
+    @Param('employeeId') employeeId: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    const yearNum = year ? parseInt(year, 10) : undefined;
+    const monthNum = month ? parseInt(month, 10) : undefined;
+    return this.leaveBalancesService.getHourlyMonthly(employeeId, yearNum, monthNum);
+  }
+
   // الحصول على رصيد محدد
   @Get(':id')
   @Permission('leave_balances:read')

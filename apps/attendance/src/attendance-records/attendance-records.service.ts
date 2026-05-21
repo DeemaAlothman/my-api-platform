@@ -610,6 +610,90 @@ export class AttendanceRecordsService {
     return this.findOne(recordId);
   }
 
+  async getNeedsReview(query: { employeeId?: string; dateFrom?: string; dateTo?: string; page?: number | string; limit?: number | string }) {
+    const conditions: string[] = [`"punchSequenceStatus" = 'NEEDS_REVIEW'`];
+    const params: unknown[] = [];
+    let idx = 1;
+
+    if (query.employeeId) {
+      conditions.push(`"employeeId" = $${idx++}`);
+      params.push(query.employeeId);
+    }
+    if (query.dateFrom) {
+      conditions.push(`date >= $${idx++}::date`);
+      params.push(query.dateFrom);
+    }
+    if (query.dateTo) {
+      conditions.push(`date <= $${idx++}::date`);
+      params.push(query.dateTo);
+    }
+
+    const where = conditions.join(' AND ');
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    const [rows, countRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe(
+        `SELECT * FROM attendance.attendance_records WHERE ${where} ORDER BY date DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+        ...params, limit, offset,
+      ),
+      this.prisma.$queryRawUnsafe(
+        `SELECT COUNT(*)::int AS total FROM attendance.attendance_records WHERE ${where}`,
+        ...params,
+      ),
+    ]);
+
+    const items = rows as any[];
+    const total = (countRows as Array<{ total: number }>)[0]?.total ?? 0;
+    const employeeIds = [...new Set(items.map(r => r.employeeId))] as string[];
+    const employeeMap = await this.getEmployeeNames(employeeIds);
+
+    return {
+      items: items.map(r => ({ ...r, employee: employeeMap.get(r.employeeId) || null })),
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
+  }
+
+  async addManualStamp(recordId: string, body: { timestamp: string; interpretedAs: string }, userId: string) {
+    const valid = ['CLOCK_IN', 'CLOCK_OUT', 'BREAK_OUT', 'BREAK_IN'];
+    if (!valid.includes(body.interpretedAs)) {
+      throw new BadRequestException(`interpretedAs must be one of: ${valid.join(', ')}`);
+    }
+
+    const record = await this.findOne(recordId);
+    const employeeId = (record as any).employeeId as string;
+    const ts = new Date(body.timestamp);
+
+    if (isNaN(ts.getTime())) {
+      throw new BadRequestException('Invalid timestamp');
+    }
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO biometric.raw_attendance_logs
+         (id, "employeeId", "deviceSN", timestamp, "rawType", "interpretedAs", "syncError", "createdAt")
+       VALUES
+         (gen_random_uuid(), $1, 'MANUAL', $2, 'MANUAL', $3, false, NOW())`,
+      employeeId, ts, body.interpretedAs,
+    );
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO attendance.attendance_computation_logs
+         (id, "attendanceRecordId", "employeeId", date, action, source, "changedFields", "performedBy", notes, "createdAt")
+       VALUES
+         (gen_random_uuid(), $1, $2, $3::date, 'MANUAL_STAMP_ADDED', 'HTTP', $4, $5, 'Manual stamp added by HR', NOW())`,
+      recordId, employeeId,
+      ts.toISOString().split('T')[0],
+      JSON.stringify({ timestamp: ts, interpretedAs: body.interpretedAs }),
+      userId,
+    ).catch(() => {});
+
+    return this.recomputeRecord(recordId, userId);
+  }
+
   async approveRecord(recordId: string, userId: string) {
     const record = await this.findOne(recordId);
     const employeeId = (record as any).employeeId as string;
