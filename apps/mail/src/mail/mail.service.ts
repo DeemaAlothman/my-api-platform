@@ -118,7 +118,8 @@ export class MailService {
       `${USERS_URL}/api/v1/employees/internal/find-by-user-id`,
       { userId: senderId },
     );
-    const signature = senderInfo
+    // أضف التوقيع فقط للرسائل الجديدة — الردود والتحويل ما تحتاجه
+    const signature = (!dto.parentMessageId && senderInfo)
       ? `\n\n---\n${senderInfo.firstNameAr ?? ''} ${senderInfo.lastNameAr ?? ''}${senderInfo.jobTitle?.nameAr ? '\n' + senderInfo.jobTitle.nameAr : ''}`
       : '';
     const bodyWithSignature = (dto.body ?? '') + signature;
@@ -374,7 +375,8 @@ export class MailService {
         include: {
           attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
           recipients: {
-            where: { type: { not: 'BCC' } },
+            // استبعد سجل المرسل نفسه (folder=SENT) من قائمة المستقبلين
+            where: { type: { not: 'BCC' }, folder: { not: MailFolder.SENT } },
             select: { recipientId: true, type: true },
           },
         },
@@ -442,7 +444,7 @@ export class MailService {
       },
       include: {
         attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
-        recipients: { where: { type: { not: 'BCC' } } },
+        recipients: { where: { type: { not: 'BCC' }, folder: { not: MailFolder.SENT } } },
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -475,7 +477,7 @@ export class MailService {
       include: {
         message: {
           include: {
-            recipients: { where: { type: { not: 'BCC' } } },
+            recipients: { where: { type: { not: 'BCC' }, folder: { not: MailFolder.SENT } } },
             attachments: true,
           },
         },
@@ -496,7 +498,7 @@ export class MailService {
       const sent = await (this.prisma as any).mailMessage.findFirst({
         where: { id: messageId, senderId: userId, deletedAt: null },
         include: {
-          recipients: { where: { type: { not: 'BCC' } } },
+          recipients: { where: { type: { not: 'BCC' }, folder: { not: MailFolder.SENT } } },
           attachments: true,
         },
       });
