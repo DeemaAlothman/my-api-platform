@@ -672,12 +672,24 @@ export class AttendanceRecordsService {
       throw new BadRequestException('Invalid timestamp');
     }
 
+    // جلب أي جهاز موجود — الـ deviceId FK مطلوب
+    const devices = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "serialNumber" FROM biometric.biometric_devices WHERE "isActive" = true LIMIT 1`,
+    )) as Array<{ id: string; serialNumber: string }>;
+
+    if (!devices[0]) {
+      throw new BadRequestException('No active biometric device found — cannot create manual stamp');
+    }
+
+    const deviceId = devices[0].id;
+    const deviceSN = devices[0].serialNumber;
+
     await this.prisma.$queryRawUnsafe(
       `INSERT INTO biometric.raw_attendance_logs
          (id, "deviceId", "deviceSN", pin, "employeeId", timestamp, "rawType", "interpretedAs", "synced", "createdAt")
        VALUES
-         (gen_random_uuid(), 'MANUAL', 'MANUAL', '0', $1, $2, 0, $3, false, NOW())`,
-      employeeId, ts, body.interpretedAs,
+         (gen_random_uuid(), $1, $2, '0', $3, $4, 0, $5, false, NOW())`,
+      deviceId, deviceSN, employeeId, ts, body.interpretedAs,
     );
 
     await this.prisma.$queryRawUnsafe(
