@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional, IsEnum, ArrayMinSize, ValidateNested } from 'class-validator';
+import { IsString, IsArray, IsOptional, IsEnum, ArrayMinSize, ValidateNested, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -23,9 +23,10 @@ export class SendMailDto {
   @IsString()
   subject: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  body: string;
+  body?: string;
 
   @ApiProperty({ type: [RecipientDto] })
   @IsArray()

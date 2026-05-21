@@ -121,7 +121,7 @@ export class MailService {
     const signature = senderInfo
       ? `\n\n---\n${senderInfo.firstNameAr ?? ''} ${senderInfo.lastNameAr ?? ''}${senderInfo.jobTitle?.nameAr ? '\n' + senderInfo.jobTitle.nameAr : ''}`
       : '';
-    const bodyWithSignature = dto.body + signature;
+    const bodyWithSignature = (dto.body ?? '') + signature;
 
     return this.prisma.$transaction(async (tx) => {
       const toRecipients = allRecipients.filter((r) => r.type === RecipientType.TO);
@@ -233,7 +233,9 @@ export class MailService {
       : `Fwd: ${original.subject}`;
 
     const separator = '\n\n---------- رسالة محوَّلة ----------\n';
-    const forwardBody = dto.body ? dto.body + separator + original.body : original.body;
+    const forwardBody = dto.body?.trim()
+      ? dto.body + separator + original.body
+      : original.body;
 
     return this.send(senderId, {
       ...dto,
