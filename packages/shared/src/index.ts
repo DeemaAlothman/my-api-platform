@@ -9,6 +9,7 @@ export * from './decorators/permission.decorator';
 
 // Guards
 export * from './guards/permissions.guard';
+export * from './guards/internal-auth.guard';
 
 // Constants
 export * from './constants/permissions.constants';

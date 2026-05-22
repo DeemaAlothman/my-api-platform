@@ -54,6 +54,8 @@ import {
   MailProxyController,
   SalaryAdvancesProxyController,
   SalesCommissionsProxyController,
+  PatientsProxyController,
+  CitiesProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -111,6 +113,8 @@ import {
     MailProxyController,
     SalaryAdvancesProxyController,
     SalesCommissionsProxyController,
+    PatientsProxyController,
+    CitiesProxyController,
   ],
   providers: [ProxyService],
 })

@@ -781,3 +781,35 @@ export class SalesCommissionsProxyController {
     await this.proxy.forward(req, res, 'users');
   }
 }
+
+// ── Clinic ────────────────────────────────────────────────────────────────────
+
+@Controller('patients')
+export class PatientsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'patients');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'patients');
+  }
+}
+
+@Controller('cities')
+export class CitiesProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'patients');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'patients');
+  }
+}

@@ -1,0 +1,197 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ── Enums ───────────────────────────────────────────────────────────
+
+enum IdType {
+  NATIONAL_ID
+  PASSPORT
+  UNHCR
+  OTHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum EducationLevel {
+  ILLITERATE
+  PRIMARY
+  SECONDARY
+  HIGH_SCHOOL
+  UNIVERSITY
+  POSTGRADUATE
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum LivingCondition {
+  WITH_FAMILY
+  INDEPENDENT
+  SHELTER_CAMP
+  OTHER
+}
+
+enum FinancialStatus {
+  LOW
+  MODERATE
+  GOOD
+  NOT_WORKING
+  RETIRED
+}
+
+enum ReferralSource {
+  SELF
+  RELATIVES
+  SOCIAL_MEDIA
+  MEDICAL_REFERRAL
+  OTHER
+}
+
+enum DocumentType {
+  ID_COPY
+  PERSONAL_PHOTO
+  AMPUTATION_PHOTO
+  RESIDUAL_LIMB_PHOTO
+  MEDICAL_REPORT
+  OTHER
+}
+
+enum ConsentType {
+  DOCUMENTATION
+  MEDIA_APPEARANCE
+}
+
+enum ConsentDecision {
+  FUNDER_ONLY
+  FUNDER_AND_SOCIAL
+  REFUSED
+  AGREED
+  DISAGREED
+}
+
+// ── Models ──────────────────────────────────────────────────────────
+
+model City {
+  id          Int       @id @default(autoincrement())
+  nameAr      String
+  nameEn      String
+  governorate String
+  patients    Patient[]
+
+  @@unique([nameAr, governorate])
+  @@map("cities")
+}
+
+model Patient {
+  id            String  @id @default(uuid())
+  patientNumber String  @unique
+
+  // Identity
+  firstName  String
+  lastName   String
+  idType     IdType
+  idNumber   String  @unique
+
+  // Demographics
+  dateOfBirth DateTime
+  gender      Gender
+
+  // Contact
+  cityId         Int
+  city           City    @relation(fields: [cityId], references: [id])
+  addressDetails String?
+  phone          String
+  whatsapp       String?
+  email          String?
+
+  // Physical
+  heightCm Float?
+  weightKg Float?
+  bmi      Float?
+
+  // Socioeconomic
+  educationLevel   EducationLevel?
+  maritalStatus    MaritalStatus?
+  livingCondition  LivingCondition?
+  financialStatus  FinancialStatus?
+  receivesAid      Boolean         @default(false)
+
+  // Referral
+  referralSource  ReferralSource?
+  referralDetails String?
+
+  // Soft delete
+  deletedAt DateTime?
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String
+
+  documents PatientDocument[]
+  consents  Consent[]
+  notes     PatientNote[]
+
+  @@index([idNumber])
+  @@index([patientNumber])
+  @@index([phone])
+  @@map("patients")
+}
+
+model PatientDocument {
+  id         String       @id @default(uuid())
+  patientId  String
+  patient    Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  type       DocumentType
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  uploadedAt DateTime     @default(now())
+  uploadedBy String
+
+  @@index([patientId])
+  @@map("patient_documents")
+}
+
+model Consent {
+  id              String          @id @default(uuid())
+  patientId       String
+  patient         Patient         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  type            ConsentType
+  decision        ConsentDecision
+  signatureBase64 String?
+  signedAt        DateTime?
+  signedByPatient String
+  witnessUserId   String?
+  ipAddress       String?
+  createdAt       DateTime        @default(now())
+
+  @@index([patientId])
+  @@map("consents")
+}
+
+model PatientNote {
+  id        String   @id @default(uuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([patientId])
+  @@map("patient_notes")
+}

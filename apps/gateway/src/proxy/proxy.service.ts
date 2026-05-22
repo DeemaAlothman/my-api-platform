@@ -61,6 +61,11 @@ export class ProxyService {
       url: process.env.MAIL_SERVICE_URL || 'http://localhost:4009',
       prefix: '/mail',
     });
+
+    this.services.set('patients', {
+      url: process.env.PATIENTS_SERVICE_URL || 'http://localhost:4010',
+      prefix: '/patients',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {
