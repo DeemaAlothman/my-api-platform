@@ -122,7 +122,7 @@ async function main() {
          "dateOfBirth", gender, "cityId", phone, "createdAt", "updatedAt", "createdBy")
       VALUES
         ($1, $2, $3, $4, 'NATIONAL_ID'::clinic_patients."IdType", $5, $6::date, $7::clinic_patients."Gender", $8, $9, NOW(), NOW(), $10)
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT DO NOTHING
     `,
       PATIENT_IDS[i], `P-2026-${String(i + 1).padStart(4, '0')}`,
       p.first, p.last, p.idNum, p.dob, p.gender, cityId, p.phone, SYSTEM_USER,
@@ -205,7 +205,7 @@ async function main() {
         (id, "partCode", name, "nameAr", "categoryId", "supplierId", unit, "currentStock", "unitCostUsd", type, "isActive", "createdAt", "updatedAt")
       VALUES
         ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::"clinic_inventory"."InventoryType", true, NOW(), NOW())
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT DO NOTHING
     `, item.id, item.partCode, item.name, item.nameAr, item.cat, item.sup, item.unit,
        item.stock, item.cost, item.type);
   }
@@ -240,7 +240,7 @@ async function main() {
          false, false, false, false,
          $9, $10::"clinic_prosthetics"."ProsthesisType",
          NOW(), NOW(), $11)
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT DO NOTHING
     `, c.id, c.num, c.pid, c.cause, c.type, c.side, c.level, c.status,
        PRACTITIONER_IDS.prosthetist1, c.prosType, SYSTEM_USER);
   }
@@ -266,7 +266,7 @@ async function main() {
       VALUES
         ($1, $2, $3, $4, $5, $6::"clinic_physio"."PhysioStatus",
          $7, NOW(), NOW(), $8)
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT DO NOTHING
     `, c.id, c.num, c.pid, c.complaint, c.symptoms, c.status,
        PRACTITIONER_IDS.physio1, SYSTEM_USER);
   }
@@ -315,7 +315,7 @@ async function main() {
          $8::timestamptz, $9::timestamptz, 60,
          $10::"clinic_appointments"."AppointmentStatus",
          NOW(), NOW(), $11)
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT DO NOTHING
     `,
       APPT_IDS[apptIdx],
       PATIENT_IDS[patIdx],
