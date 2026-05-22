@@ -121,7 +121,7 @@ async function main() {
         (id, "patientNumber", "firstName", "lastName", "idType", "idNumber",
          "dateOfBirth", gender, "cityId", phone, "createdAt", "updatedAt", "createdBy")
       VALUES
-        ($1, $2, $3, $4, 'NATIONAL_ID', $5, $6::date, $7, $8, $9, NOW(), NOW(), $10)
+        ($1, $2, $3, $4, 'NATIONAL_ID'::clinic_patients."IdType", $5, $6::date, $7::clinic_patients."Gender", $8, $9, NOW(), NOW(), $10)
       ON CONFLICT (id) DO NOTHING
     `,
       PATIENT_IDS[i], `P-2026-${String(i + 1).padStart(4, '0')}`,
