@@ -4,6 +4,7 @@ import { AppointmentsService } from './appointments.service';
 import { ReminderService } from './reminder.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+
 @Module({
   controllers: [AppointmentsController],
   providers: [AppointmentsService, ReminderService, PrismaService],

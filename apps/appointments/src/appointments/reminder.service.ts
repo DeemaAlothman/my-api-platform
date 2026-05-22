@@ -1,14 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import * as cron from 'node-cron';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class ReminderService {
+export class ReminderService implements OnModuleInit {
   private readonly logger = new Logger(ReminderService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Cron('0 9 * * *')
+  onModuleInit() {
+    // Run at 09:00 every day
+    cron.schedule('0 9 * * *', () => { this.sendDayBeforeReminders().catch(() => {}); });
+    this.logger.log('Appointment reminder cron registered (09:00 daily)');
+  }
+
   async sendDayBeforeReminders() {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
