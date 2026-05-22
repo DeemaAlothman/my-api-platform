@@ -22,13 +22,9 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/apps/clinical-physio/package*.json ./
-RUN npm install --omit=dev
-
+COPY --from=builder /app/node_modules              ./node_modules
 COPY --from=builder /app/apps/clinical-physio/dist   ./dist
 COPY --from=builder /app/apps/clinical-physio/prisma ./prisma
-
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 
 EXPOSE 4012
 CMD ["node", "dist/apps/clinical-physio/src/main.js"]
