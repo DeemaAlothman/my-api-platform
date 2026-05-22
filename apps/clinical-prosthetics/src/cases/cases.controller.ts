@@ -234,4 +234,12 @@ export class CasesController {
   getFollowUps(@Param('id') id: string) {
     return this.service.getFollowUps(id);
   }
+
+  // ── Timeline ──────────────────────────────────────────────────────────────
+
+  @Get(':id/timeline')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getTimeline(@Param('id') id: string) {
+    return this.service.getTimeline(id);
+  }
 }

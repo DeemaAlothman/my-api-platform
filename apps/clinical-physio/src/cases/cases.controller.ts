@@ -153,4 +153,12 @@ export class CasesController {
   deleteSession(@Param('id') id: string, @Param('sessionId') sessionId: string) {
     return this.service.deleteSession(id, sessionId);
   }
+
+  // ── Timeline ──────────────────────────────────────────────────────────────
+
+  @Get(':id/timeline')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_VIEW)
+  getTimeline(@Param('id') id: string) {
+    return this.service.getTimeline(id);
+  }
 }

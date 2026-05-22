@@ -661,4 +661,102 @@ export class CasesService {
       orderBy: { visitDate: 'desc' },
     });
   }
+
+  // ── Timeline ──────────────────────────────────────────────────────────────
+
+  async getTimeline(caseId: string) {
+    const c = await this.prisma.prostheticsCase.findFirst({
+      where: { id: caseId, deletedAt: null },
+      include: {
+        upperAssessment:  { select: { examinedAt: true } },
+        lowerAssessment:  { select: { examinedAt: true } },
+        committeeReview:  {
+          select: {
+            prosthetistReviewedAt:    true,
+            physiotherapistReviewedAt: true,
+            doctorReviewedAt:         true,
+            committeeHeadReviewedAt:  true,
+            expertReviewedAt:         true,
+            decidedAt:                true,
+            finalDecision:            true,
+            doctorSignedAt:           true,
+          },
+        },
+        components:       { select: { addedAt: true, partName: true }, orderBy: { addedAt: 'asc' } },
+        gaitAnalysis:     { select: { examinedAt: true, doctorSignedAt: true } },
+        balanceAssessment:{ select: { examinedAt: true } },
+        treatmentPlan: {
+          include: {
+            workshopSessions: { select: { sessionDate: true, providedService: true }, orderBy: { sessionDate: 'asc' } },
+            ptSessions:       { select: { sessionDate: true, providedService: true }, orderBy: { sessionDate: 'asc' } },
+            mediaSessions:    { select: { sessionDate: true, providedService: true }, orderBy: { sessionDate: 'asc' } },
+          },
+        },
+        consumables:      { select: { usedAt: true, consumableName: true }, orderBy: { usedAt: 'asc' } },
+        finalEvaluation:  { select: { fittingDate: true, medicalDirectorSignedAt: true, managerSignedAt: true } },
+        delivery:         { select: { deliveryDate: true, patientSignedAt: true, managerSignedAt: true } },
+        followUps:        { select: { visitDate: true, findings: true }, orderBy: { visitDate: 'asc' } },
+      },
+    });
+    if (!c) throw new NotFoundException('Prosthetics case not found');
+
+    const events: Array<{ date: Date; type: string; title: string; description?: string }> = [];
+    const add = (date: Date | null | undefined, type: string, title: string, description?: string) => {
+      if (date) events.push({ date, type, title, description });
+    };
+
+    add(c.createdAt, 'case_created', 'تم إنشاء الملف');
+    if (c.upperAssessment) add(c.upperAssessment.examinedAt, 'assessment_upper', 'تقييم الطرف العلوي');
+    if (c.lowerAssessment) add(c.lowerAssessment.examinedAt, 'assessment_lower', 'تقييم الطرف السفلي');
+
+    if (c.committeeReview) {
+      const cr = c.committeeReview;
+      add(cr.prosthetistReviewedAt,     'committee_opinion', 'رأي الأرثوبيدي');
+      add(cr.physiotherapistReviewedAt, 'committee_opinion', 'رأي المعالج الفيزيائي');
+      add(cr.doctorReviewedAt,          'committee_opinion', 'رأي الطبيب');
+      add(cr.committeeHeadReviewedAt,   'committee_opinion', 'رأي رئيس اللجنة');
+      add(cr.expertReviewedAt,          'committee_opinion', 'رأي الخبير');
+      add(cr.decidedAt,                 'committee_decision', `قرار اللجنة: ${cr.finalDecision ?? ''}`);
+      add(cr.doctorSignedAt,            'committee_signed',  'توقيع الطبيب على قرار اللجنة');
+    }
+
+    for (const comp of c.components)
+      add(comp.addedAt, 'component_added', `إضافة مكون: ${comp.partName}`);
+
+    if (c.gaitAnalysis) {
+      add(c.gaitAnalysis.examinedAt,   'gait_analysis', 'تحليل المشي');
+      add(c.gaitAnalysis.doctorSignedAt,'gait_signed',  'توقيع الطبيب على تحليل المشي');
+    }
+    if (c.balanceAssessment) add(c.balanceAssessment.examinedAt, 'balance_assessment', 'تقييم التوازن');
+
+    if (c.treatmentPlan) {
+      for (const s of c.treatmentPlan.workshopSessions)
+        add(s.sessionDate, 'workshop_session', `جلسة ورشة: ${s.providedService}`);
+      for (const s of c.treatmentPlan.ptSessions)
+        add(s.sessionDate, 'pt_session', `جلسة علاج طبيعي: ${s.providedService}`);
+      for (const s of c.treatmentPlan.mediaSessions)
+        add(s.sessionDate, 'media_session', `جلسة وسائط: ${s.providedService}`);
+    }
+
+    for (const cons of c.consumables)
+      add(cons.usedAt, 'consumable_used', `مستهلكات: ${cons.consumableName}`);
+
+    if (c.finalEvaluation) {
+      add(c.finalEvaluation.fittingDate,              'fitting',         'موعد التركيب');
+      add(c.finalEvaluation.medicalDirectorSignedAt,  'director_signed', 'توقيع المدير الطبي');
+      add(c.finalEvaluation.managerSignedAt,          'manager_signed',  'توقيع المدير');
+    }
+
+    if (c.delivery) {
+      add(c.delivery.deliveryDate,    'delivery',                'تسليم الطرف الاصطناعي');
+      add(c.delivery.patientSignedAt, 'patient_signed',          'توقيع المريض على التسليم');
+      add(c.delivery.managerSignedAt, 'delivery_manager_signed', 'توقيع المدير على التسليم');
+    }
+
+    for (const fu of c.followUps)
+      add(fu.visitDate, 'follow_up', 'متابعة', fu.findings);
+
+    events.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return { caseId, caseNumber: c.caseNumber, timeline: events };
+  }
 }

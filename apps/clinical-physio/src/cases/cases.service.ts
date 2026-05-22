@@ -350,4 +350,40 @@ export class CasesService {
     if (!session) throw new NotFoundException('Session not found');
     return this.prisma.physioSession.delete({ where: { id: sessionId } });
   }
+
+  // ── Timeline ──────────────────────────────────────────────────────────────
+
+  async getTimeline(caseId: string) {
+    const c = await this.prisma.physioCase.findFirst({
+      where: { id: caseId, deletedAt: null },
+      include: {
+        treatmentPlan: { select: { supervisorReviewedAt: true, doctorReviewedAt: true } },
+        sessions: {
+          select: { sessionDate: true, painLevel: true, notes: true },
+          orderBy: { sessionDate: 'asc' },
+        },
+      },
+    });
+    if (!c) throw new NotFoundException('Physio case not found');
+
+    const events: Array<{ date: Date; type: string; title: string; description?: string }> = [];
+    const add = (date: Date | null | undefined, type: string, title: string, description?: string) => {
+      if (date) events.push({ date, type, title, description });
+    };
+
+    add(c.createdAt, 'case_created', 'تم إنشاء الملف');
+
+    if (c.treatmentPlan) {
+      add(c.treatmentPlan.supervisorReviewedAt, 'supervisor_review', 'مراجعة المشرف لخطة العلاج');
+      add(c.treatmentPlan.doctorReviewedAt,     'plan_signed',       'توقيع الطبيب على خطة العلاج');
+    }
+
+    for (const s of c.sessions) {
+      const desc = s.painLevel != null ? `مستوى الألم: ${s.painLevel}` : (s.notes ?? undefined);
+      add(s.sessionDate, 'session', 'جلسة علاج طبيعي', desc);
+    }
+
+    events.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return { caseId, caseNumber: c.caseNumber, timeline: events };
+  }
 }
