@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/clinic-inventory-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model InventoryCategory {
+  id       Int                 @id @default(autoincrement())
+  name     String
+  nameAr   String
+  parentId Int?
+  parent   InventoryCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children InventoryCategory[] @relation("CategoryHierarchy")
+  type     InventoryType
+  items    InventoryItem[]
+
+  @@map("inventory_categories")
+  @@schema("clinic_inventory")
+}
+
+model Supplier {
+  id          String         @id @default(uuid())
+  name        String
+  contactInfo Json?
+  items       InventoryItem[]
+
+  @@map("suppliers")
+  @@schema("clinic_inventory")
+}
+
+model InventoryItem {
+  id            String   @id @default(uuid())
+  partCode      String   @unique
+  name          String
+  nameAr        String?
+  description   String?  @db.Text
+
+  categoryId    Int
+  category      InventoryCategory @relation(fields: [categoryId], references: [id])
+
+  supplierId    String?
+  supplier      Supplier?  @relation(fields: [supplierId], references: [id])
+
+  unit          String
+  currentStock  Float    @default(0)
+  minStockLevel Float?
+  unitCostUsd   Float?
+  type          InventoryType
+  imageUrl      String?
+  isActive      Boolean  @default(true)
+
+  transactions  InventoryTransaction[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("inventory_items")
+  @@schema("clinic_inventory")
+  @@index([partCode])
+  @@index([currentStock])
+}
+
+model InventoryTransaction {
+  id                   String          @id @default(uuid())
+  itemId               String
+  item                 InventoryItem   @relation(fields: [itemId], references: [id])
+
+  type                 TransactionType
+  quantity             Float
+
+  receivedFromSupplier String?
+  poNumber             String?
+
+  issuedToCaseId       String?
+  issuedToPatientId    String?
+
+  notes                String?
+
+  createdAt            DateTime @default(now())
+  createdBy            String
+
+  @@map("inventory_transactions")
+  @@schema("clinic_inventory")
+  @@index([itemId])
+  @@index([createdAt])
+}
+
+enum InventoryType {
+  COMPONENT
+  CONSUMABLE
+
+  @@schema("clinic_inventory")
+}
+
+enum TransactionType {
+  RECEIVED
+  ISSUED
+  ADJUSTED
+  RETURNED
+  EXPIRED
+
+  @@schema("clinic_inventory")
+}

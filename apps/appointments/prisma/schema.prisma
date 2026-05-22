@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/appointments-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["clinic_appointments"]
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────
+
+enum CaseType          { PROSTHETICS PHYSIO GENERAL @@schema("clinic_appointments") }
+enum AppointmentType   { ASSESSMENT FITTING SESSION FOLLOW_UP COMMITTEE @@schema("clinic_appointments") }
+enum AppointmentStatus { SCHEDULED CONFIRMED COMPLETED CANCELLED NO_SHOW RESCHEDULED @@schema("clinic_appointments") }
+enum ReminderChannel   { MAIL WHATSAPP @@schema("clinic_appointments") }
+
+// ── Model ─────────────────────────────────────────────────────────────────
+
+model Appointment {
+  id               String   @id @default(uuid())
+  patientId        String
+  caseId           String?
+  caseType         CaseType?
+
+  practitionerId   String
+  practitionerRole String
+
+  appointmentType  AppointmentType
+  startTime        DateTime
+  endTime          DateTime
+  durationMinutes  Int      @default(60)
+
+  status           AppointmentStatus @default(SCHEDULED)
+
+  notes            String? @db.Text
+
+  reminderSentAt   DateTime?
+  reminderChannel  ReminderChannel?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdBy        String
+  cancelledReason  String?
+
+  @@map("appointments")
+  @@schema("clinic_appointments")
+  @@index([practitionerId, startTime])
+  @@index([patientId])
+  @@index([status])
+  @@index([startTime])
+}

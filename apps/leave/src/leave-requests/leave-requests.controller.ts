@@ -20,6 +20,7 @@ import { ListLeaveRequestsQueryDto } from './dto/list-leave-requests.query.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
+import { InternalAuthGuard } from '@shared';
 import { EmployeeId, UserId } from '@shared/auth';
 import { EmployeeInterceptor } from '../common/interceptors/employee.interceptor';
 
@@ -185,5 +186,16 @@ export class LeaveRequestsController {
   @Permission('leave_requests:delete')
   remove(@Param('id') id: string, @EmployeeId() employeeId: string) {
     return this.leaveRequestsService.remove(id, employeeId);
+  }
+
+  // ── Internal: check if employee is on leave (for appointments service) ──
+  @Get('internal/check-overlap')
+  @UseGuards(InternalAuthGuard)
+  checkOverlap(
+    @Query('userId') userId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.leaveRequestsService.checkOverlap(userId, new Date(from), new Date(to));
   }
 }

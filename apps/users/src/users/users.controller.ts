@@ -4,6 +4,7 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
+import { InternalAuthGuard } from '@shared';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -70,6 +71,20 @@ export class UsersController {
   @Post('users/:id/roles')
   assignRoles(@Param('id') id: string, @Body() dto: any) {
     return this.users.assignRoles(id, dto);
+  }
+
+  // ── Internal endpoints (x-internal-token) ─────────────────────────
+
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/users/:id/public-profile')
+  getPublicProfile(@Param('id') id: string) {
+    return this.users.getPublicProfile(id);
+  }
+
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/users/by-role/:roleName')
+  getByRole(@Param('roleName') roleName: string) {
+    return this.users.getByRole(roleName);
   }
 
 }

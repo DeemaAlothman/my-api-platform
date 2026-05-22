@@ -1,0 +1,470 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/clinical-prosthetics-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────
+
+enum AmputationType    { UPPER LOWER @@schema("clinic_prosthetics") }
+enum AmputationSide    { RIGHT LEFT BILATERAL @@schema("clinic_prosthetics") }
+enum AmputationLevel   { PH WD TR ED TH SD PF CHOPART TT KD TF HD @@schema("clinic_prosthetics") }
+enum CaseStatus        { INTAKE ASSESSMENT COMMITTEE_REVIEW APPROVED FITTING SOCKET_TRIAL GAIT_TRAINING FINAL_REVIEW DELIVERED FOLLOW_UP CANCELLED @@schema("clinic_prosthetics") }
+enum ProsthesisType    { BIONIC MYOBOCK MECHANIC COSMETIC_COVER OTHER @@schema("clinic_prosthetics") }
+enum KLevel            { K0 K1 K2 K3 K4 @@schema("clinic_prosthetics") }
+enum CommitteeDecision { APPROVED NEEDS_ADJUSTMENT REJECTED @@schema("clinic_prosthetics") }
+enum ComponentSource   { WAREHOUSE SUPPLIER @@schema("clinic_prosthetics") }
+enum ResidualLimbLength { LONG MEDIUM SHORT VERY_SHORT @@schema("clinic_prosthetics") }
+enum ResidualLimbShape  { BONY SOFT NORMAL CONICAL_BONY CONICAL_SOFT @@schema("clinic_prosthetics") }
+enum SkinTemperature    { NORMAL HOT COLD @@schema("clinic_prosthetics") }
+enum PainType     { NUMBNESS DULL_ACHE HOT_BURNING SHARP_STABBING PINS OTHER @@schema("clinic_prosthetics") }
+enum SkinAppearance { NORMAL PALE DRY INFLAMED PEELING OOZING @@schema("clinic_prosthetics") }
+enum SkinColor      { NORMAL PALE CYANOTIC ERYTHEMATOUS @@schema("clinic_prosthetics") }
+enum ScarCondition  { NORMAL RAISED DEPRESSED ADHERENT MOBILE @@schema("clinic_prosthetics") }
+enum LoadTolerance  { NOT_PALPABLE PALPABLE NON_WEIGHT_BEARING WEIGHT_BEARING @@schema("clinic_prosthetics") }
+enum WeightBearingLevel { FULL HIGH MEDIUM LOW @@schema("clinic_prosthetics") }
+enum QualityLevel   { GOOD FAIR POOR @@schema("clinic_prosthetics") }
+enum IndependenceLevel { INDEPENDENT ASSISTED @@schema("clinic_prosthetics") }
+enum StabilityLevel    { STABLE UNSTABLE @@schema("clinic_prosthetics") }
+enum AssistiveDevice   { NONE CANE CRUTCHES WALKER @@schema("clinic_prosthetics") }
+enum FallRiskLevel     { LOW MODERATE HIGH @@schema("clinic_prosthetics") }
+enum AlignmentStatus   { GOOD NEEDS_ADJUSTMENT @@schema("clinic_prosthetics") }
+enum SuspensionSystem  { PIN PASSIVE_VACUUM ACTIVE_VACUUM DVS SOFT_SOCKET BELT_STRAP OTHER @@schema("clinic_prosthetics") }
+enum SocketBearing     { PTB TSB MAS ISCHIAL_CONTAINMENT OTHER @@schema("clinic_prosthetics") }
+enum KneeJointType     { MECHANICAL HYDRAULIC POLYCENTRIC MONOCENTRIC MKP OTHER @@schema("clinic_prosthetics") }
+enum FootType          { DYNAMIC HYDRAULIC SACH CARBON SINGLE_AXIS MULTI_AXIS OTHER @@schema("clinic_prosthetics") }
+
+// ── Main Case ─────────────────────────────────────────────────────────────
+
+model ProstheticsCase {
+  id              String   @id @default(uuid())
+  caseNumber      String   @unique
+  patientId       String
+
+  amputationDate  DateTime
+  amputationCause String
+  amputationCount Int      @default(1)
+  amputationType  AmputationType
+  amputationSide  AmputationSide
+  amputationLevel AmputationLevel
+
+  status              CaseStatus @default(INTAKE)
+  hasPreviousProsthesis Boolean @default(false)
+  previousProsthesisDetails String?
+  hasRevisionSurgery  Boolean @default(false)
+  revisionDetails     String?
+  hasPhysicalTherapy  Boolean @default(false)
+  hasChronicDiseases  Boolean @default(false)
+  chronicDiseases     String?
+
+  prosthetistId        String?
+  physiotherapistId    String?
+  supervisingDoctorId  String?
+  workshopSupervisorId String?
+
+  prosthesisType       ProsthesisType?
+
+  upperAssessment  UpperLimbAssessment?
+  lowerAssessment  LowerLimbAssessment?
+  committeeReview  CommitteeReview?
+  components       ProsthesisComponent[]
+  gaitAnalysis     GaitAnalysis?
+  balanceAssessment BalanceAssessment?
+  treatmentPlan    TreatmentPlan?
+  consumables      ConsumableUsage[]
+  finalEvaluation  FinalEvaluation?
+  delivery         Delivery?
+  followUps        FollowUp[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String
+  deletedAt   DateTime?
+
+  @@map("prosthetics_cases")
+  @@schema("clinic_prosthetics")
+  @@index([patientId])
+  @@index([status])
+  @@index([caseNumber])
+}
+
+// ── Assessments ───────────────────────────────────────────────────────────
+
+model UpperLimbAssessment {
+  id     String @id @default(uuid())
+  caseId String @unique
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  residualLimbLength  ResidualLimbLength?
+  residualLimbShape   ResidualLimbShape?
+  residualLimbPhotoUrl String?
+
+  painPresent         Boolean @default(false)
+  painArea            String?
+  painIntensity       Int?
+  painTypes           PainType[]
+  phantomPainPresent  Boolean @default(false)
+  phantomPainIntensity Int?
+  neuromaPalpable     Boolean?
+
+  skinAppearance      SkinAppearance[]
+  skinColor           SkinColor[]
+  skinTemperature     SkinTemperature?
+  scarCondition       ScarCondition[]
+  hasSkinGrafts       Boolean @default(false)
+  graftArea           String?
+
+  activityLevel       KLevel?
+  usesCompressionBandage Boolean?
+  romData             Json?
+  canBalanceOneSide   Boolean?
+  notes               String? @db.Text
+
+  examinerProsthetistId String
+  examinerPhysioId      String
+  examinedAt            DateTime @default(now())
+
+  @@map("upper_limb_assessments")
+  @@schema("clinic_prosthetics")
+}
+
+model LowerLimbAssessment {
+  id     String @id @default(uuid())
+  caseId String @unique
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  loadTolerance       LoadTolerance?
+  weightBearingLevel  WeightBearingLevel?
+  otherLimbCondition  String?
+  usesAssistiveDevices Boolean @default(false)
+  assistiveDeviceTypes String?
+  canClimbStairs      Boolean?
+  canBalanceOneSide   Boolean?
+
+  residualLimbLength  ResidualLimbLength?
+  residualLimbShape   ResidualLimbShape?
+  residualLimbPhotoUrl String?
+  painPresent         Boolean @default(false)
+  painArea            String?
+  painIntensity       Int?
+  painTypes           PainType[]
+  phantomPainPresent  Boolean @default(false)
+  phantomPainIntensity Int?
+  neuromaPalpable     Boolean?
+  skinAppearance      SkinAppearance[]
+  skinColor           SkinColor[]
+  skinTemperature     SkinTemperature?
+  scarCondition       ScarCondition[]
+  hasSkinGrafts       Boolean @default(false)
+  graftArea           String?
+  activityLevel       KLevel?
+  romData             Json?
+  notes               String? @db.Text
+
+  examinerProsthetistId String
+  examinerPhysioId      String
+  examinedAt            DateTime @default(now())
+
+  @@map("lower_limb_assessments")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Committee ─────────────────────────────────────────────────────────────
+
+model CommitteeReview {
+  id     String @id @default(uuid())
+  caseId String @unique
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  prosthetistOpinion       String? @db.Text
+  prosthetistUserId        String?
+  prosthetistReviewedAt    DateTime?
+
+  physiotherapistOpinion   String? @db.Text
+  physiotherapistUserId    String?
+  physiotherapistReviewedAt DateTime?
+
+  doctorOpinion            String? @db.Text
+  doctorUserId             String?
+  doctorReviewedAt         DateTime?
+
+  committeeHeadOpinion     String? @db.Text
+  committeeHeadUserId      String?
+  committeeHeadReviewedAt  DateTime?
+
+  expertOpinion            String? @db.Text
+  expertUserId             String?
+  expertReviewedAt         DateTime?
+
+  finalDecision            CommitteeDecision?
+  finalSummary             String? @db.Text
+  decidedAt                DateTime?
+
+  doctorSignatureBase64    String? @db.Text
+  doctorSignedAt           DateTime?
+  doctorSignatureIp        String?
+
+  @@map("committee_reviews")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Components ────────────────────────────────────────────────────────────
+
+model ProsthesisComponent {
+  id              String @id @default(uuid())
+  caseId          String
+  case            ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  inventoryItemId String
+  partCode        String
+  partName        String
+  supplier        String
+  sourceLocation  ComponentSource
+  reason          String?
+  addedAt         DateTime @default(now())
+  addedBy         String
+
+  @@map("prosthesis_components")
+  @@schema("clinic_prosthetics")
+  @@index([caseId])
+}
+
+// ── Gait Analysis ─────────────────────────────────────────────────────────
+
+model GaitAnalysis {
+  id     String @id @default(uuid())
+  caseId String @unique
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  suspensionSystem   SuspensionSystem[]
+  socketBearing      SocketBearing?
+  kneeJointType      KneeJointType?
+  footType           FootType?
+
+  socketPain         Boolean @default(false)
+  residualLimbPain   Boolean @default(false)
+  painIntensity      Int?
+  alignmentCheck     AlignmentStatus?
+  hasRomLimitations  Boolean @default(false)
+
+  hasHipFlexionContracture  Boolean @default(false)
+  hasKneeFlexionContracture Boolean @default(false)
+  weakHipAbductors   Boolean @default(false)
+  weakHipExtensors   Boolean @default(false)
+  weakTrunkMuscles   Boolean @default(false)
+  otherWeakness      String?
+
+  trunkStability     QualityLevel?
+  abdominalControl   QualityLevel?
+  pelvicControl      QualityLevel?
+  sittingBalance     IndependenceLevel?
+  standingBalance    StabilityLevel?
+
+  assistiveDevice    AssistiveDevice?
+  speedMs            Float?
+  cadence            Int?
+  stepLengthProsCm   Float?
+  stepLengthSoundCm  Float?
+  stancePercProsthetic Float?
+  stancePercSound    Float?
+  symmetry           QualityLevel?
+
+  deviations         Json
+  mainProblem        String?
+
+  notes              String? @db.Text
+  examinerProsthetistId String
+  examinerPhysioId      String
+  examinedAt            DateTime @default(now())
+  signedByDoctorId      String?
+  doctorSignatureBase64 String? @db.Text
+  doctorSignedAt        DateTime?
+
+  @@map("gait_analyses")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Balance Assessment ────────────────────────────────────────────────────
+
+model BalanceAssessment {
+  id     String @id @default(uuid())
+  caseId String @unique
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  staticResults   Json
+  dynamicResults  Json
+  activityResults Json
+
+  historyOfFalls  Boolean @default(false)
+  nearFalls       Boolean @default(false)
+  fearOfFalling   Boolean @default(false)
+  fallRiskLevel   FallRiskLevel?
+  overallBalanceLevel QualityLevel?
+
+  exerciseProgram   Json
+  homeExerciseProgram Boolean @default(false)
+  followUpWeeks     Int?
+
+  examinerPhysioId  String
+  committeeHeadId   String?
+  examinedAt        DateTime @default(now())
+
+  @@map("balance_assessments")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Treatment Plan & Sessions ─────────────────────────────────────────────
+
+model TreatmentPlan {
+  id     String @id @default(uuid())
+  caseId String @unique
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  workshopSessions WorkshopSession[]
+  ptSessions       PtSession[]
+  mediaSessions    MediaSession[]
+  notes            String? @db.Text
+
+  @@map("treatment_plans")
+  @@schema("clinic_prosthetics")
+}
+
+model WorkshopSession {
+  id              String @id @default(uuid())
+  planId          String
+  plan            TreatmentPlan @relation(fields: [planId], references: [id])
+  sessionDate     DateTime
+  sessionTime     String?
+  providedService String @db.Text
+  notes           String? @db.Text
+  technicianId    String
+
+  @@map("workshop_sessions")
+  @@schema("clinic_prosthetics")
+}
+
+model PtSession {
+  id              String @id @default(uuid())
+  planId          String
+  plan            TreatmentPlan @relation(fields: [planId], references: [id])
+  sessionDate     DateTime
+  sessionTime     String?
+  providedService String @db.Text
+  notes           String? @db.Text
+  physiotherapistId String
+
+  @@map("pt_sessions")
+  @@schema("clinic_prosthetics")
+}
+
+model MediaSession {
+  id              String @id @default(uuid())
+  planId          String
+  plan            TreatmentPlan @relation(fields: [planId], references: [id])
+  sessionDate     DateTime
+  sessionTime     String?
+  providedService String @db.Text
+  notes           String? @db.Text
+  supervisorId    String
+
+  @@map("media_sessions")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Consumables ───────────────────────────────────────────────────────────
+
+model ConsumableUsage {
+  id              String @id @default(uuid())
+  caseId          String
+  case            ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  inventoryItemId String
+  consumableName  String
+  quantity        Float
+  unit            String
+  notes           String?
+  usedAt          DateTime @default(now())
+  usedBy          String
+  supervisorId    String
+
+  @@map("consumable_usages")
+  @@schema("clinic_prosthetics")
+  @@index([caseId])
+}
+
+// ── Final Evaluation & Delivery ───────────────────────────────────────────
+
+model FinalEvaluation {
+  id     String @id @default(uuid())
+  caseId String @unique
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  residualLimbCondition String? @db.Text
+  suspensionSystemUsed  String?
+  socksDelivered        Int?
+  linersDelivered       Int?
+  fittingDate           DateTime?
+  generalNotes          String? @db.Text
+  supervisorId          String
+
+  physioOpinion               String? @db.Text
+  prosthetistOpinion          String? @db.Text
+  prosthetistSupervisorOpinion String? @db.Text
+  committeeHeadOpinion        String? @db.Text
+  expertOpinion               String? @db.Text
+
+  readyForDelivery      Boolean @default(false)
+  needsFollowUp         Boolean @default(false)
+  followUpPlan          String? @db.Text
+
+  medicalDirectorSignatureBase64 String? @db.Text
+  medicalDirectorSignedAt        DateTime?
+  medicalDirectorIp              String?
+
+  patientFileComplete   Boolean @default(false)
+  managerNotes          String? @db.Text
+  managerSignatureBase64 String? @db.Text
+  managerSignedAt       DateTime?
+
+  @@map("final_evaluations")
+  @@schema("clinic_prosthetics")
+}
+
+model Delivery {
+  id     String @id @default(uuid())
+  caseId String @unique
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  deliveryDate      DateTime
+  prosthetistId     String
+  physiotherapistId String
+  deliveredItems    Json
+
+  patientSignatureBase64 String? @db.Text
+  patientSignedAt        DateTime?
+
+  managerId              String
+  managerSignatureBase64 String? @db.Text
+  managerSignedAt        DateTime?
+
+  @@map("deliveries")
+  @@schema("clinic_prosthetics")
+}
+
+model FollowUp {
+  id             String @id @default(uuid())
+  caseId         String
+  case           ProstheticsCase @relation(fields: [caseId], references: [id])
+  visitDate      DateTime
+  findings       String @db.Text
+  actions        String? @db.Text
+  practitionerId String
+
+  @@map("follow_ups")
+  @@schema("clinic_prosthetics")
+  @@index([caseId])
+}

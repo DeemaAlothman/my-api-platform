@@ -358,4 +358,57 @@ export class UsersService {
       roles: user.roles.map((ur) => ur.role),
     };
   }
+
+  async getPublicProfile(userId: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { userId, deletedAt: null },
+      select: {
+        id: true,
+        firstNameAr: true,
+        lastNameAr: true,
+        firstNameEn: true,
+        lastNameEn: true,
+        department: { select: { id: true, nameAr: true, nameEn: true } },
+        jobTitle: { select: { id: true, nameAr: true, nameEn: true } },
+        user: {
+          select: {
+            id: true,
+            roles: { select: { role: { select: { id: true, name: true, displayNameAr: true } } } },
+          },
+        },
+      },
+    });
+    if (!employee) throw new NotFoundException('Employee not found');
+    return {
+      id: employee.user?.id ?? userId,
+      employeeId: employee.id,
+      nameAr: `${employee.firstNameAr} ${employee.lastNameAr}`,
+      nameEn: employee.firstNameEn ? `${employee.firstNameEn} ${employee.lastNameEn ?? ''}`.trim() : null,
+      department: employee.department,
+      jobTitle: employee.jobTitle,
+      roles: employee.user?.roles.map(r => r.role) ?? [],
+    };
+  }
+
+  async getByRole(roleName: string) {
+    const results = await this.prisma.$queryRawUnsafe<Array<{
+      userId: string; firstNameAr: string; lastNameAr: string; firstNameEn: string | null; departmentNameAr: string;
+    }>>(
+      `SELECT u.id as "userId", e."firstNameAr", e."lastNameAr", e."firstNameEn",
+              d."nameAr" as "departmentNameAr"
+       FROM users.users u
+       JOIN users.employees e ON e."userId" = u.id
+       JOIN users.departments d ON d.id = e."departmentId"
+       JOIN users.user_roles ur ON ur."userId" = u.id
+       JOIN users.roles r ON r.id = ur."roleId"
+       WHERE r.name = $1 AND u."deletedAt" IS NULL AND e."deletedAt" IS NULL`,
+      roleName,
+    );
+    return results.map(r => ({
+      id: r.userId,
+      nameAr: `${r.firstNameAr} ${r.lastNameAr}`,
+      nameEn: r.firstNameEn,
+      departmentNameAr: r.departmentNameAr,
+    }));
+  }
 }

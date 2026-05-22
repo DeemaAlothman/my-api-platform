@@ -1,0 +1,267 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/clinical-physio-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["clinic_physio"]
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────
+
+enum LifeType       { PROFESSIONAL NORMAL SEDENTARY ABNORMAL @@schema("clinic_physio") }
+enum PainLevel      { MILD MODERATE SEVERE EXCRUCIATING @@schema("clinic_physio") }
+enum PainDuration   { INTERMITTENT CONSTANT WITH_CERTAIN_MOTIONS @@schema("clinic_physio") }
+enum PhysioPainType { NUMBNESS DULL_ACHE HOT_BURNING SHARP_STABBING PINS OTHER @@schema("clinic_physio") }
+enum PainFactor     { SITTING HEAT COLD COUGHING WALKING EXERCISE LYING_DOWN OTHER @@schema("clinic_physio") }
+enum PhysioStatus   { INTAKE ASSESSMENT PLAN_REVIEW ACTIVE_TREATMENT COMPLETED DISCHARGED @@schema("clinic_physio") }
+enum ChronicCondition { AIDS_HIV MULTIPLE_SCLEROSIS LIVER_PROBLEMS ARTHRITIS STDS PNEUMONIA CANCER ANGINA URINARY_INFECTION DIABETES BLOOD_CLOTS HEMOPHILIA CIRCULATION_PROBLEMS LUNG_ISSUES EYE_INFECTION STROKE JOINT_BONE_INFECTION KIDNEY_PROBLEMS MUSCULOSKELETAL ANEMIA TUBERCULOSIS ASTHMA ARTERIOSCLEROSIS CHEMICAL_DEPENDENCY BONE_INFECTION EPILEPSY DEPRESSION HEART_PROBLEMS HYPERTENSION OTHER @@schema("clinic_physio") }
+enum MedicalTest    { MRI XRAY CT MYELOGRAM OTHER @@schema("clinic_physio") }
+enum PhysioGoal     { BACK_TO_SPORTS BACK_TO_WORK SIMPLE_WORKS PAIN_RELIEF OTHER @@schema("clinic_physio") }
+enum TherapyModality { ESWT US TENS EMS LASER CPM HOT_PACKS COLD_PACKS TRACTION EXERCISES MANUAL_THERAPY MASSAGE KINESIO_TAPING COMPRESSION PARAFFIN GRASTON MET PNF INFRARED OTHER @@schema("clinic_physio") }
+enum PlanStatus     { ACTIVE INACTIVE @@schema("clinic_physio") }
+
+// ── Main Case ─────────────────────────────────────────────────────────────
+
+model PhysioCase {
+  id                  String   @id @default(uuid())
+  caseNumber          String   @unique
+  patientId           String
+
+  currentJob          String?
+  lifeType            LifeType?
+
+  majorComplaint      String   @db.Text
+  symptoms            String   @db.Text
+  complaintStartDate  DateTime?
+  possibleCause       String?
+
+  previousDoctorSeen  String?
+  previousTreatment   String?
+  hadPreviousPT       Boolean  @default(false)
+  hadPreviousInjury   Boolean  @default(false)
+
+  painStartDate       DateTime?
+  painLevel           PainLevel?
+  painDuration        PainDuration?
+  painProgression     String?
+  bestTimeOfDay       String?
+  worstTimeOfDay      String?
+
+  painTypes           PhysioPainType[]
+  aggravatingFactors  PainFactor[]
+  aggravatingOther    String?
+  alleviatingFactors  PainFactor[]
+  alleviatingOther    String?
+
+  status              PhysioStatus @default(INTAKE)
+
+  physiotherapistId   String?
+  supervisingDoctorId String?
+  caseManagerId       String?
+
+  treatmentFrom       DateTime?
+  treatmentTo         DateTime?
+  anticipatedVisits   Int?
+
+  finalNotes          String?  @db.Text
+
+  painMap             PainMap?
+  medicalHistory      MedicalHistory?
+  treatmentGoals      TreatmentGoals?
+  posturalAssessment  PosturalAssessment?
+  treatmentPlan       PhysioTreatmentPlan?
+  sessions            PhysioSession[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String
+  deletedAt   DateTime?
+
+  @@map("physio_cases")
+  @@schema("clinic_physio")
+  @@index([patientId])
+  @@index([status])
+  @@index([caseNumber])
+}
+
+// ── Pain Map ──────────────────────────────────────────────────────────────
+
+model PainMap {
+  id      String     @id @default(uuid())
+  caseId  String     @unique
+  case    PhysioCase @relation(fields: [caseId], references: [id])
+
+  regions Json
+  notes   String? @db.Text
+
+  @@map("pain_maps")
+  @@schema("clinic_physio")
+}
+
+// ── Medical History ───────────────────────────────────────────────────────
+
+model MedicalHistory {
+  id      String     @id @default(uuid())
+  caseId  String     @unique
+  case    PhysioCase @relation(fields: [caseId], references: [id])
+
+  smokes              Boolean @default(false)
+  hasSmokedBefore     Boolean @default(false)
+  smokingFrequency    String?
+
+  hasPacemaker        Boolean @default(false)
+
+  allergies           String? @db.Text
+  adhesiveAllergy     Boolean @default(false)
+
+  currentMedications  String? @db.Text
+  prescriptionDrugs   Boolean @default(false)
+  herbalSupplements   Boolean @default(false)
+  supplementsList     String?
+
+  isPregnant          Boolean @default(false)
+
+  previousDiagnoses   String? @db.Text
+
+  chronicConditions   ChronicCondition[]
+  otherConditions     String?
+
+  doctorRestrictions  String? @db.Text
+
+  surgeries           Surgery[]
+
+  testsHad            MedicalTest[]
+  testsOther          String?
+  testResults         String? @db.Text
+
+  newAnalysis         String?
+  newAnalysisDate     DateTime?
+  oldAnalysis         String?
+  oldAnalysisDate     DateTime?
+
+  hospitalizedLastYear       Boolean @default(false)
+  receivingOtherTreatment    Boolean @default(false)
+
+  @@map("medical_histories")
+  @@schema("clinic_physio")
+}
+
+model Surgery {
+  id        String         @id @default(uuid())
+  historyId String
+  history   MedicalHistory @relation(fields: [historyId], references: [id])
+  name      String
+  date      DateTime?
+  type      String?
+  order     Int
+
+  @@map("surgeries")
+  @@schema("clinic_physio")
+  @@index([historyId])
+}
+
+// ── Treatment Goals ───────────────────────────────────────────────────────
+
+model TreatmentGoals {
+  id      String     @id @default(uuid())
+  caseId  String     @unique
+  case    PhysioCase @relation(fields: [caseId], references: [id])
+
+  goals             PhysioGoal[]
+  customGoal        String?
+
+  decreasePain      Boolean @default(false)
+  improveStrength   Boolean @default(false)
+  lessDifficultyWork Boolean @default(false)
+
+  standLongerMinutes Int?
+  sleepLongerMinutes Int?
+  sitLongerMinutes   Int?
+
+  improveMovement   Boolean @default(false)
+  otherGoals        String? @db.Text
+
+  @@map("treatment_goals")
+  @@schema("clinic_physio")
+}
+
+// ── Postural Assessment ───────────────────────────────────────────────────
+
+model PosturalAssessment {
+  id      String     @id @default(uuid())
+  caseId  String     @unique
+  case    PhysioCase @relation(fields: [caseId], references: [id])
+
+  seatedPosition  String? @db.Text
+  trunkControl    String? @db.Text
+
+  head      Json
+  shoulders Json
+  elbow     Json
+  ribCage   Json
+  spine     Json
+  pelvis    Json
+  hips      Json
+  knees     Json
+  feet      Json
+
+  spasticityNotes String? @db.Text
+  generalNotes    String? @db.Text
+  diagnosis       String? @db.Text
+
+  @@map("postural_assessments")
+  @@schema("clinic_physio")
+}
+
+// ── Treatment Plan ────────────────────────────────────────────────────────
+
+model PhysioTreatmentPlan {
+  id      String     @id @default(uuid())
+  caseId  String     @unique
+  case    PhysioCase @relation(fields: [caseId], references: [id])
+
+  modalities      TherapyModality[]
+  otherModality   String?
+  remarks         String? @db.Text
+  observation     String? @db.Text
+
+  supervisorGaze          String? @db.Text
+  supervisorId            String?
+  supervisorReviewedAt    DateTime?
+
+  doctorGaze              String? @db.Text
+  doctorId                String?
+  doctorReviewedAt        DateTime?
+  doctorSignatureBase64   String? @db.Text
+
+  status  PlanStatus @default(ACTIVE)
+
+  @@map("physio_treatment_plans")
+  @@schema("clinic_physio")
+}
+
+// ── Sessions ──────────────────────────────────────────────────────────────
+
+model PhysioSession {
+  id      String     @id @default(uuid())
+  caseId  String
+  case    PhysioCase @relation(fields: [caseId], references: [id])
+
+  sessionDate     DateTime
+  sessionTime     String?
+  modalities      TherapyModality[]
+  notes           String? @db.Text
+
+  physiotherapistId       String
+  painLevel               Int?
+  romMeasurements         Json?
+  attendanceConfirmed     Boolean @default(false)
+
+  @@map("physio_sessions")
+  @@schema("clinic_physio")
+  @@index([caseId])
+  @@index([sessionDate])
+}

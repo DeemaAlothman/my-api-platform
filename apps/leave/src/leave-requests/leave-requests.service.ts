@@ -1243,4 +1243,24 @@ export class LeaveRequestsService {
 
     return { message: 'Leave request deleted successfully' };
   }
+
+  async checkOverlap(userId: string, from: Date, to: Date) {
+    const overlapping = await this.prisma.$queryRawUnsafe<Array<{ id: string; leaveType: string }>>(
+      `SELECT lr.id, lt.code as "leaveType"
+       FROM leaves.leave_requests lr
+       JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+       JOIN users.employees e ON e.id = lr."employeeId"
+       WHERE e."userId" = $1
+         AND lr.status IN ('APPROVED', 'HR_APPROVED', 'MANAGER_APPROVED')
+         AND lr."deletedAt" IS NULL
+         AND lr."startDate" <= $3
+         AND lr."endDate" >= $2
+       LIMIT 1`,
+      userId, from, to,
+    );
+    return {
+      hasOverlap: overlapping.length > 0,
+      leaveType: overlapping[0]?.leaveType ?? null,
+    };
+  }
 }

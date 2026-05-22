@@ -66,6 +66,26 @@ export class ProxyService {
       url: process.env.PATIENTS_SERVICE_URL || 'http://localhost:4010',
       prefix: '/patients',
     });
+
+    this.services.set('clinical-prosthetics', {
+      url: process.env.CLINICAL_PROSTHETICS_SERVICE_URL || 'http://localhost:4011',
+      prefix: '/prosthetics',
+    });
+
+    this.services.set('clinical-physio', {
+      url: process.env.CLINICAL_PHYSIO_SERVICE_URL || 'http://localhost:4012',
+      prefix: '/physio',
+    });
+
+    this.services.set('appointments', {
+      url: process.env.APPOINTMENTS_SERVICE_URL || 'http://localhost:4013',
+      prefix: '/appointments',
+    });
+
+    this.services.set('clinic-inventory', {
+      url: process.env.INVENTORY_SERVICE_URL || 'http://localhost:4014',
+      prefix: '/inventory',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

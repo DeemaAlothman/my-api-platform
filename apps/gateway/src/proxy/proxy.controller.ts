@@ -813,3 +813,63 @@ export class CitiesProxyController {
     await this.proxy.forward(req, res, 'patients');
   }
 }
+
+@Controller('prosthetics')
+export class ProstheticsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'clinical-prosthetics');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'clinical-prosthetics');
+  }
+}
+
+@Controller('physio')
+export class PhysioProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'clinical-physio');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'clinical-physio');
+  }
+}
+
+@Controller('appointments')
+export class AppointmentsProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'appointments');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'appointments');
+  }
+}
+
+@Controller('inventory')
+export class InventoryProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'clinic-inventory');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'clinic-inventory');
+  }
+}
