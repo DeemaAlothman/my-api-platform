@@ -1,8 +1,10 @@
 import {
   Controller, Get, Post, Put, Delete, Body, Param, Query,
-  UseGuards, Req,
+  UseGuards, Req, Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { CasesService } from './cases.service';
+import { PdfService } from './pdf.service';
 import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
   PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
@@ -18,7 +20,10 @@ import { User } from '@shared/auth/decorators/current-user.decorator';
 @Controller('physio/cases')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CasesController {
-  constructor(private readonly service: CasesService) {}
+  constructor(
+    private readonly service: CasesService,
+    private readonly pdfService: PdfService,
+  ) {}
 
   // ── Cases ─────────────────────────────────────────────────────────────────
 
@@ -160,5 +165,20 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_VIEW)
   getTimeline(@Param('id') id: string) {
     return this.service.getTimeline(id);
+  }
+
+  // ── PDF Report ────────────────────────────────────────────────────────────
+
+  @Get(':id/pdf')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_VIEW)
+  async getCasePdf(@Param('id') id: string, @Res() res: Response) {
+    const caseData = await this.service.findOne(id);
+    const buffer = await this.pdfService.generateCaseReport(caseData);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="case-${(caseData as any).caseNumber}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 }
