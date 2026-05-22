@@ -1190,20 +1190,19 @@ export class LeaveRequestsService {
       this.prisma.leaveRequest.count({ where }),
     ]);
 
-    // Enrich with employee names
+    // Enrich with employee names via direct DB query
     const employeeIds = [...new Set(items.map(i => i.employeeId))];
     let employeeMap: Record<string, { firstNameAr: string; lastNameAr: string; firstNameEn?: string; lastNameEn?: string }> = {};
-    const usersUrl = process.env.USERS_SERVICE_URL;
-    const internalToken = process.env.INTERNAL_SERVICE_TOKEN;
-    if (usersUrl && employeeIds.length) {
+    if (employeeIds.length) {
       try {
-        const res = await fetch(`${usersUrl}/api/v1/employees/internal/basic-by-ids`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-internal-token': internalToken ?? '' },
-          body: JSON.stringify({ ids: employeeIds }),
-        });
-        const body = await res.json();
-        const employees: any[] = Array.isArray(body) ? body : (body?.data ?? []);
+        const employees = await this.prisma.$queryRawUnsafe<Array<{
+          id: string; firstNameAr: string; lastNameAr: string; firstNameEn: string | null; lastNameEn: string | null;
+        }>>(
+          `SELECT id, "firstNameAr", "lastNameAr", "firstNameEn", "lastNameEn"
+           FROM users.employees
+           WHERE id::text = ANY($1::text[])`,
+          employeeIds,
+        );
         for (const e of employees) employeeMap[e.id] = e;
       } catch {}
     }
