@@ -31,9 +31,8 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/apps/gateway/package*.json ./
-RUN npm install --omit=dev
-COPY --from=builder /app/apps/gateway/dist ./dist
+COPY --from=builder /app/node_modules              ./node_modules
+COPY --from=builder /app/apps/gateway/dist         ./dist
 
 EXPOSE 8000 5000
 CMD ["node", "dist/main.js"]
