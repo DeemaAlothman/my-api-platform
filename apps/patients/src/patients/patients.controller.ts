@@ -35,7 +35,7 @@ export class PatientsController {
   @Post()
   @Permission(PERMISSIONS.CLINIC_PATIENTS.CREATE)
   create(@Body() dto: CreatePatientDto, @User() user: any) {
-    return this.service.create(dto, user.sub);
+    return this.service.create(dto, user.userId);
   }
 
   @Get(':id')
@@ -67,7 +67,7 @@ export class PatientsController {
     @Body('type') type: string,
     @User() user: any,
   ) {
-    return this.service.addDocument(id, file, type, user.sub);
+    return this.service.addDocument(id, file, type, user.userId);
   }
 
   @Get(':id/documents')
@@ -93,7 +93,7 @@ export class PatientsController {
     @Req() req: any,
   ) {
     const ip = req.ip || req.headers['x-forwarded-for'] || '';
-    return this.service.addConsent(id, dto, user.sub, ip);
+    return this.service.addConsent(id, dto, user.userId, ip);
   }
 
   @Get(':id/consents')
@@ -111,7 +111,7 @@ export class PatientsController {
     @Body('body') body: string,
     @User() user: any,
   ) {
-    return this.service.addNote(id, body, user.sub);
+    return this.service.addNote(id, body, user.userId);
   }
 
   @Get(':id/notes')
