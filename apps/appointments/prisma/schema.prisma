@@ -11,10 +11,37 @@ datasource db {
 
 // ── Enums ─────────────────────────────────────────────────────────────────
 
-enum CaseType          { PROSTHETICS PHYSIO GENERAL @@schema("clinic_appointments") }
-enum AppointmentType   { ASSESSMENT FITTING SESSION FOLLOW_UP COMMITTEE @@schema("clinic_appointments") }
-enum AppointmentStatus { SCHEDULED CONFIRMED COMPLETED CANCELLED NO_SHOW RESCHEDULED @@schema("clinic_appointments") }
-enum ReminderChannel   { MAIL WHATSAPP @@schema("clinic_appointments") }
+enum CaseType {
+  PROSTHETICS
+  PHYSIO
+  GENERAL
+  @@schema("clinic_appointments")
+}
+
+enum AppointmentType {
+  ASSESSMENT
+  FITTING
+  SESSION
+  FOLLOW_UP
+  COMMITTEE
+  @@schema("clinic_appointments")
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+  @@schema("clinic_appointments")
+}
+
+enum ReminderChannel {
+  MAIL
+  WHATSAPP
+  @@schema("clinic_appointments")
+}
 
 // ── Model ─────────────────────────────────────────────────────────────────
 

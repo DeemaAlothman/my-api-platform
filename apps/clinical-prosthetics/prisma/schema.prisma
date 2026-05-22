@@ -6,37 +6,243 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  schemas  = ["clinic_prosthetics"]
 }
 
 // ── Enums ─────────────────────────────────────────────────────────────────
 
-enum AmputationType    { UPPER LOWER @@schema("clinic_prosthetics") }
-enum AmputationSide    { RIGHT LEFT BILATERAL @@schema("clinic_prosthetics") }
-enum AmputationLevel   { PH WD TR ED TH SD PF CHOPART TT KD TF HD @@schema("clinic_prosthetics") }
-enum CaseStatus        { INTAKE ASSESSMENT COMMITTEE_REVIEW APPROVED FITTING SOCKET_TRIAL GAIT_TRAINING FINAL_REVIEW DELIVERED FOLLOW_UP CANCELLED @@schema("clinic_prosthetics") }
-enum ProsthesisType    { BIONIC MYOBOCK MECHANIC COSMETIC_COVER OTHER @@schema("clinic_prosthetics") }
-enum KLevel            { K0 K1 K2 K3 K4 @@schema("clinic_prosthetics") }
-enum CommitteeDecision { APPROVED NEEDS_ADJUSTMENT REJECTED @@schema("clinic_prosthetics") }
-enum ComponentSource   { WAREHOUSE SUPPLIER @@schema("clinic_prosthetics") }
-enum ResidualLimbLength { LONG MEDIUM SHORT VERY_SHORT @@schema("clinic_prosthetics") }
-enum ResidualLimbShape  { BONY SOFT NORMAL CONICAL_BONY CONICAL_SOFT @@schema("clinic_prosthetics") }
-enum SkinTemperature    { NORMAL HOT COLD @@schema("clinic_prosthetics") }
-enum PainType     { NUMBNESS DULL_ACHE HOT_BURNING SHARP_STABBING PINS OTHER @@schema("clinic_prosthetics") }
-enum SkinAppearance { NORMAL PALE DRY INFLAMED PEELING OOZING @@schema("clinic_prosthetics") }
-enum SkinColor      { NORMAL PALE CYANOTIC ERYTHEMATOUS @@schema("clinic_prosthetics") }
-enum ScarCondition  { NORMAL RAISED DEPRESSED ADHERENT MOBILE @@schema("clinic_prosthetics") }
-enum LoadTolerance  { NOT_PALPABLE PALPABLE NON_WEIGHT_BEARING WEIGHT_BEARING @@schema("clinic_prosthetics") }
-enum WeightBearingLevel { FULL HIGH MEDIUM LOW @@schema("clinic_prosthetics") }
-enum QualityLevel   { GOOD FAIR POOR @@schema("clinic_prosthetics") }
-enum IndependenceLevel { INDEPENDENT ASSISTED @@schema("clinic_prosthetics") }
-enum StabilityLevel    { STABLE UNSTABLE @@schema("clinic_prosthetics") }
-enum AssistiveDevice   { NONE CANE CRUTCHES WALKER @@schema("clinic_prosthetics") }
-enum FallRiskLevel     { LOW MODERATE HIGH @@schema("clinic_prosthetics") }
-enum AlignmentStatus   { GOOD NEEDS_ADJUSTMENT @@schema("clinic_prosthetics") }
-enum SuspensionSystem  { PIN PASSIVE_VACUUM ACTIVE_VACUUM DVS SOFT_SOCKET BELT_STRAP OTHER @@schema("clinic_prosthetics") }
-enum SocketBearing     { PTB TSB MAS ISCHIAL_CONTAINMENT OTHER @@schema("clinic_prosthetics") }
-enum KneeJointType     { MECHANICAL HYDRAULIC POLYCENTRIC MONOCENTRIC MKP OTHER @@schema("clinic_prosthetics") }
-enum FootType          { DYNAMIC HYDRAULIC SACH CARBON SINGLE_AXIS MULTI_AXIS OTHER @@schema("clinic_prosthetics") }
+enum AmputationType {
+  UPPER
+  LOWER
+  @@schema("clinic_prosthetics")
+}
+
+enum AmputationSide {
+  RIGHT
+  LEFT
+  BILATERAL
+  @@schema("clinic_prosthetics")
+}
+
+enum AmputationLevel {
+  PH
+  WD
+  TR
+  ED
+  TH
+  SD
+  PF
+  CHOPART
+  TT
+  KD
+  TF
+  HD
+  @@schema("clinic_prosthetics")
+}
+
+enum CaseStatus {
+  INTAKE
+  ASSESSMENT
+  COMMITTEE_REVIEW
+  APPROVED
+  FITTING
+  SOCKET_TRIAL
+  GAIT_TRAINING
+  FINAL_REVIEW
+  DELIVERED
+  FOLLOW_UP
+  CANCELLED
+  @@schema("clinic_prosthetics")
+}
+
+enum ProsthesisType {
+  BIONIC
+  MYOBOCK
+  MECHANIC
+  COSMETIC_COVER
+  OTHER
+  @@schema("clinic_prosthetics")
+}
+
+enum KLevel {
+  K0
+  K1
+  K2
+  K3
+  K4
+  @@schema("clinic_prosthetics")
+}
+
+enum CommitteeDecision {
+  APPROVED
+  NEEDS_ADJUSTMENT
+  REJECTED
+  @@schema("clinic_prosthetics")
+}
+
+enum ComponentSource {
+  WAREHOUSE
+  SUPPLIER
+  @@schema("clinic_prosthetics")
+}
+
+enum ResidualLimbLength {
+  LONG
+  MEDIUM
+  SHORT
+  VERY_SHORT
+  @@schema("clinic_prosthetics")
+}
+
+enum ResidualLimbShape {
+  BONY
+  SOFT
+  NORMAL
+  CONICAL_BONY
+  CONICAL_SOFT
+  @@schema("clinic_prosthetics")
+}
+
+enum SkinTemperature {
+  NORMAL
+  HOT
+  COLD
+  @@schema("clinic_prosthetics")
+}
+
+enum PainType {
+  NUMBNESS
+  DULL_ACHE
+  HOT_BURNING
+  SHARP_STABBING
+  PINS
+  OTHER
+  @@schema("clinic_prosthetics")
+}
+
+enum SkinAppearance {
+  NORMAL
+  PALE
+  DRY
+  INFLAMED
+  PEELING
+  OOZING
+  @@schema("clinic_prosthetics")
+}
+
+enum SkinColor {
+  NORMAL
+  PALE
+  CYANOTIC
+  ERYTHEMATOUS
+  @@schema("clinic_prosthetics")
+}
+
+enum ScarCondition {
+  NORMAL
+  RAISED
+  DEPRESSED
+  ADHERENT
+  MOBILE
+  @@schema("clinic_prosthetics")
+}
+
+enum LoadTolerance {
+  NOT_PALPABLE
+  PALPABLE
+  NON_WEIGHT_BEARING
+  WEIGHT_BEARING
+  @@schema("clinic_prosthetics")
+}
+
+enum WeightBearingLevel {
+  FULL
+  HIGH
+  MEDIUM
+  LOW
+  @@schema("clinic_prosthetics")
+}
+
+enum QualityLevel {
+  GOOD
+  FAIR
+  POOR
+  @@schema("clinic_prosthetics")
+}
+
+enum IndependenceLevel {
+  INDEPENDENT
+  ASSISTED
+  @@schema("clinic_prosthetics")
+}
+
+enum StabilityLevel {
+  STABLE
+  UNSTABLE
+  @@schema("clinic_prosthetics")
+}
+
+enum AssistiveDevice {
+  NONE
+  CANE
+  CRUTCHES
+  WALKER
+  @@schema("clinic_prosthetics")
+}
+
+enum FallRiskLevel {
+  LOW
+  MODERATE
+  HIGH
+  @@schema("clinic_prosthetics")
+}
+
+enum AlignmentStatus {
+  GOOD
+  NEEDS_ADJUSTMENT
+  @@schema("clinic_prosthetics")
+}
+
+enum SuspensionSystem {
+  PIN
+  PASSIVE_VACUUM
+  ACTIVE_VACUUM
+  DVS
+  SOFT_SOCKET
+  BELT_STRAP
+  OTHER
+  @@schema("clinic_prosthetics")
+}
+
+enum SocketBearing {
+  PTB
+  TSB
+  MAS
+  ISCHIAL_CONTAINMENT
+  OTHER
+  @@schema("clinic_prosthetics")
+}
+
+enum KneeJointType {
+  MECHANICAL
+  HYDRAULIC
+  POLYCENTRIC
+  MONOCENTRIC
+  MKP
+  OTHER
+  @@schema("clinic_prosthetics")
+}
+
+enum FootType {
+  DYNAMIC
+  HYDRAULIC
+  SACH
+  CARBON
+  SINGLE_AXIS
+  MULTI_AXIS
+  OTHER
+  @@schema("clinic_prosthetics")
+}
 
 // ── Main Case ─────────────────────────────────────────────────────────────
 

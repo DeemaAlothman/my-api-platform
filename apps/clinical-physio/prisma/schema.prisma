@@ -11,17 +11,142 @@ datasource db {
 
 // ── Enums ─────────────────────────────────────────────────────────────────
 
-enum LifeType       { PROFESSIONAL NORMAL SEDENTARY ABNORMAL @@schema("clinic_physio") }
-enum PainLevel      { MILD MODERATE SEVERE EXCRUCIATING @@schema("clinic_physio") }
-enum PainDuration   { INTERMITTENT CONSTANT WITH_CERTAIN_MOTIONS @@schema("clinic_physio") }
-enum PhysioPainType { NUMBNESS DULL_ACHE HOT_BURNING SHARP_STABBING PINS OTHER @@schema("clinic_physio") }
-enum PainFactor     { SITTING HEAT COLD COUGHING WALKING EXERCISE LYING_DOWN OTHER @@schema("clinic_physio") }
-enum PhysioStatus   { INTAKE ASSESSMENT PLAN_REVIEW ACTIVE_TREATMENT COMPLETED DISCHARGED @@schema("clinic_physio") }
-enum ChronicCondition { AIDS_HIV MULTIPLE_SCLEROSIS LIVER_PROBLEMS ARTHRITIS STDS PNEUMONIA CANCER ANGINA URINARY_INFECTION DIABETES BLOOD_CLOTS HEMOPHILIA CIRCULATION_PROBLEMS LUNG_ISSUES EYE_INFECTION STROKE JOINT_BONE_INFECTION KIDNEY_PROBLEMS MUSCULOSKELETAL ANEMIA TUBERCULOSIS ASTHMA ARTERIOSCLEROSIS CHEMICAL_DEPENDENCY BONE_INFECTION EPILEPSY DEPRESSION HEART_PROBLEMS HYPERTENSION OTHER @@schema("clinic_physio") }
-enum MedicalTest    { MRI XRAY CT MYELOGRAM OTHER @@schema("clinic_physio") }
-enum PhysioGoal     { BACK_TO_SPORTS BACK_TO_WORK SIMPLE_WORKS PAIN_RELIEF OTHER @@schema("clinic_physio") }
-enum TherapyModality { ESWT US TENS EMS LASER CPM HOT_PACKS COLD_PACKS TRACTION EXERCISES MANUAL_THERAPY MASSAGE KINESIO_TAPING COMPRESSION PARAFFIN GRASTON MET PNF INFRARED OTHER @@schema("clinic_physio") }
-enum PlanStatus     { ACTIVE INACTIVE @@schema("clinic_physio") }
+enum LifeType {
+  PROFESSIONAL
+  NORMAL
+  SEDENTARY
+  ABNORMAL
+  @@schema("clinic_physio")
+}
+
+enum PainLevel {
+  MILD
+  MODERATE
+  SEVERE
+  EXCRUCIATING
+  @@schema("clinic_physio")
+}
+
+enum PainDuration {
+  INTERMITTENT
+  CONSTANT
+  WITH_CERTAIN_MOTIONS
+  @@schema("clinic_physio")
+}
+
+enum PhysioPainType {
+  NUMBNESS
+  DULL_ACHE
+  HOT_BURNING
+  SHARP_STABBING
+  PINS
+  OTHER
+  @@schema("clinic_physio")
+}
+
+enum PainFactor {
+  SITTING
+  HEAT
+  COLD
+  COUGHING
+  WALKING
+  EXERCISE
+  LYING_DOWN
+  OTHER
+  @@schema("clinic_physio")
+}
+
+enum PhysioStatus {
+  INTAKE
+  ASSESSMENT
+  PLAN_REVIEW
+  ACTIVE_TREATMENT
+  COMPLETED
+  DISCHARGED
+  @@schema("clinic_physio")
+}
+
+enum ChronicCondition {
+  AIDS_HIV
+  MULTIPLE_SCLEROSIS
+  LIVER_PROBLEMS
+  ARTHRITIS
+  STDS
+  PNEUMONIA
+  CANCER
+  ANGINA
+  URINARY_INFECTION
+  DIABETES
+  BLOOD_CLOTS
+  HEMOPHILIA
+  CIRCULATION_PROBLEMS
+  LUNG_ISSUES
+  EYE_INFECTION
+  STROKE
+  JOINT_BONE_INFECTION
+  KIDNEY_PROBLEMS
+  MUSCULOSKELETAL
+  ANEMIA
+  TUBERCULOSIS
+  ASTHMA
+  ARTERIOSCLEROSIS
+  CHEMICAL_DEPENDENCY
+  BONE_INFECTION
+  EPILEPSY
+  DEPRESSION
+  HEART_PROBLEMS
+  HYPERTENSION
+  OTHER
+  @@schema("clinic_physio")
+}
+
+enum MedicalTest {
+  MRI
+  XRAY
+  CT
+  MYELOGRAM
+  OTHER
+  @@schema("clinic_physio")
+}
+
+enum PhysioGoal {
+  BACK_TO_SPORTS
+  BACK_TO_WORK
+  SIMPLE_WORKS
+  PAIN_RELIEF
+  OTHER
+  @@schema("clinic_physio")
+}
+
+enum TherapyModality {
+  ESWT
+  US
+  TENS
+  EMS
+  LASER
+  CPM
+  HOT_PACKS
+  COLD_PACKS
+  TRACTION
+  EXERCISES
+  MANUAL_THERAPY
+  MASSAGE
+  KINESIO_TAPING
+  COMPRESSION
+  PARAFFIN
+  GRASTON
+  MET
+  PNF
+  INFRARED
+  OTHER
+  @@schema("clinic_physio")
+}
+
+enum PlanStatus {
+  ACTIVE
+  INACTIVE
+  @@schema("clinic_physio")
+}
 
 // ── Main Case ─────────────────────────────────────────────────────────────
 

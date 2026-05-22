@@ -1,15 +1,34 @@
-FROM node:18-alpine
+# Build stage
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production=false
+COPY packages/shared/package*.json ./packages/shared/
+COPY apps/clinical-physio/package*.json ./apps/clinical-physio/
 
-COPY . .
+RUN npm install
 
-RUN npx prisma generate --schema=./prisma/schema.prisma
+COPY packages ./packages
+COPY apps/clinical-physio ./apps/clinical-physio
+COPY tsconfig*.json ./
+
+WORKDIR /app/apps/clinical-physio
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 RUN npm run build
 
-EXPOSE 4012
+# Production stage
+FROM node:20-alpine AS production
 
+WORKDIR /app
+
+COPY --from=builder /app/apps/clinical-physio/package*.json ./
+RUN npm install --omit=dev
+
+COPY --from=builder /app/apps/clinical-physio/dist   ./dist
+COPY --from=builder /app/apps/clinical-physio/prisma ./prisma
+
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
+
+EXPOSE 4012
 CMD ["node", "dist/apps/clinical-physio/src/main.js"]
