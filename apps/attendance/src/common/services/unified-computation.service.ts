@@ -58,29 +58,11 @@ export class UnifiedComputationService {
       return { ...zero, status: 'WEEKEND' };
     }
 
-    let scheduledStart = this.parseTime(req.date, schedule.workStartTime);
-    let scheduledEnd   = this.parseTime(req.date, schedule.workEndTime);
-
-    // معالجة الوردية الليلية: إذا وقت النهاية قبل البداية → النهاية في اليوم التالي
-    if (scheduledEnd <= scheduledStart) {
-      scheduledEnd = new Date(scheduledEnd.getTime() + 24 * 60 * 60 * 1000);
-    }
-
     const shiftType = (schedule as any).shiftType || 'DAY';
     const minWorkMin = (schedule as any).minimumWorkMinutes ?? null;
     const requiresContinuous = (schedule as any).requiresContinuousWork ?? false;
 
-    // إصلاح 0.2: تعديل scheduledStart/scheduledEnd بناءً على الإجازة الساعية
-    if (req.leaveStartTime && req.leaveEndTime) {
-      if (req.leaveStartTime.getTime() <= scheduledStart.getTime() && req.leaveEndTime.getTime() > scheduledStart.getTime()) {
-        scheduledStart = new Date(req.leaveEndTime);
-      }
-      if (req.leaveStartTime.getTime() < scheduledEnd.getTime() && req.leaveEndTime.getTime() >= scheduledEnd.getTime()) {
-        scheduledEnd = new Date(req.leaveStartTime);
-      }
-    }
-
-    // === وردية مرنة: لا تأخير ولا خروج مبكر ===
+    // === وردية مرنة: لا تأخير ولا خروج مبكر، ولا تحتاج workStartTime/workEndTime ===
     if (shiftType === 'FLEXIBLE') {
       if (!req.clockInTime || !req.clockOutTime) {
         return { ...zero };
@@ -93,6 +75,27 @@ export class UnifiedComputationService {
       const adjustedMinWorkMin = (minWorkMin ?? 0) - (req.hourlyLeaveMinutes ?? 0);
       const status = (adjustedMinWorkMin > 0 && checkMinutes < adjustedMinWorkMin) ? 'EARLY_LEAVE' : 'PRESENT';
       return { ...zero, status };
+    }
+
+    // === وردية عادية (DAY / NIGHT): تحتاج workStartTime و workEndTime ===
+    if (!schedule.workStartTime || !schedule.workEndTime) return zero;
+
+    let scheduledStart = this.parseTime(req.date, schedule.workStartTime);
+    let scheduledEnd   = this.parseTime(req.date, schedule.workEndTime);
+
+    // معالجة الوردية الليلية: إذا وقت النهاية قبل البداية → النهاية في اليوم التالي
+    if (scheduledEnd <= scheduledStart) {
+      scheduledEnd = new Date(scheduledEnd.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    // إصلاح 0.2: تعديل scheduledStart/scheduledEnd بناءً على الإجازة الساعية
+    if (req.leaveStartTime && req.leaveEndTime) {
+      if (req.leaveStartTime.getTime() <= scheduledStart.getTime() && req.leaveEndTime.getTime() > scheduledStart.getTime()) {
+        scheduledStart = new Date(req.leaveEndTime);
+      }
+      if (req.leaveStartTime.getTime() < scheduledEnd.getTime() && req.leaveEndTime.getTime() >= scheduledEnd.getTime()) {
+        scheduledEnd = new Date(req.leaveStartTime);
+      }
     }
 
     // === وردية عادية (DAY / NIGHT) ===
