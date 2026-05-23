@@ -345,6 +345,17 @@ export class SyncService {
           UPDATE attendance.attendance_records SET "clockInTime" = ${clockInTime}, "updatedAt" = NOW()
           WHERE id = ${recordId}
         `;
+        // إذا كانت الحالة ABSENT → تحديثها لـ PRESENT فوراً عند وصول أول بصمة
+        const PROTECTED = ['ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'HALF_DAY'];
+        const statusRow = await tx.$queryRaw<Array<{ status: string }>>`
+          SELECT status FROM attendance.attendance_records WHERE id = ${recordId}
+        `;
+        if (statusRow[0] && !PROTECTED.includes(statusRow[0].status)) {
+          await tx.$executeRaw`
+            UPDATE attendance.attendance_records SET status = 'PRESENT', "updatedAt" = NOW()
+            WHERE id = ${recordId}
+          `;
+        }
       }
       if (clockOutTime) {
         await tx.$executeRaw`
