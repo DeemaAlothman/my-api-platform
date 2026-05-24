@@ -261,7 +261,7 @@ export class EmployeesService {
 
     // First pass: treat as employee IDs
     const byEmpId = await this.prisma.employee.findMany({
-      where: { id: { in: employeeIds }, deletedAt: null, isActive: true, userId: { not: null } },
+      where: { id: { in: employeeIds }, deletedAt: null, employmentStatus: 'ACTIVE', userId: { not: null } },
       select: { id: true, userId: true },
     });
 
@@ -272,7 +272,7 @@ export class EmployeesService {
     let byUserId: Array<{ id: string; userId: string | null }> = [];
     if (remaining.length > 0) {
       byUserId = await this.prisma.employee.findMany({
-        where: { userId: { in: remaining }, deletedAt: null, isActive: true },
+        where: { userId: { in: remaining }, deletedAt: null, employmentStatus: 'ACTIVE' },
         select: { id: true, userId: true },
       });
     }
