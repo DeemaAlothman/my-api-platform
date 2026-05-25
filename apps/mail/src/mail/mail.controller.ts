@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { MailService } from './mail.service';
 import { SendMailDto } from './dto/send-mail.dto';
 import { SaveDraftDto } from './dto/save-draft.dto';
+import { EditMailDto } from './dto/edit-mail.dto';
 import { ListMailQueryDto } from './dto/list-mail.query.dto';
 import { UpdateReadDto, UpdateStarDto } from './dto/update-read.dto';
 import { MoveMailDto, MailFolder } from './dto/move-mail.dto';
@@ -134,6 +135,12 @@ export class MailController {
   @Permission('mail:update')
   move(@User() user: any, @Body() dto: MoveMailDto) {
     return this.mailService.move(user.userId, dto);
+  }
+
+  @Patch(':id/edit')
+  @Permission('mail:update')
+  edit(@User() user: any, @Param('id') id: string, @Body() dto: EditMailDto) {
+    return this.mailService.editMessage(user.userId, id, dto);
   }
 
   @Delete(':id')

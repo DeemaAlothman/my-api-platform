@@ -17,6 +17,7 @@ model MailMessage {
 
   isDraft         Boolean          @default(false)
   deletedAt       DateTime?
+  editHistory     Json             @default("[]")
 
   recipients      MailRecipient[]
   attachments     MailAttachment[]

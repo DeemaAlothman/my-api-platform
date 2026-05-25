@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SendMailDto, RecipientType } from './dto/send-mail.dto';
@@ -9,6 +10,7 @@ import { SaveDraftDto } from './dto/save-draft.dto';
 import { ListMailQueryDto } from './dto/list-mail.query.dto';
 import { UpdateReadDto, UpdateStarDto } from './dto/update-read.dto';
 import { MoveMailDto, MailFolder } from './dto/move-mail.dto';
+import { EditMailDto } from './dto/edit-mail.dto';
 
 const USERS_URL          = process.env.USERS_SERVICE_URL || 'http://localhost:4002';
 const INTERNAL_TOKEN     = process.env.INTERNAL_SERVICE_TOKEN || '';
@@ -582,6 +584,57 @@ export class MailService {
     return { deleted: true };
   }
 
+  async editMessage(userId: string, messageId: string, dto: EditMailDto) {
+    if (!dto.subject && !dto.body) {
+      throw new BadRequestException({ code: 'EDIT_EMPTY', message: 'يجب تقديم subject أو body للتعديل', details: [] });
+    }
+
+    const message = await (this.prisma as any).mailMessage.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message || message.deletedAt) {
+      throw new NotFoundException({ code: 'MAIL_NOT_FOUND', message: 'Message not found', details: [] });
+    }
+
+    if (message.senderId !== userId) {
+      throw new ForbiddenException({ code: 'EDIT_FORBIDDEN', message: 'فقط المرسل يمكنه تعديل الرسالة', details: [] });
+    }
+
+    if (message.isDraft) {
+      throw new BadRequestException({ code: 'EDIT_DRAFT', message: 'المسودات لا تدعم التعديل — استخدم تحديث المسودة', details: [] });
+    }
+
+    // جلب اسم المعدِّل من users service
+    const editorInfo = await internalPost(
+      `${USERS_URL}/api/v1/employees/internal/find-by-user-id`,
+      { userId },
+    );
+    const editorName = editorInfo
+      ? `${editorInfo.firstNameAr ?? ''} ${editorInfo.lastNameAr ?? ''}`.trim()
+      : userId;
+
+    const currentHistory: any[] = Array.isArray(message.editHistory) ? message.editHistory : [];
+    const historyEntry = {
+      editedAt: new Date().toISOString(),
+      editedByUserId: userId,
+      editedByName: editorName,
+      previousSubject: message.subject,
+      previousBody: message.body,
+    };
+
+    const updated = await (this.prisma as any).mailMessage.update({
+      where: { id: messageId },
+      data: {
+        ...(dto.subject ? { subject: dto.subject } : {}),
+        ...(dto.body ? { body: dto.body } : {}),
+        editHistory: [...currentHistory, historyEntry],
+      },
+    });
+
+    return updated;
+  }
+
   async deleteMessage(userId: string, messageId: string) {
     const recipient = await (this.prisma as any).mailRecipient.findFirst({
       where: { messageId, recipientId: userId, deletedAt: null },
@@ -602,12 +655,17 @@ export class MailService {
       return { deleted: true };
     }
 
+    // المرسل لا يستطيع حذف الرسالة المرسلة — فقط التعديل مسموح
     const message = await (this.prisma as any).mailMessage.findFirst({
       where: { id: messageId, senderId: userId },
     });
 
     if (!message) {
       throw new NotFoundException({ code: 'MAIL_NOT_FOUND', message: 'Message not found', details: [] });
+    }
+
+    if (!message.isDraft) {
+      throw new ForbiddenException({ code: 'DELETE_SENT_FORBIDDEN', message: 'لا يمكن حذف رسالة مرسلة — يمكنك تعديلها فقط', details: [] });
     }
 
     await (this.prisma as any).mailMessage.update({
