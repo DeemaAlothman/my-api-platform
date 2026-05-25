@@ -168,10 +168,10 @@ export class MailService {
         },
       }).catch(() => {});
 
-      // إشعار المستلمين (fire-and-forget — لا يوقف الإرسال عند الفشل)
-      const toIds = deduped.filter((r) => r.type === RecipientType.TO).map((r) => r.userId);
+      // إشعار جميع المستلمين TO + CC + BCC (fire-and-forget)
+      const notifyIds = deduped.map((r) => r.userId);
       setImmediate(() => {
-        for (const recipientId of toIds) {
+        for (const recipientId of notifyIds) {
           internalPost(`${USERS_URL}/api/v1/notifications/internal`, {
             userId: recipientId,
             type: 'INFO',
