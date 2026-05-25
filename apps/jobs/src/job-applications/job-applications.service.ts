@@ -1,4 +1,4 @@
-import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
@@ -113,6 +113,14 @@ export class JobApplicationsService {
    * تحديث حالة طلب
    */
   async update(id: string, data: { status: string; reviewNotes?: string; rejectionNote?: string; rating?: number }) {
+    if (data.status === 'HIRED') {
+      throw new BadRequestException({
+        code: 'HIRED_REQUIRES_CEO_APPROVAL',
+        message: 'لا يمكن تغيير الحالة إلى "تم التوظيف" مباشرة — يجب المرور بموافقة المدير التنفيذي عبر /ceo-approve',
+        details: [],
+      });
+    }
+
     try {
       const response = await firstValueFrom(
         this.http.put(`${this.baseUrl}/job-applications/${id}`, data, {
