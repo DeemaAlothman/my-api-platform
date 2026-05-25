@@ -85,60 +85,113 @@ export class AuditLogsService {
       }>>,
     ]);
 
+    // جلب الأسماء العربية الكاملة للمستخدمين دفعة واحدة
+    const userIds = [...new Set(rows.map((r) => r.userId).filter(Boolean))] as string[];
+    const nameMap = await this.getFullNamesAr(userIds);
+
     return {
-      data: rows.map((r) => ({ ...r, description: this.buildDescription(r) })),
+      data: rows.map((r) => ({ ...r, description: this.buildDescription(r, nameMap[r.userId ?? '']) })),
       total: parseInt((countRows as any)[0]?.total ?? '0'),
       page,
       limit,
     };
   }
 
-  private buildDescription(row: { username?: string | null; method: string; resource?: string | null; path?: string | null }): string {
-    const who = row.username ?? 'مستخدم';
+  private async getFullNamesAr(userIds: string[]): Promise<Record<string, string>> {
+    if (userIds.length === 0) return {};
+    const rows = await this.prisma.$queryRawUnsafe(
+      `SELECT "userId", "firstNameAr", "lastNameAr" FROM users.employees WHERE "userId" = ANY($1::text[]) AND "deletedAt" IS NULL`,
+      userIds,
+    ) as Array<{ userId: string; firstNameAr: string; lastNameAr: string }>;
+    const map: Record<string, string> = {};
+    for (const r of rows) {
+      map[r.userId] = `${r.firstNameAr ?? ''} ${r.lastNameAr ?? ''}`.trim();
+    }
+    return map;
+  }
 
-    // حالات خاصة حسب الـ path
-    if (row.path?.includes('/auth/login'))   return `${who} سجّل دخوله`;
-    if (row.path?.includes('/auth/logout'))  return `${who} سجّل خروجه`;
-    if (row.path?.includes('/auth/refresh')) return `${who} جدّد جلسته`;
+  private buildDescription(
+    row: { username?: string | null; method: string; resource?: string | null; path?: string | null; resourceId?: string | null },
+    fullNameAr?: string,
+  ): string {
+    const name = fullNameAr || row.username || 'مستخدم';
+    const prefix = `المستخدم ${name}`;
+    const path = row.path ?? '';
+    const method = (row.method ?? '').toUpperCase();
 
-    const actionMap: Record<string, string> = {
-      POST:   'أضاف',
-      PUT:    'عدّل',
-      PATCH:  'عدّل',
-      DELETE: 'حذف',
-      GET:    'عرض',
+    // === حالات خاصة حسب الـ path ===
+    if (path.includes('/auth/login'))          return `${prefix} قام بتسجيل الدخول إلى النظام`;
+    if (path.includes('/auth/logout'))         return `${prefix} قام بتسجيل الخروج من النظام`;
+    if (path.includes('/auth/refresh'))        return `${prefix} قام بتجديد جلسة الدخول`;
+
+    if (path.includes('/mail/') && path.includes('/reply-all')) return `${prefix} قام بالرد على الكل في رسالة داخلية`;
+    if (path.includes('/mail/') && path.includes('/reply'))     return `${prefix} قام بالرد على رسالة داخلية`;
+    if (path.includes('/mail/') && path.includes('/forward'))   return `${prefix} قام بإعادة توجيه رسالة داخلية`;
+    if (path.includes('/mail/') && path.includes('/edit'))      return `${prefix} قام بتعديل رسالة داخلية مرسلة`;
+    if (path.includes('/mail/send'))                            return `${prefix} قام بإرسال رسالة داخلية جديدة`;
+    if (path.includes('/mail/draft'))                           return `${prefix} قام بحفظ مسودة رسالة داخلية`;
+
+    if (path.includes('/leave-requests/') && path.includes('/approve'))  return `${prefix} قام بالموافقة على طلب إجازة`;
+    if (path.includes('/leave-requests/') && path.includes('/reject'))   return `${prefix} قام برفض طلب إجازة`;
+    if (path.includes('/leave-requests/') && path.includes('/cancel'))   return `${prefix} قام بإلغاء طلب إجازة`;
+    if (path.includes('/leave-balances/') && path.includes('/adjust'))   return `${prefix} قام بتعديل رصيد إجازة موظف`;
+    if (path.includes('/leave-balances/') && path.includes('/carry'))    return `${prefix} قام بترحيل رصيد الإجازات`;
+
+    if (path.includes('/attendance') && path.includes('/recompute'))  return `${prefix} قام بإعادة احتساب سجلات الحضور`;
+    if (path.includes('/attendance') && path.includes('/check-in'))   return `${prefix} قام بتسجيل حضور موظف`;
+    if (path.includes('/attendance') && path.includes('/check-out'))  return `${prefix} قام بتسجيل انصراف موظف`;
+
+    if (path.includes('/requests/') && path.includes('/approve'))  return `${prefix} قام بالموافقة على طلب`;
+    if (path.includes('/requests/') && path.includes('/reject'))   return `${prefix} قام برفض طلب`;
+
+    if (path.includes('/evaluation') && path.includes('/submit'))   return `${prefix} قام بتقديم تقييم`;
+    if (path.includes('/evaluation') && path.includes('/approve'))  return `${prefix} قام بالموافقة على تقييم`;
+
+    if (path.includes('/employees/') && path.includes('/activate'))   return `${prefix} قام بتفعيل حساب موظف`;
+    if (path.includes('/employees/') && path.includes('/deactivate')) return `${prefix} قام بإيقاف حساب موظف`;
+
+    if (path.includes('/roles/') && path.includes('/assign'))  return `${prefix} قام بتعيين دور لمستخدم`;
+    if (path.includes('/users/') && path.includes('/assign'))  return `${prefix} قام بتعيين صلاحيات لمستخدم`;
+
+    // === وصف عام حسب الموارد والفعل ===
+    const actionMap: Record<string, [string, string, string]> = {
+      // [POST-create, PATCH/PUT-edit, DELETE]
+      POST:   ['أضاف', 'أضاف', 'أضاف'],
+      PUT:    ['عدّل', 'عدّل', 'عدّل'],
+      PATCH:  ['عدّل', 'عدّل', 'عدّل'],
+      DELETE: ['حذف',  'حذف',  'حذف'],
     };
 
-    const resourceMap: Record<string, string> = {
-      'employees':              'بيانات موظف',
-      'departments':            'قسم',
-      'users':                  'مستخدم',
-      'roles':                  'دور',
-      'leave-requests':         'طلب إجازة',
-      'leave-types':            'نوع إجازة',
-      'leave-balances':         'رصيد إجازة',
-      'holidays':               'إجازة رسمية',
-      'attendance':             'سجل حضور',
-      'attendance-records':     'سجل حضور',
-      'work-schedules':         'جدول عمل',
-      'evaluation':             'تقييم',
-      'evaluation-forms':       'نموذج تقييم',
-      'evaluation-criteria':    'معيار تقييم',
-      'evaluation-periods':     'فترة تقييم',
-      'job-grades':             'درجة وظيفية',
-      'job-titles':             'مسمى وظيفي',
-      'job-applications':       'طلب توظيف',
-      'requests':               'طلب',
-      'custodies':              'عهدة',
-      'documents':              'وثيقة',
-      'auth':                   'تسجيل دخول',
-      'audit-logs':             'سجل النظام',
+    // [POST-target, PUT/PATCH-target, DELETE-target]
+    const resourceMap: Record<string, [string, string, string]> = {
+      'employees':           ['سجلاً جديداً في جدول الموظفين',    'بيانات موظف',           'سجل موظف'],
+      'departments':         ['قسماً جديداً',                       'بيانات قسم',             'قسم'],
+      'users':               ['مستخدماً جديداً في النظام',          'بيانات مستخدم',          'مستخدم'],
+      'roles':               ['دوراً جديداً',                        'بيانات دور',             'دور'],
+      'leave-requests':      ['طلب إجازة جديد',                    'طلب إجازة',              'طلب إجازة'],
+      'leave-types':         ['نوع إجازة جديد',                     'نوع إجازة',              'نوع إجازة'],
+      'leave-balances':      ['رصيد إجازة لموظف',                   'رصيد إجازة موظف',        'رصيد إجازة'],
+      'holidays':            ['إجازة رسمية جديدة',                  'بيانات إجازة رسمية',     'إجازة رسمية'],
+      'attendance-records':  ['سجل حضور يدوياً',                    'سجل حضور',               'سجل حضور'],
+      'work-schedules':      ['جدول دوام جديد',                     'جدول دوام',              'جدول دوام'],
+      'evaluation-forms':    ['نموذج تقييم جديد',                   'نموذج تقييم',            'نموذج تقييم'],
+      'evaluation-criteria': ['معيار تقييم جديد',                   'معيار تقييم',            'معيار تقييم'],
+      'evaluation-periods':  ['فترة تقييم جديدة',                   'فترة تقييم',             'فترة تقييم'],
+      'job-grades':          ['درجة وظيفية جديدة',                  'درجة وظيفية',            'درجة وظيفية'],
+      'job-titles':          ['مسمى وظيفي جديد',                    'مسمى وظيفي',             'مسمى وظيفي'],
+      'job-applications':    ['طلب توظيف جديد',                     'طلب توظيف',              'طلب توظيف'],
+      'requests':            ['طلباً جديداً',                        'طلب',                    'طلب'],
+      'custodies':           ['عهدة جديدة',                         'بيانات عهدة',            'عهدة'],
+      'documents':           ['وثيقة جديدة',                        'وثيقة',                  'وثيقة'],
+      'mail':                ['رسالة داخلية جديدة',                  'رسالة داخلية',           'رسالة داخلية'],
     };
 
-    const verb   = actionMap[row.method?.toUpperCase()] ?? 'نفّذ عملية في';
-    const target = row.resource ? (resourceMap[row.resource] ?? row.resource) : 'النظام';
+    const verbIdx = method === 'POST' ? 0 : method === 'DELETE' ? 2 : 1;
+    const verb = actionMap[method]?.[verbIdx] ?? 'نفّذ عملية في';
+    const entry = row.resource ? resourceMap[row.resource] : null;
+    const target = entry ? entry[verbIdx] : (row.resource ?? 'النظام');
 
-    return `${who} ${verb} ${target}`;
+    return `${prefix} ${verb} ${target}`;
   }
 
   private async getAccessibleUserIds(currentUserId: string): Promise<string[]> {
