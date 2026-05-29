@@ -227,7 +227,7 @@ export class DailyClosureService implements OnModuleInit {
 
       const rows = await this.prisma.$queryRawUnsafe(
         `SELECT "nameAr" FROM leaves.holidays
-         WHERE date::date = $1::date
+         WHERE $1::date BETWEEN date::date AND COALESCE("endDate"::date, date::date)
             OR ("isRecurring" = true
                 AND EXTRACT(MONTH FROM date) = $2
                 AND EXTRACT(DAY FROM date) = $3)
