@@ -377,11 +377,131 @@ export class ApprovalService {
         }
       }
 
-      // BUSINESS_MISSION, OVERTIME, DELEGATION, HIRING_REQUEST, COMPLAINT, OTHER:
+      if (['OVERTIME_EMPLOYEE', 'OVERTIME_MANAGER'].includes(request.type)) {
+        await this.recomputeOvertimeForRequest(request);
+      }
+
+      // BUSINESS_MISSION, DELEGATION, HIRING_REQUEST, COMPLAINT, OTHER:
       // No automatic side effects — HR follows up manually after approval
 
     } catch (err) {
       console.error(`[executeApprovedRequest] failed for request ${request.id}:`, (err as any)?.message);
     }
+  }
+
+  /**
+   * Section 1-د: عند اعتماد طلب أوفرتايم → أعد حساب overtime للسجلات المرتبطة مباشرةً
+   */
+  private async recomputeOvertimeForRequest(request: any): Promise<void> {
+    const details = request.details as any;
+
+    let employeeIds: string[];
+    let dates: string[];
+
+    if (request.type === 'OVERTIME_EMPLOYEE') {
+      employeeIds = [request.employeeId];
+      dates = details.overtimeDate ? [details.overtimeDate] : [];
+    } else {
+      employeeIds = Array.isArray(details.employeeIds) ? details.employeeIds : [];
+      if (!details.startDate || !details.endDate) return;
+      dates = [];
+      const cur = new Date(details.startDate + 'T00:00:00Z');
+      const last = new Date(details.endDate + 'T00:00:00Z');
+      while (cur <= last) {
+        dates.push(cur.toISOString().split('T')[0]);
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+    }
+
+    if (!dates.length || !employeeIds.length) return;
+
+    const capMinutes = (parseFloat(details.totalHours ?? '0') || 0) * 60;
+    const startTime  = details.startTime  as string | undefined;
+    const endTime    = details.endTime    as string | undefined;
+
+    for (const dateStr of dates) {
+      const dow = new Date(dateStr + 'T00:00:00Z').getUTCDay();
+      const isWeekend = dow === 5 || dow === 6;
+
+      for (const empId of employeeIds) {
+        try {
+          const recs = await this.prisma.$queryRawUnsafe<Array<{
+            id: string; clockInTime: Date; clockOutTime: Date;
+            workedMinutes: number | null;
+            workStartTime: string; workEndTime: string;
+            shiftType: string; minimumWorkMinutes: number | null;
+          }>>(
+            `SELECT ar.id, ar."clockInTime", ar."clockOutTime", ar."workedMinutes",
+                    COALESCE(ws."workStartTime", '') AS "workStartTime",
+                    COALESCE(ws."workEndTime",   '') AS "workEndTime",
+                    COALESCE(ws."shiftType", 'DAY')  AS "shiftType",
+                    ws."minimumWorkMinutes"
+             FROM attendance.attendance_records ar
+             LEFT JOIN attendance.employee_schedules es
+               ON es."employeeId" = ar."employeeId"
+               AND $1::date BETWEEN es."effectiveFrom"::date
+                   AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+               AND es."isActive" = true
+             LEFT JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+             WHERE ar."employeeId" = $2
+               AND ar.date = $1::date
+               AND ar."clockInTime"  IS NOT NULL
+               AND ar."clockOutTime" IS NOT NULL`,
+            dateStr, empId,
+          );
+
+          if (!recs[0]) continue;
+          const rec = recs[0];
+
+          let overtimeWorkday = 0;
+          let overtimeHoliday = 0;
+
+          if (isWeekend) {
+            overtimeHoliday = Math.min(rec.workedMinutes ?? 0, capMinutes);
+          } else if (rec.shiftType === 'FLEXIBLE') {
+            const aboveMin = Math.max(0, (rec.workedMinutes ?? 0) - (rec.minimumWorkMinutes ?? 480));
+            const intersect = this.calcWindowIntersect(rec.clockInTime, rec.clockOutTime, dateStr, startTime, endTime);
+            overtimeWorkday = Math.min(aboveMin, Math.min(intersect, capMinutes));
+          } else if (rec.workStartTime && rec.workEndTime) {
+            const [sH, sM] = rec.workStartTime.split(':').map(Number);
+            const [eH, eM] = rec.workEndTime.split(':').map(Number);
+            const base = new Date(dateStr + 'T00:00:00Z');
+            const shiftStart = new Date(base); shiftStart.setUTCHours(sH - 3, sM, 0, 0);
+            const shiftEnd   = new Date(base); shiftEnd.setUTCHours(eH - 3, eM, 0, 0);
+            if (shiftEnd <= shiftStart) shiftEnd.setUTCDate(shiftEnd.getUTCDate() + 1);
+
+            const preShift  = Math.max(0, Math.floor((Math.min(rec.clockOutTime.getTime(), shiftStart.getTime()) - rec.clockInTime.getTime()) / 60000));
+            const postShift = Math.max(0, Math.floor((rec.clockOutTime.getTime() - Math.max(rec.clockInTime.getTime(), shiftEnd.getTime())) / 60000));
+            const outsideShift = preShift + postShift;
+
+            const windowIntersect = this.calcWindowIntersect(rec.clockInTime, rec.clockOutTime, dateStr, startTime, endTime);
+            overtimeWorkday = Math.min(Math.min(windowIntersect, outsideShift), capMinutes);
+          }
+
+          await this.prisma.$queryRawUnsafe(
+            `UPDATE attendance.attendance_records
+             SET "overtimeWorkdayMinutes" = $1, "overtimeHolidayMinutes" = $2,
+                 "overtimeMinutes" = $3, "overtimeRequestId" = $4, "updatedAt" = NOW()
+             WHERE id = $5`,
+            overtimeWorkday, overtimeHoliday, overtimeWorkday + overtimeHoliday, request.id, rec.id,
+          );
+        } catch (err) {
+          console.error(`[recomputeOvertimeForRequest] ${empId} on ${dateStr}:`, (err as any)?.message);
+        }
+      }
+    }
+  }
+
+  private calcWindowIntersect(clockIn: Date, clockOut: Date, dateStr: string, windowStart?: string, windowEnd?: string): number {
+    if (!windowStart || !windowEnd) return 0;
+    const [wsH, wsM] = windowStart.split(':').map(Number);
+    const [weH, weM] = windowEnd.split(':').map(Number);
+    const base = new Date(dateStr + 'T00:00:00Z');
+    const wStart = new Date(base); wStart.setUTCHours(wsH - 3, wsM, 0, 0);
+    const wEnd   = new Date(base); wEnd.setUTCHours(weH - 3, weM, 0, 0);
+    if (wEnd <= wStart) wEnd.setUTCDate(wEnd.getUTCDate() + 1);
+    const start = Math.max(clockIn.getTime(), wStart.getTime());
+    const end   = Math.min(clockOut.getTime(), wEnd.getTime());
+    return Math.max(0, Math.floor((end - start) / 60000));
   }
 }

@@ -679,26 +679,51 @@ export class DailyClosureService implements OnModuleInit {
     }
   }
 
-  /** Phase 4.2: تحديد تجاوز وقت الاستراحة المسموح به */
+  /** Phase 4.2: تحديد تجاوز وقت الاستراحة المسموح به
+   * يطرح دقائق الإجازة الساعية المتقاطعة مع وقت البريك قبل مقارنتها بالحد المسموح
+   */
   private async processBreakOverLimit(dateStr: string): Promise<void> {
     try {
       const records = (await this.prisma.$queryRawUnsafe(
-        `SELECT ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes"
-         FROM attendance.attendance_records ar
-         JOIN attendance.employee_schedules es
-           ON es."employeeId" = ar."employeeId"
-           AND $1::date BETWEEN es."effectiveFrom"::date
-               AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
-           AND es."isActive" = true
-         JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
-         WHERE ar.date = $1::date
-           AND ar."totalBreakMinutes" > ws."allowedBreakMinutes"
-           AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')`,
+        `WITH break_intersect AS (
+           SELECT ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes",
+                  COALESCE(
+                    SUM(
+                      GREATEST(0, EXTRACT(EPOCH FROM (
+                        LEAST(ab."breakIn", ar."leaveEndTime") -
+                        GREATEST(ab."breakOut", ar."leaveStartTime")
+                      )) / 60)::int
+                    ) FILTER (
+                      WHERE ab.id IS NOT NULL
+                        AND ar."leaveStartTime" IS NOT NULL
+                        AND ar."leaveEndTime"   IS NOT NULL
+                        AND ab."breakIn"        IS NOT NULL
+                    ), 0
+                  )::int AS "leaveBreakOverlapMinutes"
+           FROM attendance.attendance_records ar
+           JOIN attendance.employee_schedules es
+             ON es."employeeId" = ar."employeeId"
+             AND $1::date BETWEEN es."effectiveFrom"::date
+                 AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+             AND es."isActive" = true
+           JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+           LEFT JOIN attendance.attendance_breaks ab ON ab."attendanceRecordId" = ar.id
+           WHERE ar.date = $1::date
+             AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+           GROUP BY ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes"
+         )
+         SELECT * FROM break_intersect
+         WHERE ("totalBreakMinutes" - "leaveBreakOverlapMinutes") > "allowedBreakMinutes"`,
         dateStr,
-      )) as Array<{ id: string; employeeId: string; totalBreakMinutes: number; allowedBreakMinutes: number }>;
+      )) as Array<{
+        id: string; employeeId: string;
+        totalBreakMinutes: number; allowedBreakMinutes: number;
+        leaveBreakOverlapMinutes: number;
+      }>;
 
       for (const record of records) {
-        const overMinutes = record.totalBreakMinutes - record.allowedBreakMinutes;
+        const effectiveBreak = record.totalBreakMinutes - record.leaveBreakOverlapMinutes;
+        const overMinutes = effectiveBreak - record.allowedBreakMinutes;
         try {
           await this.prisma.$queryRawUnsafe(
             `UPDATE attendance.attendance_records

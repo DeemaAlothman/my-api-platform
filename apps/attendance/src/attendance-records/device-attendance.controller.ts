@@ -7,7 +7,7 @@ import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
 
-const DUPLICATE_WINDOW_MS = 2 * 60 * 1000; // دقيقتان
+const DUPLICATE_WINDOW_MS = 5 * 60 * 1000; // 5 دقائق (موحّد مع sync.service.ts)
 
 /**
  * Device Attendance Controller - بدون EmployeeInterceptor
