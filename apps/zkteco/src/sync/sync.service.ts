@@ -232,11 +232,26 @@ export class SyncService {
   /**
    * Phase 1.3: Toggle Logic بالترتيب مع معالجة البصمات الفردية
    * إذا n فردي وآخر فجوة > 240 دقيقة → البصمة الأخيرة ضالة (stray)، اعتمد ما قبلها كـ CLOCK_OUT
+   * بصمتان فجوتهما < 15 دقيقة → تُعامل كبصمة واحدة (CLOCK_IN فقط)
    */
   private applyOrderBasedToggle(
     logs: any[],
   ): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> {
     const n = logs.length;
+
+    // بصمتان متلاصقتان < 15 دقيقة → تُعامل كبصمة وحيدة (دخول فقط)
+    if (n === 2) {
+      const gapMinutes = (logs[1].timestamp.getTime() - logs[0].timestamp.getTime()) / 60000;
+      if (gapMinutes < 15) {
+        const warn = `two stamps ${Math.round(gapMinutes)}min apart — treated as single CLOCK_IN (< 15min)`;
+        this.logger.warn(`[CLOSE_STAMPS] ${warn}`);
+        return [
+          { id: logs[0].id, interpretedAs: 'CLOCK_IN' as InterpretedType, pairIndex: 1 },
+          { id: logs[1].id, interpretedAs: 'CLOCK_IN' as InterpretedType, pairIndex: 2, syncError: warn },
+        ];
+      }
+    }
+
     let effectiveLogs = logs;
     let strayStampId: string | undefined;
     let strayWarning: string | undefined;

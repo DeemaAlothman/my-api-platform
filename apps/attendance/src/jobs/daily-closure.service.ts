@@ -680,26 +680,59 @@ export class DailyClosureService implements OnModuleInit {
   }
 
   /** Phase 4.2: تحديد تجاوز وقت الاستراحة المسموح به
-   * يطرح دقائق الإجازة الساعية المتقاطعة مع وقت البريك قبل مقارنتها بالحد المسموح
+   * يطرح تقاطع الاستراحات مع (الإجازة الساعية + نصف اليوم) قبل مقارنتها بالحد المسموح
    */
   private async processBreakOverLimit(dateStr: string): Promise<void> {
     try {
       const records = (await this.prisma.$queryRawUnsafe(
-        `WITH break_intersect AS (
+        `WITH break_stats AS (
            SELECT ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes",
-                  COALESCE(
-                    SUM(
-                      GREATEST(0, EXTRACT(EPOCH FROM (
-                        LEAST(ab."breakIn", ar."leaveEndTime") -
-                        GREATEST(ab."breakOut", ar."leaveStartTime")
-                      )) / 60)::int
-                    ) FILTER (
-                      WHERE ab.id IS NOT NULL
-                        AND ar."leaveStartTime" IS NOT NULL
-                        AND ar."leaveEndTime"   IS NOT NULL
-                        AND ab."breakIn"        IS NOT NULL
-                    ), 0
-                  )::int AS "leaveBreakOverlapMinutes"
+                  -- تقاطع مع الإجازة الساعية الصريحة
+                  COALESCE(SUM(
+                    GREATEST(0, EXTRACT(EPOCH FROM (
+                      LEAST(ab."breakIn", ar."leaveEndTime") -
+                      GREATEST(ab."breakOut", ar."leaveStartTime")
+                    )) / 60)::int
+                  ) FILTER (
+                    WHERE ab.id IS NOT NULL
+                      AND ar."leaveStartTime" IS NOT NULL AND ar."leaveEndTime" IS NOT NULL
+                      AND ab."breakIn" IS NOT NULL
+                  ), 0)::int AS "leaveOverlap",
+                  -- تقاطع مع فترة نصف اليوم (AM → الصباح معذور، PM → المساء معذور)
+                  COALESCE(SUM(
+                    GREATEST(0, EXTRACT(EPOCH FROM (
+                      LEAST(ab."breakIn",
+                        CASE
+                          WHEN ar."halfDayPeriod" = 'AM' THEN
+                            (ar.date::date)::timestamp + make_interval(mins =>
+                              (SPLIT_PART(ws."workStartTime",':',1)::int*60 + SPLIT_PART(ws."workStartTime",':',2)::int +
+                               SPLIT_PART(ws."workEndTime",':',1)::int*60   + SPLIT_PART(ws."workEndTime",':',2)::int
+                              ) / 2 - 180)
+                          WHEN ar."halfDayPeriod" = 'PM' THEN
+                            (ar.date::date)::timestamp + make_interval(mins =>
+                               SPLIT_PART(ws."workEndTime",':',1)::int*60 + SPLIT_PART(ws."workEndTime",':',2)::int - 180)
+                          ELSE NULL
+                        END
+                      ) -
+                      GREATEST(ab."breakOut",
+                        CASE
+                          WHEN ar."halfDayPeriod" = 'AM' THEN
+                            (ar.date::date)::timestamp + make_interval(mins =>
+                               SPLIT_PART(ws."workStartTime",':',1)::int*60 + SPLIT_PART(ws."workStartTime",':',2)::int - 180)
+                          WHEN ar."halfDayPeriod" = 'PM' THEN
+                            (ar.date::date)::timestamp + make_interval(mins =>
+                              (SPLIT_PART(ws."workStartTime",':',1)::int*60 + SPLIT_PART(ws."workStartTime",':',2)::int +
+                               SPLIT_PART(ws."workEndTime",':',1)::int*60   + SPLIT_PART(ws."workEndTime",':',2)::int
+                              ) / 2 - 180)
+                          ELSE NULL
+                        END
+                      )
+                    )) / 60)::int
+                  ) FILTER (
+                    WHERE ab.id IS NOT NULL AND ar."halfDayPeriod" IS NOT NULL
+                      AND ws."workStartTime" IS NOT NULL AND ws."workEndTime" IS NOT NULL
+                      AND ab."breakIn" IS NOT NULL
+                  ), 0)::int AS "halfDayOverlap"
            FROM attendance.attendance_records ar
            JOIN attendance.employee_schedules es
              ON es."employeeId" = ar."employeeId"
@@ -710,10 +743,14 @@ export class DailyClosureService implements OnModuleInit {
            LEFT JOIN attendance.attendance_breaks ab ON ab."attendanceRecordId" = ar.id
            WHERE ar.date = $1::date
              AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
-           GROUP BY ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes"
+           GROUP BY ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes",
+                    ar."leaveStartTime", ar."leaveEndTime", ar."halfDayPeriod",
+                    ws."workStartTime", ws."workEndTime"
          )
-         SELECT * FROM break_intersect
-         WHERE ("totalBreakMinutes" - "leaveBreakOverlapMinutes") > "allowedBreakMinutes"`,
+         SELECT id, "employeeId", "totalBreakMinutes", "allowedBreakMinutes",
+                ("leaveOverlap" + "halfDayOverlap") AS "leaveBreakOverlapMinutes"
+         FROM break_stats
+         WHERE ("totalBreakMinutes" - ("leaveOverlap" + "halfDayOverlap")) > "allowedBreakMinutes"`,
         dateStr,
       )) as Array<{
         id: string; employeeId: string;
@@ -732,18 +769,80 @@ export class DailyClosureService implements OnModuleInit {
             overMinutes, record.id,
           );
 
+          // تنبيه BREAK_GAP في attendance_alerts (مرة واحدة باليوم)
+          await this.prisma.$queryRawUnsafe(
+            `INSERT INTO attendance.attendance_alerts
+               (id, "employeeId", date, "alertType", severity, message, "messageAr",
+                status, "isAutoGenerated", "createdAt", "updatedAt")
+             SELECT gen_random_uuid(), $1, $2::date, 'BREAK_GAP',
+               CASE WHEN $3::int > 30 THEN 'HIGH' ELSE 'MEDIUM' END,
+               $4, $5, 'OPEN', true, NOW(), NOW()
+             WHERE NOT EXISTS (
+               SELECT 1 FROM attendance.attendance_alerts
+               WHERE "employeeId" = $1 AND date = $2::date AND "alertType" = 'BREAK_GAP'
+             )`,
+            record.employeeId, dateStr, overMinutes,
+            `Break over limit by ${overMinutes} minutes on ${dateStr}`,
+            `تجاوز وقت الاستراحة بـ ${overMinutes} دقيقة يوم ${dateStr}`,
+          );
+
+          // إشعار الموظف
           await this.sendTardinessNotification(
-            record.employeeId,
-            'BREAK_EXCEEDED',
+            record.employeeId, 'BREAK_EXCEEDED',
             `تجاوزت وقت الاستراحة المسموح به بـ ${overMinutes} دقيقة اليوم`,
             `You exceeded the allowed break time by ${overMinutes} minutes today`,
           );
+
+          // إشعار المدير المباشر
+          await this.notifyManager(record.employeeId, 'BREAK_EXCEEDED',
+            'تجاوز وقت الاستراحة', 'Break Over Limit',
+          );
+
+          // إشعار HR
+          await this.notifyHRBreakGap(record.employeeId, dateStr, overMinutes);
+
         } catch (err) {
           this.logger.error(`processBreakOverLimit failed for ${record.employeeId}: ${(err as any)?.message}`);
         }
       }
     } catch (err) {
       this.logger.error(`processBreakOverLimit failed for ${dateStr}: ${(err as any)?.message}`);
+    }
+  }
+
+  private async notifyHRBreakGap(employeeId: string, dateStr: string, overMinutes: number): Promise<void> {
+    try {
+      const empRow = (await this.prisma.$queryRawUnsafe(
+        `SELECT e."firstNameAr", e."lastNameAr"
+         FROM users.employees e WHERE e.id = $1 AND e."deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      )) as Array<{ firstNameAr: string; lastNameAr: string }>;
+      if (!empRow[0]) return;
+      const empName = `${empRow[0].firstNameAr} ${empRow[0].lastNameAr}`;
+
+      const hrUsers = (await this.prisma.$queryRawUnsafe(
+        `SELECT DISTINCT u.id
+         FROM users.users u
+         INNER JOIN users.user_roles ur ON ur."userId" = u.id
+         INNER JOIN users.roles r ON r.id = ur."roleId"
+         WHERE r.name IN ('HR', 'HR_Specialist', 'super_admin')
+           AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL`,
+      )) as Array<{ id: string }>;
+
+      for (const hr of hrUsers) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'BREAK_EXCEEDED',
+              'تجاوز وقت الاستراحة', 'Break Over Limit', $2, $3, false, NOW())`,
+          hr.id,
+          `الموظف ${empName} تجاوز وقت الاستراحة بـ ${overMinutes} دقيقة يوم ${dateStr}`,
+          `Employee ${empName} exceeded break time by ${overMinutes} min on ${dateStr}`,
+        );
+      }
+    } catch {
+      // إشعار فاشل لا يوقف العملية
     }
   }
 
