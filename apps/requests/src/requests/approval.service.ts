@@ -1,12 +1,21 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ApprovalResolverService } from './approval-resolver.service';
+import { RequestNotificationsService } from './notifications.service';
+
+interface ApproveDto {
+  notes?: string;
+  penaltyDays?: number;
+  amount?: number;
+  executiveRecommendation?: string;
+}
 
 @Injectable()
 export class ApprovalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly resolver: ApprovalResolverService,
+    private readonly notifications: RequestNotificationsService,
   ) {}
 
   async initializeApprovalSteps(requestId: string, requestType: string, employeeId?: string): Promise<boolean> {
@@ -18,7 +27,6 @@ export class ApprovalService {
     if (workflows.length === 0) return false;
 
     // إذا كان المدير المباشر هو CEO: احذف خطوة CEO المنفصلة وابقِ DIRECT_MANAGER → HR
-    // النتيجة: CEO يوافق أولاً (بصفته المدير المباشر) ثم HR
     if (employeeId && workflows.some(w => w.approverRole === 'DIRECT_MANAGER')) {
       const isManagerCeo = await this.isDirectManagerCeo(employeeId);
       if (isManagerCeo) {
@@ -54,7 +62,6 @@ export class ApprovalService {
     const managerId = result[0]?.managerId;
     if (!managerId) return false;
 
-    // تحقق إذا المدير عنده صلاحية requests:ceo-approve
     const ceoCheck = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(*) as count
       FROM users.user_roles ur
@@ -68,7 +75,7 @@ export class ApprovalService {
     return Number(ceoCheck[0]?.count ?? 0) > 0;
   }
 
-  async approve(requestId: string, approverUserId: string, notes?: string) {
+  async approve(requestId: string, approverUserId: string, dto: ApproveDto = {}) {
     const request = await this.prisma.request.findFirst({
       where: { id: requestId, deletedAt: null },
       include: { approvalSteps: { orderBy: { stepOrder: 'asc' } } },
@@ -100,11 +107,20 @@ export class ApprovalService {
 
     const reviewerId = (await this.resolver.getEmployeeIdByUserId(approverUserId)) ?? approverUserId;
 
+    // Merge HR/CEO-supplied fields into details for REWARD / PENALTY_PROPOSAL
+    let updatedDetails = request.details as any;
+    if (['REWARD', 'PENALTY_PROPOSAL'].includes(request.type)) {
+      updatedDetails = { ...updatedDetails };
+      if (dto.penaltyDays !== undefined) updatedDetails.penaltyDays = dto.penaltyDays;
+      if (dto.amount !== undefined) updatedDetails.amount = dto.amount;
+      if (dto.executiveRecommendation !== undefined) updatedDetails.executiveRecommendation = dto.executiveRecommendation;
+      await this.prisma.request.update({ where: { id: requestId }, data: { details: updatedDetails } });
+    }
+
     const nextStep = (request.approvalSteps as any[]).find(
       s => s.stepOrder === (request.currentStepOrder! + 1),
     );
 
-    // طلب الاستقالة: عند اكتمال الموافقة يذهب لمرحلة مقابلة الخروج بدل APPROVED مباشرة
     const fullyApproved = !nextStep;
     const isResignation = request.type === 'RESIGNATION';
     const newStatus = nextStep
@@ -115,7 +131,7 @@ export class ApprovalService {
     await this.prisma.$transaction([
       this.prisma.approvalStep.update({
         where: { id: currentStep.id },
-        data: { status: 'APPROVED', reviewedBy: reviewerId, reviewedAt: new Date(), notes },
+        data: { status: 'APPROVED', reviewedBy: reviewerId, reviewedAt: new Date(), notes: dto.notes },
       }),
       this.prisma.request.update({
         where: { id: requestId },
@@ -130,13 +146,25 @@ export class ApprovalService {
         fromStatus: 'IN_APPROVAL',
         toStatus: newStatus,
         performedBy: reviewerId,
-        notes: `Step ${currentStep.stepOrder} (${currentStep.approverRole}) approved${notes ? ': ' + notes : ''}`,
+        notes: `Step ${currentStep.stepOrder} (${currentStep.approverRole}) approved${dto.notes ? ': ' + dto.notes : ''}`,
       },
     });
 
-    // تنفيذ الإجراء الفعلي عند اكتمال الاعتماد — ماعدا الاستقالة تنتظر مقابلة الخروج
+    // Notify relevant parties for REWARD / PENALTY_PROPOSAL
+    if (['REWARD', 'PENALTY_PROPOSAL'].includes(request.type)) {
+      await this.notifications.notifyRewardPenalty({
+        requestId,
+        requestType: request.type as 'REWARD' | 'PENALTY_PROPOSAL',
+        action: fullyApproved && !isResignation ? 'APPROVED' : 'STEP_APPROVED',
+        stepRole: currentStep.approverRole,
+        employeeId: request.employeeId,
+        details: updatedDetails,
+      });
+    }
+
+    // Execute side effects on final approval (excluding resignation — awaits exit interview)
     if (fullyApproved && !isResignation) {
-      await this.executeApprovedRequest(request);
+      await this.executeApprovedRequest({ ...request, details: updatedDetails });
     }
 
     return this.prisma.request.findFirst({
@@ -202,6 +230,18 @@ export class ApprovalService {
       },
     });
 
+    // Notify relevant parties for REWARD / PENALTY_PROPOSAL
+    if (['REWARD', 'PENALTY_PROPOSAL'].includes(request.type)) {
+      await this.notifications.notifyRewardPenalty({
+        requestId,
+        requestType: request.type as 'REWARD' | 'PENALTY_PROPOSAL',
+        action: 'REJECTED',
+        stepRole: currentStep.approverRole,
+        employeeId: request.employeeId,
+        details: request.details,
+      });
+    }
+
     return this.prisma.request.findFirst({
       where: { id: requestId },
       include: {
@@ -232,7 +272,6 @@ export class ApprovalService {
     const hasCeoApprove = await this.resolver.hasPermission(userId, 'requests:ceo-approve');
     const hasCfoApprove = await this.resolver.hasPermission(userId, 'requests:cfo-approve');
 
-    // استعلام واحد على DB يفلتر الطلبات حسب دور المعتمد — بدل جلب كل شيء في الذاكرة
     const baseConditions = `
       r.status = 'IN_APPROVAL'
       AND r."deletedAt" IS NULL
@@ -297,16 +336,49 @@ export class ApprovalService {
       }
 
       if (request.type === 'RESIGNATION') {
-        // تغيير حالة الموظف إلى TERMINATED — HR يتابع إجراءات الخروج يدوياً
         await this.prisma.$queryRawUnsafe(
           `UPDATE users.employees SET "employmentStatus" = 'TERMINATED', "updatedAt" = NOW() WHERE id = $1`,
           request.employeeId,
         );
       }
 
-      // REWARD و PENALTY_PROPOSAL تُعالج في payroll service تلقائياً عند اعتماد الطلب
-      // BUSINESS_MISSION، OVERTIME، DELEGATION، HIRING_REQUEST، COMPLAINT، OTHER:
-      // لا توجد إجراءات تلقائية — HR يتابع يدوياً بعد الاعتماد
+      if (request.type === 'PENALTY_PROPOSAL' && details?.targetEmployeeId && details?.category) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.employee_rewards_penalties
+            (id, "employeeId", kind, category, "penaltyDays", amount, "typeCode", reason, recommendation, "requestId", "issuedBy", status, "effectiveDate", "createdAt")
+           VALUES (gen_random_uuid()::text, $1, 'PENALTY', $2, $3, NULL, $4, $5, $6, $7, $8, 'ACTIVE', NOW(), NOW())`,
+          details.targetEmployeeId,
+          details.category,
+          details.category === 'MATERIAL' ? (Number(details.penaltyDays) || null) : null,
+          details.penaltyType ?? null,
+          details.violationDescription ?? null,
+          details.executiveRecommendation ?? null,
+          request.id,
+          request.employeeId,
+        );
+      }
+
+      if (request.type === 'REWARD' && Array.isArray(details?.employees)) {
+        for (const emp of details.employees) {
+          if (!emp.employeeId || !emp.category) continue;
+          await this.prisma.$queryRawUnsafe(
+            `INSERT INTO users.employee_rewards_penalties
+              (id, "employeeId", kind, category, "penaltyDays", amount, "typeCode", reason, recommendation, "requestId", "issuedBy", status, "effectiveDate", "createdAt")
+             VALUES (gen_random_uuid()::text, $1, 'REWARD', $2, NULL, $3, $4, $5, $6, $7, $8, 'ACTIVE', NOW(), NOW())`,
+            emp.employeeId,
+            emp.category,
+            emp.category === 'MATERIAL' ? (Number(emp.amount) || null) : null,
+            emp.rewardType ?? null,
+            emp.reason ?? null,
+            details.executiveRecommendation ?? null,
+            request.id,
+            request.employeeId,
+          );
+        }
+      }
+
+      // BUSINESS_MISSION, OVERTIME, DELEGATION, HIRING_REQUEST, COMPLAINT, OTHER:
+      // No automatic side effects — HR follows up manually after approval
 
     } catch (err) {
       console.error(`[executeApprovedRequest] failed for request ${request.id}:`, (err as any)?.message);

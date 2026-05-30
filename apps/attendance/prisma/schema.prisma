@@ -191,6 +191,10 @@ model AttendanceRecord {
   clockInDeviceSN  String?
   clockOutDeviceSN String?
 
+  // Overtime request reference (filled by daily-closure when overtime is linked to an approved request)
+  overtimeRequestId     String?
+  breakOverLimitMinutes Int     @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

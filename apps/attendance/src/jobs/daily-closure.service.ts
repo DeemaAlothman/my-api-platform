@@ -215,6 +215,9 @@ export class DailyClosureService implements OnModuleInit {
     // C.6: Detect anomalous attendance patterns
     await this.processAnomalyDetection(dateStr);
 
+    // C.7: Compute overtime from approved requests (replaces auto-calculated overtime)
+    await this.processOvertimeFromRequests(dateStr);
+
     return { date: dateStr, absentCreated, missingClockOutAlerts, onLeaveApplied, holidayApplied: 0, orphanNotified, skipped };
   }
 
@@ -866,6 +869,136 @@ export class DailyClosureService implements OnModuleInit {
     } catch (err) {
       this.logger.error(`processAnomalyDetection failed for ${dateStr}: ${(err as any)?.message}`);
     }
+  }
+
+  /**
+   * C.7: حساب الإضافي من طلبات التكليف المعتمدة فقط (Section 1-ج)
+   * يُصفَّر الإضافي إذا لا يوجد طلب معتمد يغطي الموظف واليوم.
+   */
+  private async processOvertimeFromRequests(dateStr: string): Promise<void> {
+    try {
+      const records = (await this.prisma.$queryRawUnsafe(
+        `SELECT ar.id, ar."employeeId", ar."clockInTime", ar."clockOutTime",
+                ar."workedMinutes",
+                COALESCE(ws."workStartTime", '') AS "workStartTime",
+                COALESCE(ws."workEndTime", '')   AS "workEndTime",
+                COALESCE(ws."shiftType", 'DAY')  AS "shiftType",
+                ws."minimumWorkMinutes"
+         FROM attendance.attendance_records ar
+         LEFT JOIN attendance.employee_schedules es ON es."employeeId" = ar."employeeId"
+           AND $1::date BETWEEN es."effectiveFrom"::date
+               AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+           AND es."isActive" = true
+         LEFT JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+         WHERE ar.date = $1::date
+           AND ar."clockInTime" IS NOT NULL
+           AND ar."clockOutTime" IS NOT NULL
+           AND ar.status NOT IN ('ABSENT', 'ON_LEAVE')`,
+        dateStr,
+      )) as Array<{
+        id: string; employeeId: string;
+        clockInTime: Date; clockOutTime: Date; workedMinutes: number | null;
+        workStartTime: string; workEndTime: string;
+        shiftType: string; minimumWorkMinutes: number | null;
+      }>;
+
+      const holiday = await this.getHolidayForDate(dateStr);
+      const dow = new Date(dateStr + 'T00:00:00Z').getUTCDay();
+      const isOffDay = !!holiday || dow === 5 || dow === 6;
+
+      for (const rec of records) {
+        try {
+          const reqs = (await this.prisma.$queryRawUnsafe(
+            `SELECT id, type, details FROM requests.requests
+             WHERE status = 'APPROVED' AND "deletedAt" IS NULL
+               AND (
+                 (type = 'OVERTIME_EMPLOYEE'
+                   AND "employeeId" = $1
+                   AND (details->>'overtimeDate')::date = $2::date)
+                 OR
+                 (type = 'OVERTIME_MANAGER'
+                   AND (details->'employeeIds')::jsonb @> to_jsonb($1::text)
+                   AND (details->>'startDate')::date <= $2::date
+                   AND (details->>'endDate')::date >= $2::date)
+               )`,
+            rec.employeeId, dateStr,
+          )) as Array<{ id: string; type: string; details: any }>;
+
+          if (reqs.length === 0) {
+            await this.prisma.$queryRawUnsafe(
+              `UPDATE attendance.attendance_records
+               SET "overtimeWorkdayMinutes" = 0, "overtimeHolidayMinutes" = 0,
+                   "overtimeMinutes" = 0, "overtimeRequestId" = NULL, "updatedAt" = NOW()
+               WHERE id = $1`,
+              rec.id,
+            );
+            continue;
+          }
+
+          const totalCapMin = reqs.reduce((s, r) => s + (parseFloat(r.details?.totalHours ?? '0') || 0) * 60, 0);
+          const firstReqId = reqs[0].id;
+          let overtimeWorkday = 0;
+          let overtimeHoliday = 0;
+
+          if (isOffDay) {
+            overtimeHoliday = Math.min(rec.workedMinutes ?? 0, totalCapMin);
+          } else if (rec.shiftType === 'FLEXIBLE') {
+            const aboveMin = Math.max(0, (rec.workedMinutes ?? 0) - (rec.minimumWorkMinutes ?? 480));
+            let intersectTotal = 0;
+            for (const r of reqs) {
+              const cap = (parseFloat(r.details?.totalHours ?? '0') || 0) * 60;
+              intersectTotal += Math.min(this.calcWindowIntersect(rec.clockInTime, rec.clockOutTime, dateStr, r.details?.startTime, r.details?.endTime), cap);
+            }
+            overtimeWorkday = Math.min(aboveMin, Math.min(intersectTotal, totalCapMin));
+          } else if (rec.workStartTime && rec.workEndTime) {
+            const [sH, sM] = rec.workStartTime.split(':').map(Number);
+            const [eH, eM] = rec.workEndTime.split(':').map(Number);
+            const base = new Date(dateStr + 'T00:00:00Z');
+            const shiftStart = new Date(base); shiftStart.setUTCHours(sH - 3, sM, 0, 0);
+            const shiftEnd = new Date(base);   shiftEnd.setUTCHours(eH - 3, eM, 0, 0);
+            if (shiftEnd <= shiftStart) shiftEnd.setUTCDate(shiftEnd.getUTCDate() + 1);
+
+            const preShift  = Math.max(0, Math.floor((Math.min(rec.clockOutTime.getTime(), shiftStart.getTime()) - rec.clockInTime.getTime()) / 60000));
+            const postShift = Math.max(0, Math.floor((rec.clockOutTime.getTime() - Math.max(rec.clockInTime.getTime(), shiftEnd.getTime())) / 60000));
+            const outsideShift = preShift + postShift;
+
+            let intersectTotal = 0;
+            for (const r of reqs) {
+              const cap = (parseFloat(r.details?.totalHours ?? '0') || 0) * 60;
+              const windowIntersect = this.calcWindowIntersect(rec.clockInTime, rec.clockOutTime, dateStr, r.details?.startTime, r.details?.endTime);
+              intersectTotal += Math.min(Math.min(windowIntersect, outsideShift), cap);
+            }
+            overtimeWorkday = Math.min(intersectTotal, totalCapMin);
+          }
+
+          await this.prisma.$queryRawUnsafe(
+            `UPDATE attendance.attendance_records
+             SET "overtimeWorkdayMinutes" = $1, "overtimeHolidayMinutes" = $2,
+                 "overtimeMinutes" = $3, "overtimeRequestId" = $4, "updatedAt" = NOW()
+             WHERE id = $5`,
+            overtimeWorkday, overtimeHoliday, overtimeWorkday + overtimeHoliday, firstReqId, rec.id,
+          );
+        } catch (err) {
+          this.logger.error(`Overtime calc failed for ${rec.employeeId} on ${dateStr}: ${(err as any)?.message}`);
+        }
+      }
+    } catch (err) {
+      this.logger.error(`processOvertimeFromRequests failed for ${dateStr}: ${(err as any)?.message}`);
+    }
+  }
+
+  /** Intersection in minutes between [clockIn, clockOut] and the request time window on a given date (times in Asia/Riyadh format "HH:mm") */
+  private calcWindowIntersect(clockIn: Date, clockOut: Date, dateStr: string, windowStart?: string, windowEnd?: string): number {
+    if (!windowStart || !windowEnd) return 0;
+    const [wsH, wsM] = windowStart.split(':').map(Number);
+    const [weH, weM] = windowEnd.split(':').map(Number);
+    const base = new Date(dateStr + 'T00:00:00Z');
+    const wStart = new Date(base); wStart.setUTCHours(wsH - 3, wsM, 0, 0);
+    const wEnd   = new Date(base); wEnd.setUTCHours(weH - 3, weM, 0, 0);
+    if (wEnd <= wStart) wEnd.setUTCDate(wEnd.getUTCDate() + 1);
+    const start = Math.max(clockIn.getTime(), wStart.getTime());
+    const end   = Math.min(clockOut.getTime(), wEnd.getTime());
+    return Math.max(0, Math.floor((end - start) / 60000));
   }
 
   async auditLog(

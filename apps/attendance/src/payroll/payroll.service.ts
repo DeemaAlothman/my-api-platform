@@ -484,50 +484,46 @@ export class PayrollService {
     // إجمالي خصومات الحضور (التأخير + المرضية + UNPAID_DAILY)
     const totalDeductionAmount = deductionAmount + sickLeaveDeductionAmount + unpaidDailyDeductionAmount;
 
-    // === مكافآت وجزاءات من requests schema ===
+    // === مكافآت وجزاءات مادية من users.employee_rewards_penalties ===
+    // المعنوية (MORAL) مستثناة — لا أثر مالي لها
     let bonusAmount = 0;
     let penaltyAmount = 0;
     const bonusDetailsList: Array<{ requestId: string; amount: number; reason: string }> = [];
     const penaltyDetailsList: Array<{ requestId: string; amount: number; description: string }> = [];
 
     try {
-      const rewardRequests = await this.prisma.$queryRawUnsafe(
-        `SELECT id, details FROM requests.requests
-         WHERE type = 'REWARD' AND status = 'APPROVED'
-           AND "deletedAt" IS NULL
-           AND "createdAt" >= $1 AND "createdAt" <= $2`,
-        startDate, endDate,
-      ) as Array<{ id: string; details: any }>;
+      const rewardRecords = await this.prisma.$queryRawUnsafe(
+        `SELECT id, amount, reason, "requestId"
+         FROM users.employee_rewards_penalties
+         WHERE "employeeId" = $1
+           AND kind = 'REWARD' AND category = 'MATERIAL' AND status = 'ACTIVE'
+           AND "effectiveDate" >= $2 AND "effectiveDate" <= $3`,
+        employeeId, startDate, endDate,
+      ) as Array<{ id: string; amount: string | null; reason: string | null; requestId: string | null }>;
 
-      for (const req of rewardRequests) {
-        const empArr: Array<{ employeeId: string; amount: number; reason: string }> =
-          req.details?.employees ?? [];
-        for (const e of empArr) {
-          if (e.employeeId === employeeId && e.amount > 0) {
-            bonusAmount += e.amount;
-            bonusDetailsList.push({ requestId: req.id, amount: e.amount, reason: e.reason ?? '' });
-          }
+      for (const rec of rewardRecords) {
+        const amt = parseFloat(rec.amount ?? '0') || 0;
+        if (amt > 0) {
+          bonusAmount += amt;
+          bonusDetailsList.push({ requestId: rec.requestId ?? rec.id, amount: amt, reason: rec.reason ?? '' });
         }
       }
 
-      const penaltyRequests = await this.prisma.$queryRawUnsafe(
-        `SELECT id, details FROM requests.requests
-         WHERE type = 'PENALTY_PROPOSAL' AND status = 'APPROVED'
-           AND "deletedAt" IS NULL
-           AND (details->>'targetEmployeeId') = $1
-           AND "createdAt" >= $2 AND "createdAt" <= $3`,
+      const penaltyRecords = await this.prisma.$queryRawUnsafe(
+        `SELECT id, "penaltyDays", reason, "requestId"
+         FROM users.employee_rewards_penalties
+         WHERE "employeeId" = $1
+           AND kind = 'PENALTY' AND category = 'MATERIAL' AND status = 'ACTIVE'
+           AND "effectiveDate" >= $2 AND "effectiveDate" <= $3`,
         employeeId, startDate, endDate,
-      ) as Array<{ id: string; details: any }>;
+      ) as Array<{ id: string; penaltyDays: string | null; reason: string | null; requestId: string | null }>;
 
-      for (const req of penaltyRequests) {
-        const amount = parseFloat(req.details?.amount ?? '0') || 0;
-        if (amount > 0) {
-          penaltyAmount += amount;
-          penaltyDetailsList.push({
-            requestId: req.id,
-            amount,
-            description: req.details?.violationDescription ?? '',
-          });
+      for (const rec of penaltyRecords) {
+        const days = parseFloat(String(rec.penaltyDays ?? '0')) || 0;
+        if (days > 0) {
+          const deductAmt = parseFloat((days * dailyRate).toFixed(2));
+          penaltyAmount += deductAmt;
+          penaltyDetailsList.push({ requestId: rec.requestId ?? rec.id, amount: deductAmt, description: rec.reason ?? '' });
         }
       }
     } catch (err) {

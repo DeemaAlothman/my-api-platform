@@ -698,13 +698,8 @@ export class SyncService {
       lateCompensatedMinutes = Math.min(excessMinutes, lateMinutes);
     }
 
-    // الأوفرتايم بعد طرح دقائق التعويض (لا double counting)
-    let overtimeMinutes = 0;
-    if (s.allowOvertime && excessMinutes > 0) {
-      const overtimeAfterComp = Math.max(0, excessMinutes - lateCompensatedMinutes);
-      const maxMinutes = s.maxOvertimeHours ? s.maxOvertimeHours * 60 : Infinity;
-      overtimeMinutes = Math.min(overtimeAfterComp, maxMinutes);
-    }
+    // Overtime is always 0 at sync time — computed by daily-closure from approved requests (Section 1-ج)
+    const overtimeMinutes = 0;
 
     return {
       lateMinutes,

@@ -6,6 +6,7 @@ import { RejectRequestDto } from './dto/reject-request.dto';
 import { CancelRequestDto } from './dto/cancel-request.dto';
 import { ListRequestsQueryDto } from './dto/list-requests.query.dto';
 import { ApprovalService } from './approval.service';
+import { RequestNotificationsService } from './notifications.service';
 import { validateRequestDetails } from './validators/request-details.validator';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -29,6 +30,7 @@ export class RequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly approvalService: ApprovalService,
+    private readonly notifications: RequestNotificationsService,
   ) {}
 
   // جلب بيانات الموظفين بـ bulk query عبر cross-schema
@@ -165,6 +167,16 @@ export class RequestsService {
       data: { requestId: id, action: 'SUBMITTED', fromStatus: 'DRAFT', toStatus, performedBy: employeeId! },
     });
 
+    if (['REWARD', 'PENALTY_PROPOSAL'].includes(request.type)) {
+      await this.notifications.notifyRewardPenalty({
+        requestId: id,
+        requestType: request.type as 'REWARD' | 'PENALTY_PROPOSAL',
+        action: 'SUBMITTED',
+        employeeId: employeeId!,
+        details: request.details,
+      });
+    }
+
     return this.prisma.request.findFirst({
       where: { id },
       include: {
@@ -177,7 +189,7 @@ export class RequestsService {
   // ── نظام الموافقات الجديد ──────────────────────────────────────
 
   async approveStep(id: string, userId: string, dto: ApproveRequestDto) {
-    return this.approvalService.approve(id, userId, dto.notes);
+    return this.approvalService.approve(id, userId, dto);
   }
 
   async rejectStep(id: string, userId: string, dto: RejectRequestDto) {
@@ -194,7 +206,7 @@ export class RequestsService {
 
   // deprecated: redirected to ApprovalService to enforce canApprove checks
   async managerApprove(id: string, userId: string, dto: ApproveRequestDto) {
-    return this.approvalService.approve(id, userId, dto.notes);
+    return this.approvalService.approve(id, userId, dto);
   }
 
   async managerReject(id: string, userId: string, dto: RejectRequestDto) {
@@ -203,7 +215,7 @@ export class RequestsService {
 
   // deprecated: redirected to ApprovalService to enforce canApprove checks
   async hrApprove(id: string, userId: string, dto: ApproveRequestDto) {
-    return this.approvalService.approve(id, userId, dto.notes);
+    return this.approvalService.approve(id, userId, dto);
   }
 
   async hrReject(id: string, userId: string, dto: RejectRequestDto) {

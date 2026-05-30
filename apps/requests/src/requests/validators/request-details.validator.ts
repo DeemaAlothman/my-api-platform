@@ -58,7 +58,44 @@ export function validateRequestDetails(type: string, details: any): void {
     }
 
     case 'PENALTY_PROPOSAL': {
-      requireFields(details, ['targetEmployeeId', 'targetJobTitle', 'violationDescription'], 'PENALTY_PROPOSAL');
+      requireFields(details, ['targetEmployeeId', 'targetJobTitle', 'violationDescription', 'category'], 'PENALTY_PROPOSAL');
+
+      if (!['MATERIAL', 'MORAL'].includes(details.category)) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: "category must be 'MATERIAL' or 'MORAL'",
+          details: [{ field: 'category' }],
+        });
+      }
+
+      const moralTypes = ['NOTICE', 'WARNING_1', 'WARNING_2'];
+      if (details.category === 'MORAL') {
+        if (!moralTypes.includes(details.penaltyType)) {
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: `penaltyType for MORAL penalty must be one of: ${moralTypes.join(', ')}`,
+            details: [{ field: 'penaltyType' }],
+          });
+        }
+      }
+
+      if (details.category === 'MATERIAL') {
+        if (details.penaltyType !== 'DAYS_DEDUCTION') {
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: "penaltyType for MATERIAL penalty must be 'DAYS_DEDUCTION'",
+            details: [{ field: 'penaltyType' }],
+          });
+        }
+        const days = Number(details.penaltyDays);
+        if (!details.penaltyDays || isNaN(days) || days <= 0 || (days * 2) % 1 !== 0) {
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: 'penaltyDays is required for MATERIAL penalty, must be > 0 and in increments of 0.5',
+            details: [{ field: 'penaltyDays' }],
+          });
+        }
+      }
       break;
     }
 
@@ -166,7 +203,8 @@ export function validateRequestDetails(type: string, details: any): void {
         });
       }
       details.employees.forEach((emp: any, i: number) => {
-        const missing = ['employeeId', 'rewardType', 'amount', 'reason'].filter(
+        const alwaysRequired = ['employeeId', 'rewardType', 'reason', 'category'];
+        const missing = alwaysRequired.filter(
           f => emp[f] === undefined || emp[f] === null || emp[f] === '',
         );
         if (missing.length > 0) {
@@ -175,6 +213,23 @@ export function validateRequestDetails(type: string, details: any): void {
             message: `Employee[${i}] missing required fields: ${missing.join(', ')}`,
             details: missing.map(f => ({ field: `employees[${i}].${f}` })),
           });
+        }
+        if (!['MATERIAL', 'MORAL'].includes(emp.category)) {
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: `Employee[${i}] category must be 'MATERIAL' or 'MORAL'`,
+            details: [{ field: `employees[${i}].category` }],
+          });
+        }
+        if (emp.category === 'MATERIAL') {
+          const amt = Number(emp.amount);
+          if (!emp.amount || isNaN(amt) || amt <= 0) {
+            throw new BadRequestException({
+              code: 'VALIDATION_ERROR',
+              message: `Employee[${i}] amount is required and must be > 0 for MATERIAL reward`,
+              details: [{ field: `employees[${i}].amount` }],
+            });
+          }
         }
       });
       break;

@@ -583,6 +583,8 @@ enum NotificationType {
   MONTHLY_PAYROLL_READY
   ATTENDANCE_NEEDS_REVIEW
   BREAK_EXCEEDED
+  PENALTY_DECISION
+  REWARD_DECISION
 }
 
 // ─── Onboarding / Offboarding ───────────────────────────────────────────────
@@ -821,5 +823,25 @@ model SalesCommission {
   @@index([year, month])
   @@index([status])
   @@map("sales_commissions")
+}
+
+model EmployeeRewardPenalty {
+  id             String   @id @default(uuid())
+  employeeId     String
+  kind           String   // REWARD | PENALTY
+  category       String   // MATERIAL | MORAL
+  penaltyDays    Float?
+  amount         Decimal? @db.Decimal(15, 2)
+  typeCode       String?
+  reason         String?
+  recommendation String?
+  requestId      String?
+  issuedBy       String?
+  status         String   @default("ACTIVE")
+  effectiveDate  DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([employeeId])
+  @@map("employee_rewards_penalties")
 }
 
