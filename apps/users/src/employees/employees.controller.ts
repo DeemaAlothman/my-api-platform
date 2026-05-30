@@ -226,6 +226,24 @@ export class EmployeesController {
     await sendExcelMultiSheet(res, filename, sheets);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('employees:read')
+  @Get(':id/rewards-penalties')
+  getRewardsPenalties(
+    @Param('id') id: string,
+    @Query('kind') kind?: string,
+    @Query('year') year?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.employees.getRewardsPenalties(id, {
+      kind,
+      year: year ? parseInt(year, 10) : undefined,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
   // Internal endpoint — called by evaluation-service (no JWT required, service-to-service)
   @Post('internal/probation-result')
   updateProbationResult(@Body() dto: { employeeId: string; result: string; completedAt: string }) {

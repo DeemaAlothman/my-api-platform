@@ -1077,6 +1077,32 @@ export class EmployeesService {
     return { resolvedUserIds: Array.from(resolvedSet), invalidUserIds, invalidDepartmentIds };
   }
 
+  async getRewardsPenalties(employeeId: string, query: { kind?: string; year?: number; page?: number; limit?: number }) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const where: any = { employeeId };
+    if (query.kind) where.kind = query.kind;
+    if (query.year) {
+      const start = new Date(`${query.year}-01-01T00:00:00.000Z`);
+      const end = new Date(`${query.year + 1}-01-01T00:00:00.000Z`);
+      where.effectiveDate = { gte: start, lt: end };
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.employeeRewardPenalty.findMany({
+        where,
+        orderBy: { effectiveDate: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.employeeRewardPenalty.count({ where }),
+    ]);
+
+    return { data: { items, total, page, limit } };
+  }
+
   async buildExportFullData(id: string) {
     const employee = await this.findOne(id);
 
