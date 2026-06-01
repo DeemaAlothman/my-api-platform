@@ -155,7 +155,7 @@ export class AttendanceJustificationsService {
       MANAGER_APPROVED: 'تمت الموافقة من المدير المباشر',
       PENDING_HR:       'في انتظار موافقة الموارد البشرية',
       HR_APPROVED:      'تم إقرار الطلب',
-      HR_REJECTED:      'تم رفض الطلب من الموارد البشرية',
+      HR_REJECTED:      'تم رفض الطلب',
       AUTO_REJECTED:    'رُفض تلقائياً لانتهاء المهلة',
     };
     return labels[status] ?? status;
@@ -245,22 +245,7 @@ export class AttendanceJustificationsService {
     }
 
     if (dto.decision === 'APPROVE') {
-      // المدير وافق → حل التنبيه أولاً ثم تحديث التبرير
-      await this.resolveAlert(justification.alertId, managerId, 'Justification approved by manager');
-      await this.prisma.attendanceJustification.update({
-        where: { id },
-        data: {
-          status: 'MANAGER_APPROVED',
-          managerReviewedBy: managerId,
-          managerReviewedAt: new Date(),
-          managerNotes: dto.notes,
-          managerNotesAr: dto.notesAr,
-        },
-      });
-      await this.restoreTardinessOffset(justification);
-      return this.findOne(id);
-    } else {
-      // المدير رفض → ينتقل لـ HR
+      // المدير وافق → ينتقل لـ HR للقرار النهائي
       await this.prisma.attendanceJustification.update({
         where: { id },
         data: {
@@ -271,6 +256,20 @@ export class AttendanceJustificationsService {
           managerNotesAr: dto.notesAr,
         },
       });
+      return this.findOne(id);
+    } else {
+      // المدير رفض → ينتهي الطلب بالرفض وتُطبَّق الخصومات
+      await this.prisma.attendanceJustification.update({
+        where: { id },
+        data: {
+          status: 'HR_REJECTED',
+          managerReviewedBy: managerId,
+          managerReviewedAt: new Date(),
+          managerNotes: dto.notes,
+          managerNotesAr: dto.notesAr,
+        },
+      });
+      await this.applyDeduction(id, justification.alertId);
       return this.findOne(id);
     }
   }
