@@ -268,7 +268,7 @@ export class MailService {
     }
 
     for (const r of parent.recipients) {
-      if (r.recipientId !== senderId && !existing.has(r.recipientId)) {
+      if (r.recipientId !== senderId && !existing.has(r.recipientId) && r.type !== RecipientType.BCC) {
         existing.set(r.recipientId, RecipientType.CC);
       }
     }
