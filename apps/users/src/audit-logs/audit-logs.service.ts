@@ -128,34 +128,54 @@ export class AuditLogsService {
     if (path.includes('/auth/logout'))         return `${prefix} قام بتسجيل الخروج من النظام`;
     if (path.includes('/auth/refresh'))        return `${prefix} قام بتجديد جلسة الدخول`;
 
-    if (path.includes('/mail/') && path.includes('/reply-all')) return `${prefix} قام بالرد على الكل في رسالة داخلية`;
-    if (path.includes('/mail/') && path.includes('/reply'))     return `${prefix} قام بالرد على رسالة داخلية`;
-    if (path.includes('/mail/') && path.includes('/forward'))   return `${prefix} قام بإعادة توجيه رسالة داخلية`;
-    if (path.includes('/mail/') && path.includes('/edit'))      return `${prefix} قام بتعديل رسالة داخلية مرسلة`;
+    const rid = row.resourceId ? ` (${row.resourceId.substring(0, 8)}...)` : '';
+
+    if (path.includes('/mail/') && path.includes('/reply-all')) return `${prefix} قام بالرد على الكل في رسالة داخلية${rid}`;
+    if (path.includes('/mail/') && path.includes('/reply'))     return `${prefix} قام بالرد على رسالة داخلية${rid}`;
+    if (path.includes('/mail/') && path.includes('/forward'))   return `${prefix} قام بإعادة توجيه رسالة داخلية${rid}`;
+    if (path.includes('/mail/') && path.includes('/edit'))      return `${prefix} قام بتعديل رسالة داخلية مرسلة${rid}`;
+    if (path.includes('/mail/attachments/'))                    return `${prefix} قام برفع مرفق في رسالة داخلية${rid}`;
     if (path.includes('/mail/send'))                            return `${prefix} قام بإرسال رسالة داخلية جديدة`;
     if (path.includes('/mail/draft'))                           return `${prefix} قام بحفظ مسودة رسالة داخلية`;
+    if (path.includes('/mail/') && method === 'DELETE')         return `${prefix} قام بحذف رسالة داخلية${rid}`;
 
-    if (path.includes('/leave-requests/') && path.includes('/approve'))  return `${prefix} قام بالموافقة على طلب إجازة`;
-    if (path.includes('/leave-requests/') && path.includes('/reject'))   return `${prefix} قام برفض طلب إجازة`;
-    if (path.includes('/leave-requests/') && path.includes('/cancel'))   return `${prefix} قام بإلغاء طلب إجازة`;
-    if (path.includes('/leave-balances/') && path.includes('/adjust'))   return `${prefix} قام بتعديل رصيد إجازة موظف`;
+    if (path.includes('/leave-requests/') && path.includes('/approve'))  return `${prefix} قام بالموافقة على طلب إجازة${rid}`;
+    if (path.includes('/leave-requests/') && path.includes('/reject'))   return `${prefix} قام برفض طلب إجازة${rid}`;
+    if (path.includes('/leave-requests/') && path.includes('/cancel'))   return `${prefix} قام بإلغاء طلب إجازة${rid}`;
+    if (path.includes('/leave-balances/') && path.includes('/adjust'))   return `${prefix} قام بتعديل رصيد إجازة موظف${rid}`;
     if (path.includes('/leave-balances/') && path.includes('/carry'))    return `${prefix} قام بترحيل رصيد الإجازات`;
 
     if (path.includes('/attendance') && path.includes('/recompute'))  return `${prefix} قام بإعادة احتساب سجلات الحضور`;
-    if (path.includes('/attendance') && path.includes('/check-in'))   return `${prefix} قام بتسجيل حضور موظف`;
-    if (path.includes('/attendance') && path.includes('/check-out'))  return `${prefix} قام بتسجيل انصراف موظف`;
+    if (path.includes('/attendance') && path.includes('/check-in'))   return `${prefix} قام بتسجيل حضور موظف${rid}`;
+    if (path.includes('/attendance') && path.includes('/check-out'))  return `${prefix} قام بتسجيل انصراف موظف${rid}`;
 
-    if (path.includes('/requests/') && path.includes('/approve'))  return `${prefix} قام بالموافقة على طلب`;
-    if (path.includes('/requests/') && path.includes('/reject'))   return `${prefix} قام برفض طلب`;
+    if (path.includes('/requests/') && path.includes('/submit'))   return `${prefix} قام بتقديم طلب${rid}`;
+    if (path.includes('/requests/') && path.includes('/approve'))  return `${prefix} قام بالموافقة على طلب${rid}`;
+    if (path.includes('/requests/') && path.includes('/reject'))   return `${prefix} قام برفض طلب${rid}`;
+    if (path.includes('/requests/') && path.includes('/cancel'))   return `${prefix} قام بإلغاء طلب${rid}`;
 
-    if (path.includes('/evaluation') && path.includes('/submit'))   return `${prefix} قام بتقديم تقييم`;
-    if (path.includes('/evaluation') && path.includes('/approve'))  return `${prefix} قام بالموافقة على تقييم`;
+    if (path.includes('/evaluation') && path.includes('/submit'))   return `${prefix} قام بتقديم تقييم${rid}`;
+    if (path.includes('/evaluation') && path.includes('/approve'))  return `${prefix} قام بالموافقة على تقييم${rid}`;
 
-    if (path.includes('/employees/') && path.includes('/activate'))   return `${prefix} قام بتفعيل حساب موظف`;
-    if (path.includes('/employees/') && path.includes('/deactivate')) return `${prefix} قام بإيقاف حساب موظف`;
+    if (path.includes('/employees/') && path.includes('/activate'))      return `${prefix} قام بتفعيل حساب موظف${rid}`;
+    if (path.includes('/employees/') && path.includes('/deactivate'))    return `${prefix} قام بإيقاف حساب موظف${rid}`;
+    if (path.includes('/employees/') && path.includes('/link-user'))     return `${prefix} قام بربط مستخدم بموظف${rid}`;
+    if (path.includes('/employees/') && path.includes('/manager-notes')) return `${prefix} قام بتحديث ملاحظات المدير على موظف${rid}`;
 
-    if (path.includes('/roles/') && path.includes('/assign'))  return `${prefix} قام بتعيين دور لمستخدم`;
-    if (path.includes('/users/') && path.includes('/assign'))  return `${prefix} قام بتعيين صلاحيات لمستخدم`;
+    if (path.includes('/roles/') && path.includes('/assign'))  return `${prefix} قام بتعيين دور لمستخدم${rid}`;
+    if (path.includes('/users/') && path.includes('/assign'))  return `${prefix} قام بتعيين صلاحيات لمستخدم${rid}`;
+
+    if (path.includes('/holidays') && method === 'POST')   return `${prefix} قام بإضافة إجازة رسمية جديدة`;
+    if (path.includes('/holidays') && method === 'PATCH')  return `${prefix} قام بتعديل إجازة رسمية${rid}`;
+    if (path.includes('/holidays') && method === 'DELETE') return `${prefix} قام بحذف إجازة رسمية${rid}`;
+
+    if (path.includes('/departments') && method === 'POST')   return `${prefix} قام بإضافة قسم جديد`;
+    if (path.includes('/departments') && method === 'PATCH')  return `${prefix} قام بتعديل بيانات قسم${rid}`;
+    if (path.includes('/departments') && method === 'DELETE') return `${prefix} قام بحذف قسم${rid}`;
+
+    if (path.includes('/users') && method === 'POST')   return `${prefix} قام بإنشاء مستخدم جديد`;
+    if (path.includes('/users') && method === 'PATCH')  return `${prefix} قام بتعديل بيانات مستخدم${rid}`;
+    if (path.includes('/users') && method === 'DELETE') return `${prefix} قام بحذف مستخدم${rid}`;
 
     // === وصف عام حسب الموارد والفعل ===
     const actionMap: Record<string, [string, string, string]> = {

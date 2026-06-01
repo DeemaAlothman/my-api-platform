@@ -200,8 +200,17 @@ export class AuthService {
       this.logger.error(`Error loading permissions on refresh for userId=${userId}: ${error.message}`);
     }
 
+    // جلب الـ username من DB لأن refresh token لا يحتوي عليه
+    let username: string = payload.username ?? '';
+    if (!username) {
+      const userRow = await this.prisma.$queryRaw<Array<{ username: string }>>`
+        SELECT username FROM users.users WHERE id = ${userId} LIMIT 1
+      `;
+      username = userRow[0]?.username ?? '';
+    }
+
     this.logger.log(`Token refreshed for userId: ${userId}`);
-    const newAccessToken = this.signAccessToken(userId, payload.username, permissions);
+    const newAccessToken = this.signAccessToken(userId, username, permissions);
     const newRefreshToken = this.signRefreshToken(userId);
 
     const expiresAt = new Date(Date.now() + this.refreshTtlDays * 24 * 60 * 60 * 1000);
