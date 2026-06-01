@@ -90,7 +90,11 @@ export class AuditLogsService {
     const nameMap = await this.getFullNamesAr(userIds);
 
     return {
-      data: rows.map((r) => ({ ...r, description: this.buildDescription(r, nameMap[r.userId ?? '']) })),
+      data: rows.map((r) => ({
+        ...r,
+        fullNameAr: nameMap[r.userId ?? ''] ?? null,
+        description: this.buildDescription(r, nameMap[r.userId ?? '']),
+      })),
       total: parseInt((countRows as any)[0]?.total ?? '0'),
       page,
       limit,
