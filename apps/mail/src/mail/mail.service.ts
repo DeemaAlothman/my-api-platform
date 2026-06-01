@@ -174,7 +174,7 @@ export class MailService {
         for (const recipientId of notifyIds) {
           internalPost(`${USERS_URL}/api/v1/notifications/internal`, {
             userId: recipientId,
-            type: 'INFO',
+            type: 'GENERAL',
             titleAr: 'رسالة داخلية جديدة',
             titleEn: 'New Internal Message',
             messageAr: `لديك رسالة جديدة بعنوان: ${dto.subject}`,
