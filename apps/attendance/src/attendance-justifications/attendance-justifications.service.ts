@@ -106,7 +106,7 @@ export class AttendanceJustificationsService {
     });
 
     const employeeMap = await this.getEmployeeNames([justification.employeeId]);
-    return { ...justification, employee: employeeMap.get(justification.employeeId) || null };
+    return { ...justification, statusLabelAr: this.getStatusLabelAr(justification.status), employee: employeeMap.get(justification.employeeId) || null };
   }
 
   async findAll(filters?: {
@@ -144,9 +144,21 @@ export class AttendanceJustificationsService {
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
 
-    const items = records.map((r: any) => ({ ...r, employee: employeeMap.get(r.employeeId) || null }));
+    const items = records.map((r: any) => ({ ...r, statusLabelAr: this.getStatusLabelAr(r.status), employee: employeeMap.get(r.employeeId) || null }));
 
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  }
+
+  private getStatusLabelAr(status: string): string {
+    const labels: Record<string, string> = {
+      PENDING_MANAGER:  'في انتظار موافقة المدير المباشر',
+      MANAGER_APPROVED: 'تمت الموافقة من المدير المباشر',
+      PENDING_HR:       'في انتظار موافقة الموارد البشرية',
+      HR_APPROVED:      'تم إقرار الطلب',
+      HR_REJECTED:      'تم رفض الطلب من الموارد البشرية',
+      AUTO_REJECTED:    'رُفض تلقائياً لانتهاء المهلة',
+    };
+    return labels[status] ?? status;
   }
 
   async findOne(id: string) {
@@ -164,7 +176,11 @@ export class AttendanceJustificationsService {
     }
 
     const employeeMap = await this.getEmployeeNames([record.employeeId]);
-    return { ...record, employee: employeeMap.get(record.employeeId) || null };
+    return {
+      ...record,
+      statusLabelAr: this.getStatusLabelAr(record.status),
+      employee: employeeMap.get(record.employeeId) || null,
+    };
   }
 
   async findMine(employeeId: string, filters?: { status?: string; page?: number | string; limit?: number | string }) {
@@ -213,7 +229,7 @@ export class AttendanceJustificationsService {
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
 
-    const items = records.map((r: any) => ({ ...r, employee: employeeMap.get(r.employeeId) || null }));
+    const items = records.map((r: any) => ({ ...r, statusLabelAr: this.getStatusLabelAr(r.status), employee: employeeMap.get(r.employeeId) || null }));
 
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
