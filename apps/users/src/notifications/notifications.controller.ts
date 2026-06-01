@@ -9,11 +9,11 @@ import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly service: NotificationsService) {}
 
+  @UseGuards(AuthGuard('jwt'))
   @Get()
   @ApiOperation({ summary: 'Get my notifications' })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -28,18 +28,21 @@ export class NotificationsController {
     return this.service.findAll(req.user.userId, page, limit, unreadOnly === 'true');
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Get('unread-count')
   @ApiOperation({ summary: 'Get unread notifications count' })
   getUnreadCount(@Request() req) {
     return this.service.getUnreadCount(req.user.userId);
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark notification as read' })
   markAsRead(@Param('id') id: string, @Request() req) {
     return this.service.markAsRead(id, req.user.userId);
   }
 
+  @UseGuards(AuthGuard('jwt'))
   @Patch('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read' })
   markAllAsRead(@Request() req) {
