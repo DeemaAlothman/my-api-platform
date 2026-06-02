@@ -16,6 +16,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ProbationEndNotifierService } from './hr-notifiers/probation-end-notifier.service';
 import { ContractEndNotifierService } from './hr-notifiers/contract-end-notifier.service';
 import { BirthdayMailerService } from './hr-notifiers/birthday-mailer.service';
+import { DocumentExpiryNotifierService } from './hr-notifiers/document-expiry-notifier.service';
 import { HrNotifiersTriggerController } from './hr-notifiers/hr-notifiers-trigger.controller';
 
 @Module({
@@ -42,6 +43,7 @@ import { HrNotifiersTriggerController } from './hr-notifiers/hr-notifiers-trigge
     ProbationEndNotifierService,
     ContractEndNotifierService,
     BirthdayMailerService,
+    DocumentExpiryNotifierService,
   ],
 })
 export class AppModule {}
