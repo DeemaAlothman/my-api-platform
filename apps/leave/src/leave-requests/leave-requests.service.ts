@@ -485,6 +485,13 @@ export class LeaveRequestsService {
       hasSubstitute ? 'Request submitted — awaiting substitute approval' : 'Request submitted for manager approval',
     );
 
+    await this.notifyLeaveEmployee(employeeId, 'LEAVE_REQUEST_SUBMITTED',
+      'تم تقديم طلب إجازتك', 'Leave Request Submitted',
+      'تم تقديم طلب إجازتك بنجاح وهو الآن في انتظار المراجعة',
+      'Your leave request has been submitted and is awaiting review',
+      id,
+    );
+
     return updated;
   }
 
@@ -592,6 +599,15 @@ export class LeaveRequestsService {
     await this.addHistory(id, 'MANAGER_APPROVE', 'PENDING_MANAGER', newStatus, managerId, dto.notes || 'Approved by manager');
 
     if (newStatus === 'APPROVED') {
+      await this.notifyLeaveEmployee(request.employeeId, 'LEAVE_REQUEST_APPROVED',
+        'تمت الموافقة على طلب إجازتك', 'Leave Request Approved',
+        'تمت الموافقة على طلب إجازتك من قِبل المدير المباشر',
+        'Your leave request has been approved by your manager',
+        id,
+      );
+    }
+
+    if (newStatus === 'APPROVED') {
       await this.applySickLeaveDeduction(id, request.leaveType, request.employeeId, request.totalDays);
       if ((request as any).isHourlyLeave) {
         await this.applyHourlyLeaveToBalance(request);
@@ -644,6 +660,13 @@ export class LeaveRequestsService {
 
     await this.addHistory(id, 'MANAGER_REJECT', 'PENDING_MANAGER', 'REJECTED', managerId, dto.notes);
 
+    await this.notifyLeaveEmployee(request.employeeId, 'LEAVE_REQUEST_REJECTED',
+      'تم رفض طلب إجازتك', 'Leave Request Rejected',
+      'تم رفض طلب إجازتك من قِبل المدير المباشر',
+      'Your leave request has been rejected by your manager',
+      id,
+    );
+
     return updated;
   }
 
@@ -680,6 +703,13 @@ export class LeaveRequestsService {
     });
 
     await this.addHistory(id, 'HR_APPROVE', 'PENDING_HR', 'APPROVED', hrUserId, dto.notes || 'Approved by HR');
+
+    await this.notifyLeaveEmployee(request.employeeId, 'LEAVE_REQUEST_APPROVED',
+      'تمت الموافقة على طلب إجازتك', 'Leave Request Approved',
+      'تمت الموافقة على طلب إجازتك من قِبل الموارد البشرية',
+      'Your leave request has been approved by HR',
+      id,
+    );
 
     await this.applySickLeaveDeduction(id, (updated as any).leaveType, request.employeeId, request.totalDays);
 
@@ -730,10 +760,43 @@ export class LeaveRequestsService {
 
     await this.addHistory(id, 'HR_REJECT', 'PENDING_HR', 'REJECTED', hrUserId, dto.notes);
 
+    await this.notifyLeaveEmployee(request.employeeId, 'LEAVE_REQUEST_REJECTED',
+      'تم رفض طلب إجازتك', 'Leave Request Rejected',
+      'تم رفض طلب إجازتك من قِبل الموارد البشرية',
+      'Your leave request has been rejected by HR',
+      id,
+    );
+
     return updated;
   }
 
   // إلغاء الطلب
+  private async notifyLeaveEmployee(
+    employeeId: string,
+    type: string,
+    titleAr: string,
+    titleEn: string,
+    messageAr: string,
+    messageEn: string,
+    leaveRequestId: string,
+  ) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT "userId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      );
+      const userId = rows[0]?.userId;
+      if (!userId) return;
+      await this.prisma.$queryRawUnsafe(`
+        INSERT INTO users.notifications
+          (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+        VALUES
+          (gen_random_uuid(), $1, $2::users."NotificationType", $3, $4, $5, $6, $7::jsonb, false, NOW())
+      `, userId, type, titleAr, titleEn, messageAr, messageEn,
+         JSON.stringify({ leaveRequestId }));
+    } catch { /* silent — notification is non-critical */ }
+  }
+
   async cancel(id: string, dto: CancelLeaveRequestDto, userId: string) {
     const request = await this.prisma.leaveRequest.findUnique({
       where: { id },
@@ -781,6 +844,13 @@ export class LeaveRequestsService {
     });
 
     await this.addHistory(id, 'CANCEL', oldStatus, 'CANCELLED', userId, dto.cancelReason);
+
+    await this.notifyLeaveEmployee(request.employeeId, 'LEAVE_REQUEST_CANCELLED',
+      'تم إلغاء طلب الإجازة', 'Leave Request Cancelled',
+      'تم إلغاء طلب إجازتك بنجاح',
+      'Your leave request has been cancelled',
+      id,
+    );
 
     return updated;
   }
