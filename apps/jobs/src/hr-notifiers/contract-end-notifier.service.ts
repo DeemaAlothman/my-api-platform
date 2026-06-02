@@ -57,15 +57,16 @@ export class ContractEndNotifierService implements OnModuleInit {
       for (const hrUserId of hrUserIds) {
         await this.prisma.$queryRawUnsafe(`
           INSERT INTO users.notifications
-            (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+            (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
           VALUES
             (gen_random_uuid(), $1, 'CONTRACT_EXPIRY',
              'تنبيه انتهاء العقد', 'Contract Expiry Alert',
-             $2, $3, false, NOW())
+             $2, $3, $4::jsonb, false, NOW())
         `,
           hrUserId,
           `ينتهي عقد الموظف ${emp.firstNameAr} ${emp.lastNameAr} (${emp.employeeNumber}) خلال ${daysAhead} يوم`,
           `Employee ${emp.firstNameAr} ${emp.lastNameAr} contract expires in ${daysAhead} days`,
+          JSON.stringify({ employeeId: emp.id }),
         );
       }
     }

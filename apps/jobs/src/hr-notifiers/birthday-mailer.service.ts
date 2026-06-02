@@ -63,16 +63,17 @@ export class BirthdayMailerService implements OnModuleInit {
         if (birthdayUserIds.has(active.userId)) continue; // skip the birthday employee
         await this.prisma.$queryRawUnsafe(`
           INSERT INTO users.notifications
-            (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+            (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
           VALUES
             (gen_random_uuid(), $1, 'BIRTHDAY'::users."NotificationType",
-             $2, $3, $4, $5, false, NOW())
+             $2, $3, $4, $5, $6::jsonb, false, NOW())
         `,
           active.userId,
           `عيد ميلاد سعيد لزميلنا ${name}`,
           `Happy Birthday to our colleague ${name}`,
           `اليوم هو عيد ميلاد زميلك ${name} — لا تنسَ تهنئته!`,
           `Today is your colleague ${name}'s birthday — don't forget to congratulate them!`,
+          JSON.stringify({ employeeId: emp.id, employeeName: name, userId: emp.userId }),
         ).catch(() => { /* silent fail per employee */ });
       }
     }

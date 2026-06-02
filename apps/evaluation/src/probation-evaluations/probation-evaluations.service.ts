@@ -134,6 +134,7 @@ export class ProbationEvaluationsService {
           'Probation Evaluation Awaiting Your Review',
           'يوجد تقييم فترة تجربة بانتظار مراجعتك واعتمادك',
           'A probation evaluation is awaiting your review and approval',
+          { evaluationId: id },
         );
       }
     }
@@ -235,6 +236,7 @@ export class ProbationEvaluationsService {
         'Probation Evaluation Awaiting HR Documentation',
         'تم اعتماد تقييم فترة التجربة من المدير المباشر وينتظر توثيقك',
         'A probation evaluation has been approved by the manager and awaits your documentation',
+        { evaluationId: id },
       );
     }
 
@@ -262,6 +264,7 @@ export class ProbationEvaluationsService {
         'Probation Evaluation Rejected',
         'رفض المدير المباشر تقييم فترة التجربة — يرجى المراجعة',
         'The probation evaluation was rejected by the senior manager — please review',
+        { evaluationId: id },
       );
     }
 
@@ -299,6 +302,7 @@ export class ProbationEvaluationsService {
         'Probation Evaluation Awaiting Your Final Approval',
         'تقييم فترة تجربة موظف بانتظار اعتمادك النهائي',
         'A probation evaluation is awaiting your final approval',
+        { evaluationId: id },
       );
     }
 
@@ -553,14 +557,16 @@ export class ProbationEvaluationsService {
     titleEn: string,
     messageAr: string,
     messageEn: string,
+    data?: Record<string, any>,
   ) {
     try {
       await this.prisma.$queryRawUnsafe(`
         INSERT INTO users.notifications
-          (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+          (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
         VALUES
-          (gen_random_uuid(), $1, $2, $3, $4, $5, $6, false, NOW())
-      `, userId, type, titleAr, titleEn, messageAr, messageEn);
+          (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7::jsonb, false, NOW())
+      `, userId, type, titleAr, titleEn, messageAr, messageEn,
+         data ? JSON.stringify(data) : null);
     } catch { /* silent fail — notification is non-critical */ }
   }
 
