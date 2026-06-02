@@ -126,7 +126,7 @@ export class ClockSyncMonitorService implements OnModuleInit {
          FROM users.users u
          INNER JOIN users.user_roles ur ON ur."userId" = u.id
          INNER JOIN users.roles r ON r.id = ur."roleId"
-         WHERE r.name IN ('HR', 'HR_Specialist', 'super_admin')
+         WHERE r.name IN ('HR', 'HR_Specialist', 'super_admin', 'IT')
            AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL`,
       )) as Array<{ id: string }>;
 
