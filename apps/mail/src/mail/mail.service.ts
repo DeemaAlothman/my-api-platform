@@ -523,7 +523,9 @@ export class MailService {
       })),
     };
 
-    return recipient ? { ...recipient, message: enrichedMessage } : enrichedMessage;
+    return recipient
+      ? { ...recipient, message: enrichedMessage, editHistory: enrichedMessage.editHistory ?? [] }
+      : enrichedMessage;
   }
 
   async updateRead(userId: string, dto: UpdateReadDto) {
