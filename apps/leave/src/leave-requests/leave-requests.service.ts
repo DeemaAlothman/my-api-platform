@@ -317,15 +317,52 @@ export class LeaveRequestsService {
       );
     }
 
-    // التحقق من مدة الإشعار المسبق
-    if (leaveType.minDaysNotice) {
+    // ── التحقق من نافذة التقديم ──────────────────────────────────────────
+    {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
-      const daysUntilStart = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysUntilStart < leaveType.minDaysNotice) {
-        throw new BadRequestException(`يجب تقديم الطلب قبل ${leaveType.minDaysNotice} يوم على الأقل`);
+      //양수 = مستقبل (مسبق)، سالب = ماضٍ (استرجاعي)
+      const daysFromToday = Math.ceil((start.getTime() - today.getTime()) / 86400000);
+
+      // قاعدة 1: كل إجازة > 4 أيام → 7 أيام إشعار مسبق (بدون استثناء ماعدا الطوارئ)
+      const LONG_LEAVE_MIN = 7;
+      const LONG_LEAVE_EXEMPT = ['SICK', 'EMERGENCY', 'BEREAVEMENT', 'BIRTH', 'PATERNITY'];
+      if (totalDays > 4 && !LONG_LEAVE_EXEMPT.includes(leaveType.code)) {
+        if (daysFromToday < LONG_LEAVE_MIN) {
+          throw new BadRequestException(
+            `الإجازات التي تتجاوز 4 أيام يجب تقديمها قبل ${LONG_LEAVE_MIN} أيام على الأقل`,
+          );
+        }
+      } else {
+        // قاعدة 2: نافذة التقديم الخاصة بكل نوع (للإجازات ≤ 4 أيام)
+        const TYPE_WINDOWS: Record<string, { maxRetroactive: number; maxAdvance?: number }> = {
+          ANNUAL:       { maxRetroactive: 7, maxAdvance: 7 },
+          HOURLY:       { maxRetroactive: 7, maxAdvance: 7 },
+          UNPAID_DAILY: { maxRetroactive: 7, maxAdvance: 7 },
+          SICK:         { maxRetroactive: 7, maxAdvance: 1 },
+        };
+        const win = TYPE_WINDOWS[leaveType.code];
+        if (win) {
+          if (daysFromToday < -win.maxRetroactive) {
+            throw new BadRequestException(
+              `لا يمكن تقديم هذا الطلب — تجاوزت مهلة التقديم (${win.maxRetroactive} يوم بعد بدء الإجازة)`,
+            );
+          }
+          if (win.maxAdvance !== undefined && daysFromToday > win.maxAdvance) {
+            throw new BadRequestException(
+              `لا يمكن تقديم هذا الطلب مبكراً — الحد الأقصى للتقديم المسبق ${win.maxAdvance} يوم`,
+            );
+          }
+        } else if (leaveType.minDaysNotice && leaveType.minDaysNotice > 0) {
+          // قاعدة 3: أنواع أخرى → استخدم minDaysNotice من الإعداد (MARRIAGE, HAJJ...)
+          if (daysFromToday < leaveType.minDaysNotice) {
+            throw new BadRequestException(
+              `يجب تقديم الطلب قبل ${leaveType.minDaysNotice} يوم على الأقل`,
+            );
+          }
+        }
       }
     }
 
