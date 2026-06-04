@@ -140,6 +140,7 @@ export class MailService {
           subject: dto.subject,
           body: bodyWithSignature,
           isDraft: false,
+          importance: (dto as any).importance ?? 'NORMAL',
           parentMessageId: dto.parentMessageId ?? null,
           threadRootId: dto.parentMessageId
             ? await this.resolveThreadRoot(tx, dto.parentMessageId)

@@ -45,4 +45,9 @@ export class SendMailDto {
   @IsOptional()
   @IsString()
   parentMessageId?: string;
+
+  @ApiPropertyOptional({ enum: ['NORMAL', 'HIGH'], default: 'NORMAL' })
+  @IsOptional()
+  @IsString()
+  importance?: string;
 }

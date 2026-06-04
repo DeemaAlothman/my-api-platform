@@ -16,6 +16,7 @@ model MailMessage {
   parentMessageId String?
 
   isDraft         Boolean          @default(false)
+  importance      String           @default("NORMAL")
   deletedAt       DateTime?
   editHistory     Json             @default("[]")
 
