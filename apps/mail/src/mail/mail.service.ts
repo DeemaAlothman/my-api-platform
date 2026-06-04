@@ -107,13 +107,14 @@ export class MailService {
       subject: dto.subject,
       body: dto.body,
       parentMessageId: dto.parentMessageId,
+      importance: dto.importance,
     });
   }
 
   private async sendWithUserIds(
     senderId: string,
     allRecipients: Array<{ userId: string; type: RecipientType }>,
-    dto: { subject: string; body: string; parentMessageId?: string },
+    dto: { subject: string; body: string; parentMessageId?: string; importance?: string },
   ) {
     // Append sender signature
     const senderInfo = await internalPost(
