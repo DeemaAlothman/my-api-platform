@@ -23,11 +23,15 @@ export class AppointmentsService {
       const res = await fetch(`${url}?${params}`, {
         headers: { 'x-internal-token': token },
       });
-      if (!res.ok) return false;
+      // B13: فشل مغلق — إن لم نتمكن من التحقق من الإجازات، امنع الحجز بدل السماح بصمت
+      if (!res.ok) {
+        throw new BadRequestException('تعذّر التحقق من إجازات الموظف — لا يمكن إتمام الحجز حالياً');
+      }
       const data = await res.json() as any;
       return data?.data?.hasOverlap ?? false;
-    } catch {
-      return false;
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new BadRequestException('تعذّر الاتصال بخدمة الإجازات — لا يمكن إتمام الحجز حالياً');
     }
   }
 

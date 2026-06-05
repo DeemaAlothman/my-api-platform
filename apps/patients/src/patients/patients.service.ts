@@ -129,6 +129,14 @@ export class PatientsService {
     return { message: 'تم حذف المريض بنجاح' };
   }
 
+  async existsInternal(id: string): Promise<{ exists: boolean }> {
+    const patient = await this.prisma.patient.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    return { exists: !!patient };
+  }
+
   async checkDuplicate(idNumber: string) {
     const patient = await this.prisma.patient.findFirst({
       where: { idNumber, deletedAt: null },
@@ -140,6 +148,7 @@ export class PatientsService {
   // ── Documents ─────────────────────────────────────────────────────
 
   async addDocument(patientId: string, file: Express.Multer.File, type: string, userId: string) {
+    if (!file) throw new BadRequestException('لم يتم رفع أي ملف');
     const patient = await this.prisma.patient.findFirst({ where: { id: patientId, deletedAt: null } });
     if (!patient) throw new NotFoundException('المريض غير موجود');
 
@@ -148,12 +157,20 @@ export class PatientsService {
         patientId,
         type: type as any,
         fileName: file.originalname,
-        filePath: (file as any).path || file.originalname,
+        filePath: (file as any).path, // المسار الفعلي على القرص من diskStorage
         fileSize: file.size,
         mimeType: file.mimetype,
         uploadedBy: userId,
       },
     });
+  }
+
+  async getDocumentForDownload(patientId: string, docId: string) {
+    const doc = await this.prisma.patientDocument.findFirst({
+      where: { id: docId, patientId },
+    });
+    if (!doc) throw new NotFoundException('الوثيقة غير موجودة');
+    return doc;
   }
 
   async getDocuments(patientId: string) {

@@ -122,15 +122,16 @@ export class CasesController {
   }
 
   @Put(':id/treatment-plan/supervisor-review')
-  @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.SUPERVISOR_REVIEW)
   supervisorReview(@Param('id') id: string, @Body() dto: SupervisorReviewDto, @User() user: any) {
     return this.service.supervisorReview(id, dto, user.userId);
   }
 
   @Post(':id/treatment-plan/doctor-sign')
   @Permission(PERMISSIONS.CLINIC_PHYSIO.PLAN_SIGN)
-  planSign(@Param('id') id: string, @Body() dto: PlanSignDto, @User() user: any) {
-    return this.service.planSign(id, dto, user.userId);
+  planSign(@Param('id') id: string, @Body() dto: PlanSignDto, @User() user: any, @Req() req: any) {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '';
+    return this.service.planSign(id, dto, user.userId, ip);
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────────

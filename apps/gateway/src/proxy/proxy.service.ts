@@ -90,6 +90,18 @@ export class ProxyService {
 
   async forward(req: Request, res: Response, serviceName: string) {
     console.log(`[ProxyService] ${req.method} ${req.originalUrl} → ${serviceName}`);
+
+    // B5: حجب المسارات الداخلية من الوصول عبر الـ gateway (خدمة-لخدمة فقط)
+    const rawPath = req.originalUrl.split('?')[0];
+    if (/\/internal(\/|$|-)/.test(rawPath)) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Not found', details: [] },
+      });
+    }
+    // B5: جرّد ترويسة x-internal-token القادمة من العميل قبل أي تمرير
+    delete (req.headers as any)['x-internal-token'];
+
     const service = this.services.get(serviceName);
     console.log(`[ProxyService] service found: ${!!service}`);
 

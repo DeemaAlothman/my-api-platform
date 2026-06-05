@@ -57,11 +57,18 @@ enum PainFactor {
 
 enum PhysioStatus {
   INTAKE
-  ASSESSMENT
-  PLAN_REVIEW
+  COMPLAINT
+  PAIN_MAP
+  MEDICAL_HISTORY
+  GOALS
+  POSTURAL_ASSESSMENT
+  TREATMENT_PLAN
+  SUPERVISOR_REVIEW
+  DOCTOR_SIGN
   ACTIVE_TREATMENT
   COMPLETED
   DISCHARGED
+  CANCELLED
   @@schema("clinic_physio")
 }
 
@@ -104,6 +111,7 @@ enum MedicalTest {
   XRAY
   CT
   MYELOGRAM
+  BONE_DENSITY
   OTHER
   @@schema("clinic_physio")
 }
@@ -360,6 +368,8 @@ model PhysioTreatmentPlan {
   doctorId                String?
   doctorReviewedAt        DateTime?
   doctorSignatureBase64   String? @db.Text
+  doctorSignedAt          DateTime?
+  doctorSignatureIp       String?
 
   status  PlanStatus @default(ACTIVE)
 
@@ -383,6 +393,7 @@ model PhysioSession {
   painLevel               Int?
   romMeasurements         Json?
   attendanceConfirmed     Boolean @default(false)
+  appointmentId           String?
 
   @@map("physio_sessions")
   @@schema("clinic_physio")

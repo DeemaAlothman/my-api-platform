@@ -251,6 +251,8 @@ export const PERMISSIONS = {
     VIEW_DOCUMENTS:   'clinic.patients.view_documents',
     UPLOAD_DOCUMENTS: 'clinic.patients.upload_documents',
     VIEW_CONSENTS:    'clinic.patients.view_consents',
+    CREATE_CONSENTS:  'clinic.patients.create_consents',
+    CREATE_NOTES:     'clinic.patients.create_notes',
   },
   CLINIC_PROSTHETICS: {
     CASE_VIEW:         'clinic.prosthetics.case.view',
@@ -265,11 +267,12 @@ export const PERMISSIONS = {
     DELIVERY_APPROVE:  'clinic.prosthetics.delivery.approve',
   },
   CLINIC_PHYSIO: {
-    CASE_VIEW:        'clinic.physio.case.view',
-    CASE_CREATE:      'clinic.physio.case.create',
-    ASSESSMENT_CREATE:'clinic.physio.assessment.create',
-    PLAN_SIGN:        'clinic.physio.plan.sign',
-    SESSIONS_CREATE:  'clinic.physio.sessions.create',
+    CASE_VIEW:         'clinic.physio.case.view',
+    CASE_CREATE:       'clinic.physio.case.create',
+    ASSESSMENT_CREATE: 'clinic.physio.assessment.create',
+    SUPERVISOR_REVIEW: 'clinic.physio.supervisor_review',
+    PLAN_SIGN:         'clinic.physio.plan.sign',
+    SESSIONS_CREATE:   'clinic.physio.sessions.create',
   },
   CLINIC_APPOINTMENTS: {
     VIEW:   'clinic.appointments.view',

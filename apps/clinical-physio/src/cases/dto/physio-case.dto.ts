@@ -4,6 +4,28 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+export enum LifeType { PROFESSIONAL = 'PROFESSIONAL', NORMAL = 'NORMAL', SEDENTARY = 'SEDENTARY', ABNORMAL = 'ABNORMAL' }
+export enum PainLevel { MILD = 'MILD', MODERATE = 'MODERATE', SEVERE = 'SEVERE', EXCRUCIATING = 'EXCRUCIATING' }
+export enum PainDuration { INTERMITTENT = 'INTERMITTENT', CONSTANT = 'CONSTANT', WITH_CERTAIN_MOTIONS = 'WITH_CERTAIN_MOTIONS' }
+export enum PhysioPainType { NUMBNESS = 'NUMBNESS', DULL_ACHE = 'DULL_ACHE', HOT_BURNING = 'HOT_BURNING', SHARP_STABBING = 'SHARP_STABBING', PINS = 'PINS', OTHER = 'OTHER' }
+export enum PainFactor { SITTING = 'SITTING', HEAT = 'HEAT', COLD = 'COLD', COUGHING = 'COUGHING', WALKING = 'WALKING', EXERCISE = 'EXERCISE', LYING_DOWN = 'LYING_DOWN', OTHER = 'OTHER' }
+export enum PhysioGoal { BACK_TO_SPORTS = 'BACK_TO_SPORTS', BACK_TO_WORK = 'BACK_TO_WORK', SIMPLE_WORKS = 'SIMPLE_WORKS', PAIN_RELIEF = 'PAIN_RELIEF', OTHER = 'OTHER' }
+export enum MedicalTest { MRI = 'MRI', XRAY = 'XRAY', CT = 'CT', MYELOGRAM = 'MYELOGRAM', BONE_DENSITY = 'BONE_DENSITY', OTHER = 'OTHER' }
+export enum TherapyModality {
+  ESWT = 'ESWT', US = 'US', TENS = 'TENS', EMS = 'EMS', LASER = 'LASER', CPM = 'CPM',
+  HOT_PACKS = 'HOT_PACKS', COLD_PACKS = 'COLD_PACKS', TRACTION = 'TRACTION', EXERCISES = 'EXERCISES',
+  MANUAL_THERAPY = 'MANUAL_THERAPY', MASSAGE = 'MASSAGE', KINESIO_TAPING = 'KINESIO_TAPING',
+  COMPRESSION = 'COMPRESSION', PARAFFIN = 'PARAFFIN', GRASTON = 'GRASTON', MET = 'MET',
+  PNF = 'PNF', INFRARED = 'INFRARED', OTHER = 'OTHER',
+}
+export enum PhysioStatus {
+  INTAKE = 'INTAKE', COMPLAINT = 'COMPLAINT', PAIN_MAP = 'PAIN_MAP',
+  MEDICAL_HISTORY = 'MEDICAL_HISTORY', GOALS = 'GOALS', POSTURAL_ASSESSMENT = 'POSTURAL_ASSESSMENT',
+  TREATMENT_PLAN = 'TREATMENT_PLAN', SUPERVISOR_REVIEW = 'SUPERVISOR_REVIEW',
+  DOCTOR_SIGN = 'DOCTOR_SIGN', ACTIVE_TREATMENT = 'ACTIVE_TREATMENT',
+  COMPLETED = 'COMPLETED', DISCHARGED = 'DISCHARGED', CANCELLED = 'CANCELLED',
+}
+
 export class CreatePhysioCaseDto {
   @IsString()
   patientId: string;
@@ -17,8 +39,8 @@ export class CreatePhysioCaseDto {
   @IsOptional() @IsString()
   currentJob?: string;
 
-  @IsOptional() @IsString()
-  lifeType?: string;
+  @IsOptional() @IsEnum(LifeType)
+  lifeType?: LifeType;
 
   @IsOptional() @IsDateString()
   complaintStartDate?: string;
@@ -41,11 +63,11 @@ export class CreatePhysioCaseDto {
   @IsOptional() @IsDateString()
   painStartDate?: string;
 
-  @IsOptional() @IsString()
-  painLevel?: string;
+  @IsOptional() @IsEnum(PainLevel)
+  painLevel?: PainLevel;
 
-  @IsOptional() @IsString()
-  painDuration?: string;
+  @IsOptional() @IsEnum(PainDuration)
+  painDuration?: PainDuration;
 
   @IsOptional() @IsString()
   painProgression?: string;
@@ -56,17 +78,17 @@ export class CreatePhysioCaseDto {
   @IsOptional() @IsString()
   worstTimeOfDay?: string;
 
-  @IsOptional() @IsArray()
-  painTypes?: string[];
+  @IsOptional() @IsArray() @IsEnum(PhysioPainType, { each: true })
+  painTypes?: PhysioPainType[];
 
-  @IsOptional() @IsArray()
-  aggravatingFactors?: string[];
+  @IsOptional() @IsArray() @IsEnum(PainFactor, { each: true })
+  aggravatingFactors?: PainFactor[];
 
   @IsOptional() @IsString()
   aggravatingOther?: string;
 
-  @IsOptional() @IsArray()
-  alleviatingFactors?: string[];
+  @IsOptional() @IsArray() @IsEnum(PainFactor, { each: true })
+  alleviatingFactors?: PainFactor[];
 
   @IsOptional() @IsString()
   alleviatingOther?: string;
@@ -94,8 +116,8 @@ export class UpdatePhysioCaseDto {
   @IsOptional() @IsString()
   currentJob?: string;
 
-  @IsOptional() @IsString()
-  lifeType?: string;
+  @IsOptional() @IsEnum(LifeType)
+  lifeType?: LifeType;
 
   @IsOptional() @IsString()
   majorComplaint?: string;
@@ -129,16 +151,16 @@ export class UpdatePhysioCaseDto {
 }
 
 export class UpdatePhysioStatusDto {
-  @IsString()
-  status: string;
+  @IsEnum(PhysioStatus)
+  status: PhysioStatus;
 }
 
 export class ListPhysioCasesQueryDto {
   @IsOptional() @IsString()
   patientId?: string;
 
-  @IsOptional() @IsString()
-  status?: string;
+  @IsOptional() @IsEnum(PhysioStatus)
+  status?: PhysioStatus;
 
   @IsOptional() @IsString()
   physiotherapistId?: string;
@@ -204,8 +226,8 @@ export class MedicalHistoryDto {
   @IsOptional() @IsString()
   doctorRestrictions?: string;
 
-  @IsOptional() @IsArray()
-  testsHad?: string[];
+  @IsOptional() @IsArray() @IsEnum(MedicalTest, { each: true })
+  testsHad?: MedicalTest[];
 
   @IsOptional() @IsString()
   testsOther?: string;
@@ -247,8 +269,8 @@ export class SurgeryDto {
 }
 
 export class TreatmentGoalsDto {
-  @IsOptional() @IsArray()
-  goals?: string[];
+  @IsOptional() @IsArray() @IsEnum(PhysioGoal, { each: true })
+  goals?: PhysioGoal[];
 
   @IsOptional() @IsString()
   customGoal?: string;
@@ -323,8 +345,8 @@ export class PosturalAssessmentDto {
 }
 
 export class TreatmentPlanDto {
-  @IsOptional() @IsArray()
-  modalities?: string[];
+  @IsOptional() @IsArray() @IsEnum(TherapyModality, { each: true })
+  modalities?: TherapyModality[];
 
   @IsOptional() @IsString()
   otherModality?: string;
@@ -356,8 +378,8 @@ export class PhysioSessionDto {
   @IsOptional() @IsString()
   sessionTime?: string;
 
-  @IsOptional() @IsArray()
-  modalities?: string[];
+  @IsOptional() @IsArray() @IsEnum(TherapyModality, { each: true })
+  modalities?: TherapyModality[];
 
   @IsOptional() @IsString()
   notes?: string;
@@ -373,14 +395,17 @@ export class PhysioSessionDto {
 
   @IsOptional() @IsBoolean()
   attendanceConfirmed?: boolean;
+
+  @IsOptional() @IsString()
+  appointmentId?: string;
 }
 
 export class UpdateSessionDto {
   @IsOptional() @IsString()
   notes?: string;
 
-  @IsOptional() @IsArray()
-  modalities?: string[];
+  @IsOptional() @IsArray() @IsEnum(TherapyModality, { each: true })
+  modalities?: TherapyModality[];
 
   @IsOptional() @IsInt() @Min(0) @Max(10) @Type(() => Number)
   painLevel?: number;

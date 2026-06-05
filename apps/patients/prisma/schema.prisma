@@ -108,6 +108,7 @@ model Patient {
   // Demographics
   dateOfBirth DateTime
   gender      Gender
+  occupation  String?
 
   // Contact
   cityId         Int

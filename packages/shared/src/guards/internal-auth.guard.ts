@@ -1,4 +1,7 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable, CanActivate, ExecutionContext,
+  UnauthorizedException, InternalServerErrorException,
+} from '@nestjs/common';
 
 @Injectable()
 export class InternalAuthGuard implements CanActivate {
@@ -7,8 +10,12 @@ export class InternalAuthGuard implements CanActivate {
     const token = request.headers['x-internal-token'];
     const expected = process.env.INTERNAL_SERVICE_TOKEN;
 
-    if (expected && token !== expected) {
-      throw new UnauthorizedException('Invalid internal service token');
+    // فشل مغلق: إن لم يُضبط التوكن في البيئة، امنع التشغيل بالكامل.
+    if (!expected) {
+      throw new InternalServerErrorException('INTERNAL_SERVICE_TOKEN not configured');
+    }
+    if (token !== expected) {
+      throw new UnauthorizedException('Invalid internal token');
     }
 
     return true;

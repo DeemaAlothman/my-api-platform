@@ -1,4 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable, NotFoundException, BadRequestException,
+  ConflictException, ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
@@ -7,14 +10,46 @@ import {
   PhysioSessionDto, UpdateSessionDto,
 } from './dto/physio-case.dto';
 
+// B11: خريطة الانتقالات المسموحة لحالة الملف
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  INTAKE:              ['COMPLAINT', 'CANCELLED'],
+  COMPLAINT:           ['PAIN_MAP', 'CANCELLED'],
+  PAIN_MAP:            ['MEDICAL_HISTORY', 'CANCELLED'],
+  MEDICAL_HISTORY:     ['GOALS', 'CANCELLED'],
+  GOALS:               ['POSTURAL_ASSESSMENT', 'CANCELLED'],
+  POSTURAL_ASSESSMENT: ['TREATMENT_PLAN', 'CANCELLED'],
+  TREATMENT_PLAN:      ['SUPERVISOR_REVIEW', 'CANCELLED'],
+  SUPERVISOR_REVIEW:   ['DOCTOR_SIGN', 'TREATMENT_PLAN', 'CANCELLED'],
+  DOCTOR_SIGN:         ['ACTIVE_TREATMENT', 'CANCELLED'],
+  ACTIVE_TREATMENT:    ['COMPLETED', 'CANCELLED'],
+  COMPLETED:           ['DISCHARGED'],
+  DISCHARGED:          [],
+  CANCELLED:           [],
+};
+
+const PATIENTS_URL = process.env.PATIENTS_SERVICE_URL || 'http://localhost:4010';
+const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+
 @Injectable()
 export class CasesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async generateCaseNumber(): Promise<string> {
-    const year = new Date().getFullYear();
-    const count = await this.prisma.physioCase.count();
-    return `PT-${year}-${String(count + 1).padStart(4, '0')}`;
+  // B12: تحقق من وجود المريض عبر خدمة المرضى (نقطة داخلية)
+  private async assertPatientExists(patientId: string): Promise<void> {
+    try {
+      const res = await fetch(`${PATIENTS_URL}/api/v1/patients/internal/${patientId}/exists`, {
+        method: 'GET',
+        headers: { 'x-internal-token': INTERNAL_TOKEN },
+      });
+      if (res.ok) {
+        const json: any = await res.json();
+        const exists = json?.data?.exists ?? json?.exists;
+        if (exists) return;
+      }
+    } catch {
+      // فشل الاتصال → نعامله كعدم وجود (فشل مغلق)
+    }
+    throw new BadRequestException({ code: 'PATIENT_NOT_FOUND', message: 'Patient not found' });
   }
 
   private async findCaseOrThrow(id: string) {
@@ -26,40 +61,56 @@ export class CasesService {
   // ── Cases CRUD ────────────────────────────────────────────────────────────
 
   async create(dto: CreatePhysioCaseDto, userId: string) {
-    const caseNumber = await this.generateCaseNumber();
-    return this.prisma.physioCase.create({
-      data: {
-        caseNumber,
-        patientId: dto.patientId,
-        majorComplaint: dto.majorComplaint,
-        symptoms: dto.symptoms,
-        currentJob: dto.currentJob,
-        lifeType: dto.lifeType as any,
-        complaintStartDate: dto.complaintStartDate ? new Date(dto.complaintStartDate) : undefined,
-        possibleCause: dto.possibleCause,
-        previousDoctorSeen: dto.previousDoctorSeen,
-        previousTreatment: dto.previousTreatment,
-        hadPreviousPT: dto.hadPreviousPT ?? false,
-        hadPreviousInjury: dto.hadPreviousInjury ?? false,
-        painStartDate: dto.painStartDate ? new Date(dto.painStartDate) : undefined,
-        painLevel: dto.painLevel as any,
-        painDuration: dto.painDuration as any,
-        painProgression: dto.painProgression,
-        bestTimeOfDay: dto.bestTimeOfDay,
-        worstTimeOfDay: dto.worstTimeOfDay,
-        painTypes: (dto.painTypes ?? []) as any,
-        aggravatingFactors: (dto.aggravatingFactors ?? []) as any,
-        aggravatingOther: dto.aggravatingOther,
-        alleviatingFactors: (dto.alleviatingFactors ?? []) as any,
-        alleviatingOther: dto.alleviatingOther,
-        physiotherapistId: dto.physiotherapistId,
-        supervisingDoctorId: dto.supervisingDoctorId,
-        caseManagerId: dto.caseManagerId,
-        treatmentFrom: dto.treatmentFrom ? new Date(dto.treatmentFrom) : undefined,
-        treatmentTo: dto.treatmentTo ? new Date(dto.treatmentTo) : undefined,
-        anticipatedVisits: dto.anticipatedVisits,
-        createdBy: userId,
-      },
+    // B12: تأكد من وجود المريض قبل إنشاء الحالة
+    await this.assertPatientExists(dto.patientId);
+
+    // B15: توليد caseNumber آمن داخل transaction مع advisory lock يمنع التكرار عند التزامن
+    return this.prisma.$transaction(async (tx) => {
+      const year = new Date().getFullYear();
+      await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1)', year);
+
+      const last = await tx.physioCase.findFirst({
+        where: { caseNumber: { startsWith: `PT-${year}-` } },
+        orderBy: { caseNumber: 'desc' },
+        select: { caseNumber: true },
+      });
+      const lastSeq = last ? parseInt(last.caseNumber.split('-')[2], 10) : 0;
+      const caseNumber = `PT-${year}-${String(lastSeq + 1).padStart(4, '0')}`;
+
+      return tx.physioCase.create({
+        data: {
+          caseNumber,
+          patientId: dto.patientId,
+          majorComplaint: dto.majorComplaint,
+          symptoms: dto.symptoms,
+          currentJob: dto.currentJob,
+          lifeType: dto.lifeType as any,
+          complaintStartDate: dto.complaintStartDate ? new Date(dto.complaintStartDate) : undefined,
+          possibleCause: dto.possibleCause,
+          previousDoctorSeen: dto.previousDoctorSeen,
+          previousTreatment: dto.previousTreatment,
+          hadPreviousPT: dto.hadPreviousPT ?? false,
+          hadPreviousInjury: dto.hadPreviousInjury ?? false,
+          painStartDate: dto.painStartDate ? new Date(dto.painStartDate) : undefined,
+          painLevel: dto.painLevel as any,
+          painDuration: dto.painDuration as any,
+          painProgression: dto.painProgression,
+          bestTimeOfDay: dto.bestTimeOfDay,
+          worstTimeOfDay: dto.worstTimeOfDay,
+          painTypes: (dto.painTypes ?? []) as any,
+          aggravatingFactors: (dto.aggravatingFactors ?? []) as any,
+          aggravatingOther: dto.aggravatingOther,
+          alleviatingFactors: (dto.alleviatingFactors ?? []) as any,
+          alleviatingOther: dto.alleviatingOther,
+          physiotherapistId: dto.physiotherapistId,
+          supervisingDoctorId: dto.supervisingDoctorId,
+          caseManagerId: dto.caseManagerId,
+          treatmentFrom: dto.treatmentFrom ? new Date(dto.treatmentFrom) : undefined,
+          treatmentTo: dto.treatmentTo ? new Date(dto.treatmentTo) : undefined,
+          anticipatedVisits: dto.anticipatedVisits,
+          createdBy: userId,
+        },
+      });
     });
   }
 
@@ -123,10 +174,34 @@ export class CasesService {
   }
 
   async updateStatus(id: string, dto: UpdatePhysioStatusDto) {
-    await this.findCaseOrThrow(id);
+    const current = await this.findCaseOrThrow(id);
+    const from = current.status as string;
+    const to = dto.status as string;
+
+    // B11: تحقق أن الانتقال مسموح ضمن آلة الحالات
+    const allowed = STATUS_TRANSITIONS[from] ?? [];
+    if (!allowed.includes(to)) {
+      throw new BadRequestException({
+        code: 'INVALID_TRANSITION',
+        message: `Transition from ${from} to ${to} is not allowed`,
+        details: [{ from, to, allowed }],
+      });
+    }
+
+    // B11: الانتقال إلى ACTIVE_TREATMENT ممنوع بدون توقيع طبيب صالح
+    if (to === 'ACTIVE_TREATMENT') {
+      const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId: id } });
+      if (!plan?.doctorSignatureBase64) {
+        throw new BadRequestException({
+          code: 'DOCTOR_SIGNATURE_REQUIRED',
+          message: 'Cannot start treatment without a valid doctor signature',
+        });
+      }
+    }
+
     return this.prisma.physioCase.update({
       where: { id },
-      data: { status: dto.status as any },
+      data: { status: to as any },
     });
   }
 
@@ -273,32 +348,62 @@ export class CasesService {
   }
 
   async supervisorReview(caseId: string, dto: SupervisorReviewDto, userId: string) {
-    await this.findCaseOrThrow(caseId);
+    const c = await this.findCaseOrThrow(caseId);
     const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId } });
     if (!plan) throw new NotFoundException('Treatment plan not found');
-    return this.prisma.physioTreatmentPlan.update({
-      where: { caseId },
-      data: {
-        supervisorGaze: dto.supervisorGaze,
-        supervisorId: userId,
-        supervisorReviewedAt: new Date(),
-      },
-    });
+
+    // B16: خزّن نظرة المشرف وانقل الحالة TREATMENT_PLAN → SUPERVISOR_REVIEW
+    const [updatedPlan] = await this.prisma.$transaction([
+      this.prisma.physioTreatmentPlan.update({
+        where: { caseId },
+        data: {
+          supervisorGaze: dto.supervisorGaze,
+          supervisorId: userId,
+          supervisorReviewedAt: new Date(),
+        },
+      }),
+      this.prisma.physioCase.update({
+        where: { id: caseId },
+        data: c.status === 'TREATMENT_PLAN' ? { status: 'SUPERVISOR_REVIEW' as any } : {},
+      }),
+    ]);
+    return updatedPlan;
   }
 
-  async planSign(caseId: string, dto: PlanSignDto, userId: string) {
-    await this.findCaseOrThrow(caseId);
-    let plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId } });
+  async planSign(caseId: string, dto: PlanSignDto, userId: string, ip?: string) {
+    const c = await this.findCaseOrThrow(caseId);
+    const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId } });
     if (!plan) throw new NotFoundException('Treatment plan not found');
-    return this.prisma.physioTreatmentPlan.update({
-      where: { caseId },
-      data: {
-        doctorSignatureBase64: dto.signatureBase64,
-        doctorId: userId,
-        doctorReviewedAt: new Date(),
-        doctorGaze: dto.doctorGaze,
-      },
-    });
+
+    // B6.1: منع الاستبدال — لا توقيع فوق توقيع قائم
+    if (plan.doctorSignatureBase64) {
+      throw new ConflictException({ code: 'ALREADY_SIGNED', message: 'Treatment plan is already signed' });
+    }
+
+    // B6.2: تحقق الهوية — الموقّع يجب أن يكون الطبيب المُشرف المعيّن للحالة
+    if (c.supervisingDoctorId && c.supervisingDoctorId !== userId) {
+      throw new ForbiddenException({ code: 'NOT_ASSIGNED_SIGNER', message: 'Only the assigned supervising doctor may sign' });
+    }
+
+    // B6.3: ثبّت التوقيع مع IP وختم زمني، وانقل الحالة SUPERVISOR_REVIEW → DOCTOR_SIGN
+    const [updatedPlan] = await this.prisma.$transaction([
+      this.prisma.physioTreatmentPlan.update({
+        where: { caseId },
+        data: {
+          doctorSignatureBase64: dto.signatureBase64,
+          doctorId: userId,
+          doctorReviewedAt: new Date(),
+          doctorSignedAt: new Date(),
+          doctorSignatureIp: ip ?? null,
+          doctorGaze: dto.doctorGaze,
+        },
+      }),
+      this.prisma.physioCase.update({
+        where: { id: caseId },
+        data: c.status === 'SUPERVISOR_REVIEW' ? { status: 'DOCTOR_SIGN' as any } : {},
+      }),
+    ]);
+    return updatedPlan;
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────────
@@ -316,6 +421,7 @@ export class CasesService {
         painLevel: dto.painLevel,
         romMeasurements: dto.romMeasurements,
         attendanceConfirmed: dto.attendanceConfirmed ?? false,
+        appointmentId: dto.appointmentId,
       },
     });
   }
