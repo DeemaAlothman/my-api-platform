@@ -172,7 +172,7 @@ export class SyncService {
   }
 
   /**
-   * تصفية البصمات المتكررة (أقل من دقيقتين بين بصمتين)
+   * تصفية البصمات المتكررة (أقل من 5 دقائق بين بصمتين)
    * يُرجع: kept = البصمات المقبولة، duplicates = IDs المكررة للتعليم
    */
   private filterDuplicates(logs: any[]): { kept: any[]; duplicates: string[] } {
@@ -194,111 +194,32 @@ export class SyncService {
     return { kept, duplicates };
   }
 
-  /**
-   * Phase 1.2: اكتشف إذا الجهاز يبعت rawType مفيد (قيم مختلفة) → استخدم rawType مباشرة
-   * وإلا → applyOrderBasedToggle (Toggle Logic الموجود + Phase 1.3)
-   */
   private applyToggleLogic(
     logs: any[],
   ): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> {
-    const allRawTypes = logs.map(l => l.rawType).filter(t => t !== undefined && t !== null);
-    const uniqueRawTypes = new Set(allRawTypes);
-    const hasMeaningfulRawType = allRawTypes.length === logs.length && uniqueRawTypes.size > 1;
-
-    if (hasMeaningfulRawType) {
-      this.logger.log(`[RAWTYPE_MODE] Using rawType-based interpretation (uniqueTypes=${[...uniqueRawTypes].join(',')})`);
-      return this.applyRawTypeLogic(logs);
-    }
+    // قرار العمل: الترتيب الزمني فقط — يُتجاهل rawType نهائياً.
+    // أول بصمة = دخول، آخر بصمة = خروج، والوسط بالتناوب (استراحات).
     return this.applyOrderBasedToggle(logs);
   }
 
-  /** Phase 1.2: ZKTeco standard rawType: 0=CLOCK_IN, 1=CLOCK_OUT, 2=BREAK_OUT, 3=BREAK_IN */
-  private applyRawTypeLogic(
-    logs: any[],
-  ): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> {
-    return logs.map((log, idx) => {
-      let interpretedAs: InterpretedType;
-      switch (log.rawType) {
-        case 0: interpretedAs = 'CLOCK_IN'; break;
-        case 1: interpretedAs = 'CLOCK_OUT'; break;
-        case 2: interpretedAs = 'BREAK_OUT'; break;
-        case 3: interpretedAs = 'BREAK_IN'; break;
-        default: interpretedAs = idx === 0 ? 'CLOCK_IN' : 'CLOCK_OUT';
-      }
-      return { id: log.id, interpretedAs, pairIndex: idx + 1 };
-    });
-  }
-
-  /**
-   * Phase 1.3: Toggle Logic بالترتيب مع معالجة البصمات الفردية
-   * إذا n فردي وآخر فجوة > 240 دقيقة → البصمة الأخيرة ضالة (stray)، اعتمد ما قبلها كـ CLOCK_OUT
-   * بصمتان فجوتهما < 15 دقيقة → تُعامل كبصمة واحدة (CLOCK_IN فقط)
-   */
   private applyOrderBasedToggle(
     logs: any[],
   ): Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> {
     const n = logs.length;
 
-    // بصمتان متلاصقتان < 15 دقيقة → تُعامل كبصمة وحيدة (دخول فقط)
-    if (n === 2) {
-      const gapMinutes = (logs[1].timestamp.getTime() - logs[0].timestamp.getTime()) / 60000;
-      if (gapMinutes < 15) {
-        const warn = `two stamps ${Math.round(gapMinutes)}min apart — treated as single CLOCK_IN (< 15min)`;
-        this.logger.warn(`[CLOSE_STAMPS] ${warn}`);
-        return [
-          { id: logs[0].id, interpretedAs: 'CLOCK_IN' as InterpretedType, pairIndex: 1 },
-          { id: logs[1].id, interpretedAs: 'CLOCK_IN' as InterpretedType, pairIndex: 2, syncError: warn },
-        ];
+    // أول بصمة = دخول، آخر بصمة = خروج، والوسط بالتناوب: خروج استراحة / عودة استراحة.
+    // لا استثناءات: لا دمج للبصمتين المتلاصقتين، لا استبعاد لبصمة ضالة، ولا اعتماد على rawType.
+    return logs.map((log, index) => {
+      let interpretedAs: InterpretedType;
+      if (index === 0) {
+        interpretedAs = 'CLOCK_IN';
+      } else if (index === n - 1) {
+        interpretedAs = 'CLOCK_OUT';
+      } else {
+        interpretedAs = index % 2 === 1 ? 'BREAK_OUT' : 'BREAK_IN';
       }
-    }
-
-    let effectiveLogs = logs;
-    let strayStampId: string | undefined;
-    let strayWarning: string | undefined;
-
-    if (n >= 3 && n % 2 === 1) {
-      const last = logs[n - 1];
-      const prev = logs[n - 2];
-      const gapMinutes = (last.timestamp.getTime() - prev.timestamp.getTime()) / 60000;
-      if (gapMinutes > 240) {
-        effectiveLogs = logs.slice(0, n - 1);
-        strayStampId = last.id;
-        strayWarning = `odd stamp count (n=${n}), last stamp gap=${Math.round(gapMinutes)}min > 240 — treated as stray`;
-        this.logger.warn(`[STRAY_STAMP] ${strayWarning}`);
-      }
-    }
-
-    const en = effectiveLogs.length;
-    const result: Array<{ id: string; interpretedAs: InterpretedType; pairIndex: number; syncError?: string }> =
-      effectiveLogs.map((log, index) => {
-        let interpretedAs: InterpretedType;
-        if (index === 0) {
-          interpretedAs = 'CLOCK_IN';
-        } else if (index === en - 1) {
-          interpretedAs = 'CLOCK_OUT';
-        } else {
-          interpretedAs = index % 2 === 1 ? 'BREAK_OUT' : 'BREAK_IN';
-        }
-        return { id: log.id, interpretedAs, pairIndex: index + 1, syncError: undefined as string | undefined };
-      });
-
-    // أضف البصمة الضالة مع syncError
-    if (strayStampId && strayWarning) {
-      result.push({ id: strayStampId, interpretedAs: 'CLOCK_OUT', pairIndex: en + 1, syncError: strayWarning });
-    }
-
-    // rawType conflict في آخر بصمتين (بدون حالة stray)
-    if (!strayWarning && n >= 2) {
-      const last = logs[n - 1];
-      const prev = logs[n - 2];
-      if (last.rawType === prev.rawType && last.rawType !== undefined) {
-        const warn = `rawType conflict: last 2 stamps both have rawType=${last.rawType}`;
-        this.logger.warn(warn);
-        result[n - 1].syncError = warn;
-      }
-    }
-
-    return result;
+      return { id: log.id, interpretedAs, pairIndex: index + 1, syncError: undefined as string | undefined };
+    });
   }
 
   /**
