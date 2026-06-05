@@ -110,13 +110,44 @@ export class AppointmentsService {
     return this.prisma.appointment.findMany({ where, orderBy: { startTime: 'asc' } });
   }
 
+  // B13: جلب دوام الموظف من خدمة الحضور (fail-open: عند الفشل نرجع للساعات الافتراضية 8–17)
+  private async getWorkHours(practitionerId: string, dateStr: string): Promise<{ start: number; end: number; isWorkDay: boolean }> {
+    const fallback = { start: 8, end: 17, isWorkDay: true };
+    try {
+      const url = `${process.env.ATTENDANCE_SERVICE_URL || 'http://attendance:4004'}/api/v1/employee-schedules/internal/${practitionerId}/for-date?date=${dateStr}`;
+      const res = await fetch(url, { headers: { 'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN || '' } });
+      if (!res.ok) return fallback;
+      const json = await res.json() as any;
+      const d = json?.data ?? json;
+      if (!d?.found) return fallback;
+      const parseHour = (t: string | null, def: number) => {
+        if (!t) return def;
+        const h = parseInt(String(t).split(':')[0], 10);
+        return Number.isFinite(h) ? h : def;
+      };
+      return {
+        start: parseHour(d.workStartTime, 8),
+        end: parseHour(d.workEndTime, 17),
+        isWorkDay: d.isWorkDay !== false,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
   async getAvailableSlots(practitionerId: string, query: SlotsQueryDto) {
     const date = new Date(query.date);
     const slotDuration = query.slotDurationMinutes ?? 60;
+
+    // B13: استخدم دوام الموظف الفعلي بدل 8–17 الثابتة
+    const dateStr = date.toISOString().split('T')[0];
+    const wh = await this.getWorkHours(practitionerId, dateStr);
+    if (!wh.isWorkDay) return []; // ليس يوم عمل للموظف → لا توجد فترات
+
     const dayStart = new Date(date);
-    dayStart.setHours(8, 0, 0, 0);
+    dayStart.setHours(wh.start, 0, 0, 0);
     const dayEnd = new Date(date);
-    dayEnd.setHours(17, 0, 0, 0);
+    dayEnd.setHours(wh.end, 0, 0, 0);
 
     const booked = await this.prisma.appointment.findMany({
       where: {

@@ -1,6 +1,6 @@
 import {
   Injectable, NotFoundException, BadRequestException,
-  InternalServerErrorException,
+  InternalServerErrorException, ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
@@ -578,14 +578,19 @@ export class CasesService {
   async directorSign(caseId: string, dto: DirectorSignDto, userId: string, ip: string) {
     await this.findCaseOrThrow(caseId);
     const existing = await this.prisma.finalEvaluation.findUnique({ where: { caseId } });
+
+    // B6.4: منع استبدال توقيع المدير الطبي القائم
+    if (existing?.medicalDirectorSignatureBase64) {
+      throw new ConflictException({ code: 'ALREADY_SIGNED', message: 'Medical director already signed' });
+    }
+
+    // B6.4: هذا التوقيع للمدير الطبي فقط — لا يُكتب على حقول المدير الإداري (manager*)
     const data: any = {
       medicalDirectorSignatureBase64: dto.signatureBase64,
       medicalDirectorSignedAt: new Date(),
       medicalDirectorIp: ip,
       managerNotes: dto.managerNotes,
       patientFileComplete: dto.patientFileComplete,
-      managerSignatureBase64: dto.signatureBase64,
-      managerSignedAt: new Date(),
     };
     if (!existing) {
       return this.prisma.finalEvaluation.create({

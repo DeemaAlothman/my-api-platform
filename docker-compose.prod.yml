@@ -247,6 +247,7 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       LEAVE_SERVICE_URL: http://leave:4003
+      ATTENDANCE_SERVICE_URL: http://attendance:4004
       NODE_ENV: production
     depends_on:
       postgres:

@@ -7,6 +7,40 @@ import { UpdateEmployeeScheduleDto } from './dto/update-employee-schedule.dto';
 export class EmployeeSchedulesService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * B13: جلب جدول دوام الموظف الفعّال لتاريخ محدد (للاستخدام الداخلي خدمة-لخدمة).
+   */
+  async getScheduleForDateInternal(employeeId: string, dateStr: string) {
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `SELECT ws."workStartTime", ws."workEndTime", ws."workDays"
+       FROM attendance.employee_schedules es
+       JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+       WHERE es."employeeId" = $1
+         AND es."isActive" = true
+         AND $2::date BETWEEN es."effectiveFrom"::date
+             AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
+       ORDER BY es."effectiveFrom" DESC
+       LIMIT 1`,
+      employeeId, dateStr,
+    )) as Array<{ workStartTime: string | null; workEndTime: string | null; workDays: string | null }>;
+
+    if (!rows[0]) {
+      return { found: false, workStartTime: null, workEndTime: null, workDays: null, isWorkDay: null };
+    }
+
+    let workDays: number[] = [0, 1, 2, 3, 4];
+    try { if (rows[0].workDays) workDays = JSON.parse(rows[0].workDays); } catch { /* default */ }
+    const dow = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+
+    return {
+      found: true,
+      workStartTime: rows[0].workStartTime,
+      workEndTime: rows[0].workEndTime,
+      workDays,
+      isWorkDay: workDays.includes(dow),
+    };
+  }
+
   private async getEmployeeNames(employeeIds: string[]) {
     if (employeeIds.length === 0) return new Map<string, any>();
 
