@@ -194,6 +194,8 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       NODE_ENV: production
+    volumes:
+      - /var/data/patients_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
