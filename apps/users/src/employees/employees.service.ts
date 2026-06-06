@@ -5,6 +5,7 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees.query.dto';
 import { LinkUserDto } from './dto/link-user.dto';
+import { TransferEmployeeDto, ChangeSalaryDto } from './dto/employee-history.dto';
 
 @Injectable()
 export class EmployeesService {
@@ -527,6 +528,188 @@ export class EmployeesService {
     }
 
     return employee;
+  }
+
+  // ── Employee dossier / history ──────────────────────────────────────────
+
+  // نقل/تغيير وظيفي: يعدّل الحقول المُرسَلة فقط داخل transaction ويسجّل حدث TRANSFER
+  // بالقيم القديمة→الجديدة (مع أسماء القسم/المنصب/المدير وقت التغيير).
+  async transfer(id: string, dto: TransferEmployeeDto, performedBy?: string) {
+    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
+    if (!employee) {
+      throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Employee not found', details: [{ id }] });
+    }
+
+    const data: any = {};
+    const from: any = {};
+    const to: any = {};
+
+    if (dto.departmentId && dto.departmentId !== employee.departmentId) {
+      const dept = await this.prisma.department.findFirst({ where: { id: dto.departmentId, deletedAt: null } });
+      if (!dept) {
+        throw new BadRequestException({ code: 'RESOURCE_NOT_FOUND', message: 'Department not found', details: [{ field: 'departmentId', value: dto.departmentId }] });
+      }
+      const old = await this.prisma.department.findUnique({ where: { id: employee.departmentId } });
+      from.department = { id: employee.departmentId, nameAr: old?.nameAr ?? null };
+      to.department = { id: dept.id, nameAr: dept.nameAr };
+      data.departmentId = dept.id;
+    }
+
+    if (dto.jobTitleId !== undefined && dto.jobTitleId !== employee.jobTitleId) {
+      const jt = dto.jobTitleId ? await this.prisma.jobTitle.findUnique({ where: { id: dto.jobTitleId } }) : null;
+      if (dto.jobTitleId && !jt) {
+        throw new BadRequestException({ code: 'RESOURCE_NOT_FOUND', message: 'Job title not found', details: [{ field: 'jobTitleId', value: dto.jobTitleId }] });
+      }
+      const old = employee.jobTitleId ? await this.prisma.jobTitle.findUnique({ where: { id: employee.jobTitleId } }) : null;
+      from.jobTitle = employee.jobTitleId ? { id: employee.jobTitleId, nameAr: old?.nameAr ?? null } : null;
+      to.jobTitle = jt ? { id: jt.id, nameAr: jt.nameAr } : null;
+      data.jobTitleId = dto.jobTitleId || null;
+    }
+
+    if (dto.jobGradeId !== undefined && dto.jobGradeId !== employee.jobGradeId) {
+      const jg = dto.jobGradeId ? await this.prisma.jobGrade.findUnique({ where: { id: dto.jobGradeId } }) : null;
+      if (dto.jobGradeId && !jg) {
+        throw new BadRequestException({ code: 'RESOURCE_NOT_FOUND', message: 'Job grade not found', details: [{ field: 'jobGradeId', value: dto.jobGradeId }] });
+      }
+      const old = employee.jobGradeId ? await this.prisma.jobGrade.findUnique({ where: { id: employee.jobGradeId } }) : null;
+      from.jobGrade = employee.jobGradeId ? { id: employee.jobGradeId, nameAr: old?.nameAr ?? null } : null;
+      to.jobGrade = jg ? { id: jg.id, nameAr: jg.nameAr } : null;
+      data.jobGradeId = dto.jobGradeId || null;
+    }
+
+    if (dto.managerId !== undefined && dto.managerId !== employee.managerId) {
+      if (dto.managerId === id) {
+        throw new BadRequestException({ code: 'INVALID_MANAGER', message: 'Employee cannot be their own manager', details: [] });
+      }
+      const mgr = dto.managerId ? await this.prisma.employee.findFirst({ where: { id: dto.managerId, deletedAt: null } }) : null;
+      if (dto.managerId && !mgr) {
+        throw new BadRequestException({ code: 'RESOURCE_NOT_FOUND', message: 'Manager not found', details: [{ field: 'managerId', value: dto.managerId }] });
+      }
+      const old = employee.managerId ? await this.prisma.employee.findUnique({ where: { id: employee.managerId } }) : null;
+      from.manager = employee.managerId ? { id: employee.managerId, name: old ? `${old.firstNameAr} ${old.lastNameAr}` : null } : null;
+      to.manager = mgr ? { id: mgr.id, name: `${mgr.firstNameAr} ${mgr.lastNameAr}` } : null;
+      data.managerId = dto.managerId || null;
+    }
+
+    if (dto.basicSalary !== undefined && Number(dto.basicSalary) !== Number(employee.basicSalary ?? 0)) {
+      const gradeId = (data.jobGradeId ?? employee.jobGradeId) as string | null;
+      if (gradeId) await this.validateSalaryRange(gradeId, Number(dto.basicSalary));
+      from.salary = { basicSalary: employee.basicSalary, currency: employee.salaryCurrency };
+      to.salary = { basicSalary: dto.basicSalary, currency: dto.salaryCurrency ?? employee.salaryCurrency };
+      data.basicSalary = dto.basicSalary;
+      if (dto.salaryCurrency) data.salaryCurrency = dto.salaryCurrency;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException({ code: 'NO_CHANGES', message: 'لم يتم تقديم أي تغيير', details: [] });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.employee.update({ where: { id }, data });
+      await tx.employeeHistoryEvent.create({
+        data: {
+          employeeId: id,
+          eventType: 'TRANSFER',
+          fromValue: from,
+          toValue: to,
+          note: dto.note ?? null,
+          effectiveDate: new Date(dto.effectiveDate),
+          performedBy: performedBy ?? null,
+        },
+      });
+      return updated;
+    });
+  }
+
+  // تغيير راتب مستقل (أو ترقية) — يعدّل الراتب ويسجّل حدثاً بالإضبارة.
+  async changeSalary(id: string, dto: ChangeSalaryDto, performedBy?: string) {
+    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
+    if (!employee) {
+      throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Employee not found', details: [{ id }] });
+    }
+    if (employee.jobGradeId) {
+      await this.validateSalaryRange(employee.jobGradeId, Number(dto.basicSalary));
+    }
+
+    const from = { basicSalary: employee.basicSalary, currency: employee.salaryCurrency };
+    const to = { basicSalary: dto.basicSalary, currency: dto.salaryCurrency ?? employee.salaryCurrency };
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.employee.update({
+        where: { id },
+        data: { basicSalary: dto.basicSalary, ...(dto.salaryCurrency ? { salaryCurrency: dto.salaryCurrency } : {}) },
+      });
+      await tx.employeeHistoryEvent.create({
+        data: {
+          employeeId: id,
+          eventType: dto.eventType ?? 'SALARY_CHANGE',
+          fromValue: from,
+          toValue: to,
+          note: dto.note ?? null,
+          effectiveDate: new Date(dto.effectiveDate),
+          performedBy: performedBy ?? null,
+        },
+      });
+      return updated;
+    });
+  }
+
+  // إضبارة الموظف: تايملاين موحّد (أحداث وظيفية + مكافآت/عقوبات + سلف) مرتّب زمنياً تنازلياً.
+  async getDossier(id: string) {
+    const employee = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, employeeNumber: true, firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true },
+    });
+    if (!employee) {
+      throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Employee not found', details: [{ id }] });
+    }
+
+    const [events, rewardsPenalties, advances] = await Promise.all([
+      this.prisma.employeeHistoryEvent.findMany({ where: { employeeId: id }, orderBy: { effectiveDate: 'desc' } }),
+      this.prisma.employeeRewardPenalty.findMany({ where: { employeeId: id }, orderBy: { effectiveDate: 'desc' } }),
+      this.prisma.salaryAdvance.findMany({ where: { employeeId: id, deletedAt: null }, orderBy: { createdAt: 'desc' } }),
+    ]);
+
+    const timeline: any[] = [
+      ...events.map((e) => ({
+        category: 'HISTORY',
+        type: e.eventType,
+        date: e.effectiveDate,
+        fromValue: e.fromValue,
+        toValue: e.toValue,
+        note: e.note,
+        performedBy: e.performedBy,
+        id: e.id,
+        createdAt: e.createdAt,
+      })),
+      ...rewardsPenalties.map((r) => ({
+        category: r.kind === 'REWARD' ? 'REWARD' : 'PENALTY',
+        type: r.kind,
+        date: r.effectiveDate,
+        amount: r.amount,
+        penaltyDays: r.penaltyDays,
+        reason: r.reason,
+        note: r.recommendation,
+        status: r.status,
+        performedBy: r.issuedBy,
+        id: r.id,
+        createdAt: r.createdAt,
+      })),
+      ...advances.map((a) => ({
+        category: 'SALARY_ADVANCE',
+        type: 'SALARY_ADVANCE',
+        date: a.createdAt,
+        amount: a.totalAmount,
+        remainingBalance: a.remainingBalance,
+        status: a.status,
+        reason: a.reason,
+        note: a.notes,
+        id: a.id,
+        createdAt: a.createdAt,
+      })),
+    ].sort((x, y) => new Date(y.date as any).getTime() - new Date(x.date as any).getTime());
+
+    return { employee, timeline };
   }
 
   async update(id: string, dto: UpdateEmployeeDto) {

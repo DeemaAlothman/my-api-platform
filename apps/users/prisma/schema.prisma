@@ -845,3 +845,20 @@ model EmployeeRewardPenalty {
   @@map("employee_rewards_penalties")
 }
 
+// سجل/إضبارة الموظف: كل حدث وظيفي (نقل، تغيير قسم/منصب/مدير، تغيير راتب، ترقية).
+// جدول مستقل تماماً — لا علاقات FK على جدول الموظفين، يُقرأ عبر employeeId.
+model EmployeeHistoryEvent {
+  id            String   @id @default(uuid())
+  employeeId    String
+  eventType     String   // TRANSFER | DEPARTMENT_CHANGE | POSITION_CHANGE | MANAGER_CHANGE | SALARY_CHANGE | PROMOTION
+  fromValue     Json?
+  toValue       Json?
+  note          String?  @db.Text
+  effectiveDate DateTime
+  performedBy   String?
+  createdAt     DateTime @default(now())
+
+  @@index([employeeId])
+  @@map("employee_history_events")
+}
+

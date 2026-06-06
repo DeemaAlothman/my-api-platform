@@ -10,6 +10,7 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees.query.dto';
 import { LinkUserDto } from './dto/link-user.dto';
+import { TransferEmployeeDto, ChangeSalaryDto } from './dto/employee-history.dto';
 import { IsString } from 'class-validator';
 import { sendExcelMultiSheet } from '../common/utils/excel.util';
 
@@ -137,6 +138,30 @@ export class EmployeesController {
   @Post(':id/link-user')
   linkUser(@Param('id') id: string, @Body() dto: LinkUserDto) {
     return this.employees.linkUser(id, dto);
+  }
+
+  // نقل/تغيير وظيفي (قسم/منصب/درجة/مدير/راتب) — يُسجَّل في إضبارة الموظف
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('employees:update')
+  @Post(':id/transfer')
+  transfer(@Param('id') id: string, @Body() dto: TransferEmployeeDto, @User() user: CurrentUser) {
+    return this.employees.transfer(id, dto, user.userId);
+  }
+
+  // تغيير راتب / ترقية — يُسجَّل في إضبارة الموظف
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('employees:update')
+  @Post(':id/salary-change')
+  changeSalary(@Param('id') id: string, @Body() dto: ChangeSalaryDto, @User() user: CurrentUser) {
+    return this.employees.changeSalary(id, dto, user.userId);
+  }
+
+  // إضبارة الموظف: تايملاين موحّد لكل الأحداث الوظيفية + المكافآت/العقوبات + السلف
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('employees:read')
+  @Get(':id/dossier')
+  getDossier(@Param('id') id: string) {
+    return this.employees.getDossier(id);
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
