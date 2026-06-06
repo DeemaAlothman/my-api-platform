@@ -15,11 +15,46 @@ import {
   PatientSignDto, ManagerSignDto, FollowUpDto, GaitSignDto,
 } from './dto/delivery.dto';
 
+const PATIENTS_URL = process.env.PATIENTS_SERVICE_URL || 'http://patients:4010';
+const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+
 @Injectable()
 export class CasesService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  // جلب أسماء المرضى بالجملة من خدمة المرضى (فشل الاتصال لا يكسر الاستجابة)
+  private async resolvePatientNames(
+    patientIds: Array<string | null | undefined>,
+  ): Promise<Record<string, { firstName: string; lastName: string; patientNumber: string; idNumber: string }>> {
+    const ids = [...new Set(patientIds.filter(Boolean) as string[])];
+    if (ids.length === 0) return {};
+    try {
+      const res = await fetch(`${PATIENTS_URL}/api/v1/patients/internal/find-by-ids`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+        body: JSON.stringify({ patientIds: ids }),
+      });
+      if (!res.ok) return {};
+      const json: any = await res.json();
+      const list: any[] = Array.isArray(json) ? json : (json?.data ?? []);
+      const map: Record<string, any> = {};
+      for (const p of list) {
+        if (p?.id) {
+          map[p.id] = {
+            firstName: p.firstName,
+            lastName: p.lastName,
+            patientNumber: p.patientNumber,
+            idNumber: p.idNumber,
+          };
+        }
+      }
+      return map;
+    } catch {
+      return {};
+    }
+  }
 
   private async generateCaseNumber(): Promise<string> {
     const year = new Date().getFullYear();
@@ -107,7 +142,9 @@ export class CasesService {
       }),
       this.prisma.prostheticsCase.count({ where }),
     ]);
-    return { items, total, page, limit };
+    const nameMap = await this.resolvePatientNames(items.map((i) => i.patientId));
+    const enriched = items.map((i) => ({ ...i, patient: nameMap[i.patientId] ?? null }));
+    return { items: enriched, total, page, limit };
   }
 
   async findOne(id: string) {
@@ -134,7 +171,8 @@ export class CasesService {
       },
     });
     if (!c) throw new NotFoundException('Prosthetics case not found');
-    return c;
+    const nameMap = await this.resolvePatientNames([c.patientId]);
+    return { ...c, patient: nameMap[c.patientId] ?? null };
   }
 
   async update(id: string, dto: UpdateCaseDto) {
@@ -168,7 +206,7 @@ export class CasesService {
   }
 
   async findByPatient(patientId: string) {
-    return this.prisma.prostheticsCase.findMany({
+    const items = await this.prisma.prostheticsCase.findMany({
       where: { patientId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -176,6 +214,8 @@ export class CasesService {
         delivery: { select: { deliveryDate: true } },
       },
     });
+    const nameMap = await this.resolvePatientNames([patientId]);
+    return items.map((i) => ({ ...i, patient: nameMap[patientId] ?? null }));
   }
 
   // ── Assessments ───────────────────────────────────────────────────────────

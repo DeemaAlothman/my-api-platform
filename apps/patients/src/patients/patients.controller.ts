@@ -27,6 +27,12 @@ export class PatientsInternalController {
   exists(@Param('id') id: string) {
     return this.service.existsInternal(id);
   }
+
+  @Post('find-by-ids')
+  @UseGuards(InternalAuthGuard)
+  findByIds(@Body() body: { patientIds: string[] }) {
+    return this.service.findByIdsInternal(body?.patientIds ?? []);
+  }
 }
 
 @Controller('patients')

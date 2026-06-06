@@ -211,6 +211,7 @@ services:
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       INVENTORY_SERVICE_URL: http://clinic-inventory:4014
+      PATIENTS_SERVICE_URL: http://patients:4010
       NODE_ENV: production
     depends_on:
       postgres:

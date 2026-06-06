@@ -137,6 +137,23 @@ export class PatientsService {
     return { exists: !!patient };
   }
 
+  // نقطة داخلية (خدمة-لخدمة): جلب أسماء عدّة مرضى بالجملة عبر معرّفاتهم.
+  // تُستخدم من خدمتَي الفيزياء/الأطراف لعرض اسم المريض في القوائم.
+  async findByIdsInternal(ids: string[]) {
+    const uniqueIds = [...new Set((ids ?? []).filter(Boolean))];
+    if (uniqueIds.length === 0) return [];
+    return this.prisma.patient.findMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+      select: {
+        id: true,
+        patientNumber: true,
+        firstName: true,
+        lastName: true,
+        idNumber: true,
+      },
+    });
+  }
+
   async checkDuplicate(idNumber: string) {
     const patient = await this.prisma.patient.findFirst({
       where: { idNumber, deletedAt: null },
