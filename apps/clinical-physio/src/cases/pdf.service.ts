@@ -87,7 +87,7 @@ export class PdfService {
       // ── Symptoms & Pain ───────────────────────────────────────────────
       if (c.symptoms?.length || c.painTypes?.length) {
         section('Symptoms & Pain Profile');
-        if (c.symptoms?.length) row('Symptoms', c.symptoms.join(', '));
+        if (c.symptoms?.length) row('Symptoms', c.symptoms);
         if (c.painTypes?.length) row('Pain Types', c.painTypes.join(', '));
         if (c.aggravatingFactors?.length) row('Aggravating Factors', c.aggravatingFactors.join(', '));
         if (c.alleviatingFactors?.length) row('Alleviating Factors', c.alleviatingFactors.join(', '));
