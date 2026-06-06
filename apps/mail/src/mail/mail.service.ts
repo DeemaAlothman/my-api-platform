@@ -298,11 +298,14 @@ export class MailService {
     }
 
     const messageFilter: any = {};
+    const andClauses: any[] = [];
     if (search) {
-      messageFilter.OR = [
-        { subject: { contains: search, mode: 'insensitive' } },
-        { body: { contains: search, mode: 'insensitive' } },
-      ];
+      andClauses.push({
+        OR: [
+          { subject: { contains: search, mode: 'insensitive' } },
+          { body: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
     if (dateFrom || dateTo) {
       messageFilter.createdAt = {
@@ -310,6 +313,18 @@ export class MailService {
         ...(dateTo ? { lte: new Date(dateTo) } : {}),
       };
     }
+    // INBOX: اعرض جذور المحادثات فقط — أخفِ الردود التي يملك المستخدم جذرها أصلاً
+    // (الرسائل المُحوَّلة أو الردود التي تضيف المستخدم لأول مرة تبقى ظاهرة لأنه لا يملك الجذر)
+    if (folder === MailFolder.INBOX) {
+      const userRootIds = await this.threadRootIdsForUser(userId);
+      andClauses.push({
+        OR: [
+          { parentMessageId: null },
+          { threadRootId: { notIn: userRootIds } },
+        ],
+      });
+    }
+    if (andClauses.length > 0) messageFilter.AND = andClauses;
     if (Object.keys(messageFilter).length > 0) {
       where.message = messageFilter;
     }
@@ -360,11 +375,14 @@ export class MailService {
     };
 
     const messageFilter: any = {};
+    const andClauses: any[] = [];
     if (search) {
-      messageFilter.OR = [
-        { subject: { contains: search, mode: 'insensitive' } },
-        { body: { contains: search, mode: 'insensitive' } },
-      ];
+      andClauses.push({
+        OR: [
+          { subject: { contains: search, mode: 'insensitive' } },
+          { body: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
     if (dateFrom || dateTo) {
       messageFilter.createdAt = {
@@ -372,6 +390,16 @@ export class MailService {
         ...(dateTo ? { lte: new Date(dateTo) } : {}),
       };
     }
+    // SENT: اعرض جذور المحادثات فقط — أخفِ الردود التي يملك المستخدم جذرها
+    // (مثال: ردّي على رسالة وصلتني جذرها في INBOX، فلا داعي لتكراره في المُرسَل)
+    const userRootIds = await this.threadRootIdsForUser(userId);
+    andClauses.push({
+      OR: [
+        { parentMessageId: null },
+        { threadRootId: { notIn: userRootIds } },
+      ],
+    });
+    if (andClauses.length > 0) messageFilter.AND = andClauses;
     if (Object.keys(messageFilter).length > 0) where.message = messageFilter;
 
     const include = {
@@ -445,6 +473,16 @@ export class MailService {
       where: {
         OR: [{ id: rootId }, { threadRootId: rootId }],
         deletedAt: null,
+        // التحكم بالوصول على مستوى كل رسالة داخل المحادثة:
+        // المستخدم يرى فقط الرسائل التي هو مُرسِلها أو أحد مستقبليها
+        AND: [
+          {
+            OR: [
+              { senderId: userId },
+              { recipients: { some: { recipientId: userId } } },
+            ],
+          },
+        ],
       },
       include: {
         attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
@@ -702,6 +740,19 @@ export class MailService {
     });
 
     return { messageId: message.id };
+  }
+
+  // جذور المحادثات التي يشارك فيها المستخدم (مُرسِل root له سجل SENT، أو مُستقبِل له سجل INBOX)
+  // تُستخدم لطيّ الردود في القوائم: إذا كان المستخدم يملك الجذر، نخفي ردوده/الردود عليه من القائمة
+  private async threadRootIdsForUser(userId: string): Promise<string[]> {
+    const rows = await (this.prisma as any).mailMessage.findMany({
+      where: {
+        parentMessageId: null,
+        recipients: { some: { recipientId: userId, deletedAt: null } },
+      },
+      select: { id: true },
+    });
+    return rows.map((r: any) => r.id);
   }
 
   private dedupRecipients(recipients: Array<{ userId: string; type: RecipientType }>, senderId: string) {
