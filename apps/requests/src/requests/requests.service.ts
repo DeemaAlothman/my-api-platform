@@ -81,6 +81,14 @@ export class RequestsService {
       });
     }
 
+    if ((dto.type as any) === 'MAINTENANCE') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'طلب الصيانة له مسار مخصّص — استخدم /requests/maintenance',
+        details: [{ field: 'type', value: dto.type }],
+      });
+    }
+
     if (MANAGER_ONLY_REQUEST_TYPES.includes(dto.type)) {
       const canCreate = permissions.includes('requests:hr-approve')
         || permissions.includes('requests:approve')

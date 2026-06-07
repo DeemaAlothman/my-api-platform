@@ -5,9 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ApprovalService } from './approval.service';
 import { ApprovalResolverService } from './approval-resolver.service';
 import { RequestNotificationsService } from './notifications.service';
+import { MaintenanceController } from './maintenance.controller';
+import { MaintenanceService } from './maintenance.service';
 
 @Module({
-  controllers: [RequestsController],
-  providers: [RequestsService, ApprovalService, ApprovalResolverService, PrismaService, RequestNotificationsService],
+  controllers: [RequestsController, MaintenanceController],
+  providers: [RequestsService, ApprovalService, ApprovalResolverService, PrismaService, RequestNotificationsService, MaintenanceService],
 })
 export class RequestsModule {}

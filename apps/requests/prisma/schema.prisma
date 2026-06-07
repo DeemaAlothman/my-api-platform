@@ -21,6 +21,7 @@ enum RequestType {
   COMPLAINT
   WORK_ACCIDENT
   REMOTE_WORK
+  MAINTENANCE
 }
 
 enum RequestStatus {
@@ -32,6 +33,10 @@ enum RequestStatus {
   REJECTED
   CANCELLED
   PENDING_EXIT_INTERVIEW
+  PENDING_LOGISTICS
+  PENDING_EXECUTIVE
+  ASSIGNED
+  DONE
 }
 
 enum ApprovalStatus {
