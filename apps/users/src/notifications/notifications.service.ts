@@ -17,6 +17,14 @@ export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateNotificationDto) {
+    // لا تُرسَل إشعارات للموظفين غير النشطين (غير نشط / منتهي الخدمة / موقوف)
+    const emp = await this.prisma.employee.findFirst({
+      where: { userId: dto.userId },
+      select: { employmentStatus: true },
+    });
+    if (emp && ['INACTIVE', 'TERMINATED', 'SUSPENDED'].includes(emp.employmentStatus as any)) {
+      return null;
+    }
     return this.prisma.notification.create({ data: dto });
   }
 

@@ -336,8 +336,9 @@ export class ApprovalService {
       }
 
       if (request.type === 'RESIGNATION') {
+        // بعد إتمام مقابلة الخروج: الموظف يصير غير نشط (INACTIVE)
         await this.prisma.$queryRawUnsafe(
-          `UPDATE users.employees SET "employmentStatus" = 'TERMINATED', "updatedAt" = NOW() WHERE id = $1`,
+          `UPDATE users.employees SET "employmentStatus" = 'INACTIVE', "updatedAt" = NOW() WHERE id = $1`,
           request.employeeId,
         );
       }

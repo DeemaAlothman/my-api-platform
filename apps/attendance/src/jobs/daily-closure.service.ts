@@ -190,6 +190,12 @@ export class DailyClosureService implements OnModuleInit {
         continue;
       }
 
+      // غير مرتبط بالراتب (معفي من الحضور) → لا يُعلَّم غائباً ولا تُنشأ له سجلات حضور تلقائية
+      if (!salaryLinked) {
+        skipped++;
+        continue;
+      }
+
       if (!record) {
         await this.createAbsentRecord(employeeId, dateStr, salaryLinked);
         absentCreated++;
