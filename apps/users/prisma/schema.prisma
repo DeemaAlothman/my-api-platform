@@ -107,6 +107,9 @@ model Employee {
   managerNotesUpdatedAt DateTime?
   managerNotesUpdatedBy String?
 
+  // General notes (ملاحظات عامة — اختياري)
+  notes                 String?    @db.Text
+
   // Exit Interview
   exitInterviewEvaluation String?
 

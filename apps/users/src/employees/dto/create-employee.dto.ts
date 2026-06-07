@@ -342,6 +342,11 @@ export class CreateEmployeeDto {
   @IsString()
   certificateAttachment2?: string;
 
+  // ملاحظات عامة (اختياري)
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
