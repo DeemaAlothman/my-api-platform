@@ -577,6 +577,9 @@ export class SyncService {
     if (!schedules[0]) return zero;
 
     const s = schedules[0];
+    // حارس: جدول بلا أوقات بداية/نهاية (موظف بدون دوام صحيح) — لا نحسب فروقات الدوام
+    // بدل أن يطير .split على null ويوقف معالجة بصمات الموظف بالكامل.
+    if (!s.workStartTime || !s.workEndTime) return zero;
     const [startH, startM] = s.workStartTime.split(':').map(Number);
     const [endH, endM] = s.workEndTime.split(':').map(Number);
 
