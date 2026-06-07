@@ -535,7 +535,10 @@ export class EmployeesService {
   // نقل/تغيير وظيفي: يعدّل الحقول المُرسَلة فقط داخل transaction ويسجّل حدث TRANSFER
   // بالقيم القديمة→الجديدة (مع أسماء القسم/المنصب/المدير وقت التغيير).
   async transfer(id: string, dto: TransferEmployeeDto, performedBy?: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
+    const employee = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
+      include: { allowances: true },
+    });
     if (!employee) {
       throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Employee not found', details: [{ id }] });
     }
@@ -600,6 +603,13 @@ export class EmployeesService {
       if (dto.salaryCurrency) data.salaryCurrency = dto.salaryCurrency;
     }
 
+    // البدلات: إذا أُرسلت، تستبدل بدلات الموظف بالكامل ويُسجّل التغيير القديم→الجديد
+    if (dto.allowances !== undefined) {
+      from.allowances = ((employee as any).allowances ?? []).map((a: any) => ({ type: a.type, amount: a.amount }));
+      to.allowances = dto.allowances.map((a) => ({ type: a.type, amount: a.amount }));
+      data.allowances = { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) };
+    }
+
     if (Object.keys(data).length === 0) {
       throw new BadRequestException({ code: 'NO_CHANGES', message: 'لم يتم تقديم أي تغيير', details: [] });
     }
@@ -623,7 +633,10 @@ export class EmployeesService {
 
   // تغيير راتب مستقل (أو ترقية) — يعدّل الراتب ويسجّل حدثاً بالإضبارة.
   async changeSalary(id: string, dto: ChangeSalaryDto, performedBy?: string) {
-    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
+    const employee = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
+      include: { allowances: true },
+    });
     if (!employee) {
       throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Employee not found', details: [{ id }] });
     }
@@ -631,14 +644,20 @@ export class EmployeesService {
       await this.validateSalaryRange(employee.jobGradeId, Number(dto.basicSalary));
     }
 
-    const from = { basicSalary: employee.basicSalary, currency: employee.salaryCurrency };
-    const to = { basicSalary: dto.basicSalary, currency: dto.salaryCurrency ?? employee.salaryCurrency };
+    const from: any = { salary: { basicSalary: employee.basicSalary, currency: employee.salaryCurrency } };
+    const to: any = { salary: { basicSalary: dto.basicSalary, currency: dto.salaryCurrency ?? employee.salaryCurrency } };
+
+    const data: any = { basicSalary: dto.basicSalary, ...(dto.salaryCurrency ? { salaryCurrency: dto.salaryCurrency } : {}) };
+
+    // البدلات: إذا أُرسلت، تستبدل بدلات الموظف بالكامل ويُسجّل التغيير القديم→الجديد
+    if (dto.allowances !== undefined) {
+      from.allowances = ((employee as any).allowances ?? []).map((a: any) => ({ type: a.type, amount: a.amount }));
+      to.allowances = dto.allowances.map((a) => ({ type: a.type, amount: a.amount }));
+      data.allowances = { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) };
+    }
 
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.employee.update({
-        where: { id },
-        data: { basicSalary: dto.basicSalary, ...(dto.salaryCurrency ? { salaryCurrency: dto.salaryCurrency } : {}) },
-      });
+      const updated = await tx.employee.update({ where: { id }, data });
       await tx.employeeHistoryEvent.create({
         data: {
           employeeId: id,
