@@ -689,6 +689,31 @@ export class EmployeesService {
       this.prisma.salaryAdvance.findMany({ where: { employeeId: id, deletedAt: null }, orderBy: { createdAt: 'desc' } }),
     ]);
 
+    // طلبات الموظف (إجازات + طلبات عامة) — قراءة عبر السكيمات؛ فشل أيٍّ منها لا يكسر الإضبارة
+    let leaveRequests: any[] = [];
+    try {
+      leaveRequests = await this.prisma.$queryRawUnsafe(
+        `SELECT lr.id, lr.status::text AS status, lr."startDate", lr."endDate",
+                lr."totalDays", lr.reason, lr."createdAt", lt."nameAr" AS "leaveTypeName"
+         FROM leaves.leave_requests lr
+         LEFT JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+         WHERE lr."employeeId" = $1 AND lr.status::text <> 'DRAFT'
+         ORDER BY lr."createdAt" DESC`,
+        id,
+      );
+    } catch { /* leaves schema unavailable — تجاهل */ }
+
+    let generalRequests: any[] = [];
+    try {
+      generalRequests = await this.prisma.$queryRawUnsafe(
+        `SELECT id, "requestNumber", type::text AS type, status::text AS status, reason, "createdAt"
+         FROM requests.requests
+         WHERE "employeeId" = $1 AND "deletedAt" IS NULL AND status::text <> 'DRAFT'
+         ORDER BY "createdAt" DESC`,
+        id,
+      );
+    } catch { /* requests schema unavailable — تجاهل */ }
+
     const timeline: any[] = [
       ...events.map((e) => ({
         category: 'HISTORY',
@@ -725,6 +750,29 @@ export class EmployeesService {
         note: a.notes,
         id: a.id,
         createdAt: a.createdAt,
+      })),
+      ...leaveRequests.map((r) => ({
+        category: 'LEAVE_REQUEST',
+        type: 'LEAVE_REQUEST',
+        date: r.createdAt,
+        status: r.status,
+        leaveTypeName: r.leaveTypeName,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        totalDays: r.totalDays,
+        reason: r.reason,
+        id: r.id,
+        createdAt: r.createdAt,
+      })),
+      ...generalRequests.map((r) => ({
+        category: 'REQUEST',
+        type: r.type,
+        date: r.createdAt,
+        status: r.status,
+        requestNumber: r.requestNumber,
+        reason: r.reason,
+        id: r.id,
+        createdAt: r.createdAt,
       })),
     ].sort((x, y) => new Date(y.date as any).getTime() - new Date(x.date as any).getTime());
 
