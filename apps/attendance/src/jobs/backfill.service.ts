@@ -228,7 +228,9 @@ export class BackfillService {
     let longestContinuousWorkMinutes = workedMinutes;
     const punchSequenceStatus = 'VALID'; // backfill يعمل فقط على سجلات مكتملة
 
-    if (schedules[0]) {
+    // نحسب التأخير/الخروج المبكر فقط للورديات التي لها أوقات بداية/نهاية.
+    // الوردية المرنة (FLEXIBLE) أوقاتها null — نتخطّى هذا الحساب (يبقى 0) ويُطبَّق منطقها أدناه.
+    if (schedules[0] && schedules[0].workStartTime && schedules[0].workEndTime) {
       const s = schedules[0];
       const [startH, startM] = s.workStartTime.split(':').map(Number);
       const [endH, endM] = s.workEndTime.split(':').map(Number);

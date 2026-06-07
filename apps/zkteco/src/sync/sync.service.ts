@@ -577,9 +577,17 @@ export class SyncService {
     if (!schedules[0]) return zero;
 
     const s = schedules[0];
-    // حارس: جدول بلا أوقات بداية/نهاية (موظف بدون دوام صحيح) — لا نحسب فروقات الدوام
-    // بدل أن يطير .split على null ويوقف معالجة بصمات الموظف بالكامل.
-    if (!s.workStartTime || !s.workEndTime) return zero;
+    // حارس: وردية بلا أوقات بداية/نهاية (مثل الوردية المرنة FLEXIBLE التي لا تحتاجها).
+    // لا نحسب تأخير/خروج مبكر، لكن نُبقي نوع الوردية وحدّها الأدنى حتى يطبّق المستدعي
+    // منطق المرنة الصحيح (الحد الأدنى للساعات / العمل المتواصل) بدل أن تُعامَل كوردية عادية.
+    if (!s.workStartTime || !s.workEndTime) {
+      return {
+        ...zero,
+        shiftType: s.shiftType ?? 'DAY',
+        minimumWorkMinutes: s.minimumWorkMinutes ?? null,
+        requiresContinuousWork: s.requiresContinuousWork ?? false,
+      };
+    }
     const [startH, startM] = s.workStartTime.split(':').map(Number);
     const [endH, endM] = s.workEndTime.split(':').map(Number);
 
