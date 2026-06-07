@@ -167,7 +167,17 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.findByEmployee(employeeId, query);
   }
 
-  // قائمة جميع الطلبات (للمدراء و HR)
+  // طلبات مرؤوسي المدير الحالي فقط — managerId مفروض من التوكن (لا يمكن تجاوزه)
+  @Get('pending-manager')
+  @Permission('leave_requests:approve_manager')
+  findForManager(
+    @EmployeeId() managerEmployeeId: string,
+    @Query() query: ListLeaveRequestsQueryDto,
+  ) {
+    return this.leaveRequestsService.findAll({ ...query, managerId: managerEmployeeId });
+  }
+
+  // قائمة جميع الطلبات (لـ HR — يرى الكل)
   @Get()
   @Permission('leave_requests:read_all')
   findAll(@Query() query: ListLeaveRequestsQueryDto) {

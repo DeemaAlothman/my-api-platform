@@ -30,7 +30,7 @@ export class CustodiesController {
 
   // مهم: routes الثابتة قبل :id
   @Get('my')
-  @UseGuards(JwtAuthGuard)
+  @Permission('custodies:read_own')
   getMyCustodies(@Req() req: any) {
     return this.custodiesService.findMyCustodies(req.user.username);
   }
