@@ -37,6 +37,9 @@ export class AuditLogsService {
     const params: (string | number)[] = [];
     let paramIdx = 1;
 
+    // إخفاء الاستدعاءات الداخلية بين الخدمات (مسارات /internal) — ضجيج تقني وليست عمليات بشر
+    conditions.push(`(path IS NULL OR path NOT ILIKE '%/internal%')`);
+
     if (allowedUserIds !== null) {
       if (allowedUserIds.length === 0) {
         return { data: [], total: 0, page, limit };
