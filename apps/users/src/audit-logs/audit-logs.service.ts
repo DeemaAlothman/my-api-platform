@@ -63,7 +63,7 @@ export class AuditLogsService {
 
     const countSql = `SELECT COUNT(*)::text AS total FROM public.audit_logs ${where}`;
     const dataSql = `
-      SELECT id::text, "userId", username, action, resource, "resourceId", method, path, ip, "createdAt"
+      SELECT id::text, "userId", username, action, resource, "resourceId", method, path, ip, metadata, "createdAt"
       FROM public.audit_logs ${where}
       ORDER BY "createdAt" DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -81,6 +81,7 @@ export class AuditLogsService {
         method: string;
         path: string;
         ip: string | null;
+        metadata: any;
         createdAt: Date;
       }>>,
     ]);
@@ -93,12 +94,24 @@ export class AuditLogsService {
       data: rows.map((r) => ({
         ...r,
         fullNameAr: nameMap[r.userId ?? ''] ?? null,
-        description: this.buildDescription(r, nameMap[r.userId ?? '']),
+        description: this.buildDescription(r, nameMap[r.userId ?? '']) + this.detailsSuffix(r.metadata),
       })),
       total: parseInt((countRows as any)[0]?.total ?? '0'),
       page,
       limit,
     };
+  }
+
+  // يضيف تفاصيل العملية (من metadata) لنهاية الوصف بصيغة مقروءة
+  private detailsSuffix(metadata: any): string {
+    if (!metadata || typeof metadata !== 'object') return '';
+    const parts: string[] = [];
+    for (const [k, v] of Object.entries(metadata)) {
+      if (v === null || v === undefined || v === '' || typeof v === 'object') continue;
+      parts.push(`${k}: ${v}`);
+      if (parts.length >= 8) break;
+    }
+    return parts.length ? ` — التفاصيل: ${parts.join('، ')}` : '';
   }
 
   private async getFullNamesAr(userIds: string[]): Promise<Record<string, string>> {
