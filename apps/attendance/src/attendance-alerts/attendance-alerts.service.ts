@@ -26,6 +26,14 @@ export class AttendanceAlertsService {
     }]));
   }
 
+  // الموظفون غير المرتبطين بالراتب (معفيون من الحضور) — تُستثنى تنبيهاتهم من القوائم
+  private async getExemptEmployeeIds(): Promise<string[]> {
+    const rows = (await this.prisma.$queryRawUnsafe(
+      `SELECT "employeeId" FROM attendance.employee_attendance_configs WHERE "salaryLinked" = false`,
+    )) as Array<{ employeeId: string }>;
+    return rows.map(r => r.employeeId);
+  }
+
   async create(dto: CreateAttendanceAlertDto) {
     const data: any = {
       employeeId: dto.employeeId,
@@ -62,6 +70,16 @@ export class AttendanceAlertsService {
       where.date = {};
       if (filters.dateFrom) where.date.gte = new Date(filters.dateFrom);
       if (filters.dateTo) where.date.lte = new Date(filters.dateTo);
+    }
+
+    // استثناء الموظفين غير المرتبطين بالراتب (المعفيين من الحضور)
+    const exemptIds = await this.getExemptEmployeeIds();
+    if (exemptIds.length) {
+      if (filters?.employeeId) {
+        if (exemptIds.includes(filters.employeeId)) where.id = '__none__';
+      } else {
+        where.employeeId = { notIn: exemptIds };
+      }
     }
 
     const page = Math.max(1, Number(filters?.page) || 1);
@@ -169,7 +187,14 @@ export class AttendanceAlertsService {
     }
     const subordinateIds = subordinates.map(s => s.id);
 
-    const where: any = { employeeId: { in: subordinateIds } };
+    // استثناء المرؤوسين غير المرتبطين بالراتب (معفيين من الحضور)
+    const exemptSet = new Set(await this.getExemptEmployeeIds());
+    const visibleIds = subordinateIds.filter(id => !exemptSet.has(id));
+    if (!visibleIds.length) {
+      return { items: [], page: 1, limit: 10, total: 0, totalPages: 1 };
+    }
+
+    const where: any = { employeeId: { in: visibleIds } };
     if (filters?.type) where.alertType = filters.type;
     if (filters?.status) where.status = filters.status;
     if (filters?.dateFrom || filters?.dateTo) {
