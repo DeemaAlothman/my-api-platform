@@ -131,8 +131,10 @@ export class AuditLogsService {
     row: { username?: string | null; method: string; resource?: string | null; path?: string | null; resourceId?: string | null },
     fullNameAr?: string,
   ): string {
-    const name = fullNameAr || row.username || 'مستخدم';
-    const prefix = `المستخدم ${name}`;
+    // الاسم: الاسم الكامل ← username العمود ← username من تفاصيل الطلب (لتسجيل الدخول) ← وإلا "النظام"
+    const metaUsername = (row as any)?.metadata?.username;
+    const name = fullNameAr || row.username || metaUsername || null;
+    const prefix = name ? `المستخدم ${name}` : 'النظام';
     const path = row.path ?? '';
     const method = (row.method ?? '').toUpperCase();
 
