@@ -10,6 +10,11 @@ export class UpdateUserDto {
   @IsString()
   fullName?: string;
 
+  // معرّف AnyDesk (اختياري)
+  @IsOptional()
+  @IsString()
+  anydesk?: string;
+
   @IsOptional()
   @IsEnum(UserStatus, { message: 'Status must be ACTIVE or INACTIVE' })
   status?: UserStatus;

@@ -58,6 +58,7 @@ export class UsersService {
           username: true,
           email: true,
           fullName: true,
+          anydesk: true,
           status: true,
           roles: {
             select: {
@@ -100,6 +101,7 @@ export class UsersService {
         username: true,
         email: true,
         fullName: true,
+        anydesk: true,
         status: true,
         roles: {
           select: {
@@ -173,6 +175,7 @@ export class UsersService {
         email: dto.email,
         password: hashedPassword,
         fullName: dto.fullName,
+        anydesk: dto.anydesk ?? null,
         status: 'ACTIVE',
       },
       select: {
@@ -180,6 +183,7 @@ export class UsersService {
         username: true,
         email: true,
         fullName: true,
+        anydesk: true,
         status: true,
         roles: {
           select: {
@@ -237,6 +241,7 @@ export class UsersService {
         username: true,
         email: true,
         fullName: true,
+        anydesk: true,
         status: true,
         roles: {
           select: {
@@ -334,6 +339,7 @@ export class UsersService {
         username: true,
         email: true,
         fullName: true,
+        anydesk: true,
         status: true,
         roles: {
           include: {

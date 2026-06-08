@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @IsNotEmpty({ message: 'Username is required' })
@@ -17,4 +17,9 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'Full name is required' })
   @IsString()
   fullName: string;
+
+  // معرّف AnyDesk (اختياري)
+  @IsOptional()
+  @IsString()
+  anydesk?: string;
 }
