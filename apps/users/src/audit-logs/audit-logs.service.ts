@@ -93,11 +93,17 @@ export class AuditLogsService {
     const userIds = [...new Set(rows.map((r) => r.userId).filter(Boolean))] as string[];
     const nameMap = await this.getFullNamesAr(userIds);
 
+    // حلّ أسماء أنواع الإجازات (leaveTypeId → الاسم العربي) لكل الصفحة دفعة واحدة
+    const leaveTypeIds = [...new Set(
+      rows.map((r) => (r.metadata && typeof r.metadata === 'object') ? r.metadata.leaveTypeId : null).filter(Boolean),
+    )] as string[];
+    const leaveTypeMap = await this.getLeaveTypeNames(leaveTypeIds).catch(() => ({} as Record<string, string>));
+
     return {
       data: rows.map((r) => ({
         ...r,
         fullNameAr: nameMap[r.userId ?? ''] ?? null,
-        description: this.buildDescription(r, nameMap[r.userId ?? '']) + this.detailsSuffix(r.metadata),
+        description: this.buildDescription(r, nameMap[r.userId ?? '']) + this.detailsSuffix(r.metadata, leaveTypeMap),
       })),
       total: parseInt((countRows as any)[0]?.total ?? '0'),
       page,
@@ -105,13 +111,51 @@ export class AuditLogsService {
     };
   }
 
-  // يضيف تفاصيل العملية (من metadata) لنهاية الوصف بصيغة مقروءة
-  private detailsSuffix(metadata: any): string {
+  // أسماء أنواع الإجازات العربية (عبر السكيمات) — فشل الاستعلام لا يكسر العرض
+  private async getLeaveTypeNames(ids: string[]): Promise<Record<string, string>> {
+    if (!ids.length) return {};
+    const rows = await this.prisma.$queryRawUnsafe(
+      `SELECT id::text AS id, "nameAr" FROM leaves.leave_types WHERE id::text = ANY($1::text[])`,
+      ids,
+    ) as Array<{ id: string; nameAr: string }>;
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.id] = r.nameAr;
+    return map;
+  }
+
+  // يضيف تفاصيل العملية (من metadata) لنهاية الوصف بصيغة عربية مقروءة
+  private detailsSuffix(metadata: any, leaveTypeMap: Record<string, string> = {}): string {
     if (!metadata || typeof metadata !== 'object') return '';
+
+    const FIELD_AR: Record<string, string> = {
+      leaveTypeId: 'نوع الإجازة', type: 'نوع الطلب', startDate: 'من', endDate: 'إلى',
+      startTime: 'من', endTime: 'إلى', date: 'التاريخ', reason: 'السبب', isHalfDay: 'نصف يوم',
+      workLocation: 'الموقع', assetType: 'نوع الأصل', assetNumber: 'رقم الأصل', brandModel: 'الماركة والموديل',
+      faultDescription: 'وصف العطل', priority: 'الأولوية', repairOption: 'نوع الإصلاح', situationDescription: 'توصيف الحالة',
+      basicSalary: 'الراتب', salaryCurrency: 'العملة', notes: 'ملاحظات', amount: 'المبلغ', effectiveDate: 'تاريخ النفاذ',
+      name: 'الاسم', title: 'العنوان',
+    };
+    const REQ_TYPE_AR: Record<string, string> = {
+      RESIGNATION: 'استقالة', TRANSFER: 'نقل', REWARD: 'مكافأة', PENALTY_PROPOSAL: 'عقوبة',
+      OVERTIME_EMPLOYEE: 'عمل إضافي (موظف)', OVERTIME_MANAGER: 'عمل إضافي (مدير)', BUSINESS_MISSION: 'مهمة عمل',
+      DELEGATION: 'تفويض', HIRING_REQUEST: 'طلب توظيف', COMPLAINT: 'شكوى', WORK_ACCIDENT: 'حادث عمل',
+      REMOTE_WORK: 'عمل عن بُعد', MAINTENANCE: 'صيانة', OTHER: 'أخرى',
+    };
+    const VAL_AR: Record<string, string> = {
+      SHAHBA: 'شركة شهباء', CENTER: 'مركز', NEW_ALEPPO: 'شركة حلب الجديدة',
+      URGENT: 'عاجل', MEDIUM: 'متوسط', NORMAL: 'عادي',
+      INTERNAL: 'إصلاح داخلي', INTERNAL_PARTS: 'داخلي + قطع خارجية', EXTERNAL_WORKSHOP: 'ورشة خارجية',
+    };
+
     const parts: string[] = [];
     for (const [k, v] of Object.entries(metadata)) {
       if (v === null || v === undefined || v === '' || typeof v === 'object') continue;
-      parts.push(`${k}: ${v}`);
+      let val: any = v;
+      if (k === 'leaveTypeId') val = leaveTypeMap[String(v)] ?? v;
+      else if (k === 'type') val = REQ_TYPE_AR[String(v)] ?? v;
+      else if (typeof v === 'boolean') val = v ? 'نعم' : 'لا';
+      else if (typeof v === 'string' && VAL_AR[v]) val = VAL_AR[v];
+      parts.push(`${FIELD_AR[k] ?? k}: ${val}`);
       if (parts.length >= 8) break;
     }
     return parts.length ? ` — التفاصيل: ${parts.join('، ')}` : '';
