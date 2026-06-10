@@ -204,6 +204,8 @@ export class CasesService {
         treatmentTo: dto.treatmentTo ? new Date(dto.treatmentTo) : undefined,
         anticipatedVisits: dto.anticipatedVisits,
         finalNotes: dto.finalNotes,
+        hadPreviousInjury: dto.hadPreviousInjury,
+        painProgression: dto.painProgression,
       },
     });
   }

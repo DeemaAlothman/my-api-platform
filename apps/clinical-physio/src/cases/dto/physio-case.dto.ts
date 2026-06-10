@@ -148,6 +148,14 @@ export class UpdatePhysioCaseDto {
 
   @IsOptional() @IsString()
   finalNotes?: string;
+
+  // هل سبق التعرض لهذه الإصابة؟ (Have you had this injury before?)
+  @IsOptional() @IsBoolean()
+  hadPreviousInjury?: boolean;
+
+  // هل يتحسن الألم أم يزداد سوءاً؟ (Is your pain getting better or worse?)
+  @IsOptional() @IsString()
+  painProgression?: string;
 }
 
 export class UpdatePhysioStatusDto {
