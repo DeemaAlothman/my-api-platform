@@ -16,7 +16,7 @@ export class MedicalLeaveNotifierService {
     const pendingRequests = await this.prisma.$queryRaw<any[]>`
       SELECT lr.id, lr."employeeId", lr."createdAt",
              lt.code AS "leaveTypeCode",
-             e."firstNameAr", e."lastNameAr", e."employeeNumber"
+             e."firstNameAr", e."lastNameAr", e."employeeNumber", e."gender"
       FROM leaves.leave_requests lr
       JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
       JOIN users.employees e ON e.id = lr."employeeId"
@@ -29,13 +29,19 @@ export class MedicalLeaveNotifierService {
 
     if (pendingRequests.length === 0) return;
 
-    // جلب كل مستخدمين لديهم صلاحية leave_requests:approve_hr
+    // جلب مستخدمي HR (صلاحية leave_requests:approve_hr) مع استثناء المدير التنفيذي (دور CEO/CEOO)
     const hrUsers = await this.prisma.$queryRaw<Array<{ userId: string }>>`
       SELECT DISTINCT ur."userId"
       FROM users.user_roles ur
       JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
       JOIN users.permissions p ON p.id = rp."permissionId"
       WHERE p.name = 'leave_requests:approve_hr'
+        AND ur."userId" NOT IN (
+          SELECT ur2."userId"
+          FROM users.user_roles ur2
+          JOIN users.roles r2 ON r2.id = ur2."roleId"
+          WHERE r2.name IN ('CEO', 'CEOO')
+        )
     `;
 
     if (hrUsers.length === 0) {
@@ -45,21 +51,29 @@ export class MedicalLeaveNotifierService {
 
     for (const req of pendingRequests) {
       const employeeName = `${req.firstNameAr} ${req.lastNameAr}`;
+      // الضمير حسب جنس الموظف: مديرها (أنثى) / مديره (ذكر)
+      const managerWord = req.gender === 'FEMALE' ? 'مديرها المباشر' : 'مديره المباشر';
+      const messageAr = `يوجد طلب إجازة طبية للموظف ${employeeName} (${req.employeeNumber}) في انتظار موافقة ${managerWord} منذ أكثر من 48 ساعة`;
+      const messageEn = `There is a medical leave request for employee ${employeeName} (${req.employeeNumber}) awaiting their direct manager's approval for more than 48 hours`;
+      // رابط التفاصيل: الفرونت يفتح الطلب عبر leaveRequestId (GET /leave-requests/:id)
+      const data = JSON.stringify({ leaveRequestId: req.id });
 
-      // إرسال إشعار لكل مستخدم HR
+      // إرسال إشعار لكل مستخدم HR (المدير التنفيذي مُستثنى)
       for (const hr of hrUsers) {
         await this.prisma.$queryRawUnsafe(`
-          INSERT INTO users.notifications ("id", "userId", "type", "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+          INSERT INTO users.notifications ("id", "userId", "type", "titleAr", "titleEn", "messageAr", "messageEn", "data", "isRead", "createdAt")
           VALUES (gen_random_uuid(), $1, 'GENERAL',
-            'طلب إجازة طبية معلق',
-            'Pending Medical Leave Request',
+            'تنبيه',
+            'Alert',
             $2,
             $3,
+            $4::jsonb,
             false, NOW())
         `,
           hr.userId,
-          `طلب إجازة طبية للموظف ${employeeName} (${req.employeeNumber}) في انتظار الموافقة منذ أكثر من 48 ساعة`,
-          `Medical leave request for employee ${employeeName} (${req.employeeNumber}) has been pending for more than 48 hours`,
+          messageAr,
+          messageEn,
+          data,
         );
       }
 
