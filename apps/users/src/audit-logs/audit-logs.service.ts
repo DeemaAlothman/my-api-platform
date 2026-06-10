@@ -102,7 +102,7 @@ export class AuditLogsService {
     return {
       data: rows.map((r) => ({
         ...r,
-        fullNameAr: nameMap[r.userId ?? ''] ?? null,
+        fullNameAr: nameMap[r.userId ?? ''] ?? r.username ?? null,
         description: this.buildDescription(r, nameMap[r.userId ?? '']) + this.detailsSuffix(r.metadata, leaveTypeMap),
       })),
       total: parseInt((countRows as any)[0]?.total ?? '0'),
