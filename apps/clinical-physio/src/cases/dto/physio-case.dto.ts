@@ -180,12 +180,73 @@ export class ListPhysioCasesQueryDto {
   limit?: number = 20;
 }
 
+// ── الشكوى المرضية (Medical Complaint) ──
+export class ComplaintDto {
+  // 1) نوع الشكاية المرضية
+  @IsOptional() @IsString()
+  complaintType?: string;
+
+  // 2) تحديد مكان الألم
+  @IsOptional() @IsString()
+  painLocation?: string;
+
+  // 3) منذ متى وأنت تعاني من الشكاية (نص حر)
+  @IsOptional() @IsString()
+  complaintDuration?: string;
+
+  // 4) ملاحظات
+  @IsOptional() @IsString()
+  complaintNotes?: string;
+
+  // 5) هل يوجد أمراض مزمنة؟ + التفصيل عند نعم
+  @IsOptional() @IsBoolean()
+  hasChronicDiseases?: boolean;
+  @IsOptional() @IsString()
+  chronicDiseasesDetail?: string;
+
+  // 6) هل سبق وزرت طبيباً مختصاً؟ + السبب عند نعم (يُخزّن في previousDoctorSeen)
+  @IsOptional() @IsBoolean()
+  visitedSpecialist?: boolean;
+  @IsOptional() @IsString()
+  specialistReason?: string;
+
+  // 7) هل خضعت لجلسات علاج فيزيائي سابقاً؟ + القيمة عند نعم (يُخزّن في previousTreatment)
+  @IsOptional() @IsBoolean()
+  hadPreviousPT?: boolean;
+  @IsOptional() @IsString()
+  previousPTDetail?: string;
+
+  // 8) هل سبق وخضعت لعمل جراحي؟ + التفصيل عند نعم
+  @IsOptional() @IsBoolean()
+  hadSurgery?: boolean;
+  @IsOptional() @IsString()
+  surgeryDetail?: string;
+}
+
 export class PainMapDto {
-  @IsArray()
-  regions: any[];
+  @IsOptional() @IsArray()
+  regions?: any[];
 
   @IsOptional() @IsString()
   notes?: string;
+
+  // أنواع الألم: NUMBNESS / DULL_ACHE / HOT_BURNING / SHARP_STABBING / PINS / OTHER
+  @IsOptional() @IsArray() @IsEnum(PhysioPainType, { each: true })
+  painTypes?: PhysioPainType[];
+  @IsOptional() @IsString()
+  painTypeOther?: string;
+
+  // العوامل المحرّضة للألم
+  @IsOptional() @IsArray() @IsEnum(PainFactor, { each: true })
+  aggravatingFactors?: PainFactor[];
+  @IsOptional() @IsString()
+  aggravatingOther?: string;
+
+  // العوامل المخفّفة للألم
+  @IsOptional() @IsArray() @IsEnum(PainFactor, { each: true })
+  alleviatingFactors?: PainFactor[];
+  @IsOptional() @IsString()
+  alleviatingOther?: string;
 }
 
 export class MedicalHistoryDto {

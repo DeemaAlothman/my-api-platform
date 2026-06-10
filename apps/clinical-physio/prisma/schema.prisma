@@ -175,6 +175,17 @@ model PhysioCase {
   hadPreviousPT       Boolean  @default(false)
   hadPreviousInjury   Boolean  @default(false)
 
+  // ── الشكوى المرضية (Medical Complaint form) ──
+  complaintType         String?  // نوع الشكاية المرضية
+  painLocation          String?  // تحديد مكان الألم
+  complaintDuration     String?  // منذ متى وأنت تعاني (نص حر)
+  complaintNotes        String?  @db.Text // ملاحظات
+  hasChronicDiseases    Boolean  @default(false) // هل يوجد أمراض مزمنة؟
+  chronicDiseasesDetail String?  // ما هو المرض المزمن
+  visitedSpecialist     Boolean  @default(false) // هل سبق وزرت طبيباً مختصاً؟
+  hadSurgery            Boolean  @default(false)  // هل سبق وخضعت لعمل جراحي؟
+  surgeryDetail         String?  // تفاصيل العمل الجراحي
+
   painStartDate       DateTime?
   painLevel           PainLevel?
   painDuration        PainDuration?
@@ -183,6 +194,7 @@ model PhysioCase {
   worstTimeOfDay      String?
 
   painTypes           PhysioPainType[]
+  painTypeOther       String?
   aggravatingFactors  PainFactor[]
   aggravatingOther    String?
   alleviatingFactors  PainFactor[]

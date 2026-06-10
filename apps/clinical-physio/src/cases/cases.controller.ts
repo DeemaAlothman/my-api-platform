@@ -7,7 +7,7 @@ import { CasesService } from './cases.service';
 import { PdfService } from './pdf.service';
 import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
-  PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
+  ComplaintDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto,
 } from './dto/physio-case.dto';
@@ -61,6 +61,20 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_CREATE)
   updateStatus(@Param('id') id: string, @Body() dto: UpdatePhysioStatusDto) {
     return this.service.updateStatus(id, dto);
+  }
+
+  // ── الشكوى المرضية (Medical Complaint) ──────────────────────────────────────
+
+  @Post(':id/complaint')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
+  upsertComplaint(@Param('id') id: string, @Body() dto: ComplaintDto) {
+    return this.service.upsertComplaint(id, dto);
+  }
+
+  @Put(':id/complaint')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
+  updateComplaint(@Param('id') id: string, @Body() dto: ComplaintDto) {
+    return this.service.upsertComplaint(id, dto);
   }
 
   // ── Pain Map ──────────────────────────────────────────────────────────────

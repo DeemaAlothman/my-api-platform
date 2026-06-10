@@ -5,7 +5,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
-  PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
+  ComplaintDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto,
 } from './dto/physio-case.dto';
@@ -255,14 +255,56 @@ export class CasesService {
     return items.map((i) => ({ ...i, patient: nameMap[patientId] ?? null }));
   }
 
+  // ── الشكوى المرضية (Medical Complaint) ──────────────────────────────────────
+
+  async upsertComplaint(caseId: string, dto: ComplaintDto) {
+    await this.findCaseOrThrow(caseId);
+    // نمرّر فقط الحقول المُرسلة (undefined لا يغيّر القيمة الحالية)
+    const data: any = {
+      complaintType: dto.complaintType,
+      painLocation: dto.painLocation,
+      complaintDuration: dto.complaintDuration,
+      complaintNotes: dto.complaintNotes,
+      hasChronicDiseases: dto.hasChronicDiseases,
+      // التفصيل يُمسح إذا كان الجواب "لا"
+      chronicDiseasesDetail: dto.hasChronicDiseases === false ? null : dto.chronicDiseasesDetail,
+      visitedSpecialist: dto.visitedSpecialist,
+      previousDoctorSeen: dto.visitedSpecialist === false ? null : dto.specialistReason,
+      hadPreviousPT: dto.hadPreviousPT,
+      previousTreatment: dto.hadPreviousPT === false ? null : dto.previousPTDetail,
+      hadSurgery: dto.hadSurgery,
+      surgeryDetail: dto.hadSurgery === false ? null : dto.surgeryDetail,
+    };
+    Object.keys(data).forEach((k) => data[k] === undefined && delete data[k]);
+    return this.prisma.physioCase.update({ where: { id: caseId }, data });
+  }
+
   // ── Pain Map ──────────────────────────────────────────────────────────────
 
   async upsertPainMap(caseId: string, dto: PainMapDto) {
     await this.findCaseOrThrow(caseId);
+
+    // أنواع الألم والعوامل المحرّضة/المخفّفة مُخزّنة على الحالة نفسها
+    const caseData: any = {
+      painTypes: dto.painTypes as any,
+      painTypeOther: dto.painTypeOther,
+      aggravatingFactors: dto.aggravatingFactors as any,
+      aggravatingOther: dto.aggravatingOther,
+      alleviatingFactors: dto.alleviatingFactors as any,
+      alleviatingOther: dto.alleviatingOther,
+    };
+    Object.keys(caseData).forEach((k) => caseData[k] === undefined && delete caseData[k]);
+    if (Object.keys(caseData).length > 0) {
+      await this.prisma.physioCase.update({ where: { id: caseId }, data: caseData });
+    }
+
     return this.prisma.painMap.upsert({
       where: { caseId },
-      create: { caseId, regions: dto.regions, notes: dto.notes },
-      update: { regions: dto.regions, notes: dto.notes },
+      create: { caseId, regions: (dto.regions ?? []) as any, notes: dto.notes },
+      update: {
+        ...(dto.regions !== undefined ? { regions: dto.regions as any } : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+      },
     });
   }
 
