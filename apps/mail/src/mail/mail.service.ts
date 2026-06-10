@@ -285,27 +285,25 @@ export class MailService {
 
   async getFolder(userId: string, folder: MailFolder, query: ListMailQueryDto) {
     const { page = 1, limit = 20, search, dateFrom, dateTo, archiveFolderId } = query;
-    const skip = (page - 1) * limit;
 
-    const where: any = {
-      recipientId: userId,
-      folder,
-      deletedAt: null,
-    };
-
-    if (folder === MailFolder.ARCHIVE && archiveFolderId) {
-      where.archiveFolderId = archiveFolderId;
+    // INBOX: عرض محادثات (مبدأ Gmail) — صف واحد لكل محادثة = آخر رسالة، يطلع لفوق مع كل رد جديد
+    if (folder === MailFolder.INBOX) {
+      const { ids, total } = await this.getConversationRecipientIds(userId, MailFolder.INBOX, { search, dateFrom, dateTo, page, limit });
+      const items = await this.fetchAndEnrichInbox(ids);
+      return { items, total, page, limit };
     }
 
+    // ARCHIVE / TRASH: عرض مسطّح كالمعتاد
+    const skip = (page - 1) * limit;
+    const where: any = { recipientId: userId, folder, deletedAt: null };
+    if (folder === MailFolder.ARCHIVE && archiveFolderId) where.archiveFolderId = archiveFolderId;
+
     const messageFilter: any = {};
-    const andClauses: any[] = [];
     if (search) {
-      andClauses.push({
-        OR: [
-          { subject: { contains: search, mode: 'insensitive' } },
-          { body: { contains: search, mode: 'insensitive' } },
-        ],
-      });
+      messageFilter.OR = [
+        { subject: { contains: search, mode: 'insensitive' } },
+        { body: { contains: search, mode: 'insensitive' } },
+      ];
     }
     if (dateFrom || dateTo) {
       messageFilter.createdAt = {
@@ -313,46 +311,22 @@ export class MailService {
         ...(dateTo ? { lte: new Date(dateTo) } : {}),
       };
     }
-    // INBOX: اعرض جذور المحادثات فقط — أخفِ الردود التي يملك المستخدم جذرها أصلاً
-    // (الرسائل المُحوَّلة أو الردود التي تضيف المستخدم لأول مرة تبقى ظاهرة لأنه لا يملك الجذر)
-    if (folder === MailFolder.INBOX) {
-      const userRootIds = await this.threadRootIdsForUser(userId);
-      andClauses.push({
-        OR: [
-          { parentMessageId: null },
-          { threadRootId: { notIn: userRootIds } },
-        ],
-      });
-    }
-    if (andClauses.length > 0) messageFilter.AND = andClauses;
-    if (Object.keys(messageFilter).length > 0) {
-      where.message = messageFilter;
-    }
+    if (Object.keys(messageFilter).length > 0) where.message = messageFilter;
 
     const include = {
       message: {
         include: {
           attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
-          recipients: {
-            where: { type: { not: 'BCC' } },
-            select: { recipientId: true, type: true },
-          },
+          recipients: { where: { type: { not: 'BCC' } }, select: { recipientId: true, type: true } },
         },
       },
     };
 
     const [items, total] = await Promise.all([
-      (this.prisma as any).mailRecipient.findMany({
-        where,
-        include,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
+      (this.prisma as any).mailRecipient.findMany({ where, include, orderBy: { createdAt: 'desc' }, skip, take: limit }),
       (this.prisma as any).mailRecipient.count({ where }),
     ]);
 
-    // enrich sender names
     const senderIds = [...new Set(items.map((i: any) => i.message?.senderId).filter(Boolean))];
     const nameMap = await resolveUserIdsToNames(senderIds as string[]);
     const enriched = items.map((i: any) => ({
@@ -363,44 +337,71 @@ export class MailService {
     return { items: enriched, total, page, limit };
   }
 
+  // معرّفات سجلات المستلِم لعرض المحادثات: صف واحد لكل محادثة = آخر رسالة، مرتّبة بالأحدث (مبدأ Gmail)
+  private async getConversationRecipientIds(
+    userId: string,
+    folder: MailFolder,
+    opts: { search?: string; dateFrom?: string; dateTo?: string; page: number; limit: number },
+  ): Promise<{ ids: string[]; total: number }> {
+    const offset = (opts.page - 1) * opts.limit;
+    const conds = [`mr."recipientId" = $1`, `mr.folder::text = $2`, `mr."deletedAt" IS NULL`, `m."deletedAt" IS NULL`];
+    const params: any[] = [userId, folder];
+    let p = 3;
+    if (opts.search) { conds.push(`(m.subject ILIKE $${p} OR m.body ILIKE $${p})`); params.push(`%${opts.search}%`); p++; }
+    if (opts.dateFrom) { conds.push(`m."createdAt" >= $${p}`); params.push(new Date(opts.dateFrom)); p++; }
+    if (opts.dateTo) { conds.push(`m."createdAt" <= $${p}`); params.push(new Date(opts.dateTo)); p++; }
+    const whereSql = conds.join(' AND ');
+
+    const countRows = await (this.prisma as any).$queryRawUnsafe(
+      `SELECT COUNT(*)::int AS total FROM (
+         SELECT DISTINCT COALESCE(m."threadRootId", m.id) AS troot
+         FROM mail.mail_recipients mr JOIN mail.mail_messages m ON m.id = mr."messageId"
+         WHERE ${whereSql}
+       ) t`,
+      ...params,
+    );
+    const total = Number(countRows?.[0]?.total ?? 0);
+
+    const idRows = await (this.prisma as any).$queryRawUnsafe(
+      `SELECT id FROM (
+         SELECT DISTINCT ON (COALESCE(m."threadRootId", m.id)) mr.id AS id, m."createdAt" AS cat
+         FROM mail.mail_recipients mr JOIN mail.mail_messages m ON m.id = mr."messageId"
+         WHERE ${whereSql}
+         ORDER BY COALESCE(m."threadRootId", m.id), m."createdAt" DESC
+       ) t ORDER BY t.cat DESC LIMIT $${p} OFFSET $${p + 1}`,
+      ...params, opts.limit, offset,
+    );
+    return { ids: (idRows as any[]).map((r) => r.id), total };
+  }
+
+  // جلب سجلات الوارد بالترتيب الصحيح + إثراء أسماء المرسِلين
+  private async fetchAndEnrichInbox(ids: string[]) {
+    if (!ids.length) return [];
+    const include = {
+      message: {
+        include: {
+          attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
+          recipients: { where: { type: { not: 'BCC' } }, select: { recipientId: true, type: true } },
+        },
+      },
+    };
+    const rows = await (this.prisma as any).mailRecipient.findMany({ where: { id: { in: ids } }, include });
+    const byId = new Map(rows.map((r: any) => [r.id, r]));
+    const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+    const senderIds = [...new Set(ordered.map((i: any) => i.message?.senderId).filter(Boolean))];
+    const nameMap = await resolveUserIdsToNames(senderIds as string[]);
+    return ordered.map((i: any) => ({
+      ...i,
+      message: i.message ? { ...i.message, senderInfo: nameMap[i.message.senderId] ?? null } : null,
+    }));
+  }
+
   async getSent(userId: string, query: ListMailQueryDto) {
     const { page = 1, limit = 20, search, dateFrom, dateTo } = query;
-    const skip = (page - 1) * limit;
 
-    // Query via mailRecipient (folder=SENT) so archive/delete is respected
-    const where: any = {
-      recipientId: userId,
-      folder: MailFolder.SENT,
-      deletedAt: null,
-    };
-
-    const messageFilter: any = {};
-    const andClauses: any[] = [];
-    if (search) {
-      andClauses.push({
-        OR: [
-          { subject: { contains: search, mode: 'insensitive' } },
-          { body: { contains: search, mode: 'insensitive' } },
-        ],
-      });
-    }
-    if (dateFrom || dateTo) {
-      messageFilter.createdAt = {
-        ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-        ...(dateTo ? { lte: new Date(dateTo) } : {}),
-      };
-    }
-    // SENT: اعرض جذور المحادثات فقط — أخفِ الردود التي يملك المستخدم جذرها
-    // (مثال: ردّي على رسالة وصلتني جذرها في INBOX، فلا داعي لتكراره في المُرسَل)
-    const userRootIds = await this.threadRootIdsForUser(userId);
-    andClauses.push({
-      OR: [
-        { parentMessageId: null },
-        { threadRootId: { notIn: userRootIds } },
-      ],
-    });
-    if (andClauses.length > 0) messageFilter.AND = andClauses;
-    if (Object.keys(messageFilter).length > 0) where.message = messageFilter;
+    // SENT: عرض محادثات (مبدأ Gmail) — صف واحد لكل محادثة = آخر رسالة، مرتّبة بالأحدث
+    const { ids, total } = await this.getConversationRecipientIds(userId, MailFolder.SENT, { search, dateFrom, dateTo, page, limit });
+    if (!ids.length) return { items: [], total, page, limit };
 
     const include = {
       message: {
@@ -414,20 +415,16 @@ export class MailService {
         },
       },
     };
-
-    const [items, total] = await Promise.all([
-      (this.prisma as any).mailRecipient.findMany({
-        where, include, orderBy: { createdAt: 'desc' }, skip, take: limit,
-      }),
-      (this.prisma as any).mailRecipient.count({ where }),
-    ]);
+    const rows = await (this.prisma as any).mailRecipient.findMany({ where: { id: { in: ids } }, include });
+    const byId = new Map(rows.map((r: any) => [r.id, r]));
+    const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
 
     // enrich recipient names for the TO list
     const allRecipientIds = [...new Set(
-      items.flatMap((i: any) => (i.message?.recipients ?? []).map((r: any) => r.recipientId))
+      ordered.flatMap((i: any) => (i.message?.recipients ?? []).map((r: any) => r.recipientId))
     )];
     const nameMap = await resolveUserIdsToNames(allRecipientIds as string[]);
-    const enriched = items.map((i: any) => ({
+    const enriched = ordered.map((i: any) => ({
       ...i,
       message: i.message ? {
         ...i.message,
