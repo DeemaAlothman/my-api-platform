@@ -257,6 +257,7 @@ model MedicalHistory {
   smokingFrequency    String?
 
   hasPacemaker        Boolean @default(false)
+  pacemakerDetail     String? // تفاصيل جهاز تنظيم ضربات القلب عند نعم
 
   allergies           String? @db.Text
   adhesiveAllergy     Boolean @default(false)
@@ -273,9 +274,21 @@ model MedicalHistory {
   chronicConditions   ChronicCondition[]
   otherConditions     String?
 
+  // هل تعاني من مشاكل صحية أخرى؟ (التفصيل في otherConditions)
+  hasOtherHealthProblems Boolean @default(false)
+
   doctorRestrictions  String? @db.Text
 
   surgeries           Surgery[]
+  // الشكاوى السابقة / العمليات الجراحية السابقة (نص)
+  previousComplaintsSurgeries String? @db.Text
+
+  // هل خضعت للعلاج الطبيعي لنفس المشكلة؟ + التفصيل عند نعم
+  hadPTSameProblem    Boolean @default(false)
+  ptSameProblemDetail String?
+
+  // هل تتلقى علاجات أخرى لهذه المشكلة حالياً؟ التفصيل عند نعم
+  otherTreatmentDetail String?
 
   testsHad            MedicalTest[]
   testsOther          String?
@@ -283,10 +296,17 @@ model MedicalHistory {
 
   newAnalysis         String?
   newAnalysisDate     DateTime?
+  newAnalysisAttachment String? // رابط مرفق التحليل الجديد (مستند مريض)
   oldAnalysis         String?
   oldAnalysisDate     DateTime?
+  oldAnalysisAttachment String? // رابط مرفق التحليل القديم (مستند مريض)
+
+  // قياس كثافة العظم
+  boneDensityTest     Boolean @default(false)
+  boneDensityDetail   String?
 
   hospitalizedLastYear       Boolean @default(false)
+  hospitalizedDetail         String? // سبب/تفاصيل دخول المستشفى عند نعم
   receivingOtherTreatment    Boolean @default(false)
 
   @@map("medical_histories")

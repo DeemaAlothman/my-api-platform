@@ -312,11 +312,21 @@ export class CasesService {
 
   async upsertMedicalHistory(caseId: string, dto: MedicalHistoryDto) {
     await this.findCaseOrThrow(caseId);
+
+    // 1) نمط الحياة مُخزّن على الحالة نفسها
+    if (dto.lifeType !== undefined) {
+      await this.prisma.physioCase.update({
+        where: { id: caseId },
+        data: { lifeType: dto.lifeType as any },
+      });
+    }
+
     const data: any = {
       smokes: dto.smokes ?? false,
       hasSmokedBefore: dto.hasSmokedBefore ?? false,
       smokingFrequency: dto.smokingFrequency,
       hasPacemaker: dto.hasPacemaker ?? false,
+      pacemakerDetail: dto.hasPacemaker === false ? null : dto.pacemakerDetail,
       allergies: dto.allergies,
       adhesiveAllergy: dto.adhesiveAllergy ?? false,
       currentMedications: dto.currentMedications,
@@ -327,16 +337,26 @@ export class CasesService {
       previousDiagnoses: dto.previousDiagnoses,
       chronicConditions: (dto.chronicConditions ?? []) as any,
       otherConditions: dto.otherConditions,
+      hasOtherHealthProblems: dto.hasOtherHealthProblems ?? false,
       doctorRestrictions: dto.doctorRestrictions,
+      previousComplaintsSurgeries: dto.previousComplaintsSurgeries,
+      hadPTSameProblem: dto.hadPTSameProblem ?? false,
+      ptSameProblemDetail: dto.hadPTSameProblem === false ? null : dto.ptSameProblemDetail,
+      receivingOtherTreatment: dto.receivingOtherTreatment ?? false,
+      otherTreatmentDetail: dto.receivingOtherTreatment === false ? null : dto.otherTreatmentDetail,
       testsHad: (dto.testsHad ?? []) as any,
       testsOther: dto.testsOther,
       testResults: dto.testResults,
       newAnalysis: dto.newAnalysis,
       newAnalysisDate: dto.newAnalysisDate ? new Date(dto.newAnalysisDate) : undefined,
+      newAnalysisAttachment: dto.newAnalysisAttachment,
       oldAnalysis: dto.oldAnalysis,
       oldAnalysisDate: dto.oldAnalysisDate ? new Date(dto.oldAnalysisDate) : undefined,
+      oldAnalysisAttachment: dto.oldAnalysisAttachment,
+      boneDensityTest: dto.boneDensityTest ?? false,
+      boneDensityDetail: dto.boneDensityTest === false ? null : dto.boneDensityDetail,
       hospitalizedLastYear: dto.hospitalizedLastYear ?? false,
-      receivingOtherTreatment: dto.receivingOtherTreatment ?? false,
+      hospitalizedDetail: dto.hospitalizedLastYear === false ? null : dto.hospitalizedDetail,
     };
     return this.prisma.medicalHistory.upsert({
       where: { caseId },

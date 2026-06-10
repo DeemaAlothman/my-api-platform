@@ -250,6 +250,10 @@ export class PainMapDto {
 }
 
 export class MedicalHistoryDto {
+  // 1) نمط الحياة (يُخزّن على الحالة نفسها)
+  @IsOptional() @IsEnum(LifeType)
+  lifeType?: LifeType;
+
   @IsOptional() @IsBoolean()
   smokes?: boolean;
 
@@ -261,6 +265,9 @@ export class MedicalHistoryDto {
 
   @IsOptional() @IsBoolean()
   hasPacemaker?: boolean;
+  // 5) تفاصيل جهاز تنظيم ضربات القلب عند نعم
+  @IsOptional() @IsString()
+  pacemakerDetail?: string;
 
   @IsOptional() @IsString()
   allergies?: string;
@@ -292,8 +299,28 @@ export class MedicalHistoryDto {
   @IsOptional() @IsString()
   otherConditions?: string;
 
+  // 6) هل تعاني من مشاكل صحية أخرى؟ (التفصيل في otherConditions)
+  @IsOptional() @IsBoolean()
+  hasOtherHealthProblems?: boolean;
+
   @IsOptional() @IsString()
   doctorRestrictions?: string;
+
+  // 10) الشكاوى السابقة / العمليات الجراحية السابقة
+  @IsOptional() @IsString()
+  previousComplaintsSurgeries?: string;
+
+  // 11) هل خضعت للعلاج الطبيعي لنفس المشكلة؟ + التفصيل عند نعم
+  @IsOptional() @IsBoolean()
+  hadPTSameProblem?: boolean;
+  @IsOptional() @IsString()
+  ptSameProblemDetail?: string;
+
+  // 12) هل تتلقى علاجات أخرى لهذه المشكلة حالياً؟ + التفصيل عند نعم
+  @IsOptional() @IsBoolean()
+  receivingOtherTreatment?: boolean;
+  @IsOptional() @IsString()
+  otherTreatmentDetail?: string;
 
   @IsOptional() @IsArray() @IsEnum(MedicalTest, { each: true })
   testsHad?: MedicalTest[];
@@ -304,23 +331,32 @@ export class MedicalHistoryDto {
   @IsOptional() @IsString()
   testResults?: string;
 
+  // 13) التحاليل + مرفق لكل تحليل (رابط مستند مريض)
   @IsOptional() @IsString()
   newAnalysis?: string;
-
   @IsOptional() @IsDateString()
   newAnalysisDate?: string;
+  @IsOptional() @IsString()
+  newAnalysisAttachment?: string;
 
   @IsOptional() @IsString()
   oldAnalysis?: string;
-
   @IsOptional() @IsDateString()
   oldAnalysisDate?: string;
+  @IsOptional() @IsString()
+  oldAnalysisAttachment?: string;
 
+  // 14) قياس كثافة العظم
+  @IsOptional() @IsBoolean()
+  boneDensityTest?: boolean;
+  @IsOptional() @IsString()
+  boneDensityDetail?: string;
+
+  // 15) هل دخلت المستشفى خلال العام الماضي بسبب هذه الحالة؟ + التفصيل عند نعم
   @IsOptional() @IsBoolean()
   hospitalizedLastYear?: boolean;
-
-  @IsOptional() @IsBoolean()
-  receivingOtherTreatment?: boolean;
+  @IsOptional() @IsString()
+  hospitalizedDetail?: string;
 }
 
 export class SurgeryDto {
