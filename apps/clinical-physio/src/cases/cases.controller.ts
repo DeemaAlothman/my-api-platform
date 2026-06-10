@@ -7,7 +7,7 @@ import { CasesService } from './cases.service';
 import { PdfService } from './pdf.service';
 import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
-  ComplaintDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
+  ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto,
 } from './dto/physio-case.dto';
@@ -103,6 +103,20 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
   addSurgery(@Param('id') id: string, @Body() dto: SurgeryDto) {
     return this.service.addSurgery(id, dto);
+  }
+
+  // ── الملاحظات والتقييم (Notes & Evaluation) ──────────────────────────────────
+
+  @Post(':id/evaluation')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
+  upsertEvaluation(@Param('id') id: string, @Body() dto: EvaluationDto) {
+    return this.service.upsertEvaluation(id, dto);
+  }
+
+  @Put(':id/evaluation')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
+  updateEvaluation(@Param('id') id: string, @Body() dto: EvaluationDto) {
+    return this.service.upsertEvaluation(id, dto);
   }
 
   // ── Treatment Goals ───────────────────────────────────────────────────────

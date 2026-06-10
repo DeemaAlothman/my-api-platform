@@ -223,6 +223,25 @@ export class ComplaintDto {
   surgeryDetail?: string;
 }
 
+// ── الملاحظات والتقييم (Notes & Evaluation) ──
+export class EvaluationDto {
+  // أنواع العلاج (كلها اختيارية): MANUAL_THERAPY, MASSAGE, KINESIO_TAPING, COMPRESSION,
+  // PARAFFIN, GRASTON, MET, PNF, INFRARED, OTHER, ESWT, US, TENS, EMS, LASER, CPM,
+  // HOT_PACKS, COLD_PACKS, TRACTION, EXERCISES
+  @IsOptional() @IsArray() @IsEnum(TherapyModality, { each: true })
+  modalities?: TherapyModality[];
+
+  // النص عند اختيار "أخرى Other"
+  @IsOptional() @IsString()
+  otherModality?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  @IsOptional() @IsString()
+  evaluation?: string;
+}
+
 export class PainMapDto {
   @IsOptional() @IsArray()
   regions?: any[];

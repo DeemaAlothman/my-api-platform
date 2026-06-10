@@ -5,7 +5,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
-  ComplaintDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
+  ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto,
 } from './dto/physio-case.dto';
@@ -179,6 +179,7 @@ export class CasesService {
         treatmentGoals: true,
         posturalAssessment: true,
         treatmentPlan: true,
+        evaluation: true,
         sessions: { orderBy: { sessionDate: 'asc' } },
       },
     });
@@ -363,6 +364,23 @@ export class CasesService {
       create: { caseId, ...data },
       update: data,
       include: { surgeries: true },
+    });
+  }
+
+  // ── الملاحظات والتقييم (Notes & Evaluation) ─────────────────────────────────
+
+  async upsertEvaluation(caseId: string, dto: EvaluationDto) {
+    await this.findCaseOrThrow(caseId);
+    const data: any = {
+      modalities: (dto.modalities ?? []) as any,
+      otherModality: dto.otherModality,
+      notes: dto.notes,
+      evaluation: dto.evaluation,
+    };
+    return this.prisma.physioEvaluation.upsert({
+      where: { caseId },
+      create: { caseId, ...data },
+      update: data,
     });
   }
 

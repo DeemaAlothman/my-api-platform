@@ -217,6 +217,7 @@ model PhysioCase {
   treatmentGoals      TreatmentGoals?
   posturalAssessment  PosturalAssessment?
   treatmentPlan       PhysioTreatmentPlan?
+  evaluation          PhysioEvaluation?
   sessions            PhysioSession[]
 
   createdAt   DateTime @default(now())
@@ -406,6 +407,26 @@ model PhysioTreatmentPlan {
   status  PlanStatus @default(ACTIVE)
 
   @@map("physio_treatment_plans")
+  @@schema("clinic_physio")
+}
+
+// ── الملاحظات والتقييم (Notes & Evaluation) ────────────────────────────────
+
+model PhysioEvaluation {
+  id      String     @id @default(uuid())
+  caseId  String     @unique
+  case    PhysioCase @relation(fields: [caseId], references: [id])
+
+  // أنواع العلاج المطبّقة/الموصى بها (نفس enum TherapyModality)
+  modalities    TherapyModality[]
+  otherModality String? // النص عند اختيار "أخرى Other"
+  notes         String? @db.Text // ملاحظات
+  evaluation    String? @db.Text // التقييم
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("physio_evaluations")
   @@schema("clinic_physio")
 }
 
