@@ -1,6 +1,6 @@
 import {
   IsString, IsOptional, IsBoolean, IsEnum, IsDateString,
-  IsInt, IsArray, IsObject, Min, Max,
+  IsInt, IsArray, IsObject, Min, Max, ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -424,48 +424,131 @@ export class TreatmentGoalsDto {
   otherGoals?: string;
 }
 
+// ── التقييم الوضعي (Postural Assessment) — خيارات حرفية مطابقة للورقة ──
+// كل خيار boolean مستقل (multi-select). الجوانب L/R منفصلة. "other" نص حر.
+
+// جهة يمين/يسار
+class SideDto {
+  @IsOptional() @IsBoolean() L?: boolean;
+  @IsOptional() @IsBoolean() R?: boolean;
+}
+
+// الرأس Head
+class HeadAssessmentDto {
+  @IsOptional() @IsBoolean() neutral?: boolean;          // حيادي
+  @IsOptional() @IsBoolean() hyperextended?: boolean;    // فرط البسط
+  @IsOptional() @IsBoolean() fwdFlexed?: boolean;        // تقدم الرأس للأمام
+  @IsOptional() @IsBoolean() laterallyFlexed?: boolean;  // عطف جانبي
+  @IsOptional() @ValidateNested() @Type(() => SideDto) rotated?: SideDto; // دوران (L/R)
+}
+
+// الأكتاف Shoulders
+class ShouldersAssessmentDto {
+  @IsOptional() @IsBoolean() level?: boolean;            // متساوية
+  @IsOptional() @ValidateNested() @Type(() => SideDto) elevated?: SideDto; // مرتفعة (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) sublaxed?: SideDto; // غير مستقرة (L/R)
+}
+
+// المرفق Elbow
+class ElbowAssessmentDto {
+  @IsOptional() @IsBoolean() hyperextended?: boolean;    // فرط البسط
+  @IsOptional() @ValidateNested() @Type(() => SideDto) supination?: SideDto; // استلقاء (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) pronation?: SideDto;  // كب (L/R)
+  @IsOptional() @IsBoolean() flexed?: boolean;           // بوضعية العطف
+}
+
+// القفص الصدري Rib cage
+class RibCageAssessmentDto {
+  @IsOptional() @IsBoolean() neutral?: boolean;          // حيادي
+  @IsOptional() @ValidateNested() @Type(() => SideDto) elevated?: SideDto;   // مرتفع (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) rotatedFwd?: SideDto; // تم تدويره للأمام (L/R)
+}
+
+// العمود الفقري Spine
+class SpineAssessmentDto {
+  @IsOptional() @IsBoolean() neutral?: boolean;          // حيادي
+  @IsOptional() @ValidateNested() @Type(() => SideDto) scoliosisApex?: SideDto; // الجنف/ذروة الانحناء (L/R)
+  @IsOptional() @IsBoolean() kyphosis?: boolean;         // حداب
+  @IsOptional() @IsBoolean() flatLumbar?: boolean;       // تسطح العمود القطني
+  @IsOptional() @IsBoolean() normalLumbar?: boolean;     // المسافة القطنية الطبيعية
+  @IsOptional() @IsBoolean() hyperLordotic?: boolean;    // فرط التقعر القطني
+}
+
+// الحوض Pelvis
+class PelvisAssessmentDto {
+  @IsOptional() @IsBoolean() neutral?: boolean;          // حيادي
+  @IsOptional() @IsBoolean() rotatedFwd?: boolean;       // دوران للأمام
+  @IsOptional() @IsBoolean() anteriorTilt?: boolean;     // إمالة أمامية
+  @IsOptional() @IsBoolean() posteriorTilt?: boolean;    // إمالة خلفية
+  @IsOptional() @ValidateNested() @Type(() => SideDto) oblique?: SideDto; // ميل جانبي (L/R)
+  @IsOptional() @IsString() other?: string;              // آخر
+}
+
+// الورك Hip
+class HipsAssessmentDto {
+  @IsOptional() @ValidateNested() @Type(() => SideDto) abducted?: SideDto; // تبعيد (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) adducted?: SideDto; // تقريب (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) flexed?: SideDto;   // بوضعية العطف (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) extended?: SideDto; // بوضعية البسط (L/R)
+}
+
+// الركبتان Knees
+class KneesAssessmentDto {
+  @IsOptional() @ValidateNested() @Type(() => SideDto) flexedBeyond90?: SideDto;   // عطف أكثر من 90° (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) extendedBeyond90?: SideDto; // بسط أكثر من 90° (L/R)
+}
+
+// القدم Feet
+class FeetAssessmentDto {
+  @IsOptional() @ValidateNested() @Type(() => SideDto) pronateEvert?: SideDto;  // الكب/الانقلاب الخارجي (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) supinateInv?: SideDto;   // الاستلقاء/الانقلاب الداخلي (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) dorsiflexed?: SideDto;   // العطف الظهري (L/R)
+  @IsOptional() @ValidateNested() @Type(() => SideDto) plantarflexed?: SideDto; // العطف الأخمصي (L/R)
+  @IsOptional() @IsString() other?: string;              // آخر
+}
+
 export class PosturalAssessmentDto {
   @IsOptional() @IsString()
-  seatedPosition?: string;
+  seatedPosition?: string; // الوضعية الحالية للجلوس
 
   @IsOptional() @IsString()
-  trunkControl?: string;
+  trunkControl?: string; // التحكم في التوازن/الجذع
 
-  @IsOptional() @IsObject()
-  head?: any;
+  @IsOptional() @ValidateNested() @Type(() => HeadAssessmentDto)
+  head?: HeadAssessmentDto;
 
-  @IsOptional() @IsObject()
-  shoulders?: any;
+  @IsOptional() @ValidateNested() @Type(() => ShouldersAssessmentDto)
+  shoulders?: ShouldersAssessmentDto;
 
-  @IsOptional() @IsObject()
-  elbow?: any;
+  @IsOptional() @ValidateNested() @Type(() => ElbowAssessmentDto)
+  elbow?: ElbowAssessmentDto;
 
-  @IsOptional() @IsObject()
-  ribCage?: any;
+  @IsOptional() @ValidateNested() @Type(() => RibCageAssessmentDto)
+  ribCage?: RibCageAssessmentDto;
 
-  @IsOptional() @IsObject()
-  spine?: any;
+  @IsOptional() @ValidateNested() @Type(() => SpineAssessmentDto)
+  spine?: SpineAssessmentDto;
 
-  @IsOptional() @IsObject()
-  pelvis?: any;
+  @IsOptional() @ValidateNested() @Type(() => PelvisAssessmentDto)
+  pelvis?: PelvisAssessmentDto;
 
-  @IsOptional() @IsObject()
-  hips?: any;
+  @IsOptional() @ValidateNested() @Type(() => HipsAssessmentDto)
+  hips?: HipsAssessmentDto;
 
-  @IsOptional() @IsObject()
-  knees?: any;
+  @IsOptional() @ValidateNested() @Type(() => KneesAssessmentDto)
+  knees?: KneesAssessmentDto;
 
-  @IsOptional() @IsObject()
-  feet?: any;
-
-  @IsOptional() @IsString()
-  spasticityNotes?: string;
+  @IsOptional() @ValidateNested() @Type(() => FeetAssessmentDto)
+  feet?: FeetAssessmentDto;
 
   @IsOptional() @IsString()
-  generalNotes?: string;
+  spasticityNotes?: string; // التشنج/ردود الفعل/التوتر العضلي
 
   @IsOptional() @IsString()
-  diagnosis?: string;
+  generalNotes?: string; // تعليقات
+
+  @IsOptional() @IsString()
+  diagnosis?: string; // تشخيص
 }
 
 export class TreatmentPlanDto {
