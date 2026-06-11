@@ -600,48 +600,31 @@ export class PlanSignDto {
   doctorGaze?: string;
 }
 
+// جلسة علاجية — الحقول المبسّطة فقط (رقم الجلسة تلقائي من الباك)
 export class PhysioSessionDto {
   @IsDateString()
-  sessionDate: string;
+  sessionDate: string; // التاريخ
+
+  @IsOptional() @IsString()
+  sessionTime?: string; // الوقت
+
+  @IsOptional() @IsString()
+  notes?: string; // ملاحظة
+}
+
+export class UpdateSessionDto {
+  @IsOptional() @IsDateString()
+  sessionDate?: string;
 
   @IsOptional() @IsString()
   sessionTime?: string;
 
-  @IsOptional() @IsArray() @IsEnum(TherapyModality, { each: true })
-  modalities?: TherapyModality[];
-
   @IsOptional() @IsString()
   notes?: string;
-
-  @IsString()
-  physiotherapistId: string;
-
-  @IsOptional() @IsInt() @Min(0) @Max(10) @Type(() => Number)
-  painLevel?: number;
-
-  @IsOptional() @IsObject()
-  romMeasurements?: any;
-
-  @IsOptional() @IsBoolean()
-  attendanceConfirmed?: boolean;
-
-  @IsOptional() @IsString()
-  appointmentId?: string;
 }
 
-export class UpdateSessionDto {
+// الملخص النهائي بعد انتهاء كل الجلسات
+export class FinalSummaryDto {
   @IsOptional() @IsString()
-  notes?: string;
-
-  @IsOptional() @IsArray() @IsEnum(TherapyModality, { each: true })
-  modalities?: TherapyModality[];
-
-  @IsOptional() @IsInt() @Min(0) @Max(10) @Type(() => Number)
-  painLevel?: number;
-
-  @IsOptional() @IsObject()
-  romMeasurements?: any;
-
-  @IsOptional() @IsBoolean()
-  attendanceConfirmed?: boolean;
+  finalSummary?: string;
 }

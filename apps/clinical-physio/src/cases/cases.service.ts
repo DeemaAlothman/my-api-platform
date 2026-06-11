@@ -7,7 +7,7 @@ import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
   ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, PlanSignDto,
-  PhysioSessionDto, UpdateSessionDto,
+  PhysioSessionDto, UpdateSessionDto, FinalSummaryDto,
 } from './dto/physio-case.dto';
 
 // B11: خريطة الانتقالات المسموحة لحالة الملف
@@ -563,20 +563,26 @@ export class CasesService {
   // ── Sessions ──────────────────────────────────────────────────────────────
 
   async addSession(caseId: string, dto: PhysioSessionDto) {
-    await this.findCaseOrThrow(caseId);
-    return this.prisma.physioSession.create({
-      data: {
-        caseId,
-        sessionDate: new Date(dto.sessionDate),
-        sessionTime: dto.sessionTime,
-        modalities: (dto.modalities ?? []) as any,
-        notes: dto.notes,
-        physiotherapistId: dto.physiotherapistId,
-        painLevel: dto.painLevel,
-        romMeasurements: dto.romMeasurements,
-        attendanceConfirmed: dto.attendanceConfirmed ?? false,
-        appointmentId: dto.appointmentId,
-      },
+    const physioCase = await this.findCaseOrThrow(caseId);
+    // رقم الجلسة تلقائي تسلسلي لكل حالة (داخل transaction لمنع التكرار عند التزامن)
+    return this.prisma.$transaction(async (tx) => {
+      const last = await tx.physioSession.findFirst({
+        where: { caseId },
+        orderBy: { sessionNumber: 'desc' },
+        select: { sessionNumber: true },
+      });
+      const sessionNumber = (last?.sessionNumber ?? 0) + 1;
+      return tx.physioSession.create({
+        data: {
+          caseId,
+          sessionNumber,
+          sessionDate: new Date(dto.sessionDate),
+          sessionTime: dto.sessionTime,
+          notes: dto.notes,
+          // يُعبّأ تلقائياً من أخصائي الحالة (لم يعد يُرسل من الفرونت)
+          physiotherapistId: physioCase.physiotherapistId ?? null,
+        },
+      });
     });
   }
 
@@ -584,7 +590,7 @@ export class CasesService {
     await this.findCaseOrThrow(caseId);
     return this.prisma.physioSession.findMany({
       where: { caseId },
-      orderBy: { sessionDate: 'asc' },
+      orderBy: { sessionNumber: 'asc' },
     });
   }
 
@@ -595,13 +601,22 @@ export class CasesService {
     return this.prisma.physioSession.update({
       where: { id: sessionId },
       data: {
-        notes: dto.notes,
-        modalities: dto.modalities as any,
-        painLevel: dto.painLevel,
-        romMeasurements: dto.romMeasurements,
-        attendanceConfirmed: dto.attendanceConfirmed,
+        ...(dto.sessionDate !== undefined ? { sessionDate: new Date(dto.sessionDate) } : {}),
+        ...(dto.sessionTime !== undefined ? { sessionTime: dto.sessionTime } : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
       },
     });
+  }
+
+  // ── الملخص النهائي (Final Summary) ──────────────────────────────────────────
+
+  async upsertFinalSummary(caseId: string, dto: FinalSummaryDto) {
+    await this.findCaseOrThrow(caseId);
+    const updated = await this.prisma.physioCase.update({
+      where: { id: caseId },
+      data: { finalSummary: dto.finalSummary },
+    });
+    return { caseId, finalSummary: updated.finalSummary };
   }
 
   async deleteSession(caseId: string, sessionId: string) {

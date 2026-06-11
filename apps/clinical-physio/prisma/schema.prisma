@@ -217,6 +217,7 @@ model PhysioCase {
   anticipatedVisits   Int?
 
   finalNotes          String?  @db.Text
+  finalSummary        String?  @db.Text // الملخص النهائي بعد انتهاء كل الجلسات
 
   painMap             PainMap?
   medicalHistory      MedicalHistory?
@@ -422,12 +423,13 @@ model PhysioSession {
   caseId  String
   case    PhysioCase @relation(fields: [caseId], references: [id])
 
+  sessionNumber   Int?      // رقم الجلسة (تلقائي تسلسلي لكل حالة)
   sessionDate     DateTime
   sessionTime     String?
   modalities      TherapyModality[]
   notes           String? @db.Text
 
-  physiotherapistId       String
+  physiotherapistId       String?
   painLevel               Int?
   romMeasurements         Json?
   attendanceConfirmed     Boolean @default(false)

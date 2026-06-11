@@ -149,4 +149,98 @@ export class PdfService {
       doc.end();
     });
   }
+
+  // تقرير الملخص النهائي: بيانات المريض + قائمة كل الجلسات + الملخص النهائي
+  async generateFinalSummaryReport(c: any): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const W = 595 - 100;
+      const gray = '#555555';
+      const dark = '#1a1a2e';
+      const accent = '#1a7a4a';
+
+      // ── Header ────────────────────────────────────────────────────────
+      doc.rect(50, 40, W, 70).fill(accent);
+      doc
+        .fillColor('white')
+        .fontSize(18)
+        .font('Helvetica-Bold')
+        .text('FINAL TREATMENT SUMMARY', 50, 58, { width: W, align: 'center' });
+      doc
+        .fontSize(10)
+        .font('Helvetica')
+        .text(
+          `Case No: ${c.caseNumber}    |    Generated: ${new Date().toLocaleDateString('en-GB')}`,
+          50, 82, { width: W, align: 'center' },
+        );
+
+      doc.fillColor(dark).moveDown(3.5);
+
+      const section = (title: string) => {
+        doc
+          .moveDown(0.5).fontSize(11).font('Helvetica-Bold').fillColor(accent)
+          .text(title.toUpperCase());
+        doc.moveTo(50, doc.y).lineTo(50 + W, doc.y).strokeColor(accent).lineWidth(0.5).stroke();
+        doc.moveDown(0.4).fillColor(dark).fontSize(10).font('Helvetica');
+      };
+
+      const row = (label: string, value: any) => {
+        if (value === null || value === undefined || value === '') return;
+        doc
+          .font('Helvetica-Bold').fillColor(gray)
+          .text(`${label}:`, 50, doc.y, { continued: true, width: 160 })
+          .font('Helvetica').fillColor(dark).text(` ${String(value)}`);
+      };
+
+      // ── Patient ───────────────────────────────────────────────────────
+      section('Patient');
+      const p = c.patient;
+      if (p) {
+        row('Name', `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim());
+        row('Patient No', p.patientNumber);
+        row('ID Number', p.idNumber);
+      }
+      row('Patient ID', c.patientId);
+      row('Case No', c.caseNumber);
+      row('Status', c.status);
+
+      // ── Sessions ──────────────────────────────────────────────────────
+      const sessions = Array.isArray(c.sessions) ? c.sessions : [];
+      section(`Sessions (${sessions.length})`);
+      if (sessions.length === 0) {
+        doc.font('Helvetica').fillColor(gray).text('  No sessions recorded.');
+      } else {
+        sessions.forEach((s: any) => {
+          const num = s.sessionNumber ?? '-';
+          const date = s.sessionDate ? new Date(s.sessionDate).toLocaleDateString('en-GB') : '';
+          const time = s.sessionTime ? ` ${s.sessionTime}` : '';
+          row(`Session ${num}`, `${date}${time}${s.notes ? '  —  ' + s.notes : ''}`);
+        });
+      }
+
+      // ── Final Summary ─────────────────────────────────────────────────
+      section('Final Summary');
+      doc.font('Helvetica').fillColor(dark).fontSize(10)
+        .text(c.finalSummary || '—', { width: W, align: 'left' });
+
+      // ── Footer ────────────────────────────────────────────────────────
+      const pageHeight = doc.page.height;
+      doc
+        .moveTo(50, pageHeight - 60).lineTo(50 + W, pageHeight - 60)
+        .strokeColor('#cccccc').lineWidth(0.5).stroke();
+      doc
+        .fontSize(8).fillColor(gray)
+        .text(
+          `This document is confidential and intended for authorized personnel only.  |  ${new Date().toISOString()}`,
+          50, pageHeight - 48, { width: W, align: 'center' },
+        );
+
+      doc.end();
+    });
+  }
 }

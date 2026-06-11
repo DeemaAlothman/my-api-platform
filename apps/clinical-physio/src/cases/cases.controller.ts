@@ -9,7 +9,7 @@ import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
   ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, PlanSignDto,
-  PhysioSessionDto, UpdateSessionDto,
+  PhysioSessionDto, UpdateSessionDto, FinalSummaryDto,
 } from './dto/physio-case.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -186,6 +186,33 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PHYSIO.SESSIONS_CREATE)
   deleteSession(@Param('id') id: string, @Param('sessionId') sessionId: string) {
     return this.service.deleteSession(id, sessionId);
+  }
+
+  // ── الملخص النهائي (Final Summary) ──────────────────────────────────────────
+
+  @Post(':id/final-summary')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
+  upsertFinalSummary(@Param('id') id: string, @Body() dto: FinalSummaryDto) {
+    return this.service.upsertFinalSummary(id, dto);
+  }
+
+  @Put(':id/final-summary')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
+  updateFinalSummary(@Param('id') id: string, @Body() dto: FinalSummaryDto) {
+    return this.service.upsertFinalSummary(id, dto);
+  }
+
+  @Get(':id/final-summary/pdf')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_VIEW)
+  async getFinalSummaryPdf(@Param('id') id: string, @Res() res: Response) {
+    const caseData = await this.service.findOne(id);
+    const buffer = await this.pdfService.generateFinalSummaryReport(caseData);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="final-summary-${(caseData as any).caseNumber}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   // ── Timeline ──────────────────────────────────────────────────────────────
