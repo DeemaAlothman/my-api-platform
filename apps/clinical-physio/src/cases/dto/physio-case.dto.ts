@@ -25,6 +25,8 @@ export enum PhysioStatus {
   DOCTOR_SIGN = 'DOCTOR_SIGN', ACTIVE_TREATMENT = 'ACTIVE_TREATMENT',
   COMPLETED = 'COMPLETED', DISCHARGED = 'DISCHARGED', CANCELLED = 'CANCELLED',
 }
+// حالة خطة العلاج: نشط / غير نشط
+export enum PlanStatus { ACTIVE = 'ACTIVE', INACTIVE = 'INACTIVE' }
 
 export class CreatePhysioCaseDto {
   @IsString()
@@ -563,6 +565,26 @@ export class TreatmentPlanDto {
 
   @IsOptional() @IsString()
   observation?: string;
+
+  // حالة الخطة: نشط ACTIVE / غير نشط INACTIVE
+  @IsOptional() @IsEnum(PlanStatus)
+  status?: PlanStatus;
+
+  // ── حقول رأس الفورم (Plan of Treatment) — مخزّنة على الحالة ──
+  @IsOptional() @IsDateString()
+  treatmentFrom?: string; // من From
+
+  @IsOptional() @IsDateString()
+  treatmentTo?: string; // إلى To
+
+  @IsOptional() @IsInt() @Type(() => Number)
+  anticipatedVisits?: number; // عدد الزيارات المتوقعة
+
+  @IsOptional() @IsString()
+  physiotherapistId?: string; // اسم أخصائي العلاج الطبيعي
+
+  @IsOptional() @IsString()
+  caseManagerId?: string; // مدير الحالة
 }
 
 export class SupervisorReviewDto {

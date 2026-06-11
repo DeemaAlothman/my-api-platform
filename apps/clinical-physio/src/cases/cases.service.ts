@@ -465,16 +465,39 @@ export class CasesService {
 
   async upsertTreatmentPlan(caseId: string, dto: TreatmentPlanDto) {
     await this.findCaseOrThrow(caseId);
-    const data: any = {
-      modalities: (dto.modalities ?? []) as any,
-      otherModality: dto.otherModality,
-      remarks: dto.remarks,
-      observation: dto.observation,
+
+    // حقول رأس الفورم مخزّنة على الحالة — نحدّث المُرسل فقط (لا نمسح القيم الحالية)
+    const caseData: any = {
+      treatmentFrom: dto.treatmentFrom ? new Date(dto.treatmentFrom) : undefined,
+      treatmentTo: dto.treatmentTo ? new Date(dto.treatmentTo) : undefined,
+      anticipatedVisits: dto.anticipatedVisits,
+      physiotherapistId: dto.physiotherapistId,
+      caseManagerId: dto.caseManagerId,
     };
+    Object.keys(caseData).forEach((k) => caseData[k] === undefined && delete caseData[k]);
+    if (Object.keys(caseData).length > 0) {
+      await this.prisma.physioCase.update({ where: { id: caseId }, data: caseData });
+    }
+
+    // تحديث الخطة — المُرسل فقط (حتى لا يُمحى ما لم يُرسل، مثل modalities عند حفظ الرأس وحده)
+    const planUpdate: any = {};
+    if (dto.modalities !== undefined) planUpdate.modalities = dto.modalities as any;
+    if (dto.otherModality !== undefined) planUpdate.otherModality = dto.otherModality;
+    if (dto.remarks !== undefined) planUpdate.remarks = dto.remarks;
+    if (dto.observation !== undefined) planUpdate.observation = dto.observation;
+    if (dto.status !== undefined) planUpdate.status = dto.status as any;
+
     return this.prisma.physioTreatmentPlan.upsert({
       where: { caseId },
-      create: { caseId, ...data },
-      update: data,
+      create: {
+        caseId,
+        modalities: (dto.modalities ?? []) as any,
+        otherModality: dto.otherModality,
+        remarks: dto.remarks,
+        observation: dto.observation,
+        ...(dto.status !== undefined ? { status: dto.status as any } : {}),
+      },
+      update: planUpdate,
     });
   }
 
