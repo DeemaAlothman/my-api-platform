@@ -179,13 +179,19 @@ export class CasesService {
         treatmentGoals: true,
         posturalAssessment: true,
         treatmentPlan: true,
-        evaluation: true,
         sessions: { orderBy: { sessionDate: 'asc' } },
       },
     });
     if (!c) throw new NotFoundException('Physio case not found');
     const nameMap = await this.resolvePatientNames([c.patientId]);
-    return { ...c, patient: nameMap[c.patientId] ?? null };
+    // التقييم مخزّن على الحالة — نرجّعه ككائن evaluation (نفس الشكل السابق)
+    const evaluation = {
+      modalities: c.evalModalities,
+      otherModality: c.evalOtherModality,
+      notes: c.evalNotes,
+      evaluation: c.evalSummary,
+    };
+    return { ...c, evaluation, patient: nameMap[c.patientId] ?? null };
   }
 
   async update(id: string, dto: UpdatePhysioCaseDto) {
@@ -371,17 +377,23 @@ export class CasesService {
 
   async upsertEvaluation(caseId: string, dto: EvaluationDto) {
     await this.findCaseOrThrow(caseId);
-    const data: any = {
-      modalities: (dto.modalities ?? []) as any,
-      otherModality: dto.otherModality,
-      notes: dto.notes,
-      evaluation: dto.evaluation,
-    };
-    return this.prisma.physioEvaluation.upsert({
-      where: { caseId },
-      create: { caseId, ...data },
-      update: data,
+    // مخزّنة على الحالة نفسها (مثل الشكوى) — مربوطة بالمريض عبر حالته
+    const updated = await this.prisma.physioCase.update({
+      where: { id: caseId },
+      data: {
+        evalModalities: (dto.modalities ?? []) as any,
+        evalOtherModality: dto.otherModality,
+        evalNotes: dto.notes,
+        evalSummary: dto.evaluation,
+      },
     });
+    return {
+      caseId,
+      modalities: updated.evalModalities,
+      otherModality: updated.evalOtherModality,
+      notes: updated.evalNotes,
+      evaluation: updated.evalSummary,
+    };
   }
 
   async addSurgery(caseId: string, dto: SurgeryDto) {
