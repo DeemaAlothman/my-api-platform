@@ -128,7 +128,7 @@ model Patient {
   maritalStatus    MaritalStatus?
   livingCondition  LivingCondition?
   financialStatus  FinancialStatus?
-  receivesAid      Boolean         @default(false)
+  receivesAid      String?         // اسم الجهة/المساعدة التي يتلقاها (نص)
 
   // Referral
   referralSource  ReferralSource?

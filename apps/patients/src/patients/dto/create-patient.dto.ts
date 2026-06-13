@@ -1,14 +1,5 @@
-import { IsString, IsEnum, IsOptional, IsNumber, IsBoolean, IsEmail, IsDateString } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
-
-// يقبل boolean أو نص ("true"/"false"/"1"/"0"/"نعم"/"لا") ويحوّله boolean (للفورم/الـ form-data)
-const toBoolean = ({ value }: { value: any }) => {
-  if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value === 1;
-  if (typeof value === 'string') return ['true', '1', 'yes', 'نعم'].includes(value.trim().toLowerCase());
-  return value;
-};
+import { IsString, IsEnum, IsOptional, IsNumber, IsEmail, IsDateString } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum IdType { NATIONAL_ID = 'NATIONAL_ID', PASSPORT = 'PASSPORT', UNHCR = 'UNHCR', OTHER = 'OTHER' }
 export enum Gender { MALE = 'MALE', FEMALE = 'FEMALE' }
@@ -41,7 +32,7 @@ export class CreatePatientDto {
   @IsOptional() @IsEnum(MaritalStatus) maritalStatus?: MaritalStatus;
   @IsOptional() @IsEnum(LivingCondition) livingCondition?: LivingCondition;
   @IsOptional() @IsEnum(FinancialStatus) financialStatus?: FinancialStatus;
-  @IsOptional() @Transform(toBoolean) @IsBoolean() receivesAid?: boolean;
+  @IsOptional() @IsString() receivesAid?: string; // اسم الجهة/المساعدة (نص)
 
   @IsOptional() @IsEnum(ReferralSource) referralSource?: ReferralSource;
   @IsOptional() @IsString() referralDetails?: string;

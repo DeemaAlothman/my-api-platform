@@ -173,7 +173,7 @@ model PhysioCase {
   previousDoctorSeen  String?
   previousTreatment   String?
   hadPreviousPT       Boolean  @default(false)
-  hadPreviousInjury   Boolean  @default(false)
+  hadPreviousInjury   String?  // هل سبق التعرض لهذه الإصابة؟ (نص حر)
 
   // ── الشكوى المرضية (Medical Complaint form) ──
   complaintType         String?  // نوع الشكاية المرضية

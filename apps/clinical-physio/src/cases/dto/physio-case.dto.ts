@@ -59,8 +59,8 @@ export class CreatePhysioCaseDto {
   @IsOptional() @IsBoolean()
   hadPreviousPT?: boolean;
 
-  @IsOptional() @IsBoolean()
-  hadPreviousInjury?: boolean;
+  @IsOptional() @IsString()
+  hadPreviousInjury?: string;
 
   @IsOptional() @IsDateString()
   painStartDate?: string;
@@ -151,9 +151,9 @@ export class UpdatePhysioCaseDto {
   @IsOptional() @IsString()
   finalNotes?: string;
 
-  // هل سبق التعرض لهذه الإصابة؟ (Have you had this injury before?)
-  @IsOptional() @IsBoolean()
-  hadPreviousInjury?: boolean;
+  // هل سبق التعرض لهذه الإصابة؟ (نص حر — حقل عادي اختياري)
+  @IsOptional() @IsString()
+  hadPreviousInjury?: string;
 
   // هل يتحسن الألم أم يزداد سوءاً؟ (Is your pain getting better or worse?)
   @IsOptional() @IsString()

@@ -122,7 +122,7 @@ export class CasesService {
           previousDoctorSeen: dto.previousDoctorSeen,
           previousTreatment: dto.previousTreatment,
           hadPreviousPT: dto.hadPreviousPT ?? false,
-          hadPreviousInjury: dto.hadPreviousInjury ?? false,
+          hadPreviousInjury: dto.hadPreviousInjury,
           painStartDate: dto.painStartDate ? new Date(dto.painStartDate) : undefined,
           painLevel: dto.painLevel as any,
           painDuration: dto.painDuration as any,

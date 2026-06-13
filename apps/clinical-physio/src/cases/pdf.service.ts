@@ -76,7 +76,7 @@ export class PdfService {
       row('Treatment To', c.treatmentTo ? new Date(c.treatmentTo).toLocaleDateString('en-GB') : null);
       row('Anticipated Visits', c.anticipatedVisits);
       if (c.hadPreviousPT) row('Previous PT', 'Yes');
-      if (c.hadPreviousInjury) row('Previous Injury', 'Yes');
+      row('Previous Injury', c.hadPreviousInjury);
 
       // ── Medical Team ──────────────────────────────────────────────────
       section('Medical Team');
@@ -256,7 +256,7 @@ export class PdfService {
       yesNo('Chronic Diseases', c.hasChronicDiseases, c.chronicDiseasesDetail);
       yesNo('Visited Specialist', c.visitedSpecialist, c.previousDoctorSeen);
       yesNo('Previous Physical Therapy', c.hadPreviousPT, c.previousTreatment);
-      yesNo('Previous Injury', c.hadPreviousInjury);
+      row('Previous Injury', c.hadPreviousInjury);
       yesNo('Previous Surgery', c.hadSurgery, c.surgeryDetail);
       row('Complaint Notes', c.complaintNotes);
 
