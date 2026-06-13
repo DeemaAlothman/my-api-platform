@@ -11,20 +11,24 @@ import {
 } from './dto/physio-case.dto';
 
 // B11: خريطة الانتقالات المسموحة لحالة الملف
+// الترتيب: استقبال → شكوى → خريطة الألم → التاريخ الطبي → أهداف العلاج →
+// خطة العلاج (Assessment) → خطة العلاج (Treatment) → التقييم → الجلسات العلاجية →
+// رأي رئيس القسم → مكتمل. (أُلغي التوقيع/DOCTOR_SIGN نهائياً.)
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   INTAKE:              ['COMPLAINT', 'CANCELLED'],
   COMPLAINT:           ['PAIN_MAP', 'CANCELLED'],
   PAIN_MAP:            ['MEDICAL_HISTORY', 'CANCELLED'],
   MEDICAL_HISTORY:     ['GOALS', 'CANCELLED'],
   GOALS:               ['POSTURAL_ASSESSMENT', 'CANCELLED'],
-  POSTURAL_ASSESSMENT: ['TREATMENT_PLAN', 'CANCELLED'],
-  TREATMENT_PLAN:      ['SUPERVISOR_REVIEW', 'CANCELLED'],
-  SUPERVISOR_REVIEW:   ['DOCTOR_SIGN', 'TREATMENT_PLAN', 'CANCELLED'],
-  DOCTOR_SIGN:         ['ACTIVE_TREATMENT', 'CANCELLED'],
-  ACTIVE_TREATMENT:    ['COMPLETED', 'CANCELLED'],
-  COMPLETED:           ['DISCHARGED'],
+  POSTURAL_ASSESSMENT: ['TREATMENT_PLAN', 'CANCELLED'], // خطة العلاج (Assessment)
+  TREATMENT_PLAN:      ['EVALUATION', 'CANCELLED'],      // خطة العلاج (Treatment)
+  EVALUATION:          ['ACTIVE_TREATMENT', 'CANCELLED'], // التقييم
+  ACTIVE_TREATMENT:    ['SUPERVISOR_REVIEW', 'CANCELLED'], // الجلسات العلاجية
+  SUPERVISOR_REVIEW:   ['COMPLETED', 'CANCELLED'],         // رأي رئيس القسم
+  COMPLETED:           ['DISCHARGED'],                     // مكتمل
   DISCHARGED:          [],
   CANCELLED:           [],
+  // DOCTOR_SIGN: مُلغى — لم يعد جزءاً من المسار
 };
 
 const PATIENTS_URL = process.env.PATIENTS_SERVICE_URL || 'http://localhost:4010';
@@ -232,16 +236,7 @@ export class CasesService {
       });
     }
 
-    // B11: الانتقال إلى ACTIVE_TREATMENT ممنوع بدون توقيع طبيب صالح
-    if (to === 'ACTIVE_TREATMENT') {
-      const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId: id } });
-      if (!plan?.doctorSignatureBase64) {
-        throw new BadRequestException({
-          code: 'DOCTOR_SIGNATURE_REQUIRED',
-          message: 'Cannot start treatment without a valid doctor signature',
-        });
-      }
-    }
+    // أُلغي اشتراط توقيع الطبيب نهائياً — لا قيود توقيع على بدء العلاج
 
     return this.prisma.physioCase.update({
       where: { id },
@@ -506,7 +501,7 @@ export class CasesService {
     const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId } });
     if (!plan) throw new NotFoundException('Treatment plan not found');
 
-    // B16: خزّن نظرة المشرف وانقل الحالة TREATMENT_PLAN → SUPERVISOR_REVIEW
+    // خزّن رأي رئيس القسم — وانقل الحالة ACTIVE_TREATMENT → SUPERVISOR_REVIEW (بعد الجلسات)
     const [updatedPlan] = await this.prisma.$transaction([
       this.prisma.physioTreatmentPlan.update({
         where: { caseId },
@@ -518,7 +513,7 @@ export class CasesService {
       }),
       this.prisma.physioCase.update({
         where: { id: caseId },
-        data: c.status === 'TREATMENT_PLAN' ? { status: 'SUPERVISOR_REVIEW' as any } : {},
+        data: c.status === 'ACTIVE_TREATMENT' ? { status: 'SUPERVISOR_REVIEW' as any } : {},
       }),
     ]);
     return updatedPlan;
@@ -569,15 +564,9 @@ export class CasesService {
       const last = await tx.physioSession.findFirst({
         where: { caseId },
         orderBy: { sessionNumber: 'desc' },
-        select: { sessionNumber: true, supervisorOpinion: true, doctorDecision: true },
+        select: { sessionNumber: true },
       });
-      // لا يمكن فتح جلسة جديدة حتى تكتمل السابقة (رأي رئيس القسم + قرار الطبيب)
-      if (last && (!last.supervisorOpinion?.trim() || !last.doctorDecision?.trim())) {
-        throw new BadRequestException({
-          code: 'PREVIOUS_SESSION_INCOMPLETE',
-          message: 'يجب إدخال رأي رئيس القسم وقرار الطبيب للجلسة السابقة قبل إضافة جلسة جديدة',
-        });
-      }
+      // الجلسات تُنشأ دائماً بدون قيود (غير مربوطة بمراحل الحالة ولا بالجلسة السابقة)
       const sessionNumber = (last?.sessionNumber ?? 0) + 1;
       return tx.physioSession.create({
         data: {
