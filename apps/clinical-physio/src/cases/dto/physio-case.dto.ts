@@ -610,6 +610,12 @@ export class PhysioSessionDto {
 
   @IsOptional() @IsString()
   notes?: string; // ملاحظة
+
+  @IsOptional() @IsString()
+  supervisorOpinion?: string; // رأي رئيس القسم
+
+  @IsOptional() @IsString()
+  doctorDecision?: string; // قرار الطبيب (بدون توقيع)
 }
 
 export class UpdateSessionDto {
@@ -621,6 +627,12 @@ export class UpdateSessionDto {
 
   @IsOptional() @IsString()
   notes?: string;
+
+  @IsOptional() @IsString()
+  supervisorOpinion?: string; // رأي رئيس القسم
+
+  @IsOptional() @IsString()
+  doctorDecision?: string; // قرار الطبيب (بدون توقيع)
 }
 
 // الملخص النهائي بعد انتهاء كل الجلسات

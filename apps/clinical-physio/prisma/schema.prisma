@@ -429,6 +429,9 @@ model PhysioSession {
   modalities      TherapyModality[]
   notes           String? @db.Text
 
+  supervisorOpinion String? @db.Text // رأي رئيس القسم (مطلوب قبل فتح الجلسة التالية)
+  doctorDecision    String? @db.Text // قرار الطبيب (نص، بدون توقيع)
+
   physiotherapistId       String?
   painLevel               Int?
   romMeasurements         Json?

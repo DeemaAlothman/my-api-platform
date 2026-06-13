@@ -381,6 +381,8 @@ export class PdfService {
           const date = s.sessionDate ? new Date(s.sessionDate).toLocaleDateString('en-GB') : '';
           const time = s.sessionTime ? ` ${s.sessionTime}` : '';
           row(`Session ${num}`, `${date}${time}${s.notes ? '  —  ' + s.notes : ''}`);
+          if (s.supervisorOpinion) row('   Dept. Head Opinion', s.supervisorOpinion);
+          if (s.doctorDecision) row('   Doctor Decision', s.doctorDecision);
         });
       }
 

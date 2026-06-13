@@ -569,8 +569,15 @@ export class CasesService {
       const last = await tx.physioSession.findFirst({
         where: { caseId },
         orderBy: { sessionNumber: 'desc' },
-        select: { sessionNumber: true },
+        select: { sessionNumber: true, supervisorOpinion: true, doctorDecision: true },
       });
+      // لا يمكن فتح جلسة جديدة حتى تكتمل السابقة (رأي رئيس القسم + قرار الطبيب)
+      if (last && (!last.supervisorOpinion?.trim() || !last.doctorDecision?.trim())) {
+        throw new BadRequestException({
+          code: 'PREVIOUS_SESSION_INCOMPLETE',
+          message: 'يجب إدخال رأي رئيس القسم وقرار الطبيب للجلسة السابقة قبل إضافة جلسة جديدة',
+        });
+      }
       const sessionNumber = (last?.sessionNumber ?? 0) + 1;
       return tx.physioSession.create({
         data: {
@@ -579,6 +586,8 @@ export class CasesService {
           sessionDate: new Date(dto.sessionDate),
           sessionTime: dto.sessionTime,
           notes: dto.notes,
+          supervisorOpinion: dto.supervisorOpinion,
+          doctorDecision: dto.doctorDecision,
           // يُعبّأ تلقائياً من أخصائي الحالة (لم يعد يُرسل من الفرونت)
           physiotherapistId: physioCase.physiotherapistId ?? null,
         },
@@ -604,6 +613,8 @@ export class CasesService {
         ...(dto.sessionDate !== undefined ? { sessionDate: new Date(dto.sessionDate) } : {}),
         ...(dto.sessionTime !== undefined ? { sessionTime: dto.sessionTime } : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+        ...(dto.supervisorOpinion !== undefined ? { supervisorOpinion: dto.supervisorOpinion } : {}),
+        ...(dto.doctorDecision !== undefined ? { doctorDecision: dto.doctorDecision } : {}),
       },
     });
   }
