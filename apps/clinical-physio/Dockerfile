@@ -22,6 +22,9 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
+# خط عربي لتقارير الـ PDF (Noto Sans Arabic)
+RUN apk add --no-cache font-noto-arabic || true
+
 COPY --from=builder /app/node_modules              ./node_modules
 COPY --from=builder /app/apps/clinical-physio/dist   ./dist
 COPY --from=builder /app/apps/clinical-physio/prisma ./prisma

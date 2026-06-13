@@ -26,6 +26,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "pdfkit": "^0.15.0",
+    "arabic-reshaper": "^1.1.0",
     "tsx": "^4.19.2"
   },
   "devDependencies": {
