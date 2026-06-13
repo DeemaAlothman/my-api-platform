@@ -177,6 +177,16 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.findAll({ ...query, managerId: managerEmployeeId });
   }
 
+  // الطلبات التي اعتمدها المدير الحالي (managerApprovedBy = userId المدير)
+  @Get('manager-approved')
+  @Permission('leave_requests:approve_manager')
+  findApprovedByManager(
+    @UserId() managerUserId: string,
+    @Query() query: ListLeaveRequestsQueryDto,
+  ) {
+    return this.leaveRequestsService.findAll({ ...query, approvedByManagerUserId: managerUserId });
+  }
+
   // قائمة جميع الطلبات (لـ HR — يرى الكل)
   @Get()
   @Permission('leave_requests:read_all')

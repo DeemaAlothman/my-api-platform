@@ -1258,6 +1258,13 @@ export class LeaveRequestsService {
     if (filters?.status) where.status = filters.status;
     if (filters?.employeeId) where.employeeId = filters.employeeId;
     if (filters?.leaveTypeId) where.leaveTypeId = filters.leaveTypeId;
+
+    // الطلبات التي اعتمدها مدير معيّن (managerApprovedBy = userId المدير)
+    if (filters?.approvedByManagerUserId) {
+      where.managerApprovedBy = filters.approvedByManagerUserId;
+      where.managerStatus = 'APPROVED';
+    }
+
     if (filters?.dateFrom || filters?.dateTo) {
       where.startDate = {};
       if (filters.dateFrom) where.startDate.gte = new Date(filters.dateFrom);
