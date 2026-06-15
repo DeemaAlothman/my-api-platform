@@ -328,7 +328,8 @@ export class LeaveRequestsService {
 
       // قاعدة 1: كل إجازة > 4 أيام → 7 أيام إشعار مسبق (بدون استثناء ماعدا الطوارئ)
       const LONG_LEAVE_MIN = 7;
-      const LONG_LEAVE_EXEMPT = ['SICK', 'EMERGENCY', 'BEREAVEMENT', 'BIRTH', 'PATERNITY'];
+      // UNPAID مستثناة: تُقدَّم بأي وقت (حتى نفس اليوم) بدون إشعار مسبق
+      const LONG_LEAVE_EXEMPT = ['SICK', 'EMERGENCY', 'BEREAVEMENT', 'BIRTH', 'PATERNITY', 'UNPAID'];
       if (totalDays > 4 && !LONG_LEAVE_EXEMPT.includes(leaveType.code)) {
         if (daysFromToday < LONG_LEAVE_MIN) {
           throw new BadRequestException(
@@ -342,6 +343,8 @@ export class LeaveRequestsService {
           HOURLY:       { maxRetroactive: 7, maxAdvance: 7 },
           UNPAID_DAILY: { maxRetroactive: 7, maxAdvance: 7 },
           SICK:         { maxRetroactive: 7, maxAdvance: 1 },
+          // UNPAID: بأي وقت — لا حد للتقديم المسبق ولا المتأخر
+          UNPAID:       { maxRetroactive: 3650 },
         };
         const win = TYPE_WINDOWS[leaveType.code];
         if (win) {
