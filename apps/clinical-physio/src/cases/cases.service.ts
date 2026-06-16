@@ -339,6 +339,7 @@ export class CasesService {
       previousDiagnoses: dto.previousDiagnoses,
       chronicConditions: (dto.chronicConditions ?? []) as any,
       otherConditions: dto.otherConditions,
+      chronicConditionsOther: dto.chronicConditionsOther,
       hasOtherHealthProblems: dto.hasOtherHealthProblems ?? false,
       doctorRestrictions: dto.doctorRestrictions,
       previousComplaintsSurgeries: dto.previousComplaintsSurgeries,

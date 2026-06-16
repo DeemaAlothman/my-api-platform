@@ -281,6 +281,7 @@ model MedicalHistory {
 
   chronicConditions   ChronicCondition[]
   otherConditions     String?
+  chronicConditionsOther String? // النص عند اختيار "آخر Other" في قائمة الأمراض المزمنة
 
   // هل تعاني من مشاكل صحية أخرى؟ (التفصيل في otherConditions)
   hasOtherHealthProblems Boolean @default(false)

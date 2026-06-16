@@ -320,6 +320,10 @@ export class MedicalHistoryDto {
   @IsOptional() @IsString()
   otherConditions?: string;
 
+  // النص عند اختيار "آخر Other" في قائمة الأمراض المزمنة
+  @IsOptional() @IsString()
+  chronicConditionsOther?: string;
+
   // 6) هل تعاني من مشاكل صحية أخرى؟ (التفصيل في otherConditions)
   @IsOptional() @IsBoolean()
   hasOtherHealthProblems?: boolean;

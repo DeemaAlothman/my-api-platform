@@ -367,6 +367,7 @@ export class PdfService {
         yn('Bone Density Test', mh.boneDensityTest, mh.boneDensityDetail);
         yn('Hospitalized in the past year', mh.hospitalizedLastYear, mh.hospitalizedDetail);
         list('Chronic conditions', mh.chronicConditions);
+        row('Chronic conditions (Other)', mh.chronicConditionsOther);
       }
 
       // ── Goals of Treatment ────────────────────────────────────────────
