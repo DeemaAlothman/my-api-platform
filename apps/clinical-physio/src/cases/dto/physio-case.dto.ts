@@ -313,8 +313,13 @@ export class MedicalHistoryDto {
   @IsOptional() @IsString()
   supplementsList?: string;
 
+  // حقول خاصة بالإناث (الفرونت يعرضها فقط إذا المريض أنثى)
   @IsOptional() @IsBoolean()
   isPregnant?: boolean;
+  @IsOptional() @IsString()
+  maritalStatus?: string;        // عزباء / متزوجة
+  @IsOptional() @IsString()
+  lastMenstrualPeriod?: string;  // تاريخ آخر دورة شهرية
 
   @IsOptional() @IsString()
   previousDiagnoses?: string;

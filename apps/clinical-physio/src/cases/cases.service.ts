@@ -337,6 +337,8 @@ export class CasesService {
       herbalSupplements: dto.herbalSupplements ?? false,
       supplementsList: dto.supplementsList,
       isPregnant: dto.isPregnant ?? false,
+      maritalStatus: dto.maritalStatus,
+      lastMenstrualPeriod: dto.lastMenstrualPeriod,
       previousDiagnoses: dto.previousDiagnoses,
       chronicConditions: (dto.chronicConditions ?? []) as any,
       otherConditions: dto.otherConditions,

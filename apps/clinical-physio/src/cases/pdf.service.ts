@@ -345,6 +345,8 @@ export class PdfService {
         row('Allergies', mh.allergies);
         row('Current medications', mh.currentMedications);
         yn('Pregnant', mh.isPregnant);
+        row('Marital Status', mh.maritalStatus);
+        row('Last Menstrual Period', mh.lastMenstrualPeriod);
         row('Previous diagnoses/medications', mh.previousDiagnoses);
         yn('Other health problems', mh.hasOtherHealthProblems, mh.otherConditions);
         row('Doctor restrictions', mh.doctorRestrictions);

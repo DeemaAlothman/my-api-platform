@@ -275,7 +275,10 @@ model MedicalHistory {
   herbalSupplements   Boolean @default(false)
   supplementsList     String?
 
-  isPregnant          Boolean @default(false)
+  // حقول خاصة بالإناث (تُعرض على الفرونت فقط إذا كان المريض أنثى)
+  isPregnant          Boolean @default(false) // هل أنت حامل؟
+  maritalStatus       String? // عزباء / متزوجة
+  lastMenstrualPeriod String? // تاريخ آخر دورة شهرية (نص)
 
   previousDiagnoses   String? @db.Text
 
