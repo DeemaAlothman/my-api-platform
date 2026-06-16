@@ -382,9 +382,9 @@ export class PdfService {
         yn('Improve Strength', g.improveStrength);
         yn('Less difficulty with work activities', g.lessDifficultyWork);
         yn('Improve Movement', g.improveMovement);
-        row('Stand longer (min)', g.standLongerMinutes);
-        row('Sleep longer (min)', g.sleepLongerMinutes);
-        row('Sit longer (min)', g.sitLongerMinutes);
+        row('Stand longer', g.standLonger);
+        row('Sleep longer', g.sleepLonger);
+        row('Sit longer', g.sitLonger);
         row('Anything else', g.otherGoals);
       }
 

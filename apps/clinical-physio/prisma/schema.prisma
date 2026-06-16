@@ -358,9 +358,9 @@ model TreatmentGoals {
   improveStrength   Boolean @default(false)
   lessDifficultyWork Boolean @default(false)
 
-  standLongerMinutes Int?
-  sleepLongerMinutes Int?
-  sitLongerMinutes   Int?
+  standLonger String? // أطول فترة وقوف (وقت HH:MM)
+  sleepLonger String? // أطول فترة نوم (وقت HH:MM)
+  sitLonger   String? // أطول فترة جلوس (وقت HH:MM)
 
   improveMovement   Boolean @default(false)
   otherGoals        String? @db.Text

@@ -432,14 +432,15 @@ export class TreatmentGoalsDto {
   @IsOptional() @IsBoolean()
   lessDifficultyWork?: boolean;
 
-  @IsOptional() @IsInt() @Type(() => Number)
-  standLongerMinutes?: number;
+  // حقول وقت (ساعات:دقائق) — نص مثل "2:30"
+  @IsOptional() @IsString()
+  standLonger?: string;
 
-  @IsOptional() @IsInt() @Type(() => Number)
-  sleepLongerMinutes?: number;
+  @IsOptional() @IsString()
+  sleepLonger?: string;
 
-  @IsOptional() @IsInt() @Type(() => Number)
-  sitLongerMinutes?: number;
+  @IsOptional() @IsString()
+  sitLonger?: string;
 
   @IsOptional() @IsBoolean()
   improveMovement?: boolean;

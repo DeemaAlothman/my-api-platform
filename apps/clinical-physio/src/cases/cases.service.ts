@@ -423,9 +423,9 @@ export class CasesService {
       decreasePain: dto.decreasePain ?? false,
       improveStrength: dto.improveStrength ?? false,
       lessDifficultyWork: dto.lessDifficultyWork ?? false,
-      standLongerMinutes: dto.standLongerMinutes,
-      sleepLongerMinutes: dto.sleepLongerMinutes,
-      sitLongerMinutes: dto.sitLongerMinutes,
+      standLonger: dto.standLonger,
+      sleepLonger: dto.sleepLonger,
+      sitLonger: dto.sitLonger,
       improveMovement: dto.improveMovement ?? false,
       otherGoals: dto.otherGoals,
     };
