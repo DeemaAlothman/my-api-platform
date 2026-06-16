@@ -146,6 +146,7 @@ enum TherapyModality {
   MET
   PNF
   INFRARED
+  SIS
   OTHER
   @@schema("clinic_physio")
 }

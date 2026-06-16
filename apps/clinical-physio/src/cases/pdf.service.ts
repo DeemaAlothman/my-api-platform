@@ -283,7 +283,7 @@ export class PdfService {
       const PAIN_LEVEL = [['MILD', 'Mild'], ['MODERATE', 'Moderate'], ['SEVERE', 'Severe'], ['EXCRUCIATING', 'Excruciating']];
       const PAIN_DUR = [['INTERMITTENT', 'Intermittent'], ['CONSTANT', 'Constant'], ['WITH_CERTAIN_MOTIONS', 'With certain motions']];
       const LIFE = [['SEDENTARY', 'Sedentary'], ['NORMAL', 'Normal'], ['ABNORMAL', 'Abnormal'], ['PROFESSIONAL', 'Professional']];
-      const MODALITIES = [['MANUAL_THERAPY', 'Manual Therapy'], ['MASSAGE', 'Massage'], ['KINESIO_TAPING', 'Kinesio Taping'], ['COMPRESSION', 'Compression'], ['PARAFFIN', 'Paraffin'], ['GRASTON', 'Graston'], ['MET', 'MET'], ['PNF', 'PNF'], ['INFRARED', 'Infrared'], ['ESWT', 'ESWT'], ['US', 'US'], ['TENS', 'TENS'], ['EMS', 'EMS'], ['LASER', 'Laser'], ['CPM', 'CPM'], ['HOT_PACKS', 'Hot Packs'], ['COLD_PACKS', 'Cold Packs'], ['TRACTION', 'Traction'], ['EXERCISES', 'Exercises'], ['OTHER', 'Other']];
+      const MODALITIES = [['MANUAL_THERAPY', 'Manual Therapy'], ['MASSAGE', 'Massage'], ['KINESIO_TAPING', 'Kinesio Taping'], ['COMPRESSION', 'Compression'], ['PARAFFIN', 'Paraffin'], ['GRASTON', 'Graston'], ['MET', 'MET'], ['PNF', 'PNF'], ['INFRARED', 'Infrared'], ['ESWT', 'ESWT'], ['US', 'US'], ['TENS', 'TENS'], ['EMS', 'EMS'], ['LASER', 'Laser'], ['CPM', 'CPM'], ['HOT_PACKS', 'Hot Packs'], ['COLD_PACKS', 'Cold Packs'], ['TRACTION', 'Traction'], ['EXERCISES', 'Exercises'], ['SIS', 'Magnetic Stimulation (SIS)'], ['OTHER', 'Other']];
 
       // ── Title ─────────────────────────────────────────────────────────
       doc.rect(M, M, W, 30).fill(purple);
