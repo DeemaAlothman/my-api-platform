@@ -168,7 +168,7 @@ model PhysioCase {
 
   majorComplaint      String   @db.Text
   symptoms            String   @db.Text
-  complaintStartDate  DateTime?
+  complaintStartDate  String?   // تاريخ البدء — نص حر
   possibleCause       String?
 
   previousDoctorSeen  String?

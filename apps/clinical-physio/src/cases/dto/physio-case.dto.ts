@@ -44,7 +44,8 @@ export class CreatePhysioCaseDto {
   @IsOptional() @IsEnum(LifeType)
   lifeType?: LifeType;
 
-  @IsOptional() @IsDateString()
+  // تاريخ البدء — حقل نصّي عادي (يقبل أي نص)
+  @IsOptional() @IsString()
   complaintStartDate?: string;
 
   @IsOptional() @IsString()
@@ -129,6 +130,10 @@ export class UpdatePhysioCaseDto {
 
   @IsOptional() @IsString()
   possibleCause?: string;
+
+  // تاريخ البدء — حقل نصّي عادي
+  @IsOptional() @IsString()
+  complaintStartDate?: string;
 
   @IsOptional() @IsString()
   physiotherapistId?: string;

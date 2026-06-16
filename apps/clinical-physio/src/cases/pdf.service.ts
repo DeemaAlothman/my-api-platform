@@ -315,7 +315,7 @@ export class PdfService {
       row('Major Complaint / Symptoms', c.majorComplaint);
       row('Symptoms', c.symptoms);
       row('Current Job', c.currentJob);
-      row('Start Date', fmtDate(c.complaintStartDate));
+      row('Start Date', c.complaintStartDate);
       row('Possible Cause', c.possibleCause);
       row('Time symptoms are best', c.bestTimeOfDay);
       row('Time pain is at its worst', c.worstTimeOfDay);
