@@ -39,16 +39,7 @@ export function validateRequestDetails(type: string, details: any): void {
 
     case 'RESIGNATION': {
       requireFields(details, ['effectiveDate', 'reasons'], 'RESIGNATION');
-      const effectiveDate = new Date(details.effectiveDate);
-      const minDate = new Date();
-      minDate.setDate(minDate.getDate() + 30);
-      if (effectiveDate < minDate) {
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          message: 'Resignation effective date must be at least 30 days from today',
-          details: [{ field: 'effectiveDate' }],
-        });
-      }
+      // أُزيل قيد «تاريخ النفاذ بعد 30 يوم» — يُقبل أي تاريخ نفاذ
       break;
     }
 
