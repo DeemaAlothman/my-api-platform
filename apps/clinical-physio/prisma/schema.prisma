@@ -291,6 +291,10 @@ model MedicalHistory {
   // الشكاوى السابقة / العمليات الجراحية السابقة (نص)
   previousComplaintsSurgeries String? @db.Text
 
+  // هل خضعت لأي عمليات جراحية؟ + التفصيل عند نعم
+  hadSurgeries        Boolean @default(false)
+  surgeriesDetail     String? @db.Text
+
   // هل خضعت للعلاج الطبيعي لنفس المشكلة؟ + التفصيل عند نعم
   hadPTSameProblem    Boolean @default(false)
   ptSameProblemDetail String?

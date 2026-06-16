@@ -331,6 +331,12 @@ export class MedicalHistoryDto {
   @IsOptional() @IsString()
   previousComplaintsSurgeries?: string;
 
+  // هل خضعت لأي عمليات جراحية؟ + التفصيل عند نعم
+  @IsOptional() @IsBoolean()
+  hadSurgeries?: boolean;
+  @IsOptional() @IsString()
+  surgeriesDetail?: string;
+
   // 11) هل خضعت للعلاج الطبيعي لنفس المشكلة؟ + التفصيل عند نعم
   @IsOptional() @IsBoolean()
   hadPTSameProblem?: boolean;

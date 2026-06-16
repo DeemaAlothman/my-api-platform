@@ -342,6 +342,8 @@ export class CasesService {
       hasOtherHealthProblems: dto.hasOtherHealthProblems ?? false,
       doctorRestrictions: dto.doctorRestrictions,
       previousComplaintsSurgeries: dto.previousComplaintsSurgeries,
+      hadSurgeries: dto.hadSurgeries ?? false,
+      surgeriesDetail: dto.hadSurgeries === false ? null : dto.surgeriesDetail,
       hadPTSameProblem: dto.hadPTSameProblem ?? false,
       ptSameProblemDetail: dto.hadPTSameProblem === false ? null : dto.ptSameProblemDetail,
       receivingOtherTreatment: dto.receivingOtherTreatment ?? false,

@@ -352,6 +352,7 @@ export class PdfService {
         yn('Herbal/Vitamins', mh.herbalSupplements, mh.supplementsList);
         yn('Allergic to adhesives/latex/bee stings', mh.adhesiveAllergy);
         row('Previous complaints/surgeries', mh.previousComplaintsSurgeries);
+        yn('Had any surgeries', mh.hadSurgeries, mh.surgeriesDetail);
         if (Array.isArray(mh.surgeries) && mh.surgeries.length) {
           mh.surgeries.forEach((s: any, i: number) =>
             row(`Surgery ${i + 1}`, `${s.name ?? ''}${s.date ? ' — ' + fmtDate(s.date) : ''}${s.type ? ' (' + s.type + ')' : ''}`.trim()));
