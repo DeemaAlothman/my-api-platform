@@ -332,6 +332,7 @@ export class CasesService {
       pacemakerDetail: dto.hasPacemaker === false ? null : dto.pacemakerDetail,
       allergies: dto.allergies,
       adhesiveAllergy: dto.adhesiveAllergy ?? false,
+      adhesiveAllergyDetail: dto.adhesiveAllergy === false ? null : dto.adhesiveAllergyDetail,
       currentMedications: dto.currentMedications,
       prescriptionDrugs: dto.prescriptionDrugs ?? false,
       herbalSupplements: dto.herbalSupplements ?? false,

@@ -352,7 +352,7 @@ export class PdfService {
         row('Doctor restrictions', mh.doctorRestrictions);
         yn('Prescription/OTC drugs', mh.prescriptionDrugs, mh.currentMedications);
         yn('Herbal/Vitamins', mh.herbalSupplements, mh.supplementsList);
-        yn('Allergic to adhesives/latex/bee stings', mh.adhesiveAllergy);
+        yn('Allergic to adhesives/latex/bee stings', mh.adhesiveAllergy, mh.adhesiveAllergyDetail);
         row('Previous complaints/surgeries', mh.previousComplaintsSurgeries);
         yn('Had any surgeries', mh.hadSurgeries, mh.surgeriesDetail);
         if (Array.isArray(mh.surgeries) && mh.surgeries.length) {

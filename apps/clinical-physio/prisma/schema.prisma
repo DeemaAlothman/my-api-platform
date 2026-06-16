@@ -267,8 +267,9 @@ model MedicalHistory {
   hasPacemaker        Boolean @default(false)
   pacemakerDetail     String? // تفاصيل جهاز تنظيم ضربات القلب عند نعم
 
-  allergies           String? @db.Text
-  adhesiveAllergy     Boolean @default(false)
+  allergies           String? @db.Text  // الحساسية (عام)
+  adhesiveAllergy     Boolean @default(false) // حساسية لاصق/لاتكس/لسعات نحل
+  adhesiveAllergyDetail String? // «إذا نعم يرجى ذكر ما يلي» لسؤال اللاصق
 
   currentMedications  String? @db.Text
   prescriptionDrugs   Boolean @default(false)

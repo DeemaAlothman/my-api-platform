@@ -296,10 +296,12 @@ export class MedicalHistoryDto {
   pacemakerDetail?: string;
 
   @IsOptional() @IsString()
-  allergies?: string;
+  allergies?: string; // الحساسية (عام)
 
   @IsOptional() @IsBoolean()
-  adhesiveAllergy?: boolean;
+  adhesiveAllergy?: boolean; // حساسية لاصق/لاتكس/نحل
+  @IsOptional() @IsString()
+  adhesiveAllergyDetail?: string; // التفصيل عند نعم
 
   @IsOptional() @IsString()
   currentMedications?: string;
