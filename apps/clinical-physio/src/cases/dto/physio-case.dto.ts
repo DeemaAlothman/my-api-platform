@@ -463,7 +463,7 @@ class HeadAssessmentDto {
   @IsOptional() @IsBoolean() neutral?: boolean;          // حيادي
   @IsOptional() @IsBoolean() hyperextended?: boolean;    // فرط البسط
   @IsOptional() @IsBoolean() fwdFlexed?: boolean;        // تقدم الرأس للأمام
-  @IsOptional() @IsBoolean() laterallyFlexed?: boolean;  // عطف جانبي
+  @IsOptional() @ValidateNested() @Type(() => SideDto) laterallyFlexed?: SideDto; // عطف جانبي (L/R)
   @IsOptional() @ValidateNested() @Type(() => SideDto) rotated?: SideDto; // دوران (L/R)
 }
 
