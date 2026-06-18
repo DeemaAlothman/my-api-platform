@@ -204,7 +204,8 @@ model PhysioCase {
   worstTimeOfDay      String?
 
   painTypes           PhysioPainType[]
-  painTypeOther       String?
+  painTypeOther       String?   // اسم نوع "أخرى" (يحدّده الفرونت)
+  painTypeOtherColor  String?   // لون نوع "أخرى" (يحدّده الفرونت)
   aggravatingFactors  PainFactor[]
   aggravatingOther    String?
   alleviatingFactors  PainFactor[]

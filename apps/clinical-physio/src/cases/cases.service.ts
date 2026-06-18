@@ -283,6 +283,19 @@ export class CasesService {
     return this.prisma.physioCase.update({ where: { id: caseId }, data });
   }
 
+  // أنواع الألم المرجعية (النوع + الاسم + اللون). "أخرى" بدون لون — الفرونت يحدّده.
+  getPainTypes() {
+    return [
+      { type: 'NORMAL',         name: 'عادي',      color: '#F44336' }, // أحمر
+      { type: 'NUMBNESS',       name: 'خدر',       color: '#4CAF50' }, // أخضر
+      { type: 'DULL_ACHE',      name: 'ألم خفيف',  color: '#FF9800' }, // برتقالي
+      { type: 'HOT_BURNING',    name: 'حارق',      color: '#E91E63' }, // زهري
+      { type: 'SHARP_STABBING', name: 'حاد',       color: '#9C27B0' }, // موف
+      { type: 'PINS',           name: 'واخز',      color: '#FFEB3B' }, // أصفر
+      { type: 'OTHER',          name: 'أخرى',      color: null, custom: true }, // الفرونت يحدّد الاسم واللون
+    ];
+  }
+
   // ── Pain Map ──────────────────────────────────────────────────────────────
 
   async upsertPainMap(caseId: string, dto: PainMapDto) {
@@ -292,6 +305,7 @@ export class CasesService {
     const caseData: any = {
       painTypes: dto.painTypes as any,
       painTypeOther: dto.painTypeOther,
+      painTypeOtherColor: dto.painTypeOtherColor,
       aggravatingFactors: dto.aggravatingFactors as any,
       aggravatingOther: dto.aggravatingOther,
       alleviatingFactors: dto.alleviatingFactors as any,

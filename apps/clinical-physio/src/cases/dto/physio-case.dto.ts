@@ -261,7 +261,9 @@ export class PainMapDto {
   @IsOptional() @IsArray() @IsEnum(PhysioPainType, { each: true })
   painTypes?: PhysioPainType[];
   @IsOptional() @IsString()
-  painTypeOther?: string;
+  painTypeOther?: string;        // اسم نوع "أخرى"
+  @IsOptional() @IsString()
+  painTypeOtherColor?: string;   // لون نوع "أخرى"
 
   // العوامل المحرّضة للألم
   @IsOptional() @IsArray() @IsEnum(PainFactor, { each: true })

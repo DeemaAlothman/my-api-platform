@@ -45,6 +45,13 @@ export class CasesController {
     return this.service.findByPatient(patientId);
   }
 
+  // قائمة أنواع الألم المرجعية (النوع + الاسم + اللون) — لخريطة الألم
+  @Get('pain-types')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_VIEW)
+  getPainTypes() {
+    return this.service.getPainTypes();
+  }
+
   @Get(':id')
   @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_VIEW)
   findOne(@Param('id') id: string) {
