@@ -118,8 +118,8 @@ export class PdfService {
       row('Life Type', c.lifeType);
       row('Pain Level', c.painLevel);
       row('Pain Duration', c.painDuration);
-      row('Treatment From', c.treatmentFrom ? new Date(c.treatmentFrom).toLocaleDateString('en-GB') : null);
-      row('Treatment To', c.treatmentTo ? new Date(c.treatmentTo).toLocaleDateString('en-GB') : null);
+      row('Treatment From', c.treatmentFrom);
+      row('Treatment To', c.treatmentTo);
       row('Anticipated Visits', c.anticipatedVisits);
       if (c.hadPreviousPT) row('Previous PT', 'Yes');
       row('Previous Injury', c.hadPreviousInjury);
@@ -412,8 +412,8 @@ export class PdfService {
       const tp = c.treatmentPlan;
       if (tp) {
         banner('Plan of Treatment', 'خطة العلاج');
-        row('From', fmtDate(c.treatmentFrom));
-        row('To', fmtDate(c.treatmentTo));
+        row('From', c.treatmentFrom);
+        row('To', c.treatmentTo);
         row('Anticipated No of Visits', c.anticipatedVisits);
         row('Physical Therapist(s)', (Array.isArray(c.physiotherapistIds) && c.physiotherapistIds.length) ? c.physiotherapistIds.join(', ') : c.physiotherapistId);
         row('Case Manager', c.caseManagerId);

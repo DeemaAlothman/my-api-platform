@@ -106,10 +106,10 @@ export class CreatePhysioCaseDto {
   @IsOptional() @IsString()
   caseManagerId?: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional() @IsString()
   treatmentFrom?: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional() @IsString()
   treatmentTo?: string;
 
   @IsOptional() @IsInt() @Type(() => Number)
@@ -145,10 +145,10 @@ export class UpdatePhysioCaseDto {
   @IsOptional() @IsString()
   caseManagerId?: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional() @IsString()
   treatmentFrom?: string;
 
-  @IsOptional() @IsDateString()
+  @IsOptional() @IsString()
   treatmentTo?: string;
 
   @IsOptional() @IsInt() @Type(() => Number)
@@ -598,11 +598,11 @@ export class TreatmentPlanDto {
   status?: PlanStatus;
 
   // ── حقول رأس الفورم (Plan of Treatment) — مخزّنة على الحالة ──
-  @IsOptional() @IsDateString()
-  treatmentFrom?: string; // من From
+  @IsOptional() @IsString()
+  treatmentFrom?: string; // من From — نص حر
 
-  @IsOptional() @IsDateString()
-  treatmentTo?: string; // إلى To
+  @IsOptional() @IsString()
+  treatmentTo?: string; // إلى To — نص حر
 
   @IsOptional() @IsInt() @Type(() => Number)
   anticipatedVisits?: number; // عدد الزيارات المتوقعة

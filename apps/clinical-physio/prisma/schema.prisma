@@ -217,8 +217,8 @@ model PhysioCase {
   supervisingDoctorId String?
   caseManagerId       String?
 
-  treatmentFrom       DateTime?
-  treatmentTo         DateTime?
+  treatmentFrom       String?   // من — نص حر
+  treatmentTo         String?   // إلى — نص حر
   anticipatedVisits   Int?
 
   finalNotes          String?  @db.Text

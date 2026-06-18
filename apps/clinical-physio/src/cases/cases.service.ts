@@ -142,8 +142,8 @@ export class CasesService {
           physiotherapistId: dto.physiotherapistId,
           supervisingDoctorId: dto.supervisingDoctorId,
           caseManagerId: dto.caseManagerId,
-          treatmentFrom: dto.treatmentFrom ? new Date(dto.treatmentFrom) : undefined,
-          treatmentTo: dto.treatmentTo ? new Date(dto.treatmentTo) : undefined,
+          treatmentFrom: dto.treatmentFrom,
+          treatmentTo: dto.treatmentTo,
           anticipatedVisits: dto.anticipatedVisits,
           createdBy: userId,
         },
@@ -213,8 +213,8 @@ export class CasesService {
         physiotherapistId: dto.physiotherapistId,
         supervisingDoctorId: dto.supervisingDoctorId,
         caseManagerId: dto.caseManagerId,
-        treatmentFrom: dto.treatmentFrom ? new Date(dto.treatmentFrom) : undefined,
-        treatmentTo: dto.treatmentTo ? new Date(dto.treatmentTo) : undefined,
+        treatmentFrom: dto.treatmentFrom,
+        treatmentTo: dto.treatmentTo,
         anticipatedVisits: dto.anticipatedVisits,
         finalNotes: dto.finalNotes,
         hadPreviousInjury: dto.hadPreviousInjury,
@@ -472,8 +472,8 @@ export class CasesService {
 
     // حقول رأس الفورم مخزّنة على الحالة — نحدّث المُرسل فقط (لا نمسح القيم الحالية)
     const caseData: any = {
-      treatmentFrom: dto.treatmentFrom ? new Date(dto.treatmentFrom) : undefined,
-      treatmentTo: dto.treatmentTo ? new Date(dto.treatmentTo) : undefined,
+      treatmentFrom: dto.treatmentFrom,
+      treatmentTo: dto.treatmentTo,
       anticipatedVisits: dto.anticipatedVisits,
       physiotherapistId: dto.physiotherapistId,
       caseManagerId: dto.caseManagerId,
