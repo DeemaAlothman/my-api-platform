@@ -49,6 +49,17 @@ export class ProbationEvaluationsService {
       });
     }
 
+    // إشعار الموظف المُختار بأنّ عليه تعبئة التقييم الذاتي
+    const empUserId = await this.resolveEmployeeUserId(dto.employeeId);
+    if (empUserId) {
+      await this.sendNotification(empUserId, 'EVALUATION_ASSIGNED',
+        'تقييم فترة تجربة بانتظار تقييمك الذاتي',
+        'Probation Evaluation Awaiting Your Self-Evaluation',
+        'تم إنشاء تقييم فترة تجربتك — يرجى تعبئة التقييم الذاتي',
+        'Your probation evaluation has been created — please complete your self-evaluation',
+        { evaluationId: evaluation.id });
+    }
+
     await this.logHistory(evaluation.id, 'CREATE', dto.evaluatorId, 'تم إنشاء التقييم — في انتظار التقييم الذاتي للموظف');
 
     return this.findOne(evaluation.id);
@@ -380,7 +391,7 @@ export class ProbationEvaluationsService {
       data: {
         status: 'PENDING_MEETING_SCHEDULE',
         ceoId: performedBy,
-        finalRecommendation: dto.recommendation ?? evaluation.finalRecommendation,
+        finalRecommendation: (dto.recommendation ?? evaluation.finalRecommendation) as any,
         overallRating: dto.overallRating ?? evaluation.overallRating,
       },
     });
