@@ -597,10 +597,13 @@ export class ProbationEvaluationsService {
         INSERT INTO users.notifications
           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
         VALUES
-          (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7::jsonb, false, NOW())
+          (gen_random_uuid(), $1, $2::users."NotificationType", $3, $4, $5, $6, $7::jsonb, false, NOW())
       `, userId, type, titleAr, titleEn, messageAr, messageEn,
          data ? JSON.stringify(data) : null);
-    } catch { /* silent fail — notification is non-critical */ }
+    } catch (e) {
+      // فشل الإشعار غير حرج — لكن نسجّله للتشخيص بدل ابتلاعه بصمت
+      console.warn(`[probation] notification failed: ${(e as any)?.message ?? e}`);
+    }
   }
 
   private async resolveEmployeeUserId(employeeId: string): Promise<string | null> {
