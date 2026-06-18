@@ -556,25 +556,50 @@ export class ProbationEvaluationsService {
     return this.findOne(id);
   }
 
+  // أسماء أدوار المستخدم
+  private async getUserRoleNames(userId: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ name: string }>>(
+      `SELECT r.name FROM users.user_roles ur
+         JOIN users.roles r ON r.id = ur."roleId"
+        WHERE ur."userId" = $1 AND r."deletedAt" IS NULL`,
+      userId,
+    );
+    return rows.map((r) => r.name);
+  }
+
+  // كل تقييمات التجربة التي تنتظر إجراء/موافقة المستخدم الحالي (حسب دوره)
   async findPendingMyAction(userId: string) {
-    // Resolve employeeId from userId (employeeId stores employee record ID, not userId)
     const empResult = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT id FROM users.employees WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
       userId,
     );
     const employeeId = empResult.length > 0 ? empResult[0].id : null;
+    const roles = await this.getUserRoleNames(userId);
+    const isHr = roles.some((r) => ['HR', 'HR_Specialist', 'super_admin'].includes(r));
+    const isCeo = roles.some((r) => ['CEO', 'CEOO', 'super_admin'].includes(r));
 
     const orConditions: any[] = [
-      {
-        evaluatorId: userId,
-        status: { in: ['DRAFT', 'REJECTED_BY_SENIOR', 'REJECTED_BY_HR', 'REJECTED_BY_CEO'] },
-      },
-      { seniorManagerId: userId, status: 'PENDING_SENIOR_MANAGER' },
-      ...(employeeId ? [{ seniorManagerId: employeeId, status: 'PENDING_SENIOR_MANAGER' }] : []),
+      // كمُقيّم: مسودة أو مرفوضة (يحتاج إعادة عمل)
+      { evaluatorId: userId, status: { in: ['DRAFT', 'REJECTED_BY_SENIOR', 'REJECTED_BY_HR', 'REJECTED_BY_CEO'] } },
     ];
 
     if (employeeId) {
+      // كمدير مباشر: بانتظار اعتمادي
+      orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_SENIOR_MANAGER' });
+      // كموظف: بانتظار إقراري
       orConditions.push({ employeeId, status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT' });
+      // اجتماع بانتظار موافقتي (كموظف أو كمدير) ولم أوافق بعد
+      orConditions.push({ employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedByEmployee: false });
+      orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedByManager: false });
+    }
+
+    // كـ HR: بانتظار توثيقي
+    if (isHr) orConditions.push({ status: 'PENDING_HR' });
+
+    // كمدير تنفيذي: بانتظار قراري + اجتماع بانتظار موافقتي
+    if (isCeo) {
+      orConditions.push({ status: 'PENDING_CEO' });
+      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedByCeo: false });
     }
 
     return this.prisma.probationEvaluation.findMany({
