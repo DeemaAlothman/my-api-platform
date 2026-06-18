@@ -335,6 +335,7 @@ model ProbationEvaluation {
   meetingProposedAt          DateTime?
   meetingConfirmedByEmployee Boolean   @default(false)
   meetingConfirmedByManager  Boolean   @default(false)
+  meetingConfirmedByCeo      Boolean   @default(false)
   meetingConfirmedAt         DateTime?
   decisionDocumentUrl        String?
 

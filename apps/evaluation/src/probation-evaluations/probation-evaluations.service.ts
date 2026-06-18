@@ -410,34 +410,68 @@ export class ProbationEvaluationsService {
       throw new BadRequestException('التقييم ليس في مرحلة جدولة الاجتماع');
     }
 
+    // HR يحدّد الموعد — نعيد ضبط الموافقات (موعد جديد = إعادة موافقة)
     await this.prisma.probationEvaluation.update({
       where: { id },
-      data: { meetingProposedAt },
+      data: {
+        meetingProposedAt,
+        meetingConfirmedByEmployee: false,
+        meetingConfirmedByManager: false,
+        meetingConfirmedByCeo: false,
+        meetingConfirmedAt: null,
+      } as any,
     });
 
-    await this.logHistory(id, 'MEETING_SCHEDULED', performedBy, `تم اقتراح موعد الاجتماع: ${meetingProposedAt.toISOString()}`);
+    // إشعار لكل المشتركين (الموظف + المدير المباشر + التنفيذي + HR) للموافقة على الموعد
+    const dateStr = meetingProposedAt.toLocaleString('en-GB');
+    await this.notifyAllInvolved(evaluation, 'PROBATION_REMINDER',
+      'تم اقتراح موعد اجتماع تقييم فترة التجربة',
+      'Probation Meeting Date Proposed',
+      `تم اقتراح موعد الاجتماع (${dateStr}) — يرجى الموافقة على الموعد`,
+      `A probation meeting date has been proposed (${dateStr}) — please confirm`,
+      { evaluationId: id });
+
+    await this.logHistory(id, 'MEETING_SCHEDULED', performedBy, `حدّد HR موعد الاجتماع: ${meetingProposedAt.toISOString()}`);
     return this.findOne(id);
   }
 
-  async confirmMeeting(id: string, performedBy: string, role: 'employee' | 'manager') {
+  async confirmMeeting(id: string, performedBy: string, role: 'employee' | 'manager' | 'ceo') {
     const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
     if (!evaluation) throw new NotFoundException('التقييم غير موجود');
     if (evaluation.status !== 'PENDING_MEETING_SCHEDULE') {
       throw new BadRequestException('التقييم ليس في مرحلة جدولة الاجتماع');
     }
 
-    const updateData: any = role === 'employee'
-      ? { meetingConfirmedByEmployee: true }
-      : { meetingConfirmedByManager: true };
+    const updateData: any = {};
+    if (role === 'employee') updateData.meetingConfirmedByEmployee = true;
+    else if (role === 'manager') updateData.meetingConfirmedByManager = true;
+    else if (role === 'ceo') updateData.meetingConfirmedByCeo = true;
 
-    const updatedByEmployee = role === 'employee' ? true : (evaluation as any).meetingConfirmedByEmployee;
-    const updatedByManager  = role === 'manager'  ? true : (evaluation as any).meetingConfirmedByManager;
+    const byEmp = role === 'employee' || (evaluation as any).meetingConfirmedByEmployee;
+    const byMgr = role === 'manager' || (evaluation as any).meetingConfirmedByManager;
+    const byCeo = role === 'ceo' || (evaluation as any).meetingConfirmedByCeo;
 
-    if (updatedByEmployee && updatedByManager) {
+    // دمج: لو المدير المباشر هو نفسه التنفيذي → موافقة المدير تكفي عن التنفيذي
+    const seniorIsCeo = await this.isEmployeeCeo(evaluation.seniorManagerId);
+    const ceoSatisfied = seniorIsCeo ? byMgr : byCeo;
+
+    const allConfirmed = byEmp && byMgr && ceoSatisfied;
+    if (allConfirmed) {
       updateData.meetingConfirmedAt = new Date();
     }
 
     await this.prisma.probationEvaluation.update({ where: { id }, data: updateData });
+
+    if (allConfirmed) {
+      // إشعار للكل بأنّ الموعد تأكّد من الجميع
+      await this.notifyAllInvolved(evaluation, 'PROBATION_REMINDER',
+        'تأكّد موعد اجتماع تقييم فترة التجربة',
+        'Probation Meeting Confirmed',
+        'وافق جميع الأطراف على موعد الاجتماع',
+        'All parties have confirmed the meeting date',
+        { evaluationId: id });
+    }
+
     await this.logHistory(id, 'MEETING_CONFIRMED', performedBy, `تأكيد الاجتماع من قِبل: ${role}`);
     return this.findOne(id);
   }
@@ -619,6 +653,35 @@ export class ProbationEvaluationsService {
       employeeId,
     );
     return rows.length > 0 ? rows[0].userId : null;
+  }
+
+  // إشعار كل المشتركين بالتقييم: الموظف + المدير المباشر + التنفيذي + HR
+  private async notifyAllInvolved(
+    evaluation: any, type: string,
+    titleAr: string, titleEn: string, messageAr: string, messageEn: string,
+    data?: Record<string, any>,
+  ) {
+    const userIds = new Set<string>();
+    // الموظف + المدير المباشر (تحويل employeeId → userId)
+    for (const empId of [evaluation.employeeId, evaluation.seniorManagerId]) {
+      if (empId) {
+        const u = await this.resolveEmployeeUserId(empId);
+        if (u) userIds.add(u);
+      }
+    }
+    // التنفيذي + HR حسب الدور
+    const roleUsers = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+      SELECT DISTINCT u.id FROM users.users u
+      INNER JOIN users.user_roles ur ON ur."userId" = u.id
+      INNER JOIN users.roles r ON r.id = ur."roleId"
+      WHERE r.name IN ('CEO', 'CEOO', 'HR', 'HR_Specialist', 'super_admin')
+        AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+    `);
+    for (const ru of roleUsers) userIds.add(ru.id);
+
+    for (const uid of userIds) {
+      await this.sendNotification(uid, type, titleAr, titleEn, messageAr, messageEn, data);
+    }
   }
 
   // جلب مدير الموظف المباشر (managerId) من خدمة users

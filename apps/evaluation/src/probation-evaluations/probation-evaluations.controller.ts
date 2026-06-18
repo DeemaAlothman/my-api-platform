@@ -99,7 +99,7 @@ export class ProbationEvaluationsController {
   }
 
   @Post(':id/confirm-meeting')
-  confirmMeeting(@Param('id') id: string, @Body() body: { role: 'employee' | 'manager' }, @Request() req: any) {
+  confirmMeeting(@Param('id') id: string, @Body() body: { role: 'employee' | 'manager' | 'ceo' }, @Request() req: any) {
     return this.service.confirmMeeting(id, req.user?.userId ?? 'system', body.role);
   }
 
