@@ -607,7 +607,11 @@ export class TreatmentPlanDto {
   anticipatedVisits?: number; // عدد الزيارات المتوقعة
 
   @IsOptional() @IsString()
-  physiotherapistId?: string; // اسم أخصائي العلاج الطبيعي
+  physiotherapistId?: string; // أخصائي واحد (توافق خلفي)
+
+  // اختيار متعدد لأخصائيي العلاج الفيزيائي
+  @IsOptional() @IsArray() @IsString({ each: true })
+  physiotherapistIds?: string[];
 
   @IsOptional() @IsString()
   caseManagerId?: string; // مدير الحالة

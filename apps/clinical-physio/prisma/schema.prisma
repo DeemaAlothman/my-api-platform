@@ -210,7 +210,8 @@ model PhysioCase {
 
   status              PhysioStatus @default(INTAKE)
 
-  physiotherapistId   String?
+  physiotherapistId   String?   // الأخصائي الأساسي (للتوافق/الفلترة — = أول عنصر من القائمة)
+  physiotherapistIds  String[]  // أخصائيو العلاج الفيزيائي (اختيار متعدد)
   supervisingDoctorId String?
   caseManagerId       String?
 

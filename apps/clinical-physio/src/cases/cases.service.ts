@@ -477,6 +477,13 @@ export class CasesService {
       physiotherapistId: dto.physiotherapistId,
       caseManagerId: dto.caseManagerId,
     };
+    // اختيار متعدد للأخصائيين — نخزّن القائمة ونضبط الأخصائي الأساسي = أول عنصر (للتوافق/الفلترة)
+    if (dto.physiotherapistIds !== undefined) {
+      caseData.physiotherapistIds = dto.physiotherapistIds;
+      if (dto.physiotherapistId === undefined && dto.physiotherapistIds.length > 0) {
+        caseData.physiotherapistId = dto.physiotherapistIds[0];
+      }
+    }
     Object.keys(caseData).forEach((k) => caseData[k] === undefined && delete caseData[k]);
     if (Object.keys(caseData).length > 0) {
       await this.prisma.physioCase.update({ where: { id: caseId }, data: caseData });

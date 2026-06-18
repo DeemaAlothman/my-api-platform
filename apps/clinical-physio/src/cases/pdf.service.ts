@@ -415,7 +415,7 @@ export class PdfService {
         row('From', fmtDate(c.treatmentFrom));
         row('To', fmtDate(c.treatmentTo));
         row('Anticipated No of Visits', c.anticipatedVisits);
-        row('Physical Therapist', c.physiotherapistId);
+        row('Physical Therapist(s)', (Array.isArray(c.physiotherapistIds) && c.physiotherapistIds.length) ? c.physiotherapistIds.join(', ') : c.physiotherapistId);
         row('Case Manager', c.caseManagerId);
         row('Plan Status', tp.status);
         checks('Treatments', MODALITIES, tp.modalities);
