@@ -39,6 +39,7 @@ enum PhysioPainType {
   HOT_BURNING
   SHARP_STABBING
   PINS
+  NORMAL
   OTHER
   @@schema("clinic_physio")
 }

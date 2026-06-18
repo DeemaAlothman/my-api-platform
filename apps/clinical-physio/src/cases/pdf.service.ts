@@ -278,7 +278,7 @@ export class PdfService {
       };
 
       // قوائم الخيارات (مطابقة للنموذج)
-      const PAIN_TYPES = [['NUMBNESS', 'Numbness'], ['DULL_ACHE', 'Dull Ache'], ['HOT_BURNING', 'Hot Burning'], ['SHARP_STABBING', 'Sharp Stabbing'], ['PINS', 'Pins'], ['OTHER', 'Other']];
+      const PAIN_TYPES = [['NUMBNESS', 'Numbness'], ['DULL_ACHE', 'Dull Ache'], ['HOT_BURNING', 'Hot Burning'], ['SHARP_STABBING', 'Sharp Stabbing'], ['PINS', 'Pins'], ['NORMAL', 'Normal'], ['OTHER', 'Other']];
       const FACTORS = [['SITTING', 'Sitting'], ['HEAT', 'Heat'], ['COLD', 'Cold'], ['COUGHING', 'Coughing'], ['WALKING', 'Walking'], ['EXERCISE', 'Exercise'], ['LYING_DOWN', 'Lying Down'], ['OTHER', 'Other']];
       const PAIN_LEVEL = [['MILD', 'Mild'], ['MODERATE', 'Moderate'], ['SEVERE', 'Severe'], ['EXCRUCIATING', 'Excruciating']];
       const PAIN_DUR = [['INTERMITTENT', 'Intermittent'], ['CONSTANT', 'Constant'], ['WITH_CERTAIN_MOTIONS', 'With certain motions']];
