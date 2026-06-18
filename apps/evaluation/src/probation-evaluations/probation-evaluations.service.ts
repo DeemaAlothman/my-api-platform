@@ -280,6 +280,39 @@ export class ProbationEvaluationsService {
       throw new BadRequestException('التقييم ليس في مرحلة توثيق الموارد البشرية');
     }
 
+    // إذا كان المدير الأعلى هو نفسه المدير التنفيذي → نتخطّى خطوة CEO المكرّرة
+    // (قراره ملتقَط أصلاً في مرحلة اعتماد المدير) ونروح مباشرة لجدولة الاجتماع
+    const seniorIsCeo = await this.isEmployeeCeo(evaluation.seniorManagerId);
+
+    if (seniorIsCeo) {
+      await this.prisma.probationEvaluation.update({
+        where: { id },
+        data: {
+          status: 'PENDING_MEETING_SCHEDULE',
+          hrManagerId: performedBy,
+          ceoId: evaluation.seniorManagerId,
+        },
+      });
+
+      // إشعار الموظف بأن القرار صدر (بدل إشعار CEO مكرّر)
+      const empUserId = await this.resolveEmployeeUserId(evaluation.employeeId);
+      if (empUserId) {
+        await this.sendNotification(empUserId, 'PROBATION_REMINDER',
+          'صدر قرار تقييم فترة تجربتك',
+          'Your Probation Evaluation Decision is Ready',
+          'صدر قرار تقييم فترة تجربتك — سيتم التواصل معك لجدولة الاجتماع',
+          'Your probation evaluation decision has been issued — you will be contacted to schedule the meeting',
+          { evaluationId: id },
+        );
+      }
+
+      await this.logHistory(id, 'HR_DOCUMENT', performedBy,
+        (dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية') +
+        ' — المدير الأعلى هو المدير التنفيذي، تم تخطّي خطوة الاعتماد التنفيذي');
+
+      return this.findOne(id);
+    }
+
     await this.prisma.probationEvaluation.update({
       where: { id },
       data: {
@@ -576,6 +609,21 @@ export class ProbationEvaluationsService {
       employeeId,
     );
     return rows.length > 0 ? rows[0].userId : null;
+  }
+
+  // هل هذا الموظف هو المدير التنفيذي (له دور CEO/CEOO)؟
+  private async isEmployeeCeo(employeeId: string | null): Promise<boolean> {
+    if (!employeeId) return false;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ c: number }>>(
+      `SELECT COUNT(*)::int AS c
+         FROM users.employees e
+         JOIN users.user_roles ur ON ur."userId" = e."userId"
+         JOIN users.roles r ON r.id = ur."roleId"
+        WHERE e.id = $1 AND e."deletedAt" IS NULL
+          AND r.name IN ('CEO', 'CEOO') AND r."deletedAt" IS NULL`,
+      employeeId,
+    );
+    return (rows[0]?.c ?? 0) > 0;
   }
 
   private async logHistory(evaluationId: string, action: string, performedBy: string, notes: string) {
