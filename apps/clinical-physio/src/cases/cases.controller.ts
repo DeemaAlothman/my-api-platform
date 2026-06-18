@@ -8,7 +8,7 @@ import { PdfService } from './pdf.service';
 import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
   ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
-  PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, PlanSignDto,
+  PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, DoctorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto, FinalSummaryDto,
 } from './dto/physio-case.dto';
 import { JwtAuthGuard } from '@shared/auth';
@@ -153,6 +153,12 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PHYSIO.SUPERVISOR_REVIEW)
   supervisorReview(@Param('id') id: string, @Body() dto: SupervisorReviewDto, @User() user: any) {
     return this.service.supervisorReview(id, dto, user.userId);
+  }
+
+  @Put(':id/treatment-plan/doctor-review')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.PLAN_SIGN)
+  doctorReview(@Param('id') id: string, @Body() dto: DoctorReviewDto, @User() user: any) {
+    return this.service.doctorReview(id, dto, user.userId);
   }
 
   @Post(':id/treatment-plan/doctor-sign')

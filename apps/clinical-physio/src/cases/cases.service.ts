@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePhysioCaseDto, UpdatePhysioCaseDto, UpdatePhysioStatusDto, ListPhysioCasesQueryDto,
   ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
-  PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, PlanSignDto,
+  PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, DoctorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto, FinalSummaryDto,
 } from './dto/physio-case.dto';
 
@@ -24,7 +24,8 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   TREATMENT_PLAN:      ['EVALUATION', 'CANCELLED'],      // خطة العلاج (Treatment)
   EVALUATION:          ['ACTIVE_TREATMENT', 'CANCELLED'], // التقييم
   ACTIVE_TREATMENT:    ['SUPERVISOR_REVIEW', 'CANCELLED'], // الجلسات العلاجية
-  SUPERVISOR_REVIEW:   ['COMPLETED', 'CANCELLED'],         // رأي رئيس القسم
+  SUPERVISOR_REVIEW:   ['DOCTOR_REVIEW', 'CANCELLED'],     // رأي رئيس القسم
+  DOCTOR_REVIEW:       ['COMPLETED', 'CANCELLED'],         // رأي الطبيب
   COMPLETED:           ['DISCHARGED'],                     // مكتمل
   DISCHARGED:          [],
   CANCELLED:           [],
@@ -529,6 +530,30 @@ export class CasesService {
       this.prisma.physioCase.update({
         where: { id: caseId },
         data: c.status === 'ACTIVE_TREATMENT' ? { status: 'SUPERVISOR_REVIEW' as any } : {},
+      }),
+    ]);
+    return updatedPlan;
+  }
+
+  // رأي الطبيب — بعد رأي رئيس القسم (بدون توقيع)
+  async doctorReview(caseId: string, dto: DoctorReviewDto, userId: string) {
+    const c = await this.findCaseOrThrow(caseId);
+    const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId } });
+    if (!plan) throw new NotFoundException('Treatment plan not found');
+
+    // خزّن رأي الطبيب — وانقل الحالة SUPERVISOR_REVIEW → DOCTOR_REVIEW
+    const [updatedPlan] = await this.prisma.$transaction([
+      this.prisma.physioTreatmentPlan.update({
+        where: { caseId },
+        data: {
+          doctorGaze: dto.doctorGaze,
+          doctorId: userId,
+          doctorReviewedAt: new Date(),
+        },
+      }),
+      this.prisma.physioCase.update({
+        where: { id: caseId },
+        data: c.status === 'SUPERVISOR_REVIEW' ? { status: 'DOCTOR_REVIEW' as any } : {},
       }),
     ]);
     return updatedPlan;

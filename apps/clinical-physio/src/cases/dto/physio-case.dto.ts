@@ -22,6 +22,7 @@ export enum PhysioStatus {
   INTAKE = 'INTAKE', COMPLAINT = 'COMPLAINT', PAIN_MAP = 'PAIN_MAP',
   MEDICAL_HISTORY = 'MEDICAL_HISTORY', GOALS = 'GOALS', POSTURAL_ASSESSMENT = 'POSTURAL_ASSESSMENT',
   TREATMENT_PLAN = 'TREATMENT_PLAN', EVALUATION = 'EVALUATION', SUPERVISOR_REVIEW = 'SUPERVISOR_REVIEW',
+  DOCTOR_REVIEW = 'DOCTOR_REVIEW',
   DOCTOR_SIGN = 'DOCTOR_SIGN', ACTIVE_TREATMENT = 'ACTIVE_TREATMENT',
   COMPLETED = 'COMPLETED', DISCHARGED = 'DISCHARGED', CANCELLED = 'CANCELLED',
 }
@@ -620,6 +621,12 @@ export class TreatmentPlanDto {
 export class SupervisorReviewDto {
   @IsString()
   supervisorGaze: string;
+}
+
+// رأي الطبيب (بعد رأي رئيس القسم — بدون توقيع)
+export class DoctorReviewDto {
+  @IsString()
+  doctorGaze: string;
 }
 
 export class PlanSignDto {

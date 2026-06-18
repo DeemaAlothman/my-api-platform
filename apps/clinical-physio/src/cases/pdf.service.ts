@@ -421,6 +421,8 @@ export class PdfService {
         checks('Treatments', MODALITIES, tp.modalities);
         row('Other', tp.otherModality);
         row('Remarks', tp.remarks);
+        row('Supervisor Opinion (رأي رئيس القسم)', tp.supervisorGaze);
+        row('Doctor Opinion (رأي الطبيب)', tp.doctorGaze);
       }
 
       // ── Observation & Evaluation ──────────────────────────────────────
