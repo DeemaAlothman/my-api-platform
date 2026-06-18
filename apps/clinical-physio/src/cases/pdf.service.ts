@@ -349,7 +349,7 @@ export class PdfService {
         row('Last Menstrual Period', mh.lastMenstrualPeriod);
         row('Previous diagnoses/medications', mh.previousDiagnoses);
         yn('Other health problems', mh.hasOtherHealthProblems, mh.otherConditions);
-        row('Doctor restrictions', mh.doctorRestrictions);
+        yn('Doctor advised against something', mh.hasDoctorRestrictions, mh.doctorRestrictions);
         yn('Prescription/OTC drugs', mh.prescriptionDrugs, mh.currentMedications);
         yn('Herbal/Vitamins', mh.herbalSupplements, mh.supplementsList);
         yn('Allergic to adhesives/latex/bee stings', mh.adhesiveAllergy, mh.adhesiveAllergyDetail);
@@ -357,15 +357,15 @@ export class PdfService {
         yn('Had any surgeries', mh.hadSurgeries, mh.surgeriesDetail);
         if (Array.isArray(mh.surgeries) && mh.surgeries.length) {
           mh.surgeries.forEach((s: any, i: number) =>
-            row(`Surgery ${i + 1}`, `${s.name ?? ''}${s.date ? ' — ' + fmtDate(s.date) : ''}${s.type ? ' (' + s.type + ')' : ''}`.trim()));
+            row(`Surgery ${i + 1}`, `${s.name ?? ''}${s.date ? ' — ' + s.date : ''}${s.type ? ' (' + s.type + ')' : ''}`.trim()));
         }
         yn('PT for the same problem', mh.hadPTSameProblem, mh.ptSameProblemDetail);
         yn('Other treatments at this time', mh.receivingOtherTreatment, mh.otherTreatmentDetail);
         list('Tests done', mh.testsHad);
         row('Tests (Other)', mh.testsOther);
         row('Results', mh.testResults);
-        row('New Analysis', mh.newAnalysis ? `${mh.newAnalysis}${mh.newAnalysisDate ? ' (' + fmtDate(mh.newAnalysisDate) + ')' : ''}` : '');
-        row('Old Analysis', mh.oldAnalysis ? `${mh.oldAnalysis}${mh.oldAnalysisDate ? ' (' + fmtDate(mh.oldAnalysisDate) + ')' : ''}` : '');
+        row('New Analysis', mh.newAnalysis ? `${mh.newAnalysis}${mh.newAnalysisDate ? ' (' + mh.newAnalysisDate + ')' : ''}` : '');
+        row('Old Analysis', mh.oldAnalysis ? `${mh.oldAnalysis}${mh.oldAnalysisDate ? ' (' + mh.oldAnalysisDate + ')' : ''}` : '');
         yn('Bone Density Test', mh.boneDensityTest, mh.boneDensityDetail);
         yn('Hospitalized in the past year', mh.hospitalizedLastYear, mh.hospitalizedDetail);
         list('Chronic conditions', mh.chronicConditions);

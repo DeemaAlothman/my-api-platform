@@ -291,7 +291,8 @@ model MedicalHistory {
   // هل تعاني من مشاكل صحية أخرى؟ (التفصيل في otherConditions)
   hasOtherHealthProblems Boolean @default(false)
 
-  doctorRestrictions  String? @db.Text
+  hasDoctorRestrictions Boolean @default(false) // هل نصحك طبيبك بعدم القيام بشيء؟
+  doctorRestrictions  String? @db.Text          // التفصيل عند نعم
 
   surgeries           Surgery[]
   // الشكاوى السابقة / العمليات الجراحية السابقة (نص)
@@ -313,10 +314,10 @@ model MedicalHistory {
   testResults         String? @db.Text
 
   newAnalysis         String?
-  newAnalysisDate     DateTime?
+  newAnalysisDate     String?   // تاريخ التحليل الجديد (نص)
   newAnalysisAttachment String? // رابط مرفق التحليل الجديد (مستند مريض)
   oldAnalysis         String?
-  oldAnalysisDate     DateTime?
+  oldAnalysisDate     String?   // تاريخ التحليل القديم (نص)
   oldAnalysisAttachment String? // رابط مرفق التحليل القديم (مستند مريض)
 
   // قياس كثافة العظم
@@ -336,7 +337,7 @@ model Surgery {
   historyId String
   history   MedicalHistory @relation(fields: [historyId], references: [id])
   name      String
-  date      DateTime?
+  date      String?   // تاريخ العملية (نص)
   type      String?
   order     Int
 

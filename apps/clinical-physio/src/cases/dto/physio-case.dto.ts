@@ -340,6 +340,9 @@ export class MedicalHistoryDto {
   @IsOptional() @IsBoolean()
   hasOtherHealthProblems?: boolean;
 
+  // هل نصحك طبيبك بعدم القيام بشيء؟ + التفصيل عند نعم
+  @IsOptional() @IsBoolean()
+  hasDoctorRestrictions?: boolean;
   @IsOptional() @IsString()
   doctorRestrictions?: string;
 
@@ -377,15 +380,15 @@ export class MedicalHistoryDto {
   // 13) التحاليل + مرفق لكل تحليل (رابط مستند مريض)
   @IsOptional() @IsString()
   newAnalysis?: string;
-  @IsOptional() @IsDateString()
-  newAnalysisDate?: string;
+  @IsOptional() @IsString()
+  newAnalysisDate?: string;   // نص حر
   @IsOptional() @IsString()
   newAnalysisAttachment?: string;
 
   @IsOptional() @IsString()
   oldAnalysis?: string;
-  @IsOptional() @IsDateString()
-  oldAnalysisDate?: string;
+  @IsOptional() @IsString()
+  oldAnalysisDate?: string;   // نص حر
   @IsOptional() @IsString()
   oldAnalysisAttachment?: string;
 
@@ -406,8 +409,8 @@ export class SurgeryDto {
   @IsString()
   name: string;
 
-  @IsOptional() @IsDateString()
-  date?: string;
+  @IsOptional() @IsString()
+  date?: string;   // تاريخ العملية — نص حر
 
   @IsOptional() @IsString()
   type?: string;
