@@ -11,6 +11,13 @@ export class ProbationEvaluationsService {
   ) {}
 
   async create(dto: CreateProbationEvaluationDto) {
+    // إذا لم يُرسل المدير الأعلى، نجلبه تلقائياً من مدير الموظف المباشر
+    // (وإلا تبقى خطوة الاعتماد بلا معتمِد وبلا إشعار)
+    let seniorManagerId = dto.seniorManagerId ?? null;
+    if (!seniorManagerId) {
+      seniorManagerId = await this.resolveEmployeeManagerId(dto.employeeId);
+    }
+
     const evaluation = await this.prisma.probationEvaluation.create({
       data: {
         employeeId: dto.employeeId,
@@ -21,7 +28,7 @@ export class ProbationEvaluationsService {
         evaluatorNotes: dto.evaluatorNotes,
         isDelegated: dto.isDelegated ?? false,
         delegationNote: dto.delegationNote,
-        seniorManagerId: dto.seniorManagerId,
+        seniorManagerId,
         workAreasNote: dto.workAreasNote,
         status: 'PENDING_SELF_EVALUATION',
       },
@@ -612,6 +619,15 @@ export class ProbationEvaluationsService {
       employeeId,
     );
     return rows.length > 0 ? rows[0].userId : null;
+  }
+
+  // جلب مدير الموظف المباشر (managerId) من خدمة users
+  private async resolveEmployeeManagerId(employeeId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ managerId: string | null }>>(
+      `SELECT "managerId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    );
+    return rows[0]?.managerId ?? null;
   }
 
   // هل هذا الموظف هو المدير التنفيذي (له دور CEO/CEOO)؟
