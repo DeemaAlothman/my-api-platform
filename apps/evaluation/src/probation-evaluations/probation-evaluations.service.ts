@@ -312,17 +312,13 @@ export class ProbationEvaluationsService {
         },
       });
 
-      // إشعار الموظف بأن القرار صدر (بدل إشعار CEO مكرّر)
-      const empUserId = await this.resolveEmployeeUserId(evaluation.employeeId);
-      if (empUserId) {
-        await this.sendNotification(empUserId, 'PROBATION_REMINDER',
-          'صدر قرار تقييم فترة تجربتك',
-          'Your Probation Evaluation Decision is Ready',
-          'صدر قرار تقييم فترة تجربتك — سيتم التواصل معك لجدولة الاجتماع',
-          'Your probation evaluation decision has been issued — you will be contacted to schedule the meeting',
-          { evaluationId: id },
-        );
-      }
+      // إشعار HR بأنّ عليه تحديد موعد الاجتماع (تخطّينا خطوة CEO لأن المدير الأعلى هو التنفيذي)
+      await this.notifyHr('PROBATION_REMINDER',
+        'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
+        'Probation Meeting Needs Scheduling',
+        'تم توثيق التقييم — يرجى تحديد موعد اجتماع لمراجعته',
+        'The evaluation has been documented — please schedule the review meeting',
+        { evaluationId: id });
 
       await this.logHistory(id, 'HR_DOCUMENT', performedBy,
         (dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية') +
@@ -396,18 +392,13 @@ export class ProbationEvaluationsService {
       },
     });
 
-    // Notify employee that decision is ready and meeting needs to be scheduled
-    if (evaluation.employeeId) {
-      const empUserId = await this.resolveEmployeeUserId(evaluation.employeeId);
-      if (empUserId) {
-        await this.sendNotification(empUserId, 'PROBATION_REMINDER',
-          'صدر قرار تقييم فترة تجربتك',
-          'Your Probation Evaluation Decision is Ready',
-          'صدر قرار تقييم فترة تجربتك — سيتم التواصل معك لجدولة الاجتماع',
-          'Your probation evaluation decision has been issued — you will be contacted to schedule the meeting',
-        );
-      }
-    }
+    // إشعار HR بأنّ عليه تحديد موعد الاجتماع
+    await this.notifyHr('PROBATION_REMINDER',
+      'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
+      'Probation Meeting Needs Scheduling',
+      'صدر قرار التقييم — يرجى تحديد موعد اجتماع لمراجعته',
+      'The evaluation decision has been issued — please schedule the review meeting',
+      { evaluationId: id });
 
     await this.logHistory(id, 'CEO_DECIDE', performedBy, dto.notes ?? 'أصدر الرئيس التنفيذي قراره — في انتظار جدولة الاجتماع');
 
@@ -433,13 +424,14 @@ export class ProbationEvaluationsService {
       } as any,
     });
 
-    // إشعار لكل المشتركين (الموظف + المدير المباشر + التنفيذي + HR) للموافقة على الموعد
+    // إشعار أطراف الموافقة (الموظف + المدير المباشر + التنفيذي) للموافقة على الموعد
+    // (الـ Set يدمج لو المدير المباشر هو نفسه التنفيذي → إشعار واحد)
     const dateStr = meetingProposedAt.toLocaleString('en-GB');
-    await this.notifyAllInvolved(evaluation, 'PROBATION_REMINDER',
-      'تم اقتراح موعد اجتماع تقييم فترة التجربة',
-      'Probation Meeting Date Proposed',
-      `تم اقتراح موعد الاجتماع (${dateStr}) — يرجى الموافقة على الموعد`,
-      `A probation meeting date has been proposed (${dateStr}) — please confirm`,
+    await this.notifyMeetingApprovers(evaluation, 'PROBATION_REMINDER',
+      'تم تحديد موعد اجتماع تقييم فترة التجربة — يرجى الموافقة',
+      'Probation Meeting Date Set — Please Confirm',
+      `حدّد HR موعد الاجتماع (${dateStr}) — يرجى الموافقة على الموعد`,
+      `HR set the meeting date (${dateStr}) — please confirm`,
       { evaluationId: id });
 
     await this.logHistory(id, 'MEETING_SCHEDULED', performedBy, `حدّد HR موعد الاجتماع: ${meetingProposedAt.toISOString()}`);
@@ -474,12 +466,12 @@ export class ProbationEvaluationsService {
     await this.prisma.probationEvaluation.update({ where: { id }, data: updateData });
 
     if (allConfirmed) {
-      // إشعار للكل بأنّ الموعد تأكّد من الجميع
-      await this.notifyAllInvolved(evaluation, 'PROBATION_REMINDER',
-        'تأكّد موعد اجتماع تقييم فترة التجربة',
-        'Probation Meeting Confirmed',
-        'وافق جميع الأطراف على موعد الاجتماع',
-        'All parties have confirmed the meeting date',
+      // وافق الجميع → إشعار HR بأنّ الموعد تأكّد وعليه إغلاق التقييم
+      await this.notifyHr('PROBATION_REMINDER',
+        'تأكّد موعد الاجتماع — يلزم إغلاق التقييم',
+        'Meeting Confirmed — Evaluation Needs Closing',
+        'وافق جميع الأطراف (الموظف + المدير المباشر + التنفيذي) على موعد الاجتماع — يرجى إغلاق التقييم',
+        'All parties (employee + direct manager + executive) confirmed the meeting — please close the evaluation',
         { evaluationId: id });
     }
 
@@ -715,6 +707,50 @@ export class ProbationEvaluationsService {
     `);
     for (const ru of roleUsers) userIds.add(ru.id);
 
+    for (const uid of userIds) {
+      await this.sendNotification(uid, type, titleAr, titleEn, messageAr, messageEn, data);
+    }
+  }
+
+  // إشعار مستخدمي HR فقط
+  private async notifyHr(
+    type: string, titleAr: string, titleEn: string, messageAr: string, messageEn: string,
+    data?: Record<string, any>,
+  ) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+      SELECT DISTINCT u.id FROM users.users u
+      INNER JOIN users.user_roles ur ON ur."userId" = u.id
+      INNER JOIN users.roles r ON r.id = ur."roleId"
+      WHERE r.name IN ('HR', 'HR_Specialist', 'super_admin')
+        AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+    `);
+    for (const ru of rows) {
+      await this.sendNotification(ru.id, type, titleAr, titleEn, messageAr, messageEn, data);
+    }
+  }
+
+  // إشعار أطراف الموافقة على الاجتماع: الموظف + المدير المباشر + التنفيذي (مع دمج لو نفس الشخص)
+  private async notifyMeetingApprovers(
+    evaluation: any, type: string,
+    titleAr: string, titleEn: string, messageAr: string, messageEn: string,
+    data?: Record<string, any>,
+  ) {
+    const userIds = new Set<string>();
+    for (const empId of [evaluation.employeeId, evaluation.seniorManagerId]) {
+      if (empId) {
+        const u = await this.resolveEmployeeUserId(empId);
+        if (u) userIds.add(u);
+      }
+    }
+    // التنفيذي حسب الدور
+    const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+      SELECT DISTINCT u.id FROM users.users u
+      INNER JOIN users.user_roles ur ON ur."userId" = u.id
+      INNER JOIN users.roles r ON r.id = ur."roleId"
+      WHERE r.name IN ('CEO', 'CEOO') AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+    `);
+    for (const ru of ceoRows) userIds.add(ru.id);
+    // الـ Set يضمن إشعار واحد لو المدير المباشر هو نفسه التنفيذي
     for (const uid of userIds) {
       await this.sendNotification(uid, type, titleAr, titleEn, messageAr, messageEn, data);
     }
