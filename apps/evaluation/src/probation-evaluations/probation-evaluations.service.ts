@@ -580,18 +580,22 @@ export class ProbationEvaluationsService {
       orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_SENIOR_MANAGER' });
       // كموظف: بانتظار إقراري
       orConditions.push({ employeeId, status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT' });
-      // اجتماع بانتظار موافقتي (كموظف أو كمدير) ولم أوافق بعد
-      orConditions.push({ employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedByEmployee: false });
-      orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedByManager: false });
+      // اجتماع: حُدّد موعده (proposedAt موجود) ولم يتأكّد كلياً بعد، وبانتظار موافقتي
+      orConditions.push({ employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: { not: null }, meetingConfirmedAt: null, meetingConfirmedByEmployee: false });
+      orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: { not: null }, meetingConfirmedAt: null, meetingConfirmedByManager: false });
     }
 
-    // كـ HR: بانتظار توثيقي
-    if (isHr) orConditions.push({ status: 'PENDING_HR' });
+    // كـ HR: بانتظار توثيقي + اجتماع يحتاج جدولة + اجتماع تأكّد ويحتاج إغلاق
+    if (isHr) {
+      orConditions.push({ status: 'PENDING_HR' });
+      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: null });             // يحتاج تحديد موعد
+      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedAt: { not: null } });   // تأكّد → يحتاج إغلاق
+    }
 
-    // كمدير تنفيذي: بانتظار قراري + اجتماع بانتظار موافقتي
+    // كمدير تنفيذي: بانتظار قراري + اجتماع مجدول بانتظار موافقتي
     if (isCeo) {
       orConditions.push({ status: 'PENDING_CEO' });
-      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedByCeo: false });
+      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: { not: null }, meetingConfirmedAt: null, meetingConfirmedByCeo: false });
     }
 
     return this.prisma.probationEvaluation.findMany({
