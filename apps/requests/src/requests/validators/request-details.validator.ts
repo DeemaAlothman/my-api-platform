@@ -231,6 +231,18 @@ export function validateRequestDetails(type: string, details: any): void {
       break;
     }
 
+    case 'REMOTE_WORK': {
+      requireFields(details, ['startDate', 'endDate'], 'REMOTE_WORK');
+      if (new Date(details.endDate) < new Date(details.startDate)) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'endDate must be after startDate',
+          details: [{ field: 'endDate' }],
+        });
+      }
+      break;
+    }
+
     // Types with no special validation — reason field in base request is sufficient
     default:
       break;

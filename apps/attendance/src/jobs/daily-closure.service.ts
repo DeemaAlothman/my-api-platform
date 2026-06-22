@@ -164,6 +164,15 @@ export class DailyClosureService implements OnModuleInit {
     const approvedLeaves = await this.getApprovedLeavesForDate(workingEmployeeIds, dateStr);
     const leaveMap = new Map(approvedLeaves.map(l => [l.employeeId, l]));
 
+    // إعادة الربط بالراتب تلقائياً للموظفين الذين انتهت فترة عملهم عن بعد
+    await this.prisma.$queryRawUnsafe(
+      `UPDATE attendance.employee_attendance_configs
+       SET "salaryLinked" = true, "remoteWorkUntil" = NULL, "updatedAt" = NOW()
+       WHERE "salaryLinked" = false
+         AND "remoteWorkUntil" IS NOT NULL
+         AND "remoteWorkUntil" < CURRENT_DATE`,
+    );
+
     // Fetch salaryLinked config for all working employees at once
     const configRows = (await this.prisma.$queryRawUnsafe(
       `SELECT "employeeId", "salaryLinked"

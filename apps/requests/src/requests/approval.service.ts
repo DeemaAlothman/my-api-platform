@@ -490,6 +490,18 @@ export class ApprovalService {
         await this.recomputeOvertimeForRequest(request);
       }
 
+      // العمل عن بعد: إيقاف الربط بالراتب لحين انتهاء الفترة
+      if (request.type === 'REMOTE_WORK' && details?.endDate) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO attendance.employee_attendance_configs (id, "employeeId", "salaryLinked", "remoteWorkUntil", "allowedBreakMinutes", "createdAt", "updatedAt")
+           VALUES (gen_random_uuid()::text, $1, false, $2::date, 60, NOW(), NOW())
+           ON CONFLICT ("employeeId") DO UPDATE
+             SET "salaryLinked" = false, "remoteWorkUntil" = $2::date, "updatedAt" = NOW()`,
+          request.employeeId,
+          details.endDate,
+        );
+      }
+
       // إشعار الموظف المفوَّض إليه عند اعتماد طلب التفويض عبر مسار الموافقة العادي
       if (request.type === 'DELEGATION' && details?.delegateEmployeeId) {
         await this.notifications.notifyDelegationApproved({

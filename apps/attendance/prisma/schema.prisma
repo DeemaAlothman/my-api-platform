@@ -347,13 +347,14 @@ model AttendanceBreak {
 
 /// إعدادات ارتباط الحضور بالراتب لكل موظف
 model EmployeeAttendanceConfig {
-  id                   String   @id @default(uuid())
-  employeeId           String   @unique
-  salaryLinked         Boolean  @default(true)
-  allowedBreakMinutes  Int      @default(60)
+  id                   String    @id @default(uuid())
+  employeeId           String    @unique
+  salaryLinked         Boolean   @default(true)
+  allowedBreakMinutes  Int       @default(60)
+  remoteWorkUntil      DateTime? @db.Date
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@map("employee_attendance_configs")
   @@schema("attendance")
