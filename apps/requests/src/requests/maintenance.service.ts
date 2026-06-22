@@ -167,7 +167,20 @@ export class MaintenanceService {
 
   // 3) المسؤول اللوجستي: توصيف الحالة + اختيار الخيار + تعيين الموظف
   async logisticsDecision(id: string, userId: string, dto: LogisticsDecisionDto) {
-    const req = await this.getMaintenance(id);
+    let req = await this.getMaintenance(id);
+
+    // دمج: لو الطلب بانتظار المدير وهاد المستخدم هو المدير المباشر → موافقة تلقائية
+    if (req.status === 'PENDING_MANAGER') {
+      const isDM = await this.resolver.canApprove(userId, req.employeeId, 'DIRECT_MANAGER');
+      if (!isDM) {
+        throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'الطلب ليس بانتظار المسؤول اللوجستي', details: [] });
+      }
+      const autoDetails = { ...(req.details as any), managerApprovedBy: userId, managerApprovedAt: new Date().toISOString(), managerAutoApproved: true };
+      await this.prisma.request.update({ where: { id }, data: { status: 'PENDING_LOGISTICS' as any, details: autoDetails } });
+      await this.addHistory(id, 'MANAGER_AUTO_APPROVE', 'PENDING_MANAGER', 'PENDING_LOGISTICS', userId, 'موافقة تلقائية (المدير المباشر هو المسؤول اللوجستي)');
+      req = await this.getMaintenance(id);
+    }
+
     if (req.status !== 'PENDING_LOGISTICS') {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'الطلب ليس بانتظار المسؤول اللوجستي', details: [] });
     }
