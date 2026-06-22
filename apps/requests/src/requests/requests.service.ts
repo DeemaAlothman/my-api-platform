@@ -176,6 +176,25 @@ export class RequestsService {
       }
     }
 
+    // طلب التفويض: إذا قدّمه المدير التنفيذي → اعتماد فوري + إشعار الموظف المفوَّض إليه
+    if (request.type === 'DELEGATION') {
+      const isCeoSubmitter = await this.hasPermission(userId, 'requests:ceo-approve');
+      if (isCeoSubmitter) {
+        await this.prisma.request.update({ where: { id }, data: { status: 'APPROVED' } });
+        await this.prisma.requestHistory.create({
+          data: { requestId: id, action: 'SUBMITTED', fromStatus: 'DRAFT', toStatus: 'APPROVED', performedBy: employeeId! },
+        });
+        const delegateId = (request.details as any)?.delegateEmployeeId;
+        if (delegateId) {
+          await this.notifications.notifyDelegationApproved({ requestId: id, delegateEmployeeId: delegateId });
+        }
+        return this.prisma.request.findFirst({
+          where: { id },
+          include: { approvalSteps: { orderBy: { stepOrder: 'asc' } }, history: { orderBy: { createdAt: 'desc' }, take: 5 } },
+        });
+      }
+    }
+
     // طلبات المكافأة/العقوبة: إذا قدّمها المدير التنفيذي → اعتماد فوري بدون خطوات
     if (['REWARD', 'PENALTY_PROPOSAL'].includes(request.type)) {
       const isCeoSubmitter = await this.hasPermission(userId, 'requests:ceo-approve');

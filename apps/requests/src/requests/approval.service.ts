@@ -490,7 +490,15 @@ export class ApprovalService {
         await this.recomputeOvertimeForRequest(request);
       }
 
-      // BUSINESS_MISSION, DELEGATION, HIRING_REQUEST, COMPLAINT, OTHER:
+      // إشعار الموظف المفوَّض إليه عند اعتماد طلب التفويض عبر مسار الموافقة العادي
+      if (request.type === 'DELEGATION' && details?.delegateEmployeeId) {
+        await this.notifications.notifyDelegationApproved({
+          requestId: request.id,
+          delegateEmployeeId: details.delegateEmployeeId,
+        });
+      }
+
+      // BUSINESS_MISSION, HIRING_REQUEST, COMPLAINT, OTHER:
       // No automatic side effects — HR follows up manually after approval
 
     } catch (err) {

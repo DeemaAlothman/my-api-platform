@@ -252,6 +252,31 @@ export class RequestNotificationsService {
     }
   }
 
+  // إشعار الموظف المفوَّض إليه عند اعتماد طلب التفويض (تلقائياً من CEO أو بعد مسار الموافقة)
+  async notifyDelegationApproved(params: { requestId: string; delegateEmployeeId: string }) {
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+        SELECT "userId" FROM users.employees
+        WHERE id = ${params.delegateEmployeeId} AND "userId" IS NOT NULL AND "deletedAt" IS NULL LIMIT 1
+      `;
+      const userId = rows[0]?.userId;
+      if (!userId) return;
+
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+         VALUES (gen_random_uuid()::text, $1, $2::"users"."NotificationType", $3, $4, $5, $6, $7::jsonb, NOW())`,
+        userId, 'GENERAL',
+        'تم تفويضك',
+        'You Have Been Delegated',
+        'تمت الموافقة على طلب تفويض يخصّك، يرجى الاطلاع على التفاصيل',
+        'A delegation request assigned to you has been approved. Please review the details.',
+        JSON.stringify({ requestId: params.requestId, requestType: 'DELEGATION' }),
+      );
+    } catch (err) {
+      this.logger.error(`[notifyDelegationApproved] failed for ${params.requestId}: ${(err as any)?.message}`);
+    }
+  }
+
   // إشعار المدير التنفيذي (CEO) بأن طلب استقالة بانتظار موافقته بعد مقابلة الخروج
   async notifyCeoExitInterviewDone(params: { requestId: string; employeeId: string }) {
     try {
