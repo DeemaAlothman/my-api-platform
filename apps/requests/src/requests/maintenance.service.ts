@@ -179,6 +179,7 @@ export class MaintenanceService {
       ...(req.details as any),
       situationDescription: dto.situationDescription ?? null,
       repairOption: dto.repairOption,
+      amount: dto.amount ?? null,
       logisticsBy: userId,
       logisticsAt: new Date().toISOString(),
     };

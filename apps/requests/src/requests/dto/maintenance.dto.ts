@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export enum WorkLocation {
   SHAHBA = 'SHAHBA',         // شركة شهباء
@@ -55,6 +55,11 @@ export class LogisticsDecisionDto {
   @IsNotEmpty()
   @IsString()
   assignedEmployeeId: string; // الموظف المكلَّف بالإصلاح / المشرف على الورشة
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  amount?: number; // المبلغ المدفوع (للقطع أو الورشة الخارجية)
 }
 
 export class MaintenanceDecisionDto {
