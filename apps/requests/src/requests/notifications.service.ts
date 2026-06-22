@@ -171,6 +171,87 @@ export class RequestNotificationsService {
     }
   }
 
+  // إشعارات مسار طلب العمل الإضافي (تقديم / انتقال خطوة / اعتماد نهائي / رفض)
+  async notifyOvertimeTransition(params: {
+    requestId: string;
+    employeeId: string; // employee ID of the overtime requester
+    nextRole?: string;  // undefined = fully approved or rejected
+    approved: boolean;
+  }) {
+    try {
+      let targetUserIds: string[] = [];
+
+      if (params.nextRole === 'DIRECT_MANAGER') {
+        // الموظف المدير المباشر
+        const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+          SELECT e2."userId"
+          FROM users.employees e
+          JOIN users.employees e2 ON e2.id = e."managerId"
+          WHERE e.id = ${params.employeeId} AND e."deletedAt" IS NULL AND e2."userId" IS NOT NULL LIMIT 1
+        `;
+        targetUserIds = rows.map(r => r.userId).filter(Boolean);
+      } else if (params.nextRole === 'HR') {
+        const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+          SELECT DISTINCT e."userId"
+          FROM users.employees e
+          JOIN users.users u ON u.id = e."userId"
+          JOIN users.user_roles ur ON ur."userId" = u.id
+          JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+          JOIN users.permissions p ON p.id = rp."permissionId"
+          WHERE p.name = 'requests:hr-approve'
+            AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL AND u.status = 'ACTIVE'
+        `;
+        targetUserIds = rows.map(r => r.userId);
+      } else if (params.nextRole === 'CEO') {
+        const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+          SELECT DISTINCT e."userId"
+          FROM users.employees e
+          JOIN users.users u ON u.id = e."userId"
+          JOIN users.user_roles ur ON ur."userId" = u.id
+          JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+          JOIN users.permissions p ON p.id = rp."permissionId"
+          WHERE p.name = 'requests:ceo-approve'
+            AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL AND u.status = 'ACTIVE'
+        `;
+        targetUserIds = rows.map(r => r.userId);
+      } else {
+        // اعتماد نهائي أو رفض → إشعار الموظف صاحب الطلب
+        const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+          SELECT "userId" FROM users.employees WHERE id = ${params.employeeId} AND "userId" IS NOT NULL LIMIT 1
+        `;
+        targetUserIds = rows.map(r => r.userId).filter(Boolean);
+      }
+
+      if (targetUserIds.length === 0) return;
+
+      const isApproved = params.approved;
+      const hasPendingRole = !!params.nextRole;
+      const titleAr = hasPendingRole
+        ? 'طلب عمل إضافي بانتظار موافقتك'
+        : (isApproved ? 'تمت الموافقة على طلب العمل الإضافي' : 'تم رفض طلب العمل الإضافي');
+      const titleEn = hasPendingRole
+        ? 'Overtime Request Awaiting Your Approval'
+        : (isApproved ? 'Overtime Request Approved' : 'Overtime Request Rejected');
+      const messageAr = hasPendingRole
+        ? `طلب عمل إضافي وصل إلى مرحلة ${params.nextRole} ويتطلب موافقتك`
+        : (isApproved ? 'تمت الموافقة على طلب العمل الإضافي الخاص بك' : 'تم رفض طلب العمل الإضافي الخاص بك');
+      const messageEn = hasPendingRole
+        ? `An overtime request has reached the ${params.nextRole} stage and requires your approval`
+        : (isApproved ? 'Your overtime request has been approved' : 'Your overtime request has been rejected');
+
+      for (const userId of targetUserIds) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, $2::"users"."NotificationType", $3, $4, $5, $6, $7::jsonb, NOW())`,
+          userId, 'GENERAL', titleAr, titleEn, messageAr, messageEn,
+          JSON.stringify({ requestId: params.requestId, requestType: 'OVERTIME_EMPLOYEE' }),
+        );
+      }
+    } catch (err) {
+      this.logger.error(`[notifyOvertimeTransition] failed for ${params.requestId}: ${(err as any)?.message}`);
+    }
+  }
+
   // إشعار المدير التنفيذي (CEO) بأن طلب استقالة بانتظار موافقته بعد مقابلة الخروج
   async notifyCeoExitInterviewDone(params: { requestId: string; employeeId: string }) {
     try {

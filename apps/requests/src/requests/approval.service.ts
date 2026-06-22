@@ -40,6 +40,19 @@ export class ApprovalService {
       }
     }
 
+    // DM == HR dedup عام: إذا كان المدير المباشر للموظف هو نفسه HR → موافقة واحدة كـ HR فقط
+    // (يُطبّق على كل الأنواع التي فيها خطوتا DIRECT_MANAGER + HR، ما عدا REWARD/PENALTY اللي عندها منطق خاص)
+    if (!['REWARD', 'PENALTY_PROPOSAL'].includes(requestType) &&
+        employeeId &&
+        workflows.some(w => w.approverRole === 'DIRECT_MANAGER') &&
+        workflows.some(w => w.approverRole === 'HR')) {
+      const isDMAlsoHR = await this.isDirectManagerAlsoHR(employeeId);
+      if (isDMAlsoHR) {
+        workflows = workflows.filter(w => w.approverRole !== 'DIRECT_MANAGER');
+        workflows = workflows.map((w, i) => ({ ...w, stepOrder: i + 1 }));
+      }
+    }
+
     // تخطي خطوات ذكي لطلبات المكافأة والعقوبة حسب دور المقدِّم
     if (['REWARD', 'PENALTY_PROPOSAL'].includes(requestType) && submitterCtx) {
       const req = await this.prisma.request.findFirst({ where: { id: requestId }, select: { details: true } });
@@ -100,6 +113,22 @@ export class ApprovalService {
     });
 
     return true;
+  }
+
+  private async isDirectManagerAlsoHR(employeeId: string): Promise<boolean> {
+    const result = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) as count
+      FROM users.employees target
+      JOIN users.employees mgr ON mgr.id = target."managerId"
+      JOIN users.user_roles ur ON ur."userId" = mgr."userId"
+      JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+      JOIN users.permissions p ON p.id = rp."permissionId"
+      WHERE target.id = ${employeeId}
+        AND p.name = 'requests:hr-approve'
+        AND mgr."deletedAt" IS NULL
+        AND target."deletedAt" IS NULL
+    `;
+    return Number(result[0]?.count ?? 0) > 0;
   }
 
   private async isDirectManagerCeo(employeeId: string): Promise<boolean> {
@@ -221,6 +250,16 @@ export class ApprovalService {
       }
     }
 
+    // إشعارات طلب العمل الإضافي
+    if (request.type === 'OVERTIME_EMPLOYEE') {
+      await this.notifications.notifyOvertimeTransition({
+        requestId,
+        employeeId: request.employeeId,
+        nextRole: fullyApproved ? undefined : nextStep?.approverRole,
+        approved: true,
+      });
+    }
+
     // Execute side effects on final approval (resignation: only after exit interview + CEO step)
     if (fullyApproved && (!isResignation || exitInterviewDone)) {
       await this.executeApprovedRequest({ ...request, details: updatedDetails });
@@ -298,6 +337,16 @@ export class ApprovalService {
         stepRole: currentStep.approverRole,
         employeeId: request.employeeId,
         details: request.details,
+      });
+    }
+
+    // إشعار رفض طلب العمل الإضافي للموظف
+    if (request.type === 'OVERTIME_EMPLOYEE') {
+      await this.notifications.notifyOvertimeTransition({
+        requestId,
+        employeeId: request.employeeId,
+        nextRole: undefined,
+        approved: false,
       });
     }
 

@@ -239,6 +239,22 @@ export class RequestsService {
       }
     }
 
+    // إشعار أول معتمد عند تقديم طلب العمل الإضافي
+    if (request.type === 'OVERTIME_EMPLOYEE' && initialized) {
+      const firstOvertimeStep = await this.prisma.approvalStep.findFirst({
+        where: { requestId: id },
+        orderBy: { stepOrder: 'asc' },
+      });
+      if (firstOvertimeStep) {
+        await this.notifications.notifyOvertimeTransition({
+          requestId: id,
+          employeeId: employeeId!,
+          nextRole: firstOvertimeStep.approverRole,
+          approved: true,
+        });
+      }
+    }
+
     return this.prisma.request.findFirst({
       where: { id },
       include: {
