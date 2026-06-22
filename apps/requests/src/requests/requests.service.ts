@@ -301,6 +301,39 @@ export class RequestsService {
     return { items: itemsWithEmployee, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
+  // كل الطلبات المعتمدة من المدير التنفيذي (لها خطوة موافقة بدور CEO وحالتها APPROVED)
+  async findCeoApproved(query: ListRequestsQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      deletedAt: null,
+      approvalSteps: { some: { approverRole: 'CEO', status: 'APPROVED' } },
+    };
+    if (query.type) where.type = query.type;
+
+    const [items, total] = await Promise.all([
+      this.prisma.request.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          history: { orderBy: { createdAt: 'desc' }, take: 5 },
+          approvalSteps: { orderBy: { stepOrder: 'asc' } },
+        },
+      }),
+      this.prisma.request.count({ where }),
+    ]);
+
+    const employeeIds = [...new Set((items as any[]).map(r => r.employeeId as string))];
+    const employeeMap = await this.fetchEmployeeNames(employeeIds);
+    const itemsWithEmployee = (items as any[]).map(r => ({ ...r, employee: employeeMap.get(r.employeeId) ?? null }));
+
+    return { items: itemsWithEmployee, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  }
+
   async myRequests(userId: string, query: ListRequestsQueryDto) {
     const employeeId = await this.getEmployeeIdByUserId(userId);
     if (!employeeId) return { items: [], page: 1, limit: 10, total: 0, totalPages: 1 };

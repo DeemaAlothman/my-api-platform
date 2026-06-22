@@ -47,6 +47,14 @@ export class RequestsController {
     return this.requests.getPendingMyApproval(user.userId, Number(page) || 1, Number(limit) || 10);
   }
 
+  // كل الطلبات الإدارية المعتمدة من المدير التنفيذي (CEO) — يجب أن يكون قبل :id
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('requests:read')
+  @Get('ceo-approved')
+  ceoApproved(@Query() query: ListRequestsQueryDto) {
+    return this.requests.findCeoApproved(query);
+  }
+
   // طلب واحد
   @UseGuards(JwtAuthGuard)
   @Get(':id')
