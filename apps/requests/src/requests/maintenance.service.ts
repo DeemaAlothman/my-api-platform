@@ -196,9 +196,11 @@ export class MaintenanceService {
       return this.getMaintenance(id);
     }
 
-    // الخياران 2/3: بحاجة قطع خارجية / ورشة خارجية → موافقة المدير التنفيذي
-    // معالجة الدمج: إذا المدير المباشر هو نفسه المدير التنفيذي، نتخطّى خطوة التنفيذي
-    const skipExecutive = await this.isManagerCeo(req.employeeId);
+    // الخياران 2/3: بحاجة قطع / ورشة خارجية
+    // تخطي المدير التنفيذي إذا: المبلغ ≤ 100$ أو فاضي، أو المدير المباشر هو نفسه CEO
+    const amountExceedsLimit = (dto.amount ?? 0) > 100;
+    const skipExecutive = !amountExceedsLimit || await this.isManagerCeo(req.employeeId);
+
     if (skipExecutive) {
       const details = { ...baseDetails, executiveSkipped: true, assignedAt: new Date().toISOString() };
       await this.prisma.request.update({
@@ -206,17 +208,17 @@ export class MaintenanceService {
         data: { status: 'ASSIGNED' as any, targetEmployeeId: dto.assignedEmployeeId, details },
       });
       await this.addHistory(id, 'LOGISTICS_EXTERNAL_AUTO', 'PENDING_LOGISTICS', 'ASSIGNED', userId, dto.situationDescription);
-      await this.notifyRole('requests:cfo-approve', id, 'طلب صيانة (قطع/ورشة)', 'طلب صيانة بحاجة قطع/ورشة — اعتُمد تلقائياً (المدير المباشر هو المدير التنفيذي)');
       await this.notifyEmployee(dto.assignedEmployeeId, id, 'مهمة صيانة جديدة', 'تم تكليفك بمهمة صيانة');
       return this.getMaintenance(id);
     }
 
+    // المبلغ > 100$ → يذهب للمدير التنفيذي
     await this.prisma.request.update({
       where: { id },
       data: { status: 'PENDING_EXECUTIVE' as any, targetEmployeeId: dto.assignedEmployeeId, details: baseDetails },
     });
     await this.addHistory(id, 'LOGISTICS_EXTERNAL', 'PENDING_LOGISTICS', 'PENDING_EXECUTIVE', userId, dto.situationDescription);
-    await this.notifyRole('requests:ceo-approve', id, 'طلب صيانة بانتظار التنفيذي', 'طلب صيانة بانتظار موافقة المدير التنفيذي');
+    await this.notifyRole('requests:ceo-approve', id, 'طلب صيانة بانتظار التنفيذي', `طلب صيانة بمبلغ ${dto.amount}$ بانتظار موافقة المدير التنفيذي`);
     return this.getMaintenance(id);
   }
 
