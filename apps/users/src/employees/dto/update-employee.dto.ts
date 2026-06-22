@@ -1,6 +1,6 @@
 import { IsEmail, IsEnum, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Gender, MaritalStatus, ContractType, BloodType, EducationLevel, EmployeeAttachmentDto, TrainingCertificateDto, EmployeeAllowanceDto, ProbationPeriod, WorkType } from './create-employee.dto';
+import { Gender, MaritalStatus, ContractType, BloodType, EducationLevel, EmployeeAttachmentDto, TrainingCertificateDto, EmployeeAllowanceDto, ProbationPeriod, WorkType, Company } from './create-employee.dto';
 
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',
@@ -58,6 +58,11 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   nationality?: string;
+
+  // الشركة: VITAXIR أو VITASYR
+  @IsOptional()
+  @IsEnum(Company)
+  company?: Company | null;
 
   @IsOptional()
   @IsEnum(MaritalStatus)

@@ -62,6 +62,7 @@ model Employee {
   gender         Gender
   dateOfBirth    DateTime?
   nationality    String?
+  company            String?   // الشركة: VITAXIR أو VITASYR
   maritalStatus      MaritalStatus?
   hasDrivingLicense  Boolean?
 

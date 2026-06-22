@@ -7,6 +7,11 @@ export enum Gender {
   FEMALE = 'FEMALE',
 }
 
+export enum Company {
+  VITAXIR = 'VITAXIR',
+  VITASYR = 'VITASYR',
+}
+
 export enum MaritalStatus {
   SINGLE = 'SINGLE',
   MARRIED = 'MARRIED',
@@ -192,6 +197,11 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   nationality?: string;
+
+  // الشركة: VITAXIR أو VITASYR (اختياري)
+  @IsOptional()
+  @IsEnum(Company)
+  company?: Company;
 
   @IsOptional()
   @IsEnum(MaritalStatus)
