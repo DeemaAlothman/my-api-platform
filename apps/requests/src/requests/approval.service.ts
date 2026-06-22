@@ -123,9 +123,11 @@ export class ApprovalService {
 
     const fullyApproved = !nextStep;
     const isResignation = request.type === 'RESIGNATION';
+    // بعد مقابلة الخروج (exitInterview محفوظة بالتفاصيل) تبقى خطوة CEO الأخيرة فقط → اعتماد نهائي
+    const exitInterviewDone = isResignation && !!(request.details as any)?.exitInterview;
     const newStatus = nextStep
       ? 'IN_APPROVAL'
-      : (isResignation ? 'PENDING_EXIT_INTERVIEW' : 'APPROVED');
+      : (isResignation && !exitInterviewDone ? 'PENDING_EXIT_INTERVIEW' : 'APPROVED');
     const newStepOrder = nextStep ? nextStep.stepOrder : currentStep.stepOrder;
 
     await this.prisma.$transaction([
@@ -162,8 +164,8 @@ export class ApprovalService {
       });
     }
 
-    // Execute side effects on final approval (excluding resignation — awaits exit interview)
-    if (fullyApproved && !isResignation) {
+    // Execute side effects on final approval (resignation: only after exit interview + CEO step)
+    if (fullyApproved && (!isResignation || exitInterviewDone)) {
       await this.executeApprovedRequest({ ...request, details: updatedDetails });
     }
 

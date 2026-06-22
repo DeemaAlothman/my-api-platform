@@ -399,28 +399,40 @@ export class RequestsService {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'Exit interview is only for RESIGNATION requests', details: [] });
     }
 
+    // بعد مقابلة الخروج: تُضاف خطوة موافقة المدير التنفيذي (CEO) قبل الاعتماد النهائي
+    const existingSteps = await this.prisma.approvalStep.findMany({ where: { requestId: id } });
+    const nextStepOrder = existingSteps.length > 0 ? Math.max(...existingSteps.map(s => s.stepOrder)) + 1 : 1;
+
     const existingDetails = (request.details as any) ?? {};
-    await this.prisma.request.update({
-      where: { id },
-      data: {
-        status: 'APPROVED' as any,
-        details: { ...existingDetails, exitInterview: exitInterviewData },
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.approvalStep.create({
+        data: {
+          requestId: id,
+          stepOrder: nextStepOrder,
+          approverRole: 'CEO',
+          status: 'PENDING',
+        },
+      }),
+      this.prisma.request.update({
+        where: { id },
+        data: {
+          status: 'IN_APPROVAL' as any,
+          currentStepOrder: nextStepOrder,
+          details: { ...existingDetails, exitInterview: exitInterviewData },
+        },
+      }),
+    ]);
 
     await this.prisma.requestHistory.create({
       data: {
         requestId: id,
         action: 'EXIT_INTERVIEW_SUBMITTED',
         fromStatus: 'PENDING_EXIT_INTERVIEW',
-        toStatus: 'APPROVED',
+        toStatus: 'IN_APPROVAL',
         performedBy: employeeId!,
-        notes: 'Employee submitted exit interview form',
+        notes: 'Employee submitted exit interview form, pending CEO approval',
       },
     });
-
-    const updatedRequest = await this.prisma.request.findFirst({ where: { id } });
-    await this.approvalService.executeApprovedRequest(updatedRequest);
 
     return this.prisma.request.findFirst({
       where: { id },
