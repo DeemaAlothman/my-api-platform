@@ -434,6 +434,8 @@ export class RequestsService {
       },
     });
 
+    await this.notifications.notifyCeoExitInterviewDone({ requestId: id, employeeId: request.employeeId });
+
     return this.prisma.request.findFirst({
       where: { id },
       include: {

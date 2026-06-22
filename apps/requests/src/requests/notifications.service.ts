@@ -98,6 +98,49 @@ export class RequestNotificationsService {
     }
   }
 
+  // إشعار المدير التنفيذي (CEO) بأن طلب استقالة بانتظار موافقته بعد مقابلة الخروج
+  async notifyCeoExitInterviewDone(params: { requestId: string; employeeId: string }) {
+    try {
+      const ceoEmployees = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+        SELECT DISTINCT e."userId"
+        FROM users.employees e
+        JOIN users.users u ON u.id = e."userId"
+        JOIN users.user_roles ur ON ur."userId" = u.id
+        JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+        JOIN users.permissions p ON p.id = rp."permissionId"
+        WHERE p.name = 'requests:ceo-approve'
+          AND e."deletedAt" IS NULL
+          AND e."userId" IS NOT NULL
+          AND u.status = 'ACTIVE'
+      `;
+      const userIds = ceoEmployees.map(e => e.userId).filter(Boolean);
+      if (userIds.length === 0) return;
+
+      const employee = await this.prisma.$queryRaw<Array<{ name: string }>>`
+        SELECT "firstNameAr" || ' ' || "lastNameAr" AS name FROM users.employees WHERE id = ${params.employeeId}
+      `;
+      const empName = employee[0]?.name ?? '';
+
+      for (const userId of userIds) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, $2::"users"."NotificationType", $3, $4, $5, $6, $7::jsonb, NOW())`,
+          userId,
+          'GENERAL',
+          'طلب استقالة بانتظار موافقتك',
+          'Resignation Request Awaiting Your Approval',
+          `استكمل الموظف ${empName} مقابلة الخروج، وطلب الاستقالة بانتظار موافقتك النهائية`,
+          `${empName} has completed the exit interview; their resignation request is awaiting your final approval`,
+          JSON.stringify({ requestId: params.requestId, requestType: 'RESIGNATION' }),
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `[notifyCeoExitInterviewDone] failed for request ${params.requestId}: ${(err as any)?.message}`,
+      );
+    }
+  }
+
   private buildContent(requestType: string, action: NotifAction, stepRole?: string) {
     const isReward = requestType === 'REWARD';
     const typeAr = isReward ? 'المكافأة' : 'العقوبة';
