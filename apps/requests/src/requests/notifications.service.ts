@@ -98,6 +98,79 @@ export class RequestNotificationsService {
     }
   }
 
+  // إشعار المعتمد التالي عند انتقال خطوة في طلبات المكافأة/العقوبة
+  async notifyNextApproverRewardPenalty(params: {
+    requestId: string;
+    requestType: 'REWARD' | 'PENALTY_PROPOSAL';
+    nextRole: string;
+    employeeId: string;
+    details: any;
+  }) {
+    try {
+      const typeAr = params.requestType === 'REWARD' ? 'المكافأة' : 'العقوبة';
+      const typeEn = params.requestType === 'REWARD' ? 'Reward' : 'Penalty';
+
+      // حدّد المعتمدين التاليين حسب الدور
+      let approverUserIds: string[] = [];
+      if (params.nextRole === 'HR') {
+        const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+          SELECT DISTINCT e."userId"
+          FROM users.employees e
+          JOIN users.users u ON u.id = e."userId"
+          JOIN users.user_roles ur ON ur."userId" = u.id
+          JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+          JOIN users.permissions p ON p.id = rp."permissionId"
+          WHERE p.name = 'requests:hr-approve'
+            AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL AND u.status = 'ACTIVE'
+        `;
+        approverUserIds = rows.map(r => r.userId);
+      } else if (params.nextRole === 'CEO') {
+        const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+          SELECT DISTINCT e."userId"
+          FROM users.employees e
+          JOIN users.users u ON u.id = e."userId"
+          JOIN users.user_roles ur ON ur."userId" = u.id
+          JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+          JOIN users.permissions p ON p.id = rp."permissionId"
+          WHERE p.name = 'requests:ceo-approve'
+            AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL AND u.status = 'ACTIVE'
+        `;
+        approverUserIds = rows.map(r => r.userId);
+      } else if (params.nextRole === 'DIRECT_MANAGER') {
+        // الموظف مقدّم الطلب → نجيب مدير الموظف المستهدف
+        const targetId = params.requestType === 'PENALTY_PROPOSAL'
+          ? params.details?.targetEmployeeId
+          : params.details?.employees?.[0]?.employeeId;
+        if (targetId) {
+          const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+            SELECT e2."userId"
+            FROM users.employees e
+            JOIN users.employees e2 ON e2.id = e."managerId"
+            WHERE e.id = ${targetId} AND e."deletedAt" IS NULL AND e2."userId" IS NOT NULL LIMIT 1
+          `;
+          approverUserIds = rows.map(r => r.userId).filter(Boolean);
+        }
+      }
+
+      if (approverUserIds.length === 0) return;
+
+      for (const userId of approverUserIds) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, $2::"users"."NotificationType", $3, $4, $5, $6, $7::jsonb, NOW())`,
+          userId, 'GENERAL',
+          `طلب ${typeAr} بانتظار موافقتك`,
+          `${typeEn} Request Awaiting Your Approval`,
+          `يوجد طلب ${typeAr} وصل إلى مرحلة تتطلب موافقتك`,
+          `A ${typeEn.toLowerCase()} request has reached your approval stage`,
+          JSON.stringify({ requestId: params.requestId, requestType: params.requestType }),
+        );
+      }
+    } catch (err) {
+      this.logger.error(`[notifyNextApproverRewardPenalty] failed for ${params.requestId}: ${(err as any)?.message}`);
+    }
+  }
+
   // إشعار المدير التنفيذي (CEO) بأن طلب استقالة بانتظار موافقته بعد مقابلة الخروج
   async notifyCeoExitInterviewDone(params: { requestId: string; employeeId: string }) {
     try {

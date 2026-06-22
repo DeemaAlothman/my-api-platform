@@ -18,7 +18,12 @@ export class ApprovalService {
     private readonly notifications: RequestNotificationsService,
   ) {}
 
-  async initializeApprovalSteps(requestId: string, requestType: string, employeeId?: string): Promise<boolean> {
+  async initializeApprovalSteps(
+    requestId: string,
+    requestType: string,
+    employeeId?: string,
+    submitterCtx?: { userId: string; employeeId: string },
+  ): Promise<boolean> {
     let workflows = await this.prisma.approvalWorkflow.findMany({
       where: { requestType: requestType as any },
       orderBy: { stepOrder: 'asc' },
@@ -31,6 +36,48 @@ export class ApprovalService {
       const isManagerCeo = await this.isDirectManagerCeo(employeeId);
       if (isManagerCeo) {
         workflows = workflows.filter(w => w.approverRole !== 'CEO');
+        workflows = workflows.map((w, i) => ({ ...w, stepOrder: i + 1 }));
+      }
+    }
+
+    // تخطي خطوات ذكي لطلبات المكافأة والعقوبة حسب دور المقدِّم
+    if (['REWARD', 'PENALTY_PROPOSAL'].includes(requestType) && submitterCtx) {
+      const req = await this.prisma.request.findFirst({ where: { id: requestId }, select: { details: true } });
+      const details = req?.details as any;
+      const targetEmpId: string | null = requestType === 'PENALTY_PROPOSAL'
+        ? (details?.targetEmployeeId ?? null)
+        : (details?.employees?.[0]?.employeeId ?? null);
+
+      if (targetEmpId) {
+        // مدير الموظف المستهدف وهل هو أيضاً HR
+        const mgr = await this.prisma.$queryRaw<Array<{ mgrEmpId: string | null; mgrUserId: string | null }>>`
+          SELECT e2.id AS "mgrEmpId", e2."userId" AS "mgrUserId"
+          FROM users.employees e
+          LEFT JOIN users.employees e2 ON e2.id = e."managerId"
+          WHERE e.id = ${targetEmpId} AND e."deletedAt" IS NULL LIMIT 1
+        `;
+        const mgrEmpId   = mgr[0]?.mgrEmpId   ?? null;
+        const mgrUserId  = mgr[0]?.mgrUserId  ?? null;
+
+        const isSubmitterDM = mgrEmpId !== null && mgrEmpId === submitterCtx.employeeId;
+        const isSubmitterHR = await this.resolver.hasPermission(submitterCtx.userId, 'requests:hr-approve');
+        const isDMAlsoHR    = mgrUserId ? await this.resolver.hasPermission(mgrUserId, 'requests:hr-approve') : false;
+
+        if (isSubmitterDM) {
+          // المقدِّم هو المدير المباشر → تخطي خطوته
+          workflows = workflows.filter(w => w.approverRole !== 'DIRECT_MANAGER');
+          // لو كان المدير المباشر = HR فلا يوافق مرة ثانية كـ HR
+          if (isDMAlsoHR) workflows = workflows.filter(w => w.approverRole !== 'HR');
+        } else if (isSubmitterHR) {
+          // المقدِّم هو HR → تخطي خطوته
+          workflows = workflows.filter(w => w.approverRole !== 'HR');
+          // لو كان HR = المدير المباشر فلا يوافق مرة ثانية كـ DM
+          if (isDMAlsoHR) workflows = workflows.filter(w => w.approverRole !== 'DIRECT_MANAGER');
+        } else if (isDMAlsoHR) {
+          // المقدِّم ليس DM ولا HR، لكن الـ DM والـ HR شخص واحد → دمج إلى خطوة HR واحدة
+          workflows = workflows.filter(w => w.approverRole !== 'DIRECT_MANAGER');
+        }
+
         workflows = workflows.map((w, i) => ({ ...w, stepOrder: i + 1 }));
       }
     }
@@ -157,11 +204,21 @@ export class ApprovalService {
       await this.notifications.notifyRewardPenalty({
         requestId,
         requestType: request.type as 'REWARD' | 'PENALTY_PROPOSAL',
-        action: fullyApproved && !isResignation ? 'APPROVED' : 'STEP_APPROVED',
+        action: fullyApproved ? 'APPROVED' : 'STEP_APPROVED',
         stepRole: currentStep.approverRole,
         employeeId: request.employeeId,
         details: updatedDetails,
       });
+      // إشعار المعتمد التالي بأن الطلب وصل إلى مرحلته
+      if (!fullyApproved && nextStep) {
+        await this.notifications.notifyNextApproverRewardPenalty({
+          requestId,
+          requestType: request.type as 'REWARD' | 'PENALTY_PROPOSAL',
+          nextRole: nextStep.approverRole,
+          employeeId: request.employeeId,
+          details: updatedDetails,
+        });
+      }
     }
 
     // Execute side effects on final approval (resignation: only after exit interview + CEO step)

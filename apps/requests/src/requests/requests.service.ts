@@ -33,6 +33,16 @@ export class RequestsService {
     private readonly notifications: RequestNotificationsService,
   ) {}
 
+  private async hasPermission(userId: string, permission: string): Promise<boolean> {
+    const result = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) AS count FROM users.user_roles ur
+      JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+      JOIN users.permissions p ON p.id = rp."permissionId"
+      WHERE ur."userId" = ${userId} AND p.name = ${permission}
+    `;
+    return Number(result[0]?.count ?? 0) > 0;
+  }
+
   // جلب بيانات الموظفين بـ bulk query عبر cross-schema
   private async fetchEmployeeNames(employeeIds: string[]): Promise<Map<string, {
     firstNameAr: string; lastNameAr: string;
@@ -93,7 +103,9 @@ export class RequestsService {
       const canCreate = permissions.includes('requests:hr-approve')
         || permissions.includes('requests:approve')
         || permissions.includes('requests:read-all-steps')
-        || permissions.includes('requests:manager-approve');
+        || permissions.includes('requests:manager-approve')
+        || permissions.includes('requests:ceo-approve')
+        || permissions.includes('requests:qs-approve');
       if (!canCreate) {
         throw new ForbiddenException({
           code: 'AUTH_INSUFFICIENT_PERMISSIONS',
@@ -164,7 +176,35 @@ export class RequestsService {
       }
     }
 
-    const initialized = await this.approvalService.initializeApprovalSteps(id, request.type, request.employeeId);
+    // طلبات المكافأة/العقوبة: إذا قدّمها المدير التنفيذي → اعتماد فوري بدون خطوات
+    if (['REWARD', 'PENALTY_PROPOSAL'].includes(request.type)) {
+      const isCeoSubmitter = await this.hasPermission(userId, 'requests:ceo-approve');
+      if (isCeoSubmitter) {
+        await this.prisma.request.update({ where: { id }, data: { status: 'APPROVED' } });
+        await this.prisma.requestHistory.create({
+          data: { requestId: id, action: 'SUBMITTED', fromStatus: 'DRAFT', toStatus: 'APPROVED', performedBy: employeeId! },
+        });
+        await this.approvalService.executeApprovedRequest({ ...request, details: request.details });
+        await this.notifications.notifyRewardPenalty({
+          requestId: id,
+          requestType: request.type as 'REWARD' | 'PENALTY_PROPOSAL',
+          action: 'APPROVED',
+          employeeId: employeeId!,
+          details: request.details,
+        });
+        return this.prisma.request.findFirst({
+          where: { id },
+          include: { approvalSteps: { orderBy: { stepOrder: 'asc' } }, history: { orderBy: { createdAt: 'desc' }, take: 5 } },
+        });
+      }
+    }
+
+    // تحديد context المقدِّم لطلبات المكافأة/العقوبة (تخطي خطوات ذكي)
+    const submitterCtx = ['REWARD', 'PENALTY_PROPOSAL'].includes(request.type)
+      ? { userId, employeeId: employeeId! }
+      : undefined;
+
+    const initialized = await this.approvalService.initializeApprovalSteps(id, request.type, request.employeeId, submitterCtx);
     const toStatus = initialized ? 'IN_APPROVAL' : 'PENDING_MANAGER';
 
     if (!initialized) {
@@ -183,6 +223,20 @@ export class RequestsService {
         employeeId: employeeId!,
         details: request.details,
       });
+      // إشعار المعتمد الأول بأن الطلب وصل إليه
+      const firstStep = await this.prisma.approvalStep.findFirst({
+        where: { requestId: id },
+        orderBy: { stepOrder: 'asc' },
+      });
+      if (firstStep) {
+        await this.notifications.notifyNextApproverRewardPenalty({
+          requestId: id,
+          requestType: request.type as 'REWARD' | 'PENALTY_PROPOSAL',
+          nextRole: firstStep.approverRole,
+          employeeId: employeeId!,
+          details: request.details,
+        });
+      }
     }
 
     return this.prisma.request.findFirst({
