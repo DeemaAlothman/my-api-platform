@@ -320,6 +320,41 @@ export class RequestNotificationsService {
     }
   }
 
+  async notifyFirstApprover(params: { requestId: string; requestType: string; employeeId: string }) {
+    try {
+      const requestTypeLabels: Record<string, string> = {
+        RESIGNATION: 'استقالة', TRANSFER: 'نقل', BUSINESS_MISSION: 'مهمة عمل',
+        DELEGATION: 'تفويض', HIRING_REQUEST: 'طلب توظيف', COMPLAINT: 'شكوى',
+        REMOTE_WORK: 'عمل عن بعد', OVERTIME_MANAGER: 'عمل إضافي',
+      };
+      const label = requestTypeLabels[params.requestType] ?? 'طلب إداري';
+
+      // المدير المباشر للموظف
+      const mgr = await this.prisma.$queryRaw<Array<{ userId: string | null }>>`
+        SELECT e2."userId"
+        FROM users.employees e
+        JOIN users.employees e2 ON e2.id = e."managerId"
+        WHERE e.id = ${params.employeeId} AND e."deletedAt" IS NULL
+        LIMIT 1
+      `;
+      if (mgr[0]?.userId) {
+        await (this.prisma as any).notification.create({
+          data: {
+            userId: mgr[0].userId,
+            type: 'GENERAL',
+            titleAr: `طلب ${label} بانتظار موافقتك`,
+            titleEn: 'Request Awaiting Your Approval',
+            messageAr: `تم تقديم طلب ${label} وهو بانتظار موافقتك كمدير مباشر`,
+            messageEn: `A ${params.requestType.toLowerCase().replace('_', ' ')} request is awaiting your approval`,
+            metadata: { requestId: params.requestId },
+          },
+        });
+      }
+    } catch (err) {
+      this.logger.error(`[notifyFirstApprover] failed for request ${params.requestId}: ${(err as any)?.message}`);
+    }
+  }
+
   private buildContent(requestType: string, action: NotifAction, stepRole?: string) {
     const isReward = requestType === 'REWARD';
     const typeAr = isReward ? 'المكافأة' : 'العقوبة';

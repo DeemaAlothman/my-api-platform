@@ -234,6 +234,16 @@ export class RequestsService {
       data: { requestId: id, action: 'SUBMITTED', fromStatus: 'DRAFT', toStatus, performedBy: employeeId! },
     });
 
+    // إشعار المدير المباشر لكل الطلبات العادية (غير REWARD/PENALTY/OVERTIME_EMPLOYEE)
+    const notifyManagerTypes = ['RESIGNATION', 'TRANSFER', 'BUSINESS_MISSION', 'DELEGATION', 'HIRING_REQUEST', 'COMPLAINT', 'REMOTE_WORK', 'OVERTIME_MANAGER'];
+    if (initialized && notifyManagerTypes.includes(request.type)) {
+      await this.notifications.notifyFirstApprover({
+        requestId: id,
+        requestType: request.type,
+        employeeId: employeeId!,
+      });
+    }
+
     if (['REWARD', 'PENALTY_PROPOSAL'].includes(request.type)) {
       await this.notifications.notifyRewardPenalty({
         requestId: id,
