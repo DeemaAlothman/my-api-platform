@@ -171,9 +171,19 @@ export class ApprovalService {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'No pending approval step found', details: [] });
     }
 
+    // REWARD/PENALTY: خطوة DM تُحقق مقابل الموظف المستهدف لا المقدِّم
+    let employeeIdForApproval = request.employeeId;
+    if (['REWARD', 'PENALTY_PROPOSAL'].includes(request.type) && currentStep.approverRole === 'DIRECT_MANAGER') {
+      const details = request.details as any;
+      const targetId = request.type === 'PENALTY_PROPOSAL'
+        ? details?.targetEmployeeId
+        : details?.employees?.[0]?.employeeId;
+      if (targetId) employeeIdForApproval = targetId;
+    }
+
     const canApprove = await this.resolver.canApprove(
       approverUserId,
-      request.employeeId,
+      employeeIdForApproval,
       currentStep.approverRole,
       request.details as any,
     );
