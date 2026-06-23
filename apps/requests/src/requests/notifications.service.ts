@@ -339,17 +339,17 @@ export class RequestNotificationsService {
         LIMIT 1
       `;
       if (mgr[0]?.userId) {
-        await (this.prisma as any).notification.create({
-          data: {
-            userId: mgr[0].userId,
-            type: 'GENERAL',
-            titleAr: `طلب ${label} بانتظار موافقتك`,
-            titleEn: 'Request Awaiting Your Approval',
-            messageAr: `تم تقديم طلب ${label} وهو بانتظار موافقتك كمدير مباشر`,
-            messageEn: `A ${params.requestType.toLowerCase().replace('_', ' ')} request is awaiting your approval`,
-            metadata: { requestId: params.requestId },
-          },
-        });
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, $2::"users"."NotificationType", $3, $4, $5, $6, $7::jsonb, NOW())`,
+          mgr[0].userId,
+          'GENERAL',
+          `طلب ${label} بانتظار موافقتك`,
+          'Request Awaiting Your Approval',
+          `تم تقديم طلب ${label} وهو بانتظار موافقتك كمدير مباشر`,
+          'A request is awaiting your approval as direct manager',
+          JSON.stringify({ requestId: params.requestId, requestType: params.requestType }),
+        );
       }
     } catch (err) {
       this.logger.error(`[notifyFirstApprover] failed for request ${params.requestId}: ${(err as any)?.message}`);
