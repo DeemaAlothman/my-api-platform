@@ -345,6 +345,35 @@ export class EmployeesService {
     });
   }
 
+  async findByCompany(company: string) {
+    return this.prisma.employee.findMany({
+      where: { deletedAt: null, company },
+      select: {
+        id: true,
+        firstNameAr: true,
+        lastNameAr: true,
+        firstNameEn: true,
+        lastNameEn: true,
+        email: true,
+        employeeNumber: true,
+        employmentStatus: true,
+        profilePhoto: true,
+        company: true,
+        department: {
+          select: {
+            id: true,
+            nameAr: true,
+            nameEn: true,
+          },
+        },
+        jobTitle: {
+          select: { id: true, titleAr: true, titleEn: true },
+        },
+      },
+      orderBy: { firstNameAr: 'asc' },
+    });
+  }
+
   async findByUsername(username: string) {
     // Query using username for cross-schema lookup (auth.User has different ID than users.users)
     const result = await this.prisma.$queryRaw<Array<{ id: string }>>`
