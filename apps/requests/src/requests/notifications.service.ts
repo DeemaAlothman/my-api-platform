@@ -326,6 +326,7 @@ export class RequestNotificationsService {
         RESIGNATION: 'استقالة', TRANSFER: 'نقل', BUSINESS_MISSION: 'مهمة عمل',
         DELEGATION: 'تفويض', HIRING_REQUEST: 'طلب توظيف', COMPLAINT: 'شكوى',
         REMOTE_WORK: 'عمل عن بعد', OVERTIME_MANAGER: 'عمل إضافي',
+        WORK_ACCIDENT: 'حادث عمل', OTHER: 'أخرى',
       };
       const label = requestTypeLabels[params.requestType] ?? 'طلب إداري';
 

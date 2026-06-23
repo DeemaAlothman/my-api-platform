@@ -235,7 +235,7 @@ export class RequestsService {
     });
 
     // إشعار المدير المباشر لكل الطلبات العادية (غير REWARD/PENALTY/OVERTIME_EMPLOYEE)
-    const notifyManagerTypes = ['RESIGNATION', 'TRANSFER', 'BUSINESS_MISSION', 'DELEGATION', 'HIRING_REQUEST', 'COMPLAINT', 'REMOTE_WORK', 'OVERTIME_MANAGER'];
+    const notifyManagerTypes = ['RESIGNATION', 'TRANSFER', 'BUSINESS_MISSION', 'DELEGATION', 'HIRING_REQUEST', 'COMPLAINT', 'REMOTE_WORK', 'OVERTIME_MANAGER', 'WORK_ACCIDENT', 'OTHER'];
     if (initialized && notifyManagerTypes.includes(request.type)) {
       await this.notifications.notifyFirstApprover({
         requestId: id,
