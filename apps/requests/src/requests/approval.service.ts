@@ -40,7 +40,7 @@ export class ApprovalService {
       }
     }
 
-    // DM == HR dedup عام: إذا كان المدير المباشر للموظف هو نفسه HR → موافقة واحدة كـ HR فقط
+    // DM == HR dedup عام: إذا كان المدير المباشر للموظف هو نفسه HR → موافقة واحدة فقط
     // (يُطبّق على كل الأنواع التي فيها خطوتا DIRECT_MANAGER + HR، ما عدا REWARD/PENALTY اللي عندها منطق خاص)
     if (!['REWARD', 'PENALTY_PROPOSAL'].includes(requestType) &&
         employeeId &&
@@ -48,7 +48,13 @@ export class ApprovalService {
         workflows.some(w => w.approverRole === 'HR')) {
       const isDMAlsoHR = await this.isDirectManagerAlsoHR(employeeId);
       if (isDMAlsoHR) {
-        workflows = workflows.filter(w => w.approverRole !== 'DIRECT_MANAGER');
+        if (requestType === 'TRANSFER') {
+          // للنقل: DM يوافق أولاً ثم TARGET_MANAGER ثم CEO — نحذف HR لأن DM وافق بالفعل
+          workflows = workflows.filter(w => w.approverRole !== 'HR');
+        } else {
+          // باقي الأنواع: نحذف DM ونبقي HR
+          workflows = workflows.filter(w => w.approverRole !== 'DIRECT_MANAGER');
+        }
         workflows = workflows.map((w, i) => ({ ...w, stepOrder: i + 1 }));
       }
     }
