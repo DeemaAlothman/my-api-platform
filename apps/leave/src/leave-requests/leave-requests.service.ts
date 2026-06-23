@@ -532,6 +532,10 @@ export class LeaveRequestsService {
       id,
     );
 
+    if (!hasSubstitute) {
+      await this.notifyManagerOfLeave(employeeId, id, (request as any).leaveType?.nameAr ?? 'إجازة');
+    }
+
     return updated;
   }
 
@@ -613,8 +617,9 @@ export class LeaveRequestsService {
     // managerId هنا فعليا userId — نتحقق أنه المدير المباشر للموظف
     await this.assertIsEmployeeManager(managerId, request.employeeId);
 
-    // إذا كان النوع يتطلب موافقة HR، ننقله إلى PENDING_HR، وإلا نعتمده مباشرة
-    const newStatus = request.leaveType.requiresApproval ? 'PENDING_HR' : 'APPROVED';
+    // DM==HR dedup: لو المدير نفسه HR → تخطي PENDING_HR والاعتماد مباشرة
+    const dmIsHR = request.leaveType.requiresApproval ? await this.isManagerAlsoHR(managerId) : false;
+    const newStatus = request.leaveType.requiresApproval && !dmIsHR ? 'PENDING_HR' : 'APPROVED';
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.leaveRequest.update({
@@ -637,6 +642,10 @@ export class LeaveRequestsService {
     });
 
     await this.addHistory(id, 'MANAGER_APPROVE', 'PENDING_MANAGER', newStatus, managerId, dto.notes || 'Approved by manager');
+
+    if (newStatus === 'PENDING_HR') {
+      await this.notifyHROfLeave(id, request.leaveType.nameAr ?? 'إجازة');
+    }
 
     if (newStatus === 'APPROVED') {
       await this.notifyLeaveEmployee(request.employeeId, 'LEAVE_REQUEST_APPROVED',
@@ -811,6 +820,63 @@ export class LeaveRequestsService {
   }
 
   // إلغاء الطلب
+  private async isManagerAlsoHR(managerUserId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+      `SELECT COUNT(*) as count FROM users.user_roles ur
+       JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+       JOIN users.permissions p ON p.id = rp."permissionId"
+       WHERE ur."userId" = $1 AND p.name = 'requests:hr-approve'`,
+      managerUserId,
+    );
+    return Number(rows[0]?.count ?? 0) > 0;
+  }
+
+  private async notifyManagerOfLeave(employeeId: string, leaveRequestId: string, leaveTypeName: string) {
+    try {
+      const mgr = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+        `SELECT e2."userId" FROM users.employees e
+         JOIN users.employees e2 ON e2.id = e."managerId"
+         WHERE e.id = $1 AND e."deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      );
+      if (!mgr[0]?.userId) return;
+      await this.prisma.$queryRawUnsafe(`
+        INSERT INTO users.notifications
+          (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+        VALUES (gen_random_uuid(), $1, $2::users."NotificationType", $3, $4, $5, $6, $7::jsonb, false, NOW())
+      `, mgr[0].userId, 'LEAVE_REQUEST_SUBMITTED',
+         `طلب إجازة بانتظار موافقتك`,
+         'Leave Request Awaiting Your Approval',
+         `تم تقديم طلب إجازة (${leaveTypeName}) وهو بانتظار موافقتك`,
+         `A leave request (${leaveTypeName}) is awaiting your approval`,
+         JSON.stringify({ leaveRequestId }));
+    } catch { /* silent */ }
+  }
+
+  private async notifyHROfLeave(leaveRequestId: string, leaveTypeName: string) {
+    try {
+      const hrUsers = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT DISTINCT u.id as "userId" FROM users.users u
+         JOIN users.user_roles ur ON ur."userId" = u.id
+         JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+         JOIN users.permissions p ON p.id = rp."permissionId"
+         WHERE p.name = 'requests:hr-approve' AND u."deletedAt" IS NULL`,
+      );
+      for (const hr of hrUsers) {
+        await this.prisma.$queryRawUnsafe(`
+          INSERT INTO users.notifications
+            (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+          VALUES (gen_random_uuid(), $1, $2::users."NotificationType", $3, $4, $5, $6, $7::jsonb, false, NOW())
+        `, hr.userId, 'LEAVE_REQUEST_SUBMITTED',
+           `طلب إجازة بانتظار موافقة HR`,
+           'Leave Request Awaiting HR Approval',
+           `اعتمد المدير المباشر طلب إجازة (${leaveTypeName}) وهو بانتظار موافقتك`,
+           `A leave request (${leaveTypeName}) was approved by the manager and awaits your approval`,
+           JSON.stringify({ leaveRequestId }));
+      }
+    } catch { /* silent */ }
+  }
+
   private async notifyLeaveEmployee(
     employeeId: string,
     type: string,
