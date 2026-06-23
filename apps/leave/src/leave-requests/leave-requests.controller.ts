@@ -187,6 +187,13 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.findAll({ ...query, approvedByManagerUserId: managerUserId });
   }
 
+  // الطلبات بانتظار موافقة HR
+  @Get('pending-hr')
+  @Permission('leave_requests:approve_hr')
+  findPendingHR(@Query() query: ListLeaveRequestsQueryDto) {
+    return this.leaveRequestsService.findAll({ ...query, status: 'PENDING_HR' as any });
+  }
+
   // قائمة جميع الطلبات (لـ HR — يرى الكل)
   @Get()
   @Permission('leave_requests:read_all')
