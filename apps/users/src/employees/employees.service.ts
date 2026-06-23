@@ -867,6 +867,13 @@ export class EmployeesService {
       }
     }
 
+    const inactiveStatuses = ['INACTIVE', 'TERMINATED', 'SUSPENDED'];
+    const separationDateUpdate = dto.employmentStatus
+      ? inactiveStatuses.includes(dto.employmentStatus)
+        ? new Date()
+        : dto.employmentStatus === 'ACTIVE' ? null : undefined
+      : undefined;
+
     const updated = await this.prisma.employee.update({
       where: { id },
       data: {
@@ -874,6 +881,7 @@ export class EmployeesService {
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
         contractEndDate: contractEndDateUpdate,
+        separationDate: separationDateUpdate,
         ...(attachments !== undefined ? {
           attachments: { deleteMany: {}, create: attachments.map(({ fileUrl, fileName }) => ({ fileUrl, fileName })) },
         } : {}),
@@ -902,7 +910,6 @@ export class EmployeesService {
     });
 
     // إشعار HR إذا صار المدير المباشر غير نشط وعنده موظفين مرتبطين فيه
-    const inactiveStatuses = ['INACTIVE', 'TERMINATED', 'SUSPENDED'];
     if (dto.employmentStatus && inactiveStatuses.includes(dto.employmentStatus)) {
       setImmediate(() => {
         this.notifyHrIfManagerInactive(id, `${updated.firstNameAr} ${updated.lastNameAr}`).catch(() => {});

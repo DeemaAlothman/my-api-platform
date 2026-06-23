@@ -90,6 +90,7 @@ model Employee {
   contractType   ContractType
   contractEndDate DateTime?
   employmentStatus EmploymentStatus @default(ACTIVE)
+  separationDate DateTime? @db.Date
 
   // Salary
   basicSalary    Decimal?  @db.Decimal(15, 2)
