@@ -367,7 +367,7 @@ export class EmployeesService {
           },
         },
         jobTitle: {
-          select: { id: true, titleAr: true, titleEn: true },
+          select: { id: true, nameAr: true, nameEn: true },
         },
       },
       orderBy: { firstNameAr: 'asc' },
