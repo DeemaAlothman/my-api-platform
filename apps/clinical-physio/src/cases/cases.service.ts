@@ -306,6 +306,7 @@ export class CasesService {
       painTypes: dto.painTypes as any,
       painTypeOther: dto.painTypeOther,
       painTypeOtherColor: dto.painTypeOtherColor,
+      customPainTypes: dto.customPainTypes !== undefined ? dto.customPainTypes : undefined,
       aggravatingFactors: dto.aggravatingFactors as any,
       aggravatingOther: dto.aggravatingOther,
       alleviatingFactors: dto.alleviatingFactors as any,

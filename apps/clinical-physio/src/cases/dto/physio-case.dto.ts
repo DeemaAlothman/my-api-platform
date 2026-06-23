@@ -1,8 +1,16 @@
 import {
   IsString, IsOptional, IsBoolean, IsEnum, IsDateString,
-  IsInt, IsArray, IsObject, Min, Max, ValidateNested,
+  IsInt, IsArray, IsObject, Min, Max, ValidateNested, IsHexColor,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+export class CustomPainTypeDto {
+  @IsString()
+  name: string;
+
+  @IsOptional() @IsString()
+  color?: string;
+}
 
 export enum LifeType { PROFESSIONAL = 'PROFESSIONAL', NORMAL = 'NORMAL', SEDENTARY = 'SEDENTARY', ABNORMAL = 'ABNORMAL' }
 export enum PainLevel { MILD = 'MILD', MODERATE = 'MODERATE', SEVERE = 'SEVERE', EXCRUCIATING = 'EXCRUCIATING' }
@@ -261,9 +269,12 @@ export class PainMapDto {
   @IsOptional() @IsArray() @IsEnum(PhysioPainType, { each: true })
   painTypes?: PhysioPainType[];
   @IsOptional() @IsString()
-  painTypeOther?: string;        // اسم نوع "أخرى"
+  painTypeOther?: string;        // اسم نوع "أخرى" (legacy)
   @IsOptional() @IsString()
-  painTypeOtherColor?: string;   // لون نوع "أخرى"
+  painTypeOtherColor?: string;   // لون نوع "أخرى" (legacy)
+
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => CustomPainTypeDto)
+  customPainTypes?: CustomPainTypeDto[];
 
   // العوامل المحرّضة للألم
   @IsOptional() @IsArray() @IsEnum(PainFactor, { each: true })

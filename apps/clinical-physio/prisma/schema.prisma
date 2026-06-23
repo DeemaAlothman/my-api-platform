@@ -206,6 +206,7 @@ model PhysioCase {
   painTypes           PhysioPainType[]
   painTypeOther       String?   // اسم نوع "أخرى" (يحدّده الفرونت)
   painTypeOtherColor  String?   // لون نوع "أخرى" (يحدّده الفرونت)
+  customPainTypes     Json      @default("[]") // أنواع مخصصة متعددة [{ name, color }]
   aggravatingFactors  PainFactor[]
   aggravatingOther    String?
   alleviatingFactors  PainFactor[]
