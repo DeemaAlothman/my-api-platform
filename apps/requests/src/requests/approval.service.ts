@@ -266,6 +266,19 @@ export class ApprovalService {
       }
     }
 
+    // إشعار الموافق التالي للأنواع العامة (TRANSFER, RESIGNATION, BUSINESS_MISSION, ...)
+    const generalNotifyTypes = ['TRANSFER', 'RESIGNATION', 'BUSINESS_MISSION', 'DELEGATION',
+      'HIRING_REQUEST', 'COMPLAINT', 'REMOTE_WORK', 'OVERTIME_MANAGER', 'WORK_ACCIDENT', 'OTHER'];
+    if (!fullyApproved && nextStep && generalNotifyTypes.includes(request.type)) {
+      await this.notifications.notifyNextApprover({
+        requestId,
+        requestType: request.type,
+        nextRole: nextStep.approverRole,
+        employeeId: request.employeeId,
+        requestDetails: request.details as any,
+      });
+    }
+
     // إشعارات طلب العمل الإضافي
     if (request.type === 'OVERTIME_EMPLOYEE') {
       await this.notifications.notifyOvertimeTransition({

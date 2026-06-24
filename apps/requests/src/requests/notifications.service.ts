@@ -356,6 +356,86 @@ export class RequestNotificationsService {
     }
   }
 
+  async notifyNextApprover(params: {
+    requestId: string;
+    requestType: string;
+    nextRole: string;
+    employeeId: string;
+    requestDetails?: any;
+  }) {
+    try {
+      const requestTypeLabels: Record<string, string> = {
+        RESIGNATION: 'استقالة', TRANSFER: 'نقل', BUSINESS_MISSION: 'مهمة عمل',
+        DELEGATION: 'تفويض', HIRING_REQUEST: 'طلب توظيف', COMPLAINT: 'شكوى',
+        REMOTE_WORK: 'عمل عن بعد', OVERTIME_MANAGER: 'عمل إضافي',
+        WORK_ACCIDENT: 'حادث عمل', OTHER: 'أخرى',
+      };
+      const label = requestTypeLabels[params.requestType] ?? 'طلب إداري';
+      const roleLabels: Record<string, string> = {
+        TARGET_MANAGER: 'مدير القسم المستهدف',
+        HR: 'HR',
+        CEO: 'المدير التنفيذي',
+        CFO: 'المدير المالي',
+        DIRECT_MANAGER: 'المدير المباشر',
+      };
+      const roleLabel = roleLabels[params.nextRole] ?? params.nextRole;
+
+      let userIds: string[] = [];
+
+      if (params.nextRole === 'TARGET_MANAGER') {
+        const newDeptId = params.requestDetails?.newDepartmentId;
+        if (!newDeptId) return;
+        const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+          `SELECT e."userId" FROM users.departments d
+           JOIN users.employees e ON e.id = d."managerId"
+           WHERE d.id = $1 AND d."deletedAt" IS NULL AND e."deletedAt" IS NULL LIMIT 1`,
+          newDeptId,
+        );
+        if (rows[0]?.userId) userIds = [rows[0].userId];
+      } else if (params.nextRole === 'DIRECT_MANAGER') {
+        const rows = await this.prisma.$queryRaw<Array<{ userId: string | null }>>`
+          SELECT e2."userId" FROM users.employees e
+          JOIN users.employees e2 ON e2.id = e."managerId"
+          WHERE e.id = ${params.employeeId} AND e."deletedAt" IS NULL LIMIT 1
+        `;
+        if (rows[0]?.userId) userIds = [rows[0].userId];
+      } else {
+        const permMap: Record<string, string> = {
+          HR: 'requests:hr-approve',
+          CEO: 'requests:ceo-approve',
+          CFO: 'requests:cfo-approve',
+        };
+        const perm = permMap[params.nextRole];
+        if (!perm) return;
+        const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+          `SELECT DISTINCT u.id as "userId" FROM users.users u
+           JOIN users.user_roles ur ON ur."userId" = u.id
+           JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+           JOIN users.permissions p ON p.id = rp."permissionId"
+           WHERE p.name = $1 AND u."deletedAt" IS NULL`,
+          perm,
+        );
+        userIds = rows.map(r => r.userId);
+      }
+
+      for (const userId of userIds) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, $2::"users"."NotificationType", $3, $4, $5, $6, $7::jsonb, NOW())`,
+          userId,
+          'GENERAL',
+          `طلب ${label} بانتظار موافقتك`,
+          'Request Awaiting Your Approval',
+          `وصل طلب ${label} إلى مرحلة ${roleLabel} وهو بانتظار موافقتك`,
+          `A ${label} request has reached the ${roleLabel} stage and awaits your approval`,
+          JSON.stringify({ requestId: params.requestId, requestType: params.requestType }),
+        );
+      }
+    } catch (err) {
+      this.logger.error(`[notifyNextApprover] failed for request ${params.requestId}: ${(err as any)?.message}`);
+    }
+  }
+
   private buildContent(requestType: string, action: NotifAction, stepRole?: string) {
     const isReward = requestType === 'REWARD';
     const typeAr = isReward ? 'المكافأة' : 'العقوبة';
