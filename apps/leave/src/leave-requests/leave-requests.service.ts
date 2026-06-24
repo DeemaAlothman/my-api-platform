@@ -630,7 +630,7 @@ export class LeaveRequestsService {
           managerApprovedBy: managerId,
           managerApprovedAt: new Date(),
           managerNotes: dto.notes,
-          hrStatus: request.leaveType.requiresApproval ? 'PENDING_HR' : undefined,
+          hrStatus: request.leaveType.requiresApproval && !dmIsHR ? 'PENDING_HR' : undefined,
         },
         include: { leaveType: true },
       });
@@ -825,7 +825,7 @@ export class LeaveRequestsService {
       `SELECT COUNT(*) as count FROM users.user_roles ur
        JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
        JOIN users.permissions p ON p.id = rp."permissionId"
-       WHERE ur."userId" = $1 AND p.name = 'requests:hr-approve'`,
+       WHERE ur."userId" = $1 AND p.name = 'leave_requests:approve_hr'`,
       managerUserId,
     );
     return Number(rows[0]?.count ?? 0) > 0;
@@ -860,7 +860,7 @@ export class LeaveRequestsService {
          JOIN users.user_roles ur ON ur."userId" = u.id
          JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
          JOIN users.permissions p ON p.id = rp."permissionId"
-         WHERE p.name = 'requests:hr-approve' AND u."deletedAt" IS NULL`,
+         WHERE p.name = 'leave_requests:approve_hr' AND u."deletedAt" IS NULL`,
       );
       for (const hr of hrUsers) {
         await this.prisma.$queryRawUnsafe(`
