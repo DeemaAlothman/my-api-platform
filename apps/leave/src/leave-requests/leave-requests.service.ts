@@ -759,6 +759,9 @@ export class LeaveRequestsService {
 
   // موافقة HR
   async approveByHR(id: string, dto: ApproveLeaveRequestDto, hrUserId: string) {
+    const isCEO = await this.isUserCEO(hrUserId);
+    if (isCEO) throw new ForbiddenException('المدير التنفيذي لا يمكنه الموافقة على طلبات بصفة HR');
+
     const request = await this.prisma.leaveRequest.findUnique({
       where: { id },
       include: { leaveType: true },
@@ -815,6 +818,9 @@ export class LeaveRequestsService {
 
   // رفض HR
   async rejectByHR(id: string, dto: RejectLeaveRequestDto, hrUserId: string) {
+    const isCEO = await this.isUserCEO(hrUserId);
+    if (isCEO) throw new ForbiddenException('المدير التنفيذي لا يمكنه رفض طلبات بصفة HR');
+
     const request = await this.prisma.leaveRequest.findUnique({
       where: { id },
       include: { leaveType: true },
@@ -881,6 +887,17 @@ export class LeaveRequestsService {
     return Number(rows[0]?.count ?? 0) > 0;
   }
 
+  private async isUserCEO(userId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+      `SELECT COUNT(*) as count FROM users.user_roles ur
+       JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+       JOIN users.permissions p ON p.id = rp."permissionId"
+       WHERE ur."userId" = $1 AND p.name = 'requests:ceo-approve'`,
+      userId,
+    );
+    return Number(rows[0]?.count ?? 0) > 0;
+  }
+
   private async notifyManagerOfLeave(employeeId: string, leaveRequestId: string, leaveTypeName: string) {
     try {
       const mgr = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
@@ -910,7 +927,13 @@ export class LeaveRequestsService {
          JOIN users.user_roles ur ON ur."userId" = u.id
          JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
          JOIN users.permissions p ON p.id = rp."permissionId"
-         WHERE p.name = 'leave_requests:approve_hr' AND u."deletedAt" IS NULL`,
+         WHERE p.name = 'leave_requests:approve_hr' AND u."deletedAt" IS NULL
+         AND u.id NOT IN (
+           SELECT DISTINCT ur2."userId" FROM users.user_roles ur2
+           JOIN users.role_permissions rp2 ON rp2."roleId" = ur2."roleId"
+           JOIN users.permissions p2 ON p2.id = rp2."permissionId"
+           WHERE p2.name = 'requests:ceo-approve'
+         )`,
       );
       for (const hr of hrUsers) {
         await this.prisma.$queryRawUnsafe(`
