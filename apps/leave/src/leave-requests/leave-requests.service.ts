@@ -191,7 +191,7 @@ export class LeaveRequestsService {
     )) as Array<{ workStartTime: string; workEndTime: string }>;
 
     let shiftHours = 8; // افتراضي
-    if (shiftRows[0]) {
+    if (shiftRows[0]?.workStartTime && shiftRows[0]?.workEndTime) {
       const [wsh, wsm] = shiftRows[0].workStartTime.split(':').map(Number);
       const [weh, wem] = shiftRows[0].workEndTime.split(':').map(Number);
       const computed = ((weh * 60 + wem) - (wsh * 60 + wsm)) / 60;
