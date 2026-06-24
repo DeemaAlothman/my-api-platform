@@ -226,6 +226,11 @@ export class LeaveRequestsService {
       }
     }
 
+    const dmIsHR = leaveType.requiresApproval
+      ? await this.isEmployeeDMAlsoHR(employeeId)
+      : false;
+    const newStatus = dmIsHR ? 'PENDING_HR' : 'PENDING_MANAGER';
+
     // إنشاء الطلب في transaction
     const request = await this.prisma.$transaction(async (tx) => {
       const created = await (tx as any).leaveRequest.create({
@@ -241,7 +246,9 @@ export class LeaveRequestsService {
           endTime: dto.endTime,
           durationHours,
           equivalentDays,
-          status: 'PENDING_MANAGER',
+          status: newStatus as any,
+          managerStatus: dmIsHR ? null : 'PENDING',
+          hrStatus: dmIsHR ? 'PENDING' : undefined,
           ...(overLimitHours > 0 && {
             deductionInfo: {
               overLimitHours,
@@ -268,7 +275,20 @@ export class LeaveRequestsService {
       return created;
     });
 
-    await this.addHistory(request.id, 'SUBMIT', null, 'PENDING_MANAGER', employeeId, 'إجازة ساعية مقدّمة');
+    await this.addHistory(request.id, 'SUBMIT', null, newStatus, employeeId,
+      dmIsHR ? 'إجازة ساعية مقدّمة — المدير المباشر هو HR' : 'إجازة ساعية مقدّمة');
+    await this.notifyLeaveEmployee(
+      employeeId, 'LEAVE_REQUEST_SUBMITTED',
+      'تم تقديم طلب إجازتك', 'Leave Request Submitted',
+      'تم تقديم طلب إجازتك بنجاح وهو الآن في انتظار المراجعة',
+      'Your leave request has been submitted and is awaiting review',
+      request.id,
+    );
+    if (dmIsHR) {
+      await this.notifyHROfLeave(request.id, leaveType.nameAr ?? 'إجازة');
+    } else {
+      await this.notifyManagerOfLeave(employeeId, request.id, leaveType.nameAr ?? 'إجازة');
+    }
     return request;
   }
 
