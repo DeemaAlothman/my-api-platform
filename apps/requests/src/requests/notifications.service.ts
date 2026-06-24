@@ -122,6 +122,12 @@ export class RequestNotificationsService {
           JOIN users.permissions p ON p.id = rp."permissionId"
           WHERE p.name = 'requests:hr-approve'
             AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL AND u.status = 'ACTIVE'
+            AND u.id NOT IN (
+              SELECT DISTINCT ur2."userId" FROM users.user_roles ur2
+              JOIN users.role_permissions rp2 ON rp2."roleId" = ur2."roleId"
+              JOIN users.permissions p2 ON p2.id = rp2."permissionId"
+              WHERE p2.name = 'requests:ceo-approve'
+            )
         `;
         approverUserIds = rows.map(r => r.userId);
       } else if (params.nextRole === 'CEO') {
@@ -200,6 +206,12 @@ export class RequestNotificationsService {
           JOIN users.permissions p ON p.id = rp."permissionId"
           WHERE p.name = 'requests:hr-approve'
             AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL AND u.status = 'ACTIVE'
+            AND u.id NOT IN (
+              SELECT DISTINCT ur2."userId" FROM users.user_roles ur2
+              JOIN users.role_permissions rp2 ON rp2."roleId" = ur2."roleId"
+              JOIN users.permissions p2 ON p2.id = rp2."permissionId"
+              WHERE p2.name = 'requests:ceo-approve'
+            )
         `;
         targetUserIds = rows.map(r => r.userId);
       } else if (params.nextRole === 'CEO') {
