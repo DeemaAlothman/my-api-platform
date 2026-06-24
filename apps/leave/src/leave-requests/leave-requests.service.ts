@@ -502,7 +502,16 @@ export class LeaveRequestsService {
     }
 
     const hasSubstitute = !!request.substituteId;
-    const newStatus = hasSubstitute ? 'PENDING_SUBSTITUTE' : 'PENDING_MANAGER';
+    const requiresApproval = (request as any).leaveType?.requiresApproval ?? true;
+
+    // DM==HR dedup عند التقديم: لو المدير نفسه HR → تخطي PENDING_MANAGER وروح لـ PENDING_HR مباشرة
+    const dmIsHR = !hasSubstitute && requiresApproval
+      ? await this.isEmployeeDMAlsoHR(employeeId)
+      : false;
+
+    const newStatus = hasSubstitute
+      ? 'PENDING_SUBSTITUTE'
+      : dmIsHR ? 'PENDING_HR' : 'PENDING_MANAGER';
 
     // تحديث الحالة وحجز الأيام (داخل transaction لمنع race condition)
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -510,8 +519,9 @@ export class LeaveRequestsService {
         where: { id },
         data: {
           status: newStatus as any,
-          managerStatus: hasSubstitute ? null : 'PENDING',
+          managerStatus: hasSubstitute ? null : (dmIsHR ? null : 'PENDING'),
           substituteStatus: hasSubstitute ? 'PENDING' : null,
+          hrStatus: dmIsHR ? 'PENDING' : undefined,
         },
         include: { leaveType: true },
       });
@@ -522,7 +532,11 @@ export class LeaveRequestsService {
     });
 
     await this.addHistory(id, 'SUBMIT', 'DRAFT', newStatus, employeeId,
-      hasSubstitute ? 'Request submitted — awaiting substitute approval' : 'Request submitted for manager approval',
+      hasSubstitute
+        ? 'Request submitted — awaiting substitute approval'
+        : dmIsHR
+          ? 'Request submitted — DM is HR, going directly to HR approval'
+          : 'Request submitted for manager approval',
     );
 
     await this.notifyLeaveEmployee(employeeId, 'LEAVE_REQUEST_SUBMITTED',
@@ -533,7 +547,11 @@ export class LeaveRequestsService {
     );
 
     if (!hasSubstitute) {
-      await this.notifyManagerOfLeave(employeeId, id, (request as any).leaveType?.nameAr ?? 'إجازة');
+      if (dmIsHR) {
+        await this.notifyHROfLeave(id, (request as any).leaveType?.nameAr ?? 'إجازة');
+      } else {
+        await this.notifyManagerOfLeave(employeeId, id, (request as any).leaveType?.nameAr ?? 'إجازة');
+      }
     }
 
     return updated;
@@ -820,6 +838,18 @@ export class LeaveRequestsService {
   }
 
   // إلغاء الطلب
+  private async isEmployeeDMAlsoHR(employeeId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+      `SELECT e2."userId" FROM users.employees e
+       JOIN users.employees e2 ON e2.id = e."managerId"
+       WHERE e.id = $1 AND e."deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    );
+    const managerUserId = rows[0]?.userId;
+    if (!managerUserId) return false;
+    return this.isManagerAlsoHR(managerUserId);
+  }
+
   private async isManagerAlsoHR(managerUserId: string): Promise<boolean> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
       `SELECT COUNT(*) as count FROM users.user_roles ur
