@@ -407,12 +407,21 @@ export class RequestNotificationsService {
         };
         const perm = permMap[params.nextRole];
         if (!perm) return;
+        // عند إشعار HR: نستثني من عنده صلاحية CEO لتجنب إشعار مزدوج
+        const excludeCeo = params.nextRole === 'HR'
+          ? `AND u.id NOT IN (
+               SELECT DISTINCT ur2."userId" FROM users.user_roles ur2
+               JOIN users.role_permissions rp2 ON rp2."roleId" = ur2."roleId"
+               JOIN users.permissions p2 ON p2.id = rp2."permissionId"
+               WHERE p2.name = 'requests:ceo-approve'
+             )`
+          : '';
         const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
           `SELECT DISTINCT u.id as "userId" FROM users.users u
            JOIN users.user_roles ur ON ur."userId" = u.id
            JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
            JOIN users.permissions p ON p.id = rp."permissionId"
-           WHERE p.name = $1 AND u."deletedAt" IS NULL`,
+           WHERE p.name = $1 AND u."deletedAt" IS NULL ${excludeCeo}`,
           perm,
         );
         userIds = rows.map(r => r.userId);
