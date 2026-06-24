@@ -71,8 +71,12 @@ export class ApprovalResolverService {
         const targetManagerId = await this.getDepartmentManagerId(newDeptId);
         return targetManagerId === approverEmployeeId;
       }
-      case 'HR':
-        return this.hasPermission(approverUserId, 'requests:hr-approve');
+      case 'HR': {
+        const isHR = await this.hasPermission(approverUserId, 'requests:hr-approve');
+        if (!isHR) return false;
+        const isCEO = await this.hasPermission(approverUserId, 'requests:ceo-approve');
+        return !isCEO;
+      }
       case 'CEO':
         return this.hasPermission(approverUserId, 'requests:ceo-approve');
       case 'CFO':
