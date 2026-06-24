@@ -427,7 +427,7 @@ export class ApprovalService {
           AND ${approverEmployeeId ? `(r.details->>'newDepartmentId') IN (
             SELECT id FROM users.departments WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL
           )` : 'false'})
-        OR (s."approverRole" = 'HR'  AND ${hasHrApprove  ? 'true' : 'false'})
+        OR (s."approverRole" = 'HR'  AND ${hasHrApprove && !hasCeoApprove ? 'true' : 'false'})
         OR (s."approverRole" = 'CEO' AND ${hasCeoApprove ? 'true' : 'false'})
         OR (s."approverRole" = 'CFO' AND ${hasCfoApprove ? 'true' : 'false'})
       )
