@@ -1150,7 +1150,7 @@ export class PayrollService {
         `${emp?.firstNameAr ?? ''} ${emp?.lastNameAr ?? ''}`.trim() || '—',
         emp?.jobTitleAr ?? '—',
         workTypeAr(emp?.workType),
-        Number(p.basicSalary ?? 0),
+        Number((p as any).deductibleBaseSalary ?? p.basicSalary ?? 0),
         Number(allowances.FOOD ?? 0),
         Number((p as any).hourlyRate ?? 0),
         Number((p as any).paidLeaveDays ?? 0),
