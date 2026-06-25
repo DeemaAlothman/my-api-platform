@@ -408,6 +408,7 @@ export class ApprovalService {
     const hasHrApprove  = await this.resolver.hasPermission(userId, 'requests:hr-approve');
     const hasCeoApprove = await this.resolver.hasPermission(userId, 'requests:ceo-approve');
     const hasCfoApprove = await this.resolver.hasPermission(userId, 'requests:cfo-approve');
+    const hasLoApprove  = await this.resolver.hasPermission(userId, 'requests:lo-approve');
 
     const baseConditions = `
       r.status = 'IN_APPROVAL'
@@ -433,11 +434,25 @@ export class ApprovalService {
       )
     `;
 
+    const maintenanceConditions = `
+      r.type = 'MAINTENANCE'
+      AND r."deletedAt" IS NULL
+      AND (
+        ${approverEmployeeId ? `(r.status = 'PENDING_MANAGER' AND r."employeeId" IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL))` : 'false'}
+        OR (r.status IN ('PENDING_LOGISTICS', 'PENDING_LOGISTICS_EXTERNAL') AND ${hasLoApprove ? 'true' : 'false'})
+        OR (r.status = 'PENDING_EXECUTIVE' AND ${hasCeoApprove ? 'true' : 'false'})
+      )
+    `;
+
     const countResult = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
-      `SELECT COUNT(*) as count
-       FROM requests.requests r
-       JOIN requests.approval_steps s ON s."requestId" = r.id
-       WHERE ${baseConditions}`,
+      `SELECT COUNT(*) as count FROM (
+         SELECT r.id FROM requests.requests r
+         JOIN requests.approval_steps s ON s."requestId" = r.id
+         WHERE ${baseConditions}
+         UNION
+         SELECT r.id FROM requests.requests r
+         WHERE ${maintenanceConditions}
+       ) combined`,
     );
     const total = Number(countResult[0]?.count ?? 0);
 
@@ -446,7 +461,11 @@ export class ApprovalService {
        FROM requests.requests r
        JOIN requests.approval_steps s ON s."requestId" = r.id
        WHERE ${baseConditions}
-       ORDER BY r."createdAt" DESC
+       UNION
+       SELECT r.*, NULL AS "currentStep"
+       FROM requests.requests r
+       WHERE ${maintenanceConditions}
+       ORDER BY "createdAt" DESC
        LIMIT ${limit} OFFSET ${offset}`,
     );
 
