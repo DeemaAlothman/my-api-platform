@@ -443,18 +443,18 @@ export class ApprovalService {
        ORDER BY r."createdAt" DESC`,
     );
 
-    // استعلام طلبات الصيانة (مسار منفصل)
+    // استعلام طلبات الصيانة — cast::text لتفادي خطأ enum مع قيم PENDING_MANAGER/LOGISTICS
     const maintenanceOrConditions: string[] = [];
     if (approverEmployeeId) {
       maintenanceOrConditions.push(
-        `(r.status = 'PENDING_MANAGER' AND r."employeeId" IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL))`,
+        `(r.status::text = 'PENDING_MANAGER' AND r."employeeId" IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL))`,
       );
     }
     if (hasLoApprove) {
-      maintenanceOrConditions.push(`r.status IN ('PENDING_LOGISTICS', 'PENDING_LOGISTICS_EXTERNAL')`);
+      maintenanceOrConditions.push(`r.status::text IN ('PENDING_LOGISTICS', 'PENDING_LOGISTICS_EXTERNAL')`);
     }
     if (hasCeoApprove) {
-      maintenanceOrConditions.push(`r.status = 'PENDING_EXECUTIVE'`);
+      maintenanceOrConditions.push(`r.status::text = 'PENDING_EXECUTIVE'`);
     }
 
     let maintenanceItems: any[] = [];
@@ -462,7 +462,7 @@ export class ApprovalService {
       maintenanceItems = await this.prisma.$queryRawUnsafe<any[]>(
         `SELECT r.*, NULL AS "currentStep"
          FROM requests.requests r
-         WHERE r.type = 'MAINTENANCE'
+         WHERE r.type::text = 'MAINTENANCE'
            AND r."deletedAt" IS NULL
            AND (${maintenanceOrConditions.join(' OR ')})
          ORDER BY r."createdAt" DESC`,
