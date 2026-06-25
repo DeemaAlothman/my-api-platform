@@ -461,8 +461,8 @@ export class ApprovalService {
        FROM requests.requests r
        JOIN requests.approval_steps s ON s."requestId" = r.id
        WHERE ${baseConditions}
-       UNION
-       SELECT r.*, NULL AS "currentStep"
+       UNION ALL
+       SELECT r.*, NULL::json AS "currentStep"
        FROM requests.requests r
        WHERE ${maintenanceConditions}
        ORDER BY "createdAt" DESC
