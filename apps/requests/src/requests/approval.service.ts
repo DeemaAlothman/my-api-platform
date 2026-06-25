@@ -434,40 +434,47 @@ export class ApprovalService {
       )
     `;
 
-    const maintenanceConditions = `
-      r.type = 'MAINTENANCE'
-      AND r."deletedAt" IS NULL
-      AND (
-        ${approverEmployeeId ? `(r.status = 'PENDING_MANAGER' AND r."employeeId" IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL))` : 'false'}
-        OR (r.status IN ('PENDING_LOGISTICS', 'PENDING_LOGISTICS_EXTERNAL') AND ${hasLoApprove ? 'true' : 'false'})
-        OR (r.status = 'PENDING_EXECUTIVE' AND ${hasCeoApprove ? 'true' : 'false'})
-      )
-    `;
-
-    const countResult = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
-      `SELECT COUNT(*) as count FROM (
-         SELECT r.id FROM requests.requests r
-         JOIN requests.approval_steps s ON s."requestId" = r.id
-         WHERE ${baseConditions}
-         UNION
-         SELECT r.id FROM requests.requests r
-         WHERE ${maintenanceConditions}
-       ) combined`,
-    );
-    const total = Number(countResult[0]?.count ?? 0);
-
-    const items = await this.prisma.$queryRawUnsafe<any[]>(
+    // استعلام الطلبات العادية (approval_steps)
+    const regularItems = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT r.*, row_to_json(s) AS "currentStep"
        FROM requests.requests r
        JOIN requests.approval_steps s ON s."requestId" = r.id
        WHERE ${baseConditions}
-       UNION ALL
-       SELECT r.*, NULL::json AS "currentStep"
-       FROM requests.requests r
-       WHERE ${maintenanceConditions}
-       ORDER BY "createdAt" DESC
-       LIMIT ${limit} OFFSET ${offset}`,
+       ORDER BY r."createdAt" DESC`,
     );
+
+    // استعلام طلبات الصيانة (مسار منفصل)
+    const maintenanceOrConditions: string[] = [];
+    if (approverEmployeeId) {
+      maintenanceOrConditions.push(
+        `(r.status = 'PENDING_MANAGER' AND r."employeeId" IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL))`,
+      );
+    }
+    if (hasLoApprove) {
+      maintenanceOrConditions.push(`r.status IN ('PENDING_LOGISTICS', 'PENDING_LOGISTICS_EXTERNAL')`);
+    }
+    if (hasCeoApprove) {
+      maintenanceOrConditions.push(`r.status = 'PENDING_EXECUTIVE'`);
+    }
+
+    let maintenanceItems: any[] = [];
+    if (maintenanceOrConditions.length > 0) {
+      maintenanceItems = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT r.*, NULL AS "currentStep"
+         FROM requests.requests r
+         WHERE r.type = 'MAINTENANCE'
+           AND r."deletedAt" IS NULL
+           AND (${maintenanceOrConditions.join(' OR ')})
+         ORDER BY r."createdAt" DESC`,
+      );
+    }
+
+    // دمج + ترتيب + تقسيم صفحات في TypeScript
+    const allItems = [...regularItems, ...maintenanceItems].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const total = allItems.length;
+    const items = allItems.slice(offset, offset + limit);
 
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
