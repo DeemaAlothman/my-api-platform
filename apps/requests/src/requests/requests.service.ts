@@ -159,22 +159,6 @@ export class RequestsService {
       data: { details: request.details as any },
     });
 
-    // التحقق من تسليم العهد قبل تقديم طلب الاستقالة
-    if (request.type === 'RESIGNATION') {
-      const unreturned = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-        SELECT COUNT(*) as count FROM users.custodies
-        WHERE "employeeId" = ${request.employeeId}
-          AND status = 'WITH_EMPLOYEE'
-          AND "deletedAt" IS NULL
-      `;
-      if (Number(unreturned[0]?.count ?? 0) > 0) {
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          message: 'لا يمكن تقديم طلب استقالة قبل تسليم جميع العهد',
-          details: [],
-        });
-      }
-    }
 
     // طلب التفويض: إذا قدّمه المدير التنفيذي → اعتماد فوري + إشعار الموظف المفوَّض إليه
     if (request.type === 'DELEGATION') {
