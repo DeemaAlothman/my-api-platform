@@ -499,10 +499,11 @@ export class ApprovalService {
       if (request.type === 'REWARD' && Array.isArray(details?.employees)) {
         for (const emp of details.employees) {
           if (!emp.employeeId || !emp.category) continue;
+          const rewardStatus = emp.paidDirectly ? 'PAID_DIRECT' : 'ACTIVE';
           await this.prisma.$queryRawUnsafe(
             `INSERT INTO users.employee_rewards_penalties
               (id, "employeeId", kind, category, "penaltyDays", amount, "typeCode", reason, recommendation, "requestId", "issuedBy", status, "effectiveDate", "createdAt")
-             VALUES (gen_random_uuid()::text, $1, 'REWARD', $2, NULL, $3, $4, $5, $6, $7, $8, 'ACTIVE', NOW(), NOW())`,
+             VALUES (gen_random_uuid()::text, $1, 'REWARD', $2, NULL, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())`,
             emp.employeeId,
             emp.category,
             emp.category === 'MATERIAL' ? (Number(emp.amount) || null) : null,
@@ -511,6 +512,7 @@ export class ApprovalService {
             details.executiveRecommendation ?? null,
             request.id,
             request.employeeId,
+            rewardStatus,
           );
         }
       }
