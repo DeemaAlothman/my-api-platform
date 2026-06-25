@@ -13,14 +13,14 @@ export class PayrollCronService implements OnModuleInit {
 
   private getNextRunDate(): Date {
     const now = new Date();
-    // آخر يوم في الشهر الحالي الساعة 23:00 UTC = 2:00 صباحاً دمشق (UTC+3) في اليوم الأول من الشهر التالي
+    // قبل آخر يوم في الشهر بيوم الساعة 23:00 UTC = 2:00 صباحاً دمشق (UTC+3)
     const candidate = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 0, 0, 0),
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, -1, 23, 0, 0, 0),
     );
     if (candidate.getTime() <= now.getTime()) {
       // فات الوقت هذا الشهر، جدوله للشهر القادم
       return new Date(
-        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0, 23, 0, 0, 0),
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, -1, 23, 0, 0, 0),
       );
     }
     return candidate;
