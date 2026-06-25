@@ -24,17 +24,15 @@ export class MaintenanceController {
     return this.maintenance.myTasks(user.userId);
   }
 
-  // المدير المباشر: موافقة
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permission('requests:manager-approve')
+  // المدير المباشر: موافقة — الـ service يتحقق من canApprove بدون permission guard
+  @UseGuards(JwtAuthGuard)
   @Post(':id/manager-approve')
   managerApprove(@User() user: any, @Param('id') id: string, @Body() dto: MaintenanceDecisionDto) {
     return this.maintenance.managerApprove(id, user.userId, true, dto?.notes);
   }
 
   // المدير المباشر: رفض
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permission('requests:manager-approve')
+  @UseGuards(JwtAuthGuard)
   @Post(':id/manager-reject')
   managerReject(@User() user: any, @Param('id') id: string, @Body() dto: MaintenanceDecisionDto) {
     return this.maintenance.managerApprove(id, user.userId, false, dto?.notes);
