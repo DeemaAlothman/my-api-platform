@@ -97,7 +97,7 @@ export class MaintenanceService {
     if (managerId) await this.notifyEmployee(managerId, requestId, titleAr, messageAr);
   }
 
-  private async notifyRole(permissionName: string, requestId: string, titleAr: string, messageAr: string) {
+  private async notifyRole(permissionName: string, requestId: string, titleAr: string, messageAr: string, excludeUserId?: string) {
     const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
       SELECT DISTINCT u.id AS "userId"
       FROM users.users u
@@ -106,7 +106,10 @@ export class MaintenanceService {
       JOIN users.permissions p ON p.id = rp."permissionId"
       WHERE p.name = ${permissionName} AND u.status = 'ACTIVE'
     `;
-    for (const r of rows) await this.insertNotif(r.userId, requestId, titleAr, messageAr);
+    for (const r of rows) {
+      if (excludeUserId && r.userId === excludeUserId) continue;
+      await this.insertNotif(r.userId, requestId, titleAr, messageAr);
+    }
   }
 
   // ── Flow ───────────────────────────────────────────────────────────────────
@@ -161,7 +164,7 @@ export class MaintenanceService {
     const details = { ...(req.details as any), managerApprovedBy: userId, managerApprovedAt: new Date().toISOString() };
     await this.prisma.request.update({ where: { id }, data: { status: 'PENDING_LOGISTICS' as any, details } });
     await this.addHistory(id, 'MANAGER_APPROVE', 'PENDING_MANAGER', 'PENDING_LOGISTICS', userId, notes);
-    await this.notifyRole('requests:lo-approve', id, 'طلب صيانة بانتظار اللوجستي', 'طلب صيانة بانتظار قرار المسؤول اللوجستي');
+    await this.notifyRole('requests:lo-approve', id, 'طلب صيانة بانتظار اللوجستي', 'طلب صيانة بانتظار قرار المسؤول اللوجستي', userId);
     return this.getMaintenance(id);
   }
 
