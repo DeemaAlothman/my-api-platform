@@ -460,3 +460,15 @@ model PhysioSession {
   @@index([caseId])
   @@index([sessionDate])
 }
+
+model PhysioEmergencyAlert {
+  id            String    @id @default(dbgenerated("gen_random_uuid()::text"))
+  sentByUserId  String
+  status        String    @default("PENDING")
+  note          String?
+  respondedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@map("physio_emergency_alerts")
+  @@schema("clinic_physio")
+}
