@@ -59,6 +59,23 @@ export class AppointmentsService implements OnModuleInit {
     }
   }
 
+  private async getUserIdsByJobTitle(code: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT e."userId" FROM users.employees e
+       JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+       WHERE jt.code = $1 AND e."deletedAt" IS NULL`,
+      code,
+    ).catch(() => [] as Array<{ userId: string }>);
+    return rows.map(r => r.userId).filter(Boolean);
+  }
+
+  private async notifySupervisors(appt: { id: string; patientId: string }, msg: string) {
+    const supervisorIds = await this.getUserIdsByJobTitle('VTX-JTL-000011');
+    for (const userId of supervisorIds) {
+      await this.insertNotif(userId, { appointmentId: appt.id }, 'إلغاء موعد', msg);
+    }
+  }
+
   // ── Leave & Conflict checks ─────────────────────────────────────────────────
 
   private async checkLeaveOverlap(practitionerId: string, startTime: Date, endTime: Date): Promise<boolean> {
@@ -301,7 +318,11 @@ export class AppointmentsService implements OnModuleInit {
       data: { status: 'CANCELLED' as any, cancelledReason: reason },
     });
     const msg = reason ? `تم إلغاء موعدك. السبب: ${reason}` : 'تم إلغاء موعدك';
-    await this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg);
+    const supervisorMsg = reason ? `تم إلغاء موعد للمريض. السبب: ${reason}` : 'تم إلغاء موعد للمريض';
+    await Promise.all([
+      this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg),
+      this.notifySupervisors(appt, supervisorMsg),
+    ]);
     return updated;
   }
 
@@ -328,7 +349,11 @@ export class AppointmentsService implements OnModuleInit {
     });
     if (dto.status === 'CANCELLED') {
       const msg = dto.cancelledReason ? `تم إلغاء موعدك. السبب: ${dto.cancelledReason}` : 'تم إلغاء موعدك';
-      await this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg);
+      const supervisorMsg = dto.cancelledReason ? `تم إلغاء موعد للمريض. السبب: ${dto.cancelledReason}` : 'تم إلغاء موعد للمريض';
+      await Promise.all([
+        this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg),
+        this.notifySupervisors(appt, supervisorMsg),
+      ]);
     }
     return updated;
   }

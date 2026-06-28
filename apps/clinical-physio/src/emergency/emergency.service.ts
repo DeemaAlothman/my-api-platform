@@ -11,7 +11,7 @@ export class EmergencyService {
     await this.prisma.$queryRawUnsafe(
       `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
        VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
-      userId, titleAr, messageAr, JSON.stringify({ alertId, alertType: 'PHYSIO_EMERGENCY' }),
+      userId, titleAr, messageAr, JSON.stringify({ alertId, alertType: 'PHYSIO_EMERGENCY', route: `/physio/emergency/${alertId}` }),
     ).catch(() => {});
   }
 
