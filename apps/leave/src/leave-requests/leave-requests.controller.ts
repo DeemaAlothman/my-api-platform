@@ -215,14 +215,4 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.remove(id, employeeId);
   }
 
-  // ── Internal: check if employee is on leave (for appointments service) ──
-  @Get('internal/check-overlap')
-  @UseGuards(InternalAuthGuard)
-  checkOverlap(
-    @Query('userId') userId: string,
-    @Query('from') from: string,
-    @Query('to') to: string,
-  ) {
-    return this.leaveRequestsService.checkOverlap(userId, new Date(from), new Date(to));
-  }
 }
