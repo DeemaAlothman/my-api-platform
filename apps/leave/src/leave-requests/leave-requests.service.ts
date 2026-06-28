@@ -1507,7 +1507,7 @@ export class LeaveRequestsService {
        JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
        JOIN users.employees e ON e.id = lr."employeeId"
        WHERE e."userId" = $1
-         AND lr.status IN ('APPROVED', 'HR_APPROVED', 'MANAGER_APPROVED')
+         AND lr.status::text IN ('APPROVED', 'HR_APPROVED', 'MANAGER_APPROVED')
          AND lr."deletedAt" IS NULL
          AND lr."startDate" <= $3
          AND lr."endDate" >= $2
