@@ -13,8 +13,8 @@ export class EmergencyController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('physio:emergency-alert')
   @Post()
-  sendAlert(@User() user: any) {
-    return this.emergency.sendAlert(user.userId);
+  sendAlert(@User() user: any, @Body('note') note?: string) {
+    return this.emergency.sendAlert(user.userId, note);
   }
 
   // الموظف الثابت يرد بملاحظة

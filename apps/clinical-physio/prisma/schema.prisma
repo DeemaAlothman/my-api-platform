@@ -465,6 +465,7 @@ model PhysioEmergencyAlert {
   id            String    @id @default(dbgenerated("gen_random_uuid()::text"))
   sentByUserId  String
   status        String    @default("PENDING")
+  senderNote    String?
   note          String?
   respondedAt   DateTime?
   createdAt     DateTime  @default(now())

@@ -23,14 +23,17 @@ export class EmergencyService {
   }
 
   // إرسال تنبيه طارئ → يصل للموظف الثابت
-  async sendAlert(sentByUserId: string) {
+  async sendAlert(sentByUserId: string, senderNote?: string) {
     const alert = await this.prisma.physioEmergencyAlert.create({
-      data: { sentByUserId },
+      data: { sentByUserId, senderNote: senderNote ?? null },
     });
 
     const targetUserId = await this.getUserIdByEmployeeId(FIXED_EMPLOYEE_ID);
     if (targetUserId) {
-      await this.insertNotif(targetUserId, alert.id, 'حالة طارئة', 'هناك حالة طارئة تستدعي تدخلك الفوري');
+      const message = senderNote
+        ? `هناك حالة طارئة: ${senderNote}`
+        : 'هناك حالة طارئة تستدعي تدخلك الفوري';
+      await this.insertNotif(targetUserId, alert.id, 'حالة طارئة', message);
     }
 
     return alert;
