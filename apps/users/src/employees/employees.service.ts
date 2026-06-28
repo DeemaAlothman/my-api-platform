@@ -319,6 +319,7 @@ export class EmployeesService {
       where: { deletedAt: null },
       select: {
         id: true,
+        userId: true,
         firstNameAr: true,
         lastNameAr: true,
         firstNameEn: true,
