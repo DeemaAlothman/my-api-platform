@@ -472,8 +472,7 @@ export class RequestsService {
     const request = await this.findRequestOrFail(id);
     const employeeId = await this.getEmployeeIdByUserId(userId);
 
-    const isHR = await this.hasPermission(userId, 'requests:hr-approve');
-    if (request.employeeId !== employeeId && !isHR) {
+    if (request.employeeId !== employeeId) {
       throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'Not your request', details: [] });
     }
     if (request.status !== 'PENDING_EXIT_INTERVIEW') {
