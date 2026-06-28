@@ -1,5 +1,5 @@
 import {
-  Injectable, NotFoundException, BadRequestException,
+  Injectable, NotFoundException, BadRequestException, OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -8,8 +8,58 @@ import {
 } from './dto/appointment.dto';
 
 @Injectable()
-export class AppointmentsService {
+export class AppointmentsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
+
+  onModuleInit() {
+    // فحص كل 15 دقيقة للمواعيد القادمة خلال ساعة
+    setInterval(() => this.sendReminderNotifications().catch(() => {}), 15 * 60 * 1000);
+  }
+
+  // ── Notifications ───────────────────────────────────────────────────────────
+
+  private async insertNotif(userId: string, data: object, titleAr: string, messageAr: string) {
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+       VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+      userId, titleAr, messageAr, JSON.stringify(data),
+    ).catch(() => {});
+  }
+
+  private async notifyPractitioner(appt: { id: string; practitionerId: string; physiotherapistId?: string | null; patientId: string; startTime: Date }, titleAr: string, messageAr: string) {
+    const targets = new Set<string>([appt.practitionerId]);
+    if (appt.physiotherapistId) targets.add(appt.physiotherapistId);
+    const payload = { appointmentId: appt.id, patientId: appt.patientId };
+    for (const userId of targets) {
+      await this.insertNotif(userId, payload, titleAr, messageAr);
+    }
+  }
+
+  private async sendReminderNotifications() {
+    const now = new Date();
+    const in60 = new Date(now.getTime() + 60 * 60 * 1000);
+    const appointments = await this.prisma.appointment.findMany({
+      where: {
+        status: { in: ['SCHEDULED', 'CONFIRMED'] as any[] },
+        startTime: { gte: now, lte: in60 },
+        reminderSentAt: null,
+      },
+    });
+    for (const appt of appointments) {
+      const timeStr = appt.startTime.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+      await this.notifyPractitioner(
+        appt as any,
+        'تذكير بموعد قادم',
+        `لديك موعد في الساعة ${timeStr}`,
+      );
+      await this.prisma.appointment.update({
+        where: { id: appt.id },
+        data: { reminderSentAt: new Date() },
+      });
+    }
+  }
+
+  // ── Leave & Conflict checks ─────────────────────────────────────────────────
 
   private async checkLeaveOverlap(practitionerId: string, startTime: Date, endTime: Date): Promise<boolean> {
     const url = `${process.env.LEAVE_SERVICE_URL || 'http://leave:4003'}/api/v1/leave-requests/internal/check-overlap`;
@@ -23,7 +73,6 @@ export class AppointmentsService {
       const res = await fetch(`${url}?${params}`, {
         headers: { 'x-internal-token': token },
       });
-      // B13: فشل مغلق — إن لم نتمكن من التحقق من الإجازات، امنع الحجز بدل السماح بصمت
       if (!res.ok) {
         throw new BadRequestException('تعذّر التحقق من إجازات الموظف — لا يمكن إتمام الحجز حالياً');
       }
@@ -48,6 +97,8 @@ export class AppointmentsService {
     return this.prisma.appointment.findFirst({ where });
   }
 
+  // ── CRUD ────────────────────────────────────────────────────────────────────
+
   async create(dto: CreateAppointmentDto, userId: string) {
     const startTime = new Date(dto.startTime);
     const endTime = new Date(dto.endTime);
@@ -60,21 +111,32 @@ export class AppointmentsService {
     const onLeave = await this.checkLeaveOverlap(dto.practitionerId, startTime, endTime);
     if (onLeave) throw new BadRequestException('Practitioner is on approved leave during this time');
 
-    return this.prisma.appointment.create({
+    const appt = await this.prisma.appointment.create({
       data: {
-        patientId: dto.patientId,
-        caseId: dto.caseId,
-        caseType: dto.caseType as any,
-        practitionerId: dto.practitionerId,
-        practitionerRole: dto.practitionerRole,
-        appointmentType: dto.appointmentType as any,
+        patientId:         dto.patientId,
+        caseId:            dto.caseId,
+        caseType:          dto.caseType as any,
+        practitionerId:    dto.practitionerId,
+        practitionerRole:  dto.practitionerRole,
+        physiotherapistId: dto.physiotherapistId ?? null,
+        appointmentType:   dto.appointmentType as any,
         startTime,
         endTime,
-        durationMinutes: dto.durationMinutes ?? 60,
-        notes: dto.notes,
-        createdBy: userId,
+        durationMinutes:   dto.durationMinutes ?? 60,
+        notes:             dto.notes,
+        createdBy:         userId,
       },
     });
+
+    const dateStr = startTime.toLocaleDateString('ar-SA');
+    const timeStr = startTime.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    await this.notifyPractitioner(
+      appt as any,
+      'موعد جديد',
+      `تم حجز موعد جديد لك بتاريخ ${dateStr} الساعة ${timeStr}`,
+    );
+
+    return appt;
   }
 
   async findAll(query: ListAppointmentsQueryDto) {
@@ -110,7 +172,23 @@ export class AppointmentsService {
     return this.prisma.appointment.findMany({ where, orderBy: { startTime: 'asc' } });
   }
 
-  // B13: جلب دوام الموظف من خدمة الحضور (fail-open: عند الفشل نرجع للساعات الافتراضية 8–17)
+  async findPatientsByPractitioner(practitionerId: string | null, canViewAll: boolean) {
+    const where: any = { status: { not: 'CANCELLED' as any } };
+    if (!canViewAll) {
+      if (!practitionerId) return [];
+      where.OR = [
+        { practitionerId },
+        { physiotherapistId: practitionerId },
+      ];
+    }
+    const rows = await this.prisma.appointment.findMany({
+      where,
+      select: { patientId: true },
+      distinct: ['patientId'],
+    });
+    return rows.map(r => r.patientId);
+  }
+
   private async getWorkHours(practitionerId: string, dateStr: string): Promise<{ start: number; end: number; isWorkDay: boolean }> {
     const fallback = { start: 8, end: 17, isWorkDay: true };
     try {
@@ -139,10 +217,9 @@ export class AppointmentsService {
     const date = new Date(query.date);
     const slotDuration = query.slotDurationMinutes ?? 60;
 
-    // B13: استخدم دوام الموظف الفعلي بدل 8–17 الثابتة
     const dateStr = date.toISOString().split('T')[0];
     const wh = await this.getWorkHours(practitionerId, dateStr);
-    if (!wh.isWorkDay) return []; // ليس يوم عمل للموظف → لا توجد فترات
+    if (!wh.isWorkDay) return [];
 
     const dayStart = new Date(date);
     dayStart.setHours(wh.start, 0, 0, 0);
@@ -198,15 +275,19 @@ export class AppointmentsService {
     }
     if (dto.notes !== undefined) data.notes = dto.notes;
     if (dto.appointmentType) data.appointmentType = dto.appointmentType as any;
+    if (dto.physiotherapistId !== undefined) data.physiotherapistId = dto.physiotherapistId;
     return this.prisma.appointment.update({ where: { id }, data });
   }
 
   async cancel(id: string, reason?: string) {
-    await this.findOne(id);
-    return this.prisma.appointment.update({
+    const appt = await this.findOne(id);
+    const updated = await this.prisma.appointment.update({
       where: { id },
       data: { status: 'CANCELLED' as any, cancelledReason: reason },
     });
+    const msg = reason ? `تم إلغاء موعدك. السبب: ${reason}` : 'تم إلغاء موعدك';
+    await this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg);
+    return updated;
   }
 
   async reschedule(id: string, dto: RescheduleDto) {
@@ -222,13 +303,18 @@ export class AppointmentsService {
   }
 
   async updateStatus(id: string, dto: UpdateStatusDto) {
-    await this.findOne(id);
-    return this.prisma.appointment.update({
+    const appt = await this.findOne(id);
+    const updated = await this.prisma.appointment.update({
       where: { id },
       data: {
         status: dto.status as any,
         cancelledReason: dto.cancelledReason,
       },
     });
+    if (dto.status === 'CANCELLED') {
+      const msg = dto.cancelledReason ? `تم إلغاء موعدك. السبب: ${dto.cancelledReason}` : 'تم إلغاء موعدك';
+      await this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg);
+    }
+    return updated;
   }
 }

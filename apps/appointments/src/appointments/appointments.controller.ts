@@ -5,6 +5,7 @@ import { AppointmentsService } from './appointments.service';
 import {
   CreateAppointmentDto, UpdateAppointmentDto, UpdateStatusDto,
   RescheduleDto, ListAppointmentsQueryDto, CalendarQueryDto, SlotsQueryDto,
+  PractitionerPatientsQueryDto,
 } from './dto/appointment.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -33,6 +34,18 @@ export class AppointmentsController {
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
   getCalendar(@Query() query: CalendarQueryDto) {
     return this.service.getCalendar(query);
+  }
+
+  @Get('practitioner-patients')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
+  getPractitionerPatients(@Query() query: PractitionerPatientsQueryDto, @User() user: any) {
+    const canViewAll = (user.permissions as string[] ?? []).includes(
+      PERMISSIONS.CLINIC_APPOINTMENTS.VIEW_ALL_PATIENTS,
+    );
+    const practitionerId = canViewAll
+      ? (query.practitionerId ?? user.userId)
+      : user.userId;
+    return this.service.findPatientsByPractitioner(practitionerId, canViewAll);
   }
 
   @Get('practitioner/:id/slots')

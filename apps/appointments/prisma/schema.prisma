@@ -23,6 +23,7 @@ enum AppointmentType {
   SESSION
   FOLLOW_UP
   COMMITTEE
+  EXAMINATION
   @@schema("clinic_appointments")
 }
 
@@ -50,8 +51,9 @@ model Appointment {
   caseId           String?
   caseType         CaseType?
 
-  practitionerId   String
-  practitionerRole String
+  practitionerId      String
+  practitionerRole    String
+  physiotherapistId   String?
 
   appointmentType  AppointmentType
   startTime        DateTime

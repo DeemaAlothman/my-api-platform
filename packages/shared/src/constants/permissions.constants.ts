@@ -275,9 +275,10 @@ export const PERMISSIONS = {
     SESSIONS_CREATE:   'clinic.physio.sessions.create',
   },
   CLINIC_APPOINTMENTS: {
-    VIEW:   'clinic.appointments.view',
-    CREATE: 'clinic.appointments.create',
-    CANCEL: 'clinic.appointments.cancel',
+    VIEW:          'clinic.appointments.view',
+    CREATE:        'clinic.appointments.create',
+    CANCEL:        'clinic.appointments.cancel',
+    VIEW_ALL_PATIENTS: 'clinic.appointments.view-all-patients',
   },
   CLINIC_INVENTORY: {
     VIEW:   'clinic.inventory.view',

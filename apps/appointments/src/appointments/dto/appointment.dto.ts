@@ -3,7 +3,22 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export enum AppointmentTypeEnum   { ASSESSMENT='ASSESSMENT', FITTING='FITTING', SESSION='SESSION', FOLLOW_UP='FOLLOW_UP', COMMITTEE='COMMITTEE' }
+export enum AppointmentTypeEnum {
+  ASSESSMENT   = 'ASSESSMENT',
+  FITTING      = 'FITTING',
+  SESSION      = 'SESSION',
+  FOLLOW_UP    = 'FOLLOW_UP',
+  COMMITTEE    = 'COMMITTEE',
+  EXAMINATION  = 'EXAMINATION',
+}
+
+export enum PractitionerRoleEnum {
+  PHYSIOTHERAPIST = 'PHYSIOTHERAPIST',
+  PROSTHETIST     = 'PROSTHETIST',
+  DOCTOR          = 'DOCTOR',
+  TECHNICIAN      = 'TECHNICIAN',
+}
+
 export enum CaseTypeEnum          { PROSTHETICS='PROSTHETICS', PHYSIO='PHYSIO', GENERAL='GENERAL' }
 export enum AppointmentStatusEnum { SCHEDULED='SCHEDULED', CONFIRMED='CONFIRMED', COMPLETED='COMPLETED', CANCELLED='CANCELLED', NO_SHOW='NO_SHOW', RESCHEDULED='RESCHEDULED' }
 
@@ -20,8 +35,11 @@ export class CreateAppointmentDto {
   @IsString()
   practitionerId: string;
 
-  @IsString()
+  @IsEnum(PractitionerRoleEnum)
   practitionerRole: string;
+
+  @IsOptional() @IsString()
+  physiotherapistId?: string;
 
   @IsEnum(AppointmentTypeEnum)
   appointmentType: string;
@@ -51,6 +69,9 @@ export class UpdateAppointmentDto {
 
   @IsOptional() @IsEnum(AppointmentTypeEnum)
   appointmentType?: string;
+
+  @IsOptional() @IsString()
+  physiotherapistId?: string;
 }
 
 export class UpdateStatusDto {
@@ -109,4 +130,9 @@ export class SlotsQueryDto {
 
   @IsOptional() @IsInt() @Min(15) @Type(() => Number)
   slotDurationMinutes?: number = 60;
+}
+
+export class PractitionerPatientsQueryDto {
+  @IsOptional() @IsString()
+  practitionerId?: string;
 }
