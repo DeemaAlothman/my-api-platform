@@ -76,6 +76,32 @@ export class AppointmentsService implements OnModuleInit {
     }
   }
 
+  private async getDeptManagerUserId(deptCode: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT e."userId" FROM users.departments d
+       JOIN users.employees e ON e.id = d."managerId"
+       WHERE d.code = $1 AND d."deletedAt" IS NULL
+       LIMIT 1`,
+      deptCode,
+    ).catch(() => [] as Array<{ userId: string }>);
+    return rows[0]?.userId ?? null;
+  }
+
+  private async notifyExaminationDeptHeads(appt: { id: string }, role: string, msg: string) {
+    const isPhysio     = role === 'PHYSIOTHERAPIST';
+    const isProsthetics = ['PROSTHETIST', 'PODIATRIST'].includes(role);
+
+    const codes: string[] = [];
+    if (isPhysio || isProsthetics) codes.push('VTX-DEP-000007', 'VTX-DEP-000016');
+    if (isProsthetics)              codes.push('VTX-DEP-000015');
+
+    const userIds = await Promise.all(codes.map(c => this.getDeptManagerUserId(c)));
+    const unique = [...new Set(userIds.filter(Boolean))] as string[];
+    for (const userId of unique) {
+      await this.insertNotif(userId, { appointmentId: appt.id }, 'موعد معاينة جديد', msg);
+    }
+  }
+
   // ── Leave & Conflict checks ─────────────────────────────────────────────────
 
   private async checkLeaveOverlap(practitionerId: string, startTime: Date, endTime: Date): Promise<boolean> {
@@ -147,11 +173,13 @@ export class AppointmentsService implements OnModuleInit {
 
     const dateStr = startTime.toLocaleDateString('ar-SA');
     const timeStr = startTime.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-    await this.notifyPractitioner(
-      appt as any,
-      'موعد جديد',
-      `تم حجز موعد جديد لك بتاريخ ${dateStr} الساعة ${timeStr}`,
-    );
+    const msg = `تم حجز موعد جديد بتاريخ ${dateStr} الساعة ${timeStr}`;
+
+    if (dto.appointmentType === 'EXAMINATION') {
+      await this.notifyExaminationDeptHeads(appt, dto.practitionerRole, msg);
+    } else {
+      await this.notifyPractitioner(appt as any, 'موعد جديد', msg);
+    }
 
     return appt;
   }
