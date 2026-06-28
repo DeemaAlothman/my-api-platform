@@ -225,6 +225,7 @@ model PhysioCase {
 
   finalNotes          String?  @db.Text
   finalSummary        String?  @db.Text // الملخص النهائي بعد انتهاء كل الجلسات
+  cancellationReason  String?  @db.Text
 
   painMap             PainMap?
   medicalHistory      MedicalHistory?

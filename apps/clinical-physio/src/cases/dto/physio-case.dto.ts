@@ -177,6 +177,10 @@ export class UpdatePhysioCaseDto {
 export class UpdatePhysioStatusDto {
   @IsEnum(PhysioStatus)
   status: PhysioStatus;
+
+  @IsOptional()
+  @IsString()
+  cancellationReason?: string;
 }
 
 export class ListPhysioCasesQueryDto {

@@ -242,7 +242,12 @@ export class CasesService {
 
     return this.prisma.physioCase.update({
       where: { id },
-      data: { status: to as any },
+      data: {
+        status: to as any,
+        ...(to === 'CANCELLED' && dto.cancellationReason
+          ? { cancellationReason: dto.cancellationReason }
+          : {}),
+      },
     });
   }
 
