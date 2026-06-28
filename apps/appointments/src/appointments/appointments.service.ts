@@ -139,6 +139,18 @@ export class AppointmentsService implements OnModuleInit {
     return appt;
   }
 
+  private async attachPatientNames<T extends { patientId: string }>(items: T[]): Promise<(T & { patientName: string })[]> {
+    if (items.length === 0) return items.map(i => ({ ...i, patientName: '' }));
+    const ids = [...new Set(items.map(i => i.patientId))];
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+    const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string }>>(
+      `SELECT id, "firstName", "lastName" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
+      ...ids,
+    );
+    const map = new Map(patients.map(p => [p.id, `${p.firstName} ${p.lastName}`]));
+    return items.map(i => ({ ...i, patientName: map.get(i.patientId) ?? '' }));
+  }
+
   async findAll(query: ListAppointmentsQueryDto) {
     const { page = 1, limit = 50, patientId, practitionerId, status, date } = query;
     const skip = (page - 1) * limit;
@@ -153,10 +165,11 @@ export class AppointmentsService implements OnModuleInit {
       where.startTime = { gte: d, lt: next };
     }
 
-    const [items, total] = await Promise.all([
+    const [raw, total] = await Promise.all([
       this.prisma.appointment.findMany({ where, skip, take: limit, orderBy: { startTime: 'asc' } }),
       this.prisma.appointment.count({ where }),
     ]);
+    const items = await this.attachPatientNames(raw);
     return { items, total, page, limit };
   }
 
@@ -169,7 +182,8 @@ export class AppointmentsService implements OnModuleInit {
       status: { notIn: ['CANCELLED'] },
     };
     if (query.practitionerId) where.practitionerId = query.practitionerId;
-    return this.prisma.appointment.findMany({ where, orderBy: { startTime: 'asc' } });
+    const raw = await this.prisma.appointment.findMany({ where, orderBy: { startTime: 'asc' } });
+    return this.attachPatientNames(raw);
   }
 
   async findPatientsByPractitioner(practitionerId: string | null, canViewAll: boolean) {
@@ -253,7 +267,8 @@ export class AppointmentsService implements OnModuleInit {
   async findOne(id: string) {
     const a = await this.prisma.appointment.findUnique({ where: { id } });
     if (!a) throw new NotFoundException('Appointment not found');
-    return a;
+    const [withName] = await this.attachPatientNames([a]);
+    return withName;
   }
 
   async update(id: string, dto: UpdateAppointmentDto, userId: string) {
