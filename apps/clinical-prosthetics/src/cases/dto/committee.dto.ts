@@ -24,7 +24,16 @@ export class CommitteeDecideDto {
   finalSummary?: string;
 }
 
+export enum CommitteeSignerRoleEnum {
+  DOCTOR = 'DOCTOR',
+  PROSTHETIST = 'PROSTHETIST',
+  PHYSIOTHERAPIST = 'PHYSIOTHERAPIST',
+}
+
 export class CommitteeSignDto {
+  @IsEnum(CommitteeSignerRoleEnum)
+  role: string;
+
   @IsString()
   signatureBase64: string;
 }

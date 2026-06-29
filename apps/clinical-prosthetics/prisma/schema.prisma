@@ -482,6 +482,14 @@ model CommitteeReview {
   doctorSignedAt           DateTime?
   doctorSignatureIp        String?
 
+  prosthetistSignatureBase64    String? @db.Text
+  prosthetistSignedAt           DateTime?
+  prosthetistSignatureIp        String?
+
+  physiotherapistSignatureBase64 String? @db.Text
+  physiotherapistSignedAt        DateTime?
+  physiotherapistSignatureIp     String?
+
   @@map("committee_reviews")
   @@schema("clinic_prosthetics")
 }

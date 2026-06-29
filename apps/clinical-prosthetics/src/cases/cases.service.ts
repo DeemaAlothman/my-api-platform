@@ -411,21 +411,31 @@ export class CasesService {
 
   async committeeSign(caseId: string, dto: CommitteeSignDto, userId: string, ip: string) {
     await this.findCaseOrThrow(caseId);
+    const fieldsByRole: Record<string, any> = {
+      DOCTOR: {
+        doctorSignatureBase64: dto.signatureBase64,
+        doctorSignedAt: new Date(),
+        doctorSignatureIp: ip,
+        doctorUserId: userId,
+      },
+      PROSTHETIST: {
+        prosthetistSignatureBase64: dto.signatureBase64,
+        prosthetistSignedAt: new Date(),
+        prosthetistSignatureIp: ip,
+      },
+      PHYSIOTHERAPIST: {
+        physiotherapistSignatureBase64: dto.signatureBase64,
+        physiotherapistSignedAt: new Date(),
+        physiotherapistSignatureIp: ip,
+      },
+    };
+    const data = fieldsByRole[dto.role];
+    if (!data) throw new BadRequestException('Invalid signer role');
+
     return this.prisma.committeeReview.upsert({
       where: { caseId },
-      create: {
-        caseId,
-        doctorSignatureBase64: dto.signatureBase64,
-        doctorSignedAt: new Date(),
-        doctorSignatureIp: ip,
-        doctorUserId: userId,
-      },
-      update: {
-        doctorSignatureBase64: dto.signatureBase64,
-        doctorSignedAt: new Date(),
-        doctorSignatureIp: ip,
-        doctorUserId: userId,
-      },
+      create: { caseId, ...data },
+      update: data,
     });
   }
 
@@ -439,6 +449,8 @@ export class CasesService {
     if (!review.committeeHeadOpinion) pending.push('COMMITTEE_HEAD');
     if (!review.finalDecision) pending.push('FINAL_DECISION');
     if (!review.doctorSignatureBase64) pending.push('DOCTOR_SIGNATURE');
+    if (!review.prosthetistSignatureBase64) pending.push('PROSTHETIST_SIGNATURE');
+    if (!review.physiotherapistSignatureBase64) pending.push('PHYSIOTHERAPIST_SIGNATURE');
     return { pending };
   }
 
