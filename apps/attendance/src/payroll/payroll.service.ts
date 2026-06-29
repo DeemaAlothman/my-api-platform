@@ -311,10 +311,12 @@ export class PayrollService {
       if (totalBreak > allowedBreakMinutes) breakOverLimitMinutes += totalBreak - allowedBreakMinutes;
     }
 
-    // أيام العمل بدون سجل حضور → غياب
+    // أيام العمل بدون سجل حضور → غياب — يستثني أي يوم لم يأتِ بعد (مثل توليد الكشف قبل انتهاء الشهر)
+    const todayStr = new Date().toISOString().split('T')[0];
     const current = new Date(startDate);
     while (current <= endDate) {
       const dateStr = current.toISOString().split('T')[0];
+      if (dateStr > todayStr) { current.setDate(current.getDate() + 1); continue; }
       if (workDaysArray.includes(current.getDay()) && !recordedDates.has(dateStr)) {
         if (!approvedLeaveDates.has(dateStr) && !holidayDates.has(dateStr)) {
           absentDays++;
