@@ -104,6 +104,7 @@ export class CasesService {
         amputationType: dto.amputationType as any,
         amputationSide: dto.amputationSide as any,
         amputationLevel: dto.amputationLevel as any,
+        moreAffectedSide: dto.moreAffectedSide as any,
         hasPreviousProsthesis: dto.hasPreviousProsthesis ?? false,
         previousProsthesisDetails: dto.previousProsthesisDetails,
         previousProsthesisWhen: dto.previousProsthesisWhen,
@@ -139,7 +140,7 @@ export class CasesService {
         where, skip, take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          upperAssessment: { select: { id: true, examinedAt: true } },
+          upperAssessment: { select: { id: true, side: true, examinedAt: true } },
           lowerAssessment: { select: { id: true, examinedAt: true } },
           committeeReview: { select: { id: true, finalDecision: true } },
         },
@@ -190,6 +191,7 @@ export class CasesService {
         amputationType: dto.amputationType as any,
         amputationSide: dto.amputationSide as any,
         amputationLevel: dto.amputationLevel as any,
+        moreAffectedSide: dto.moreAffectedSide as any,
         hasPreviousProsthesis: dto.hasPreviousProsthesis,
         previousProsthesisDetails: dto.previousProsthesisDetails,
         previousProsthesisWhen: dto.previousProsthesisWhen,
@@ -244,10 +246,12 @@ export class CasesService {
 
   async upsertUpperAssessment(caseId: string, dto: UpperLimbAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    const side = dto.side as any;
     return this.prisma.upperLimbAssessment.upsert({
-      where: { caseId },
+      where: { caseId_side: { caseId, side } },
       create: {
         caseId,
+        side,
         residualLimbLength: dto.residualLimbLength as any,
         residualLimbShape: dto.residualLimbShape as any,
         residualLimbPhotoUrl: dto.residualLimbPhotoUrl,
@@ -255,22 +259,31 @@ export class CasesService {
         painArea: dto.painArea,
         painIntensity: dto.painIntensity,
         painTypes: (dto.painTypes ?? []) as any,
+        painTypeOtherDetail: dto.painTypeOtherDetail,
         phantomPainPresent: dto.phantomPainPresent ?? false,
         phantomPainIntensity: dto.phantomPainIntensity,
+        residualLimbPalpable: dto.residualLimbPalpable,
         neuromaPalpable: dto.neuromaPalpable,
         skinAppearance: (dto.skinAppearance ?? []) as any,
+        skinNotes: dto.skinNotes,
         skinColor: (dto.skinColor ?? []) as any,
         skinTemperature: dto.skinTemperature as any,
         scarCondition: (dto.scarCondition ?? []) as any,
         hasSkinGrafts: dto.hasSkinGrafts ?? false,
         graftArea: dto.graftArea,
-        activityLevel: dto.activityLevel as any,
-        usesCompressionBandage: dto.usesCompressionBandage,
-        romData: dto.romData,
+        hasOtherAffectedLimbs: dto.hasOtherAffectedLimbs,
+        currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
+        previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
+        previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
         canBalanceOneSide: dto.canBalanceOneSide,
-        notes: dto.notes,
-        examinerProsthetistId: dto.examinerProsthetistId,
-        examinerPhysioId: dto.examinerPhysioId,
+        usesCompressionBandage: dto.usesCompressionBandage,
+        jointsRangeOfMotion: dto.jointsRangeOfMotion as any,
+        activityLevel: dto.activityLevel as any,
+        romData: dto.romData,
+        muscleMotionNotes: dto.muscleMotionNotes,
+        examinerProsthetistIds: dto.examinerProsthetistIds ?? [],
+        examinerPhysioIds: dto.examinerPhysioIds ?? [],
+        examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
       },
       update: {
         residualLimbLength: dto.residualLimbLength as any,
@@ -280,22 +293,31 @@ export class CasesService {
         painArea: dto.painArea,
         painIntensity: dto.painIntensity,
         painTypes: dto.painTypes as any,
+        painTypeOtherDetail: dto.painTypeOtherDetail,
         phantomPainPresent: dto.phantomPainPresent,
         phantomPainIntensity: dto.phantomPainIntensity,
+        residualLimbPalpable: dto.residualLimbPalpable,
         neuromaPalpable: dto.neuromaPalpable,
         skinAppearance: dto.skinAppearance as any,
+        skinNotes: dto.skinNotes,
         skinColor: dto.skinColor as any,
         skinTemperature: dto.skinTemperature as any,
         scarCondition: dto.scarCondition as any,
         hasSkinGrafts: dto.hasSkinGrafts,
         graftArea: dto.graftArea,
-        activityLevel: dto.activityLevel as any,
-        usesCompressionBandage: dto.usesCompressionBandage,
-        romData: dto.romData,
+        hasOtherAffectedLimbs: dto.hasOtherAffectedLimbs,
+        currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
+        previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
+        previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
         canBalanceOneSide: dto.canBalanceOneSide,
-        notes: dto.notes,
-        examinerProsthetistId: dto.examinerProsthetistId,
-        examinerPhysioId: dto.examinerPhysioId,
+        usesCompressionBandage: dto.usesCompressionBandage,
+        jointsRangeOfMotion: dto.jointsRangeOfMotion as any,
+        activityLevel: dto.activityLevel as any,
+        romData: dto.romData,
+        muscleMotionNotes: dto.muscleMotionNotes,
+        examinerProsthetistIds: dto.examinerProsthetistIds,
+        examinerPhysioIds: dto.examinerPhysioIds,
+        examinerSupervisorIds: dto.examinerSupervisorIds,
       },
     });
   }
@@ -735,7 +757,7 @@ export class CasesService {
     const c = await this.prisma.prostheticsCase.findFirst({
       where: { id: caseId, deletedAt: null },
       include: {
-        upperAssessment:  { select: { examinedAt: true } },
+        upperAssessment:  { select: { side: true, examinedAt: true } },
         lowerAssessment:  { select: { examinedAt: true } },
         committeeReview:  {
           select: {
@@ -773,7 +795,9 @@ export class CasesService {
     };
 
     add(c.createdAt, 'case_created', 'تم إنشاء الملف');
-    if (c.upperAssessment) add(c.upperAssessment.examinedAt, 'assessment_upper', 'تقييم الطرف العلوي');
+    for (const ua of c.upperAssessment) {
+      add(ua.examinedAt, 'assessment_upper', `تقييم الطرف العلوي (${ua.side === 'LEFT' ? 'يسار' : 'يمين'})`);
+    }
     if (c.lowerAssessment) add(c.lowerAssessment.examinedAt, 'assessment_lower', 'تقييم الطرف السفلي');
 
     if (c.committeeReview) {

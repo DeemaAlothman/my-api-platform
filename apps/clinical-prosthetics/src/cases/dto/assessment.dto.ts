@@ -2,6 +2,10 @@ import { IsString, IsOptional, IsBoolean, IsInt, IsArray, IsEnum, IsObject, Min,
 import { Type } from 'class-transformer';
 
 export class UpperLimbAssessmentDto {
+  // الجانب المُقيَّم — مطلوب دائماً. بحالة ثنائي الأطراف، يُستدعى الـ endpoint مرتين (LEFT ثم RIGHT)
+  @IsEnum(['LEFT', 'RIGHT'])
+  side: string;
+
   @IsOptional() @IsString()
   residualLimbLength?: string;
 
@@ -23,17 +27,28 @@ export class UpperLimbAssessmentDto {
   @IsOptional() @IsArray()
   painTypes?: string[];
 
+  // يُعبّى فقط إذا كان أحد عناصر painTypes = OTHER
+  @IsOptional() @IsString()
+  painTypeOtherDetail?: string;
+
   @IsOptional() @IsBoolean()
   phantomPainPresent?: boolean;
 
   @IsOptional() @IsInt() @Min(0) @Max(10) @Type(() => Number)
   phantomPainIntensity?: number;
 
+  // حالة وضع الجذمور: قابل للمس / غير قابل للمس
+  @IsOptional() @IsBoolean()
+  residualLimbPalpable?: boolean;
+
   @IsOptional() @IsBoolean()
   neuromaPalpable?: boolean;
 
   @IsOptional() @IsArray()
   skinAppearance?: string[];
+
+  @IsOptional() @IsString()
+  skinNotes?: string;
 
   @IsOptional() @IsArray()
   skinColor?: string[];
@@ -50,26 +65,51 @@ export class UpperLimbAssessmentDto {
   @IsOptional() @IsString()
   graftArea?: string;
 
-  @IsOptional() @IsString()
-  activityLevel?: string;
-
+  // هل يوجد أطراف أخرى مصابة؟
   @IsOptional() @IsBoolean()
-  usesCompressionBandage?: boolean;
+  hasOtherAffectedLimbs?: boolean;
 
-  @IsOptional() @IsObject()
-  romData?: any;
+  // هل يستخدم المريض نظام طرف صناعي حالياً؟
+  @IsOptional() @IsBoolean()
+  currentlyUsingProsthesis?: boolean;
+
+  // إذا currentlyUsingProsthesis = false: هل استُخدم سابقاً؟
+  @IsOptional() @IsBoolean()
+  previouslyUsedProsthesis?: boolean;
+
+  // يُعبّى فقط إذا previouslyUsedProsthesis = true
+  @IsOptional() @IsString()
+  previousProsthesisSystemDetail?: string;
 
   @IsOptional() @IsBoolean()
   canBalanceOneSide?: boolean;
 
+  @IsOptional() @IsBoolean()
+  usesCompressionBandage?: boolean;
+
+  // تقييم مدى حركة المفاصل العام: NORMAL | ACTIVE | SEDENTARY
   @IsOptional() @IsString()
-  notes?: string;
+  jointsRangeOfMotion?: string;
 
-  @IsString()
-  examinerProsthetistId: string;
+  @IsOptional() @IsString()
+  activityLevel?: string;
 
-  @IsString()
-  examinerPhysioId: string;
+  // تفاصيل اختبار قوة وحركة العضلات (الكتف/المرفق/الرسغ/الاستلقاء.../الانحراف...)
+  @IsOptional() @IsObject()
+  romData?: any;
+
+  @IsOptional() @IsString()
+  muscleMotionNotes?: string;
+
+  // ممكن أكثر من شخص بكل دور
+  @IsOptional() @IsArray()
+  examinerProsthetistIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerPhysioIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerSupervisorIds?: string[];
 }
 
 export class LowerLimbAssessmentDto {

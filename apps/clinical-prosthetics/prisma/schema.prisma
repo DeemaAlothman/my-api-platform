@@ -134,15 +134,34 @@ enum SkinColor {
   PALE
   CYANOTIC
   ERYTHEMATOUS
+  YELLOWISH
   @@schema("clinic_prosthetics")
 }
 
+// حالة الترقيع الجلدي / منطقة الكسب / الندبة — حسب استمارة التقييم الورقية
 enum ScarCondition {
+  OPEN
+  CLOSED
+  FLEXIBLE
+  HEALED
+  OOZING
+  INFLAMED
+  DRY
+  @@schema("clinic_prosthetics")
+}
+
+// جانب التقييم — لازم لكل حالة ثنائية الأطراف (Bilateral): سطر مستقل لكل طرف
+enum AssessmentSide {
+  LEFT
+  RIGHT
+  @@schema("clinic_prosthetics")
+}
+
+// تقييم مدى حركة المفاصل العام (غير تفصيل كل مفصل بـ romData)
+enum JointsCondition {
   NORMAL
-  RAISED
-  DEPRESSED
-  ADHERENT
-  MOBILE
+  ACTIVE
+  SEDENTARY
   @@schema("clinic_prosthetics")
 }
 
@@ -256,6 +275,8 @@ model ProstheticsCase {
   amputationType  AmputationType?
   amputationSide  AmputationSide?
   amputationLevel AmputationLevel?
+  // الجانب الأكثر تأثراً والذي يجري رصده وعلاجه — فقط عند amputationSide = BILATERAL
+  moreAffectedSide AmputationSide?
 
   status              CaseStatus @default(INTAKE)
   hasPreviousProsthesis Boolean @default(false)
@@ -277,7 +298,7 @@ model ProstheticsCase {
 
   prosthesisType       ProsthesisType?
 
-  upperAssessment  UpperLimbAssessment?
+  upperAssessment  UpperLimbAssessment[]
   lowerAssessment  LowerLimbAssessment?
   committeeReview  CommitteeReview?
   components       ProsthesisComponent[]
@@ -305,38 +326,51 @@ model ProstheticsCase {
 
 model UpperLimbAssessment {
   id     String @id @default(uuid())
-  caseId String @unique
+  caseId String
+  side   AssessmentSide
   case   ProstheticsCase @relation(fields: [caseId], references: [id])
 
   residualLimbLength  ResidualLimbLength?
   residualLimbShape   ResidualLimbShape?
   residualLimbPhotoUrl String?
 
-  painPresent         Boolean @default(false)
-  painArea            String?
-  painIntensity       Int?
-  painTypes           PainType[]
-  phantomPainPresent  Boolean @default(false)
+  painPresent          Boolean @default(false)
+  painArea             String?
+  painIntensity        Int?
+  painTypes            PainType[]
+  painTypeOtherDetail  String?
+  phantomPainPresent   Boolean @default(false)
   phantomPainIntensity Int?
-  neuromaPalpable     Boolean?
+  residualLimbPalpable Boolean?
+  neuromaPalpable      Boolean?
 
   skinAppearance      SkinAppearance[]
+  skinNotes           String? @db.Text
   skinColor           SkinColor[]
   skinTemperature     SkinTemperature?
   scarCondition       ScarCondition[]
   hasSkinGrafts       Boolean @default(false)
   graftArea           String?
 
-  activityLevel       KLevel?
-  usesCompressionBandage Boolean?
-  romData             Json?
-  canBalanceOneSide   Boolean?
-  notes               String? @db.Text
+  hasOtherAffectedLimbs          Boolean?
+  currentlyUsingProsthesis       Boolean?
+  previouslyUsedProsthesis       Boolean?
+  previousProsthesisSystemDetail String?
+  canBalanceOneSide              Boolean?
+  usesCompressionBandage         Boolean?
+  jointsRangeOfMotion            JointsCondition?
+  activityLevel                  KLevel?
 
-  examinerProsthetistId String
-  examinerPhysioId      String
-  examinedAt            DateTime @default(now())
+  romData            Json?
+  muscleMotionNotes  String? @db.Text
 
+  // ممكن أكثر من شخص بكل دور
+  examinerProsthetistIds String[]
+  examinerPhysioIds      String[]
+  examinerSupervisorIds  String[]
+  examinedAt             DateTime @default(now())
+
+  @@unique([caseId, side])
   @@map("upper_limb_assessments")
   @@schema("clinic_prosthetics")
 }
