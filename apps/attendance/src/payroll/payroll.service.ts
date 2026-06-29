@@ -201,7 +201,7 @@ export class PayrollService {
           Math.round((leave.deductionInfo?.overLimitHours || 0) * 60),
         );
         const freeMinutes = minutes - overLimitMinutes;
-        if (leave.source === 'TARDINESS_AUTO') {
+        if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') {
           tardinessOffsetMinutesPayroll += minutes;
         } else if (leave.isPaid) {
           paidHourlyLeaveMinutes += freeMinutes;
@@ -451,6 +451,16 @@ export class PayrollService {
       deductibleLateMinutes,
       policy?.lateDeductionType ?? 'MINUTE_BY_MINUTE',
       policy?.lateDeductionTiers ?? null,
+    );
+
+    // الانصراف المبكر يشارك نفس رصيد الإجازة الساعية مع التأخير — نستخدم القيمة الدقيقة بعد خصم الرصيد
+    const totalEarlyLeavePendingDeductionMinutes = records.reduce(
+      (sum, r) => sum + ((r as any).earlyLeavePendingDeductionMinutes || 0), 0,
+    );
+    earlyLeaveDeductionMinutes = this.calcDeduction(
+      totalEarlyLeavePendingDeductionMinutes,
+      policy?.earlyLeaveDeductionType ?? 'MINUTE_BY_MINUTE',
+      null,
     );
 
     const deductionAmount = (lateDeductionMinutes + earlyLeaveDeductionMinutes + breakDeductionMinutes) * minuteRate;

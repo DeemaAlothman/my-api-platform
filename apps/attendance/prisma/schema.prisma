@@ -187,6 +187,11 @@ model AttendanceRecord {
   tardinessOffsetMinutes           Int @default(0)
   tardinessPendingDeductionMinutes Int @default(0)
 
+  // Early-leave tracking — يشارك نفس رصيد الإجازة الساعية الشهري مع التأخير (filled by daily-closure)
+  earlyLeaveCompensatedMinutes      Int @default(0)
+  earlyLeaveOffsetMinutes           Int @default(0)
+  earlyLeavePendingDeductionMinutes Int @default(0)
+
   // Device tracking per stamp
   clockInDeviceSN  String?
   clockOutDeviceSN String?
