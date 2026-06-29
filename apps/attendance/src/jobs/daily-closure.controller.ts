@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Param, Body, UseGuards } from '@nestjs/common';
 import { DailyClosureService } from './daily-closure.service';
 import { BackfillService } from './backfill.service';
 import { JwtAuthGuard } from '@shared/auth';
@@ -30,5 +30,12 @@ export class DailyClosureController {
   @Permission('attendance.records.create')
   apply(@Body() body: { dateFrom?: string; dateTo?: string; employeeId?: string; batchSize?: number }) {
     return this.backfillService.apply(body);
+  }
+
+  // سكريبت تعويضي one-off: معالجة الانصراف المبكر لشهر مضى بآلية الرصيد المشترك الجديدة
+  @Post('backfill-early-leave/:year/:month')
+  @Permission('attendance.records.create')
+  backfillEarlyLeave(@Param('year') year: string, @Param('month') month: string) {
+    return this.dailyClosureService.backfillEarlyLeaveOffsets(parseInt(year), parseInt(month));
   }
 }
