@@ -154,7 +154,7 @@ export class PayrollService {
     // D: جلب الإجازات المعتمدة مع نوعها (يحل محل استعلامَي approvedLeaves و unpaidDailyLeaves القديمَيْن)
     const leavesWithType = await this.prisma.$queryRawUnsafe(`
       SELECT lr."startDate", lr."endDate", lr."totalDays",
-             lr."isHourlyLeave", lr."durationHours",
+             lr."isHourlyLeave", lr."durationHours", lr."deductionInfo",
              lt.code as "typeCode", lt."isPaid",
              COALESCE(lr.source, 'EMPLOYEE_REQUEST') as source
       FROM leaves.leave_requests lr
@@ -165,6 +165,7 @@ export class PayrollService {
     `, employeeId, endDate, startDate) as Array<{
       startDate: Date; endDate: Date; totalDays: number;
       isHourlyLeave: boolean; durationHours: number | null;
+      deductionInfo: { overLimitHours?: number } | null;
       typeCode: string; isPaid: boolean; source: string;
     }>;
 
@@ -194,10 +195,17 @@ export class PayrollService {
 
       if (leave.isHourlyLeave) {
         const minutes = Math.round((leave.durationHours || 0) * 60);
+        // ساعات تجاوزت الحد الشهري المجاني تُعامَل كغير مدفوعة، حتى لو نوع الإجازة مدفوع أساساً
+        const overLimitMinutes = Math.min(
+          minutes,
+          Math.round((leave.deductionInfo?.overLimitHours || 0) * 60),
+        );
+        const freeMinutes = minutes - overLimitMinutes;
         if (leave.source === 'TARDINESS_AUTO') {
           tardinessOffsetMinutesPayroll += minutes;
         } else if (leave.isPaid) {
-          paidHourlyLeaveMinutes += minutes;
+          paidHourlyLeaveMinutes += freeMinutes;
+          unpaidHourlyLeaveMinutes += overLimitMinutes;
         } else {
           unpaidHourlyLeaveMinutes += minutes;
         }
