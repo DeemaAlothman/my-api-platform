@@ -114,6 +114,7 @@ model Patient {
   cityId         Int
   city           City    @relation(fields: [cityId], references: [id])
   addressDetails String?
+  currentAddress String?
   phone          String
   whatsapp       String?
   email          String?

@@ -19,6 +19,7 @@ export class CreatePatientDto {
 
   @Type(() => Number) @IsNumber() cityId: number;
   @IsOptional() @IsString() addressDetails?: string;
+  @IsOptional() @IsString() currentAddress?: string;
   @IsString() phone: string;
   @IsOptional() @IsString() whatsapp?: string;
   @IsOptional() @IsEmail() email?: string;
