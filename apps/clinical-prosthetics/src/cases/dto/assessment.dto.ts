@@ -69,18 +69,6 @@ export class UpperLimbAssessmentDto {
   @IsOptional() @IsBoolean()
   hasOtherAffectedLimbs?: boolean;
 
-  // هل يستخدم المريض نظام طرف صناعي حالياً؟
-  @IsOptional() @IsBoolean()
-  currentlyUsingProsthesis?: boolean;
-
-  // إذا currentlyUsingProsthesis = false: هل استُخدم سابقاً؟
-  @IsOptional() @IsBoolean()
-  previouslyUsedProsthesis?: boolean;
-
-  // يُعبّى فقط إذا previouslyUsedProsthesis = true
-  @IsOptional() @IsString()
-  previousProsthesisSystemDetail?: string;
-
   @IsOptional() @IsBoolean()
   canBalanceOneSide?: boolean;
 
@@ -113,26 +101,9 @@ export class UpperLimbAssessmentDto {
 }
 
 export class LowerLimbAssessmentDto {
-  @IsOptional() @IsString()
-  loadTolerance?: string;
-
-  @IsOptional() @IsString()
-  weightBearingLevel?: string;
-
-  @IsOptional() @IsString()
-  otherLimbCondition?: string;
-
-  @IsOptional() @IsBoolean()
-  usesAssistiveDevices?: boolean;
-
-  @IsOptional() @IsString()
-  assistiveDeviceTypes?: string;
-
-  @IsOptional() @IsBoolean()
-  canClimbStairs?: boolean;
-
-  @IsOptional() @IsBoolean()
-  canBalanceOneSide?: boolean;
+  // الجانب المُقيَّم — مطلوب دائماً. بحالة ثنائي الأطراف، يُستدعى الـ endpoint مرتين (LEFT ثم RIGHT)
+  @IsEnum(['LEFT', 'RIGHT'])
+  side: string;
 
   @IsOptional() @IsString()
   residualLimbLength?: string;
@@ -142,6 +113,10 @@ export class LowerLimbAssessmentDto {
 
   @IsOptional() @IsString()
   residualLimbPhotoUrl?: string;
+
+  // ملاحظة حول مستوى البتر
+  @IsOptional() @IsString()
+  amputationLevelNote?: string;
 
   @IsOptional() @IsBoolean()
   painPresent?: boolean;
@@ -155,6 +130,10 @@ export class LowerLimbAssessmentDto {
   @IsOptional() @IsArray()
   painTypes?: string[];
 
+  // يُعبّى فقط إذا كان أحد عناصر painTypes = OTHER
+  @IsOptional() @IsString()
+  painTypeOtherDetail?: string;
+
   @IsOptional() @IsBoolean()
   phantomPainPresent?: boolean;
 
@@ -163,6 +142,17 @@ export class LowerLimbAssessmentDto {
 
   @IsOptional() @IsBoolean()
   neuromaPalpable?: boolean;
+
+  // قابلية التحميل على الجذمور: PALPABLE | NOT_PALPABLE | WEIGHT_BEARING | NON_WEIGHT_BEARING
+  @IsOptional() @IsString()
+  loadTolerance?: string;
+
+  // يُعبّى فقط إذا loadTolerance = WEIGHT_BEARING — FULL | HIGH | MEDIUM | LOW
+  @IsOptional() @IsString()
+  weightBearingLevel?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
 
   @IsOptional() @IsArray()
   skinAppearance?: string[];
@@ -183,17 +173,41 @@ export class LowerLimbAssessmentDto {
   graftArea?: string;
 
   @IsOptional() @IsString()
+  otherLimbCondition?: string;
+
+  @IsOptional() @IsBoolean()
+  usesAssistiveDevices?: boolean;
+
+  @IsOptional() @IsString()
+  assistiveDeviceTypes?: string;
+
+  @IsOptional() @IsBoolean()
+  canClimbStairs?: boolean;
+
+  @IsOptional() @IsBoolean()
+  canBalanceOneSide?: boolean;
+
+  // تقييم مدى حركة المفاصل العام: NORMAL | ACTIVE | SEDENTARY
+  @IsOptional() @IsString()
+  jointsRangeOfMotion?: string;
+
+  @IsOptional() @IsString()
   activityLevel?: string;
 
+  // تفاصيل اختبار قوة وحركة العضلات (الكاحل/الركبة/الورك)
   @IsOptional() @IsObject()
   romData?: any;
 
   @IsOptional() @IsString()
-  notes?: string;
+  muscleMotionNotes?: string;
 
-  @IsString()
-  examinerProsthetistId: string;
+  // ممكن أكثر من شخص بكل دور
+  @IsOptional() @IsArray()
+  examinerProsthetistIds?: string[];
 
-  @IsString()
-  examinerPhysioId: string;
+  @IsOptional() @IsArray()
+  examinerPhysioIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerSupervisorIds?: string[];
 }

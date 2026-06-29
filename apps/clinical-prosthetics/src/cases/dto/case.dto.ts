@@ -6,6 +6,17 @@ import { Type } from 'class-transformer';
 
 export enum AmputationTypeEnum  { UPPER = 'UPPER', LOWER = 'LOWER' }
 export enum AmputationSideEnum  { RIGHT = 'RIGHT', LEFT = 'LEFT', BILATERAL = 'BILATERAL' }
+export enum AmputationCauseEnum {
+  WAR_INJURY = 'WAR_INJURY',
+  TRAFFIC_ACCIDENT = 'TRAFFIC_ACCIDENT',
+  DIABETES = 'DIABETES',
+  VASCULAR_DISEASE = 'VASCULAR_DISEASE',
+  CONGENITAL = 'CONGENITAL',
+  INFECTION = 'INFECTION',
+  TUMOR = 'TUMOR',
+  WORK_INJURY = 'WORK_INJURY',
+  OTHER = 'OTHER',
+}
 export enum AmputationLevelEnum { PH='PH', WD='WD', TR='TR', ED='ED', TH='TH', SD='SD', PF='PF', CHOPART='CHOPART', TT='TT', KD='KD', TF='TF', HD='HD' }
 export enum CaseStatusEnum      { INTAKE='INTAKE', ASSESSMENT='ASSESSMENT', COMMITTEE_REVIEW='COMMITTEE_REVIEW', APPROVED='APPROVED', FITTING='FITTING', SOCKET_TRIAL='SOCKET_TRIAL', GAIT_TRAINING='GAIT_TRAINING', FINAL_REVIEW='FINAL_REVIEW', DELIVERED='DELIVERED', FOLLOW_UP='FOLLOW_UP', CANCELLED='CANCELLED' }
 export enum ProsthesisTypeEnum  { BIONIC='BIONIC', MYOBOCK='MYOBOCK', MECHANIC='MECHANIC', COSMETIC_COVER='COSMETIC_COVER', OTHER='OTHER' }
@@ -17,8 +28,12 @@ export class CreateCaseDto {
   @IsOptional() @IsDateString()
   amputationDate?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() @IsEnum(AmputationCauseEnum)
   amputationCause?: string;
+
+  // يُعبّى فقط إذا amputationCause = OTHER
+  @IsOptional() @IsString()
+  amputationCauseOtherDetail?: string;
 
   @IsOptional() @IsInt() @Min(1) @Max(4) @Type(() => Number)
   amputationCount?: number;
@@ -69,6 +84,17 @@ export class CreateCaseDto {
   @IsOptional() @IsString()
   chronicDiseases?: string;
 
+  // من استمارة التقييم السريري — سؤال واحد للحالة، لا يتكرر حسب الطرف
+  @IsOptional() @IsBoolean()
+  currentlyUsingProsthesis?: boolean;
+
+  @IsOptional() @IsBoolean()
+  previouslyUsedProsthesis?: boolean;
+
+  // يُعبّى فقط إذا previouslyUsedProsthesis = true
+  @IsOptional() @IsString()
+  previousProsthesisSystemDetail?: string;
+
   @IsOptional() @IsString()
   prosthetistId?: string;
 
@@ -89,8 +115,12 @@ export class UpdateCaseDto {
   @IsOptional() @IsDateString()
   amputationDate?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional() @IsEnum(AmputationCauseEnum)
   amputationCause?: string;
+
+  // يُعبّى فقط إذا amputationCause = OTHER
+  @IsOptional() @IsString()
+  amputationCauseOtherDetail?: string;
 
   @IsOptional() @IsInt() @Min(1) @Max(4) @Type(() => Number)
   amputationCount?: number;
@@ -107,6 +137,17 @@ export class UpdateCaseDto {
   // الجانب الأكثر تأثراً والذي يجري رصده وعلاجه — فقط عند amputationSide = BILATERAL (RIGHT أو LEFT)
   @IsOptional() @IsEnum(AmputationSideEnum)
   moreAffectedSide?: string;
+
+  // من استمارة التقييم السريري — سؤال واحد للحالة، لا يتكرر حسب الطرف
+  @IsOptional() @IsBoolean()
+  currentlyUsingProsthesis?: boolean;
+
+  @IsOptional() @IsBoolean()
+  previouslyUsedProsthesis?: boolean;
+
+  // يُعبّى فقط إذا previouslyUsedProsthesis = true
+  @IsOptional() @IsString()
+  previousProsthesisSystemDetail?: string;
 
   @IsOptional() @IsBoolean()
   hasPreviousProsthesis?: boolean;

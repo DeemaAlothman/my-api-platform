@@ -10,6 +10,19 @@ datasource db {
 
 // ── Enums ─────────────────────────────────────────────────────────────────
 
+enum AmputationCause {
+  WAR_INJURY
+  TRAFFIC_ACCIDENT
+  DIABETES
+  VASCULAR_DISEASE
+  CONGENITAL
+  INFECTION
+  TUMOR
+  WORK_INJURY
+  OTHER
+  @@schema("clinic_prosthetics")
+}
+
 enum AmputationType {
   UPPER
   LOWER
@@ -270,7 +283,9 @@ model ProstheticsCase {
   patientId       String
 
   amputationDate  DateTime?
-  amputationCause String?
+  amputationCause AmputationCause?
+  // يُعبّى فقط إذا amputationCause = OTHER
+  amputationCauseOtherDetail String?
   amputationCount Int      @default(1)
   amputationType  AmputationType?
   amputationSide  AmputationSide?
@@ -291,6 +306,11 @@ model ProstheticsCase {
   hasChronicDiseases  Boolean @default(false)
   chronicDiseases     String?
 
+  // من استمارة التقييم السريري (علوي/سفلي) — سؤال واحد للحالة، لا يتكرر حسب الطرف
+  currentlyUsingProsthesis       Boolean?
+  previouslyUsedProsthesis       Boolean?
+  previousProsthesisSystemDetail String?
+
   prosthetistId        String?
   physiotherapistId    String?
   supervisingDoctorId  String?
@@ -299,7 +319,7 @@ model ProstheticsCase {
   prosthesisType       ProsthesisType?
 
   upperAssessment  UpperLimbAssessment[]
-  lowerAssessment  LowerLimbAssessment?
+  lowerAssessment  LowerLimbAssessment[]
   committeeReview  CommitteeReview?
   components       ProsthesisComponent[]
   gaitAnalysis     GaitAnalysis?
@@ -353,9 +373,6 @@ model UpperLimbAssessment {
   graftArea           String?
 
   hasOtherAffectedLimbs          Boolean?
-  currentlyUsingProsthesis       Boolean?
-  previouslyUsedProsthesis       Boolean?
-  previousProsthesisSystemDetail String?
   canBalanceOneSide              Boolean?
   usesCompressionBandage         Boolean?
   jointsRangeOfMotion            JointsCondition?
@@ -377,41 +394,55 @@ model UpperLimbAssessment {
 
 model LowerLimbAssessment {
   id     String @id @default(uuid())
-  caseId String @unique
+  caseId String
+  side   AssessmentSide
   case   ProstheticsCase @relation(fields: [caseId], references: [id])
 
-  loadTolerance       LoadTolerance?
-  weightBearingLevel  WeightBearingLevel?
-  otherLimbCondition  String?
-  usesAssistiveDevices Boolean @default(false)
-  assistiveDeviceTypes String?
-  canClimbStairs      Boolean?
-  canBalanceOneSide   Boolean?
-
-  residualLimbLength  ResidualLimbLength?
-  residualLimbShape   ResidualLimbShape?
+  residualLimbLength   ResidualLimbLength?
+  residualLimbShape    ResidualLimbShape?
   residualLimbPhotoUrl String?
-  painPresent         Boolean @default(false)
-  painArea            String?
-  painIntensity       Int?
-  painTypes           PainType[]
-  phantomPainPresent  Boolean @default(false)
+  // ملاحظة حول مستوى البتر
+  amputationLevelNote  String? @db.Text
+
+  painPresent          Boolean @default(false)
+  painArea             String?
+  painIntensity        Int?
+  painTypes            PainType[]
+  painTypeOtherDetail  String?
+  phantomPainPresent   Boolean @default(false)
   phantomPainIntensity Int?
-  neuromaPalpable     Boolean?
+  neuromaPalpable      Boolean?
+
+  loadTolerance      LoadTolerance?
+  // يُعبّى فقط إذا loadTolerance = WEIGHT_BEARING
+  weightBearingLevel WeightBearingLevel?
+  notes              String? @db.Text
+
   skinAppearance      SkinAppearance[]
   skinColor           SkinColor[]
   skinTemperature     SkinTemperature?
   scarCondition       ScarCondition[]
   hasSkinGrafts       Boolean @default(false)
   graftArea           String?
-  activityLevel       KLevel?
-  romData             Json?
-  notes               String? @db.Text
 
-  examinerProsthetistId String
-  examinerPhysioId      String
-  examinedAt            DateTime @default(now())
+  otherLimbCondition   String?
+  usesAssistiveDevices Boolean @default(false)
+  assistiveDeviceTypes String?
+  canClimbStairs       Boolean?
+  canBalanceOneSide    Boolean?
+  jointsRangeOfMotion  JointsCondition?
+  activityLevel        KLevel?
 
+  romData            Json?
+  muscleMotionNotes  String? @db.Text
+
+  // ممكن أكثر من شخص بكل دور
+  examinerProsthetistIds String[]
+  examinerPhysioIds      String[]
+  examinerSupervisorIds  String[]
+  examinedAt             DateTime @default(now())
+
+  @@unique([caseId, side])
   @@map("lower_limb_assessments")
   @@schema("clinic_prosthetics")
 }

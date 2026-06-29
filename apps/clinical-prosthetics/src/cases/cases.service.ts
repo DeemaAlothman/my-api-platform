@@ -99,7 +99,8 @@ export class CasesService {
         caseNumber,
         patientId: dto.patientId,
         amputationDate: dto.amputationDate ? new Date(dto.amputationDate) : null,
-        amputationCause: dto.amputationCause,
+        amputationCause: dto.amputationCause as any,
+        amputationCauseOtherDetail: dto.amputationCauseOtherDetail,
         amputationCount: dto.amputationCount,
         amputationType: dto.amputationType as any,
         amputationSide: dto.amputationSide as any,
@@ -116,6 +117,9 @@ export class CasesService {
         physicalTherapyDetails: dto.physicalTherapyDetails,
         hasChronicDiseases: dto.hasChronicDiseases ?? false,
         chronicDiseases: dto.chronicDiseases,
+        currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
+        previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
+        previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
         prosthetistId: dto.prosthetistId,
         physiotherapistId: dto.physiotherapistId,
         supervisingDoctorId: dto.supervisingDoctorId,
@@ -141,7 +145,7 @@ export class CasesService {
         orderBy: { createdAt: 'desc' },
         include: {
           upperAssessment: { select: { id: true, side: true, examinedAt: true } },
-          lowerAssessment: { select: { id: true, examinedAt: true } },
+          lowerAssessment: { select: { id: true, side: true, examinedAt: true } },
           committeeReview: { select: { id: true, finalDecision: true } },
         },
       }),
@@ -186,7 +190,8 @@ export class CasesService {
       where: { id },
       data: {
         amputationDate: dto.amputationDate ? new Date(dto.amputationDate) : undefined,
-        amputationCause: dto.amputationCause,
+        amputationCause: dto.amputationCause as any,
+        amputationCauseOtherDetail: dto.amputationCauseOtherDetail,
         amputationCount: dto.amputationCount,
         amputationType: dto.amputationType as any,
         amputationSide: dto.amputationSide as any,
@@ -203,6 +208,9 @@ export class CasesService {
         physicalTherapyDetails: dto.physicalTherapyDetails,
         hasChronicDiseases: dto.hasChronicDiseases,
         chronicDiseases: dto.chronicDiseases,
+        currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
+        previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
+        previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
         prosthetistId: dto.prosthetistId,
         physiotherapistId: dto.physiotherapistId,
         supervisingDoctorId: dto.supervisingDoctorId,
@@ -272,9 +280,6 @@ export class CasesService {
         hasSkinGrafts: dto.hasSkinGrafts ?? false,
         graftArea: dto.graftArea,
         hasOtherAffectedLimbs: dto.hasOtherAffectedLimbs,
-        currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
-        previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
-        previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
         canBalanceOneSide: dto.canBalanceOneSide,
         usesCompressionBandage: dto.usesCompressionBandage,
         jointsRangeOfMotion: dto.jointsRangeOfMotion as any,
@@ -306,9 +311,6 @@ export class CasesService {
         hasSkinGrafts: dto.hasSkinGrafts,
         graftArea: dto.graftArea,
         hasOtherAffectedLimbs: dto.hasOtherAffectedLimbs,
-        currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
-        previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
-        previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
         canBalanceOneSide: dto.canBalanceOneSide,
         usesCompressionBandage: dto.usesCompressionBandage,
         jointsRangeOfMotion: dto.jointsRangeOfMotion as any,
@@ -324,39 +326,45 @@ export class CasesService {
 
   async upsertLowerAssessment(caseId: string, dto: LowerLimbAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    const side = dto.side as any;
     const data: any = {
-      loadTolerance: dto.loadTolerance as any,
-      weightBearingLevel: dto.weightBearingLevel as any,
-      otherLimbCondition: dto.otherLimbCondition,
-      usesAssistiveDevices: dto.usesAssistiveDevices ?? false,
-      assistiveDeviceTypes: dto.assistiveDeviceTypes,
-      canClimbStairs: dto.canClimbStairs,
-      canBalanceOneSide: dto.canBalanceOneSide,
       residualLimbLength: dto.residualLimbLength as any,
       residualLimbShape: dto.residualLimbShape as any,
       residualLimbPhotoUrl: dto.residualLimbPhotoUrl,
+      amputationLevelNote: dto.amputationLevelNote,
       painPresent: dto.painPresent ?? false,
       painArea: dto.painArea,
       painIntensity: dto.painIntensity,
       painTypes: (dto.painTypes ?? []) as any,
+      painTypeOtherDetail: dto.painTypeOtherDetail,
       phantomPainPresent: dto.phantomPainPresent ?? false,
       phantomPainIntensity: dto.phantomPainIntensity,
       neuromaPalpable: dto.neuromaPalpable,
+      loadTolerance: dto.loadTolerance as any,
+      weightBearingLevel: dto.weightBearingLevel as any,
+      notes: dto.notes,
       skinAppearance: (dto.skinAppearance ?? []) as any,
       skinColor: (dto.skinColor ?? []) as any,
       skinTemperature: dto.skinTemperature as any,
       scarCondition: (dto.scarCondition ?? []) as any,
       hasSkinGrafts: dto.hasSkinGrafts ?? false,
       graftArea: dto.graftArea,
+      otherLimbCondition: dto.otherLimbCondition,
+      usesAssistiveDevices: dto.usesAssistiveDevices ?? false,
+      assistiveDeviceTypes: dto.assistiveDeviceTypes,
+      canClimbStairs: dto.canClimbStairs,
+      canBalanceOneSide: dto.canBalanceOneSide,
+      jointsRangeOfMotion: dto.jointsRangeOfMotion as any,
       activityLevel: dto.activityLevel as any,
       romData: dto.romData,
-      notes: dto.notes,
-      examinerProsthetistId: dto.examinerProsthetistId,
-      examinerPhysioId: dto.examinerPhysioId,
+      muscleMotionNotes: dto.muscleMotionNotes,
+      examinerProsthetistIds: dto.examinerProsthetistIds ?? [],
+      examinerPhysioIds: dto.examinerPhysioIds ?? [],
+      examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
     return this.prisma.lowerLimbAssessment.upsert({
-      where: { caseId },
-      create: { caseId, ...data },
+      where: { caseId_side: { caseId, side } },
+      create: { caseId, side, ...data },
       update: data,
     });
   }
@@ -758,7 +766,7 @@ export class CasesService {
       where: { id: caseId, deletedAt: null },
       include: {
         upperAssessment:  { select: { side: true, examinedAt: true } },
-        lowerAssessment:  { select: { examinedAt: true } },
+        lowerAssessment:  { select: { side: true, examinedAt: true } },
         committeeReview:  {
           select: {
             prosthetistReviewedAt:    true,
@@ -798,7 +806,9 @@ export class CasesService {
     for (const ua of c.upperAssessment) {
       add(ua.examinedAt, 'assessment_upper', `تقييم الطرف العلوي (${ua.side === 'LEFT' ? 'يسار' : 'يمين'})`);
     }
-    if (c.lowerAssessment) add(c.lowerAssessment.examinedAt, 'assessment_lower', 'تقييم الطرف السفلي');
+    for (const la of c.lowerAssessment) {
+      add(la.examinedAt, 'assessment_lower', `تقييم الطرف السفلي (${la.side === 'LEFT' ? 'يسار' : 'يمين'})`);
+    }
 
     if (c.committeeReview) {
       const cr = c.committeeReview;

@@ -87,13 +87,13 @@ export class PdfService {
       row('Workshop Supervisor ID', c.workshopSupervisorId);
 
       // ── Assessment ────────────────────────────────────────────────────
-      if ((c.upperAssessment && c.upperAssessment.length > 0) || c.lowerAssessment) {
+      if ((c.upperAssessment && c.upperAssessment.length > 0) || (c.lowerAssessment && c.lowerAssessment.length > 0)) {
         section('Assessment');
         for (const ua of c.upperAssessment ?? []) {
           row(`Upper Limb Assessment (${ua.side})`, `Completed on ${new Date(ua.examinedAt).toLocaleDateString('en-GB')}`);
         }
-        if (c.lowerAssessment) {
-          row('Lower Limb Assessment', `Completed on ${new Date(c.lowerAssessment.examinedAt || c.lowerAssessment.createdAt).toLocaleDateString('en-GB')}`);
+        for (const la of c.lowerAssessment ?? []) {
+          row(`Lower Limb Assessment (${la.side})`, `Completed on ${new Date(la.examinedAt).toLocaleDateString('en-GB')}`);
         }
       }
 
