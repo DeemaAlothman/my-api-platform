@@ -4,9 +4,24 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients.query.dto';
 import { CreateConsentDto } from './dto/create-consent.dto';
 
+const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+const PHYSIO_URL = process.env.PHYSIO_SERVICE_URL || 'http://clinical-physio:4012';
+const PROSTHETICS_URL = process.env.PROSTHETICS_SERVICE_URL || 'http://clinical-prosthetics:4011';
+
 @Injectable()
 export class PatientsService {
   constructor(private prisma: PrismaService) {}
+
+  // إشعار خدمات العلاج الفيزيائي والأطراف الصناعية بحذف المريض لحذف حالاتهم المرتبطة (حذف ناعم)
+  private async cascadeDeleteRelatedCases(patientId: string): Promise<void> {
+    const calls = [
+      { url: `${PHYSIO_URL}/api/v1/physio/cases/internal/by-patient/${patientId}` },
+      { url: `${PROSTHETICS_URL}/api/v1/prosthetics/cases/internal/by-patient/${patientId}` },
+    ];
+    await Promise.all(calls.map(({ url }) =>
+      fetch(url, { method: 'DELETE', headers: { 'x-internal-token': INTERNAL_TOKEN } }).catch(() => {}),
+    ));
+  }
 
   private async generatePatientNumber(): Promise<string> {
     const year = new Date().getFullYear();
@@ -126,6 +141,7 @@ export class PatientsService {
     const patient = await this.prisma.patient.findFirst({ where: { id, deletedAt: null } });
     if (!patient) throw new NotFoundException('المريض غير موجود');
     await this.prisma.patient.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.cascadeDeleteRelatedCases(id);
     return { message: 'تم حذف المريض بنجاح' };
   }
 

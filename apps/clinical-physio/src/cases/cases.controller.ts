@@ -16,6 +16,19 @@ import { PermissionsGuard } from '@shared/guards/permissions.guard';
 import { Permission } from '@shared/decorators/permission.decorator';
 import { PERMISSIONS } from '@shared/constants/permissions.constants';
 import { User } from '@shared/auth/decorators/current-user.decorator';
+import { InternalAuthGuard } from '@shared';
+
+// نقطة داخلية (خدمة-لخدمة): حذف حالات العلاج الفيزيائي عند حذف مريض — محمية بـ InternalAuthGuard فقط
+@Controller('physio/cases/internal')
+export class CasesInternalController {
+  constructor(private readonly service: CasesService) {}
+
+  @Delete('by-patient/:patientId')
+  @UseGuards(InternalAuthGuard)
+  deleteByPatient(@Param('patientId') patientId: string) {
+    return this.service.deleteByPatientInternal(patientId);
+  }
+}
 
 @Controller('physio/cases')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

@@ -264,6 +264,15 @@ export class CasesService {
     return items.map((i) => ({ ...i, patient: nameMap[patientId] ?? null }));
   }
 
+  // نقطة داخلية (خدمة-لخدمة): حذف ناعم لكل حالات العلاج الفيزيائي لمريض محذوف
+  async deleteByPatientInternal(patientId: string) {
+    const result = await this.prisma.physioCase.updateMany({
+      where: { patientId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    return { deletedCount: result.count };
+  }
+
   // ── الشكوى المرضية (Medical Complaint) ──────────────────────────────────────
 
   async upsertComplaint(caseId: string, dto: ComplaintDto) {

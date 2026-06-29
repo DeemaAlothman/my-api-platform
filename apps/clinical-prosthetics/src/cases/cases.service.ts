@@ -218,6 +218,15 @@ export class CasesService {
     return items.map((i) => ({ ...i, patient: nameMap[patientId] ?? null }));
   }
 
+  // نقطة داخلية (خدمة-لخدمة): حذف ناعم لكل حالات الأطراف الصناعية لمريض محذوف
+  async deleteByPatientInternal(patientId: string) {
+    const result = await this.prisma.prostheticsCase.updateMany({
+      where: { patientId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    return { deletedCount: result.count };
+  }
+
   // ── Assessments ───────────────────────────────────────────────────────────
 
   async upsertUpperAssessment(caseId: string, dto: UpperLimbAssessmentDto) {
