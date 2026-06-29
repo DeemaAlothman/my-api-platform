@@ -38,6 +38,15 @@ export class CreateCaseDto {
   @IsOptional() @IsString()
   previousProsthesisDetails?: string;
 
+  @IsOptional() @IsString()
+  previousProsthesisWhen?: string;
+
+  @IsOptional() @IsString()
+  previousProsthesisWhere?: string;
+
+  @IsOptional() @IsString()
+  previousProsthesisType?: string;
+
   @IsOptional() @IsBoolean()
   hasRevisionSurgery?: boolean;
 
@@ -46,6 +55,9 @@ export class CreateCaseDto {
 
   @IsOptional() @IsBoolean()
   hasPhysicalTherapy?: boolean;
+
+  @IsOptional() @IsString()
+  physicalTherapyDetails?: string;
 
   @IsOptional() @IsBoolean()
   hasChronicDiseases?: boolean;
@@ -79,6 +91,15 @@ export class UpdateCaseDto {
   @IsOptional() @IsString()
   previousProsthesisDetails?: string;
 
+  @IsOptional() @IsString()
+  previousProsthesisWhen?: string;
+
+  @IsOptional() @IsString()
+  previousProsthesisWhere?: string;
+
+  @IsOptional() @IsString()
+  previousProsthesisType?: string;
+
   @IsOptional() @IsBoolean()
   hasRevisionSurgery?: boolean;
 
@@ -87,6 +108,9 @@ export class UpdateCaseDto {
 
   @IsOptional() @IsBoolean()
   hasPhysicalTherapy?: boolean;
+
+  @IsOptional() @IsString()
+  physicalTherapyDetails?: string;
 
   @IsOptional() @IsBoolean()
   hasChronicDiseases?: boolean;

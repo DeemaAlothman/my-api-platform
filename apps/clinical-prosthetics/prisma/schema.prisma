@@ -260,9 +260,13 @@ model ProstheticsCase {
   status              CaseStatus @default(INTAKE)
   hasPreviousProsthesis Boolean @default(false)
   previousProsthesisDetails String?
+  previousProsthesisWhen    String?
+  previousProsthesisWhere   String?
+  previousProsthesisType    String?
   hasRevisionSurgery  Boolean @default(false)
   revisionDetails     String?
   hasPhysicalTherapy  Boolean @default(false)
+  physicalTherapyDetails String?
   hasChronicDiseases  Boolean @default(false)
   chronicDiseases     String?
 
