@@ -130,6 +130,13 @@ export class CasesController {
     return this.service.addComponent(id, dto, user.userId);
   }
 
+  // إضافة عدة مكونات بنداء واحد — يقبل مصفوفة من نفس حقول addComponent
+  @Post(':id/components/bulk')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.COMPONENTS_ADD)
+  addComponentsBulk(@Param('id') id: string, @Body() dtos: AddComponentDto[], @User() user: any) {
+    return this.service.addComponentsBulk(id, dtos, user.userId);
+  }
+
   @Get(':id/components')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
   getComponents(@Param('id') id: string) {

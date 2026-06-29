@@ -125,6 +125,7 @@ export class CasesService {
         supervisingDoctorId: dto.supervisingDoctorId,
         workshopSupervisorId: dto.workshopSupervisorId,
         prosthesisType: dto.prosthesisType as any,
+        prosthesisCompleted: dto.prosthesisCompleted ?? false,
         createdBy: userId,
       },
     });
@@ -216,6 +217,7 @@ export class CasesService {
         supervisingDoctorId: dto.supervisingDoctorId,
         workshopSupervisorId: dto.workshopSupervisorId,
         prosthesisType: dto.prosthesisType as any,
+        prosthesisCompleted: dto.prosthesisCompleted,
       },
     });
   }
@@ -456,13 +458,34 @@ export class CasesService {
 
   // ── Components ────────────────────────────────────────────────────────────
 
+  // يبحث عن صنف بالمخزون عبر كوده — قراءة فقط، عبر استعلام عابر للـ schema
+  private async findInventoryItemIdByCode(code: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM clinic_inventory.inventory_items WHERE "partCode" = $1 AND "isActive" = true LIMIT 1`,
+      code,
+    ).catch(() => [] as Array<{ id: string }>);
+    return rows[0]?.id ?? null;
+  }
+
   async addComponent(caseId: string, dto: AddComponentDto, userId: string) {
     await this.findCaseOrThrow(caseId);
-    await this.callInventoryDeduct(dto.inventoryItemId, caseId, userId);
-    return this.prisma.prosthesisComponent.create({
+
+    // إذا ما انبعت inventoryItemId، نبحث تلقائياً بالكود. إذا ما لقينا تطابق، نحفظ بدون خصم من المخزون
+    let inventoryItemId = dto.inventoryItemId ?? null;
+    let matchedInInventory = true;
+    if (!inventoryItemId) {
+      inventoryItemId = await this.findInventoryItemIdByCode(dto.partCode);
+      matchedInInventory = !!inventoryItemId;
+    }
+
+    if (inventoryItemId) {
+      await this.callInventoryDeduct(inventoryItemId, caseId, userId);
+    }
+
+    const component = await this.prisma.prosthesisComponent.create({
       data: {
         caseId,
-        inventoryItemId: dto.inventoryItemId,
+        inventoryItemId,
         partCode: dto.partCode,
         partName: dto.partName,
         supplier: dto.supplier,
@@ -471,6 +494,17 @@ export class CasesService {
         addedBy: userId,
       },
     });
+    return { ...component, matchedInInventory };
+  }
+
+  // إضافة عدة مكونات بنداء واحد (نفس منطق addComponent لكل عنصر)
+  async addComponentsBulk(caseId: string, dtos: AddComponentDto[], userId: string) {
+    await this.findCaseOrThrow(caseId);
+    const results = [];
+    for (const dto of dtos) {
+      results.push(await this.addComponent(caseId, dto, userId));
+    }
+    return results;
   }
 
   async getComponents(caseId: string) {

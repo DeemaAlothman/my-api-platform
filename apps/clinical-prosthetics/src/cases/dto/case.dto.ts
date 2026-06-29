@@ -109,6 +109,10 @@ export class CreateCaseDto {
 
   @IsOptional() @IsEnum(ProsthesisTypeEnum)
   prosthesisType?: string;
+
+  // الطرف الصناعي مكتمل التجميع
+  @IsOptional() @IsBoolean()
+  prosthesisCompleted?: boolean;
 }
 
 export class UpdateCaseDto {
@@ -196,6 +200,10 @@ export class UpdateCaseDto {
 
   @IsOptional() @IsEnum(ProsthesisTypeEnum)
   prosthesisType?: string;
+
+  // الطرف الصناعي مكتمل التجميع
+  @IsOptional() @IsBoolean()
+  prosthesisCompleted?: boolean;
 }
 
 export class UpdateStatusDto {

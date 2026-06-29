@@ -2,8 +2,9 @@ import { IsString, IsOptional, IsBoolean, IsNumber, IsArray, IsObject, IsInt, Mi
 import { Type } from 'class-transformer';
 
 export class AddComponentDto {
-  @IsString()
-  inventoryItemId: string;
+  // اختياري — إذا غير موجود، يبحث النظام تلقائياً عن صنف بهذا الكود بالمخزون
+  @IsOptional() @IsString()
+  inventoryItemId?: string;
 
   @IsString()
   partCode: string;

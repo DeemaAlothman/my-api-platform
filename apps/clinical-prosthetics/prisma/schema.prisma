@@ -317,6 +317,8 @@ model ProstheticsCase {
   workshopSupervisorId String?
 
   prosthesisType       ProsthesisType?
+  // الطرف الصناعي مكتمل التجميع (من فورم أجزاء ومكونات الطرف)
+  prosthesisCompleted  Boolean @default(false)
 
   upperAssessment  UpperLimbAssessment[]
   lowerAssessment  LowerLimbAssessment[]
@@ -501,7 +503,7 @@ model ProsthesisComponent {
   caseId          String
   case            ProstheticsCase @relation(fields: [caseId], references: [id])
 
-  inventoryItemId String
+  inventoryItemId String?
   partCode        String
   partName        String
   supplier        String
