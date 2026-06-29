@@ -1182,7 +1182,7 @@ export class PayrollService {
         parseFloat((Number((p as any).hourlyLeaveMinutes ?? 0) / 60).toFixed(2)),
         Number((p as any).hourlyLeaveAmount ?? 0),
         Number(p.totalLateMinutesEffective ?? 0),
-        Number(bd?.lateDeduction ?? 0),
+        Number(bd?.tardiness?.amount ?? 0),
         Number((p as any).totalEarlyLeaveMinutes ?? 0),
         Number(bd?.earlyLeave?.amount ?? 0),
         parseFloat((Number((p as any).overtimeWorkdayMinutes ?? 0) / 60).toFixed(2)),
