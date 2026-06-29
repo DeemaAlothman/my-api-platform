@@ -549,9 +549,10 @@ export class DailyClosureService implements OnModuleInit {
                AND "isHourlyLeave" = true
                AND status = 'APPROVED'
                AND "startDate" >= $2
+               AND "startDate" <= $4::date
                AND "leaveTypeId" = $3
                AND "deletedAt" IS NULL`,
-            record.employeeId, monthStart, leaveTypeId,
+            record.employeeId, monthStart, leaveTypeId, dateStr,
           )) as Array<{ used: number }>;
 
           const usedMinutes = usedRows[0]?.used ?? 0;
@@ -720,9 +721,10 @@ export class DailyClosureService implements OnModuleInit {
              AND "isHourlyLeave" = true
              AND status = 'APPROVED'
              AND "startDate" >= $2
+             AND "startDate" <= $4::date
              AND "leaveTypeId" = $3
              AND "deletedAt" IS NULL`,
-          record.employeeId, monthStart, leaveTypeId,
+          record.employeeId, monthStart, leaveTypeId, dateStr,
         )) as Array<{ used: number }>;
         const usedMinutes = usedRows[0]?.used ?? 0;
         const remainingBalance = Math.max(0, maxMonthlyMinutes - usedMinutes);
