@@ -250,12 +250,12 @@ model ProstheticsCase {
   caseNumber      String   @unique
   patientId       String
 
-  amputationDate  DateTime
-  amputationCause String
+  amputationDate  DateTime?
+  amputationCause String?
   amputationCount Int      @default(1)
-  amputationType  AmputationType
-  amputationSide  AmputationSide
-  amputationLevel AmputationLevel
+  amputationType  AmputationType?
+  amputationSide  AmputationSide?
+  amputationLevel AmputationLevel?
 
   status              CaseStatus @default(INTAKE)
   hasPreviousProsthesis Boolean @default(false)

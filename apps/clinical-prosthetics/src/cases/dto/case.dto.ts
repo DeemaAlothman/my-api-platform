@@ -14,23 +14,23 @@ export class CreateCaseDto {
   @IsString()
   patientId: string;
 
-  @IsDateString()
-  amputationDate: string;
+  @IsOptional() @IsDateString()
+  amputationDate?: string;
 
-  @IsString()
-  amputationCause: string;
+  @IsOptional() @IsString()
+  amputationCause?: string;
 
-  @IsInt() @Min(1) @Max(4) @Type(() => Number)
-  amputationCount: number;
+  @IsOptional() @IsInt() @Min(1) @Max(4) @Type(() => Number)
+  amputationCount?: number;
 
-  @IsEnum(AmputationTypeEnum)
-  amputationType: string;
+  @IsOptional() @IsEnum(AmputationTypeEnum)
+  amputationType?: string;
 
-  @IsEnum(AmputationSideEnum)
-  amputationSide: string;
+  @IsOptional() @IsEnum(AmputationSideEnum)
+  amputationSide?: string;
 
-  @IsEnum(AmputationLevelEnum)
-  amputationLevel: string;
+  @IsOptional() @IsEnum(AmputationLevelEnum)
+  amputationLevel?: string;
 
   @IsOptional() @IsBoolean()
   hasPreviousProsthesis?: boolean;
@@ -82,8 +82,23 @@ export class CreateCaseDto {
 }
 
 export class UpdateCaseDto {
+  @IsOptional() @IsDateString()
+  amputationDate?: string;
+
   @IsOptional() @IsString()
   amputationCause?: string;
+
+  @IsOptional() @IsInt() @Min(1) @Max(4) @Type(() => Number)
+  amputationCount?: number;
+
+  @IsOptional() @IsEnum(AmputationTypeEnum)
+  amputationType?: string;
+
+  @IsOptional() @IsEnum(AmputationSideEnum)
+  amputationSide?: string;
+
+  @IsOptional() @IsEnum(AmputationLevelEnum)
+  amputationLevel?: string;
 
   @IsOptional() @IsBoolean()
   hasPreviousProsthesis?: boolean;

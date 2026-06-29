@@ -98,7 +98,7 @@ export class CasesService {
       data: {
         caseNumber,
         patientId: dto.patientId,
-        amputationDate: new Date(dto.amputationDate),
+        amputationDate: dto.amputationDate ? new Date(dto.amputationDate) : null,
         amputationCause: dto.amputationCause,
         amputationCount: dto.amputationCount,
         amputationType: dto.amputationType as any,
@@ -184,7 +184,12 @@ export class CasesService {
     return this.prisma.prostheticsCase.update({
       where: { id },
       data: {
+        amputationDate: dto.amputationDate ? new Date(dto.amputationDate) : undefined,
         amputationCause: dto.amputationCause,
+        amputationCount: dto.amputationCount,
+        amputationType: dto.amputationType as any,
+        amputationSide: dto.amputationSide as any,
+        amputationLevel: dto.amputationLevel as any,
         hasPreviousProsthesis: dto.hasPreviousProsthesis,
         previousProsthesisDetails: dto.previousProsthesisDetails,
         previousProsthesisWhen: dto.previousProsthesisWhen,
