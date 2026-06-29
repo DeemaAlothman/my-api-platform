@@ -465,6 +465,7 @@ model PhysioSession {
 model PhysioEmergencyAlert {
   id            String    @id @default(dbgenerated("gen_random_uuid()::text"))
   sentByUserId  String
+  caseId        String?
   status        String    @default("PENDING")
   senderNote    String?
   note          String?

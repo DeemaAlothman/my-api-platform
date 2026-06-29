@@ -9,12 +9,12 @@ import { User } from '@shared/auth';
 export class EmergencyController {
   constructor(private readonly emergency: EmergencyService) {}
 
-  // إرسال تنبيه طارئ — يحتاج صلاحية physio:emergency-alert
+  // إرسال تنبيه طارئ — يحتاج صلاحية physio:emergency-alert — مرتبط دائماً بحالة مريض محددة
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('physio:emergency-alert')
   @Post()
-  sendAlert(@User() user: any, @Body('note') note?: string) {
-    return this.emergency.sendAlert(user.userId, note);
+  sendAlert(@User() user: any, @Body('caseId') caseId: string, @Body('note') note?: string) {
+    return this.emergency.sendAlert(user.userId, caseId, note);
   }
 
   // الموظف الثابت يرد بملاحظة
@@ -41,5 +41,13 @@ export class EmergencyController {
   @Get('my')
   myAlerts(@User() user: any) {
     return this.emergency.myAlerts(user.userId);
+  }
+
+  // تفاصيل تنبيه واحد (يُستخدم عند الضغط على الإشعار لاستخراج caseId)
+  // ملاحظة: يجب أن يبقى هذا المسار بعد المسارات الحرفية (incoming/my) لتجنّب تعارض المطابقة
+  @UseGuards(JwtAuthGuard)
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.emergency.findOne(id);
   }
 }
