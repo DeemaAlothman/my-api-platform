@@ -8,10 +8,11 @@ export class CreateItemDto {
   @IsString() name: string;
   @IsOptional() @IsString() nameAr?: string;
   @IsOptional() @IsString() description?: string;
-  @Type(() => Number) @IsNumber() categoryId: number;
+  @IsOptional() @Type(() => Number) @IsNumber() categoryId?: number;
   @IsOptional() @IsUUID() supplierId?: string;
   @IsString() unit: string;
-  @IsEnum(InventoryType) type: InventoryType;
+  @IsOptional() @IsEnum(InventoryType) type?: InventoryType;
+  @IsOptional() @Type(() => Number) @IsNumber() currentStock?: number;
   @IsOptional() @Type(() => Number) @IsNumber() minStockLevel?: number;
   @IsOptional() @Type(() => Number) @IsNumber() unitCostUsd?: number;
   @IsOptional() @IsString() imageUrl?: string;

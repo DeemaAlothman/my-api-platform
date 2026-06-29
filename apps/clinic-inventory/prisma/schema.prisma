@@ -39,8 +39,8 @@ model InventoryItem {
   nameAr        String?
   description   String?  @db.Text
 
-  categoryId    Int
-  category      InventoryCategory @relation(fields: [categoryId], references: [id])
+  categoryId    Int?
+  category      InventoryCategory? @relation(fields: [categoryId], references: [id])
 
   supplierId    String?
   supplier      Supplier?  @relation(fields: [supplierId], references: [id])
@@ -49,7 +49,7 @@ model InventoryItem {
   currentStock  Float    @default(0)
   minStockLevel Float?
   unitCostUsd   Float?
-  type          InventoryType
+  type          InventoryType?
   imageUrl      String?
   isActive      Boolean  @default(true)
 
