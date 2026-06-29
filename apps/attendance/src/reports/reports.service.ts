@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+const TZ_OFFSET_MS = 3 * 60 * 60 * 1000; // UTC+3 (دمشق)
+
+// يحوّل وقت UTC المخزَّن إلى "HH:MM" بتوقيت دمشق — toTimeString() يعتمد على توقيت السيرفر المحلي (غالباً UTC داخل Docker) وهذا غير موثوق
+function toLocalTimeStr(date: Date): string {
+  return new Date(date.getTime() + TZ_OFFSET_MS).toISOString().slice(11, 16);
+}
+
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
@@ -329,7 +336,7 @@ export class ReportsService {
       emp.details.push({
         date: r.date,
         lateMinutes: r.lateMinutes,
-        clockIn: r.clockInTime ? new Date(r.clockInTime).toTimeString().slice(0, 5) : null,
+        clockIn: r.clockInTime ? toLocalTimeStr(new Date(r.clockInTime)) : null,
       });
     });
 
@@ -496,8 +503,8 @@ export class ReportsService {
       emp.details.push({
         date: r.date,
         breaks: (r.breaks || []).map((b: any) => ({
-          out: b.breakOut ? new Date(b.breakOut).toTimeString().slice(0, 5) : null,
-          in: b.breakIn ? new Date(b.breakIn).toTimeString().slice(0, 5) : null,
+          out: b.breakOut ? toLocalTimeStr(new Date(b.breakOut)) : null,
+          in: b.breakIn ? toLocalTimeStr(new Date(b.breakIn)) : null,
           minutes: b.durationMinutes,
         })),
         totalMinutes: dayBreakMinutes,
@@ -642,23 +649,23 @@ export class ReportsService {
           date: dateStr,
           dayName: dayNames[dayOfWeek],
           status: r.status,
-          clockIn: r.clockInTime ? new Date(r.clockInTime).toTimeString().slice(0, 5) : null,
-          clockOut: r.clockOutTime ? new Date(r.clockOutTime).toTimeString().slice(0, 5) : null,
+          clockIn: r.clockInTime ? toLocalTimeStr(new Date(r.clockInTime)) : null,
+          clockOut: r.clockOutTime ? toLocalTimeStr(new Date(r.clockOutTime)) : null,
           lateMinutes: r.lateMinutes || 0,
           lateCompensatedMinutes: (r as any).lateCompensatedMinutes || 0,
           earlyLeaveMinutes: r.earlyLeaveMinutes || 0,
           workedMinutes: r.workedMinutes,
           overtimeMinutes: r.overtimeMinutes,
           breaks: (r.breaks || []).map((b: any) => ({
-            out: b.breakOut ? new Date(b.breakOut).toTimeString().slice(0, 5) : null,
-            in: b.breakIn ? new Date(b.breakIn).toTimeString().slice(0, 5) : null,
+            out: b.breakOut ? toLocalTimeStr(new Date(b.breakOut)) : null,
+            in: b.breakIn ? toLocalTimeStr(new Date(b.breakIn)) : null,
             minutes: b.durationMinutes,
           })),
           totalBreakMinutes: r.totalBreakMinutes || 0,
           netWorkedMinutes: r.netWorkedMinutes,
           punchSequenceStatus: (r as any).punchSequenceStatus || 'VALID',
-          leaveStart: (r as any).leaveStartTime ? new Date((r as any).leaveStartTime).toTimeString().slice(0, 5) : null,
-          leaveEnd: (r as any).leaveEndTime ? new Date((r as any).leaveEndTime).toTimeString().slice(0, 5) : null,
+          leaveStart: (r as any).leaveStartTime ? toLocalTimeStr(new Date((r as any).leaveStartTime)) : null,
+          leaveEnd: (r as any).leaveEndTime ? toLocalTimeStr(new Date((r as any).leaveEndTime)) : null,
           hourlyLeaveMinutes: (r as any).hourlyLeaveMinutes || 0,
           source: r.source,
         });
