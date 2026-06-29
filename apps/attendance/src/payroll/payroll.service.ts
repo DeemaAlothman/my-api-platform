@@ -1154,6 +1154,7 @@ export class PayrollService {
       'بدل الطعام', 'الأجر الساعي', 'إجازات بأجر', 'إجازات بلا راتب',
       'قيمة الإجازات بلا راتب', 'إجازات مرضية', 'قيمة الإجازات المرضية',
       'إجازات ساعية', 'قيمة الإجازات الساعية', 'التأخير (د)', 'قيمة التأخير',
+      'دقائق الخروج المبكر', 'قيمة الحسم',
       'إضافي أيام عادية (س)', 'قيمة إضافي عادي',
       'إضافي أيام عطل (س)', 'قيمة إضافي عطل',
       'أيام مهمة داخلية', 'قيمة المهمات الداخلية',
@@ -1182,6 +1183,8 @@ export class PayrollService {
         Number((p as any).hourlyLeaveAmount ?? 0),
         Number(p.totalLateMinutesEffective ?? 0),
         Number(bd?.lateDeduction ?? 0),
+        Number((p as any).totalEarlyLeaveMinutes ?? 0),
+        Number(bd?.earlyLeave?.amount ?? 0),
         parseFloat((Number((p as any).overtimeWorkdayMinutes ?? 0) / 60).toFixed(2)),
         Number((p as any).overtimeWorkdayPay ?? 0),
         parseFloat((Number((p as any).overtimeHolidayMinutes ?? 0) / 60).toFixed(2)),
@@ -1204,7 +1207,7 @@ export class PayrollService {
     const totalNet = payrolls.reduce((s, p) => s + Number((p as any).roundedNetSalary ?? Math.round(Number(p.netSalary ?? 0))), 0);
     rows.push([
       'إجمالي كتلة الرواتب', '', '', '', '', '', '', '', '', '', '', '', '',
-      '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+      '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
       '', totalNet, '',
     ]);
 
