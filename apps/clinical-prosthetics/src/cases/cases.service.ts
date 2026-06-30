@@ -56,6 +56,28 @@ export class CasesService {
     }
   }
 
+  // جلب أسماء الموظفين (معالج فيزيائي/فني أطراف/مشرف) بالجملة عبر استعلام مباشر لقاعدة users
+  private async resolveEmployeeNames(
+    employeeIds: Array<string | null | undefined>,
+  ): Promise<Record<string, { firstNameAr: string; lastNameAr: string; jobTitleAr: string | null }>> {
+    const ids = [...new Set(employeeIds.filter(Boolean) as string[])];
+    if (ids.length === 0) return {};
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      id: string; firstNameAr: string; lastNameAr: string; jobTitleAr: string | null;
+    }>>(
+      `SELECT e.id, e."firstNameAr", e."lastNameAr", jt."nameAr" as "jobTitleAr"
+       FROM users.employees e
+       LEFT JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+       WHERE e.id = ANY($1::text[]) AND e."deletedAt" IS NULL`,
+      ids,
+    ).catch(() => [] as Array<{ id: string; firstNameAr: string; lastNameAr: string; jobTitleAr: string | null }>);
+    const map: Record<string, { firstNameAr: string; lastNameAr: string; jobTitleAr: string | null }> = {};
+    for (const r of rows) {
+      map[r.id] = { firstNameAr: r.firstNameAr, lastNameAr: r.lastNameAr, jobTitleAr: r.jobTitleAr };
+    }
+    return map;
+  }
+
   private async generateCaseNumber(): Promise<string> {
     const year = new Date().getFullYear();
     const count = await this.prisma.prostheticsCase.count();
@@ -182,7 +204,17 @@ export class CasesService {
     });
     if (!c) throw new NotFoundException('Prosthetics case not found');
     const nameMap = await this.resolvePatientNames([c.patientId]);
-    return { ...c, patient: nameMap[c.patientId] ?? null };
+    const empMap = await this.resolveEmployeeNames([
+      c.prosthetistId, c.physiotherapistId, c.supervisingDoctorId, c.workshopSupervisorId,
+    ]);
+    return {
+      ...c,
+      patient: nameMap[c.patientId] ?? null,
+      prosthetist: c.prosthetistId ? (empMap[c.prosthetistId] ?? null) : null,
+      physiotherapist: c.physiotherapistId ? (empMap[c.physiotherapistId] ?? null) : null,
+      supervisingDoctor: c.supervisingDoctorId ? (empMap[c.supervisingDoctorId] ?? null) : null,
+      workshopSupervisor: c.workshopSupervisorId ? (empMap[c.workshopSupervisorId] ?? null) : null,
+    };
   }
 
   async update(id: string, dto: UpdateCaseDto) {
@@ -905,5 +937,45 @@ export class CasesService {
 
     events.sort((a, b) => a.date.getTime() - b.date.getTime());
     return { caseId, caseNumber: c.caseNumber, timeline: events };
+  }
+
+  // ── Attachments (صور البتر وغيرها — واحدة أو أكثر) ──────────────────────────
+
+  async addAttachment(caseId: string, file: Express.Multer.File, caption: string | undefined, userId: string) {
+    if (!file) throw new BadRequestException('لم يتم رفع أي ملف');
+    await this.findCaseOrThrow(caseId);
+
+    return this.prisma.caseAttachment.create({
+      data: {
+        caseId,
+        fileName: file.originalname,
+        filePath: (file as any).path,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        caption,
+        uploadedBy: userId,
+      },
+    });
+  }
+
+  async getAttachments(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.caseAttachment.findMany({
+      where: { caseId },
+      orderBy: { uploadedAt: 'desc' },
+    });
+  }
+
+  async getAttachmentForDownload(caseId: string, attachmentId: string) {
+    const att = await this.prisma.caseAttachment.findFirst({ where: { id: attachmentId, caseId } });
+    if (!att) throw new NotFoundException('المرفق غير موجود');
+    return att;
+  }
+
+  async deleteAttachment(caseId: string, attachmentId: string) {
+    const att = await this.prisma.caseAttachment.findFirst({ where: { id: attachmentId, caseId } });
+    if (!att) throw new NotFoundException('المرفق غير موجود');
+    await this.prisma.caseAttachment.delete({ where: { id: attachmentId } });
+    return { message: 'تم حذف المرفق' };
   }
 }

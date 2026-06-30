@@ -331,6 +331,7 @@ model ProstheticsCase {
   finalEvaluation  FinalEvaluation?
   delivery         Delivery?
   followUps        FollowUp[]
+  attachments      CaseAttachment[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -656,6 +657,27 @@ model MediaSession {
   supervisorId    String
 
   @@map("media_sessions")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Attachments (صور البتر وغيرها) ──────────────────────────────────────────
+
+model CaseAttachment {
+  id         String          @id @default(uuid())
+  caseId     String
+  case       ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  caption    String?
+
+  uploadedAt DateTime        @default(now())
+  uploadedBy String
+
+  @@index([caseId])
+  @@map("case_attachments")
   @@schema("clinic_prosthetics")
 }
 

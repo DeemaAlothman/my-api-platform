@@ -1,9 +1,12 @@
 import {
   Controller, Get, Post, Put, Delete, Body, Param, Query,
-  UseGuards, Req, Res,
+  UseGuards, Req, Res, UploadedFile, UseInterceptors, NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { createReadStream, existsSync } from 'fs';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CasesService } from './cases.service';
+import { caseAttachmentMulterOptions } from './case-files.config';
 import { PdfService } from './pdf.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
 import { UpperLimbAssessmentDto, LowerLimbAssessmentDto } from './dto/assessment.dto';
@@ -266,6 +269,50 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
   getTimeline(@Param('id') id: string) {
     return this.service.getTimeline(id);
+  }
+
+  // ── Attachments (صور البتر وغيرها — واحدة أو أكثر، كل صورة برفع منفصل) ─────────
+
+  @Post(':id/attachments')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
+  @UseInterceptors(FileInterceptor('file', caseAttachmentMulterOptions))
+  uploadAttachment(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('caption') caption: string,
+    @User() user: any,
+  ) {
+    return this.service.addAttachment(id, file, caption, user.userId);
+  }
+
+  @Get(':id/attachments')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getAttachments(@Param('id') id: string) {
+    return this.service.getAttachments(id);
+  }
+
+  @Get(':id/attachments/:attachmentId/download')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  async downloadAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res() res: Response,
+  ) {
+    const att = await this.service.getAttachmentForDownload(id, attachmentId);
+    if (!existsSync(att.filePath)) {
+      throw new NotFoundException('الملف غير موجود على الخادم');
+    }
+    res.set({
+      'Content-Type': att.mimeType || 'application/octet-stream',
+      'Content-Disposition': `inline; filename="${encodeURIComponent(att.fileName)}"`,
+    });
+    createReadStream(att.filePath).pipe(res);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
+  deleteAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string) {
+    return this.service.deleteAttachment(id, attachmentId);
   }
 
   // ── PDF Report ────────────────────────────────────────────────────────────
