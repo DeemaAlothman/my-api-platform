@@ -24,8 +24,9 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
   imports: [
+    // طلبات كل الموظفين بتوصل عبر الـ gateway بنفس IP الداخلي، فهاد الحد فعلياً مشترك للشركة كلها وليس لكل مستخدم
     ThrottlerModule.forRoot([
-      { name: 'hour', ttl: 3600000, limit: 1000 },
+      { name: 'hour', ttl: 3600000, limit: 30000 },
     ]),
     PassportModule,
     JwtModule.register({
