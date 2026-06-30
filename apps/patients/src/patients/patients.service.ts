@@ -126,11 +126,14 @@ export class PatientsService {
       ? Math.round(((dto.weightKg || patient.weightKg)! / Math.pow(((dto.heightCm || patient.heightCm)! / 100), 2)) * 10) / 10
       : patient.bmi;
 
+    const { cityId, ...rest } = dto;
+
     return this.prisma.patient.update({
       where: { id },
       data: {
-        ...dto,
+        ...rest,
         bmi,
+        ...(cityId ? { city: { connect: { id: cityId } } } : {}),
         ...(dto.dateOfBirth ? { dateOfBirth: new Date(dto.dateOfBirth) } : {}),
       },
       include: { city: true },
