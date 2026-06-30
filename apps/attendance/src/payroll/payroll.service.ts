@@ -1131,7 +1131,7 @@ export class PayrollService {
     let employees: any[] = [];
     if (empIds.length > 0) {
       employees = await this.prisma.$queryRawUnsafe(`
-        SELECT e.id, e."firstNameAr", e."lastNameAr", e."workType",
+        SELECT e.id, e."firstNameAr", e."lastNameAr", e."workType", e."hireDate",
                jt."nameAr" as "jobTitleAr"
         FROM users.employees e
         LEFT JOIN users.job_titles jt ON jt.id = e."jobTitleId"
@@ -1139,6 +1139,31 @@ export class PayrollService {
       `, empIds) as any[];
     }
     const empMap = new Map(employees.map(e => [e.id, e]));
+
+    // تفصيل الإجازات اليومية حسب نوع الإجازة (يستثني الساعية والتعويضية التلقائية — لها أعمدتها الخاصة)
+    const monthStart = new Date(Date.UTC(year, month - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, month, 0));
+    let leaveTypeRows: Array<{ employeeId: string; typeName: string; days: number }> = [];
+    if (empIds.length > 0) {
+      leaveTypeRows = await this.prisma.$queryRawUnsafe(`
+        SELECT lr."employeeId", lt."nameAr" as "typeName", SUM(lr."totalDays")::float as days
+        FROM leaves.leave_requests lr
+        JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+        WHERE lr."employeeId" = ANY($1::text[])
+          AND lr.status = 'APPROVED'
+          AND lr."deletedAt" IS NULL
+          AND lr."isHourlyLeave" = false
+          AND (lr.source IS NULL OR lr.source = 'EMPLOYEE_REQUEST')
+          AND lr."startDate" <= $3 AND lr."endDate" >= $2
+        GROUP BY lr."employeeId", lt."nameAr"
+      `, empIds, monthStart, monthEnd) as any[];
+    }
+    const leaveTypeNames = [...new Set(leaveTypeRows.map(r => r.typeName))].sort();
+    const leaveTypeByEmployee = new Map<string, Map<string, number>>();
+    for (const row of leaveTypeRows) {
+      if (!leaveTypeByEmployee.has(row.employeeId)) leaveTypeByEmployee.set(row.employeeId, new Map());
+      leaveTypeByEmployee.get(row.employeeId)!.set(row.typeName, Number(row.days));
+    }
 
     const workTypeAr = (wt: string | null): string => {
       switch (wt) {
@@ -1150,11 +1175,11 @@ export class PayrollService {
     };
 
     const headers = [
-      'اسم الموظف', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب المقطوع',
-      'بدل الطعام', 'الأجر الساعي', 'إجازات بأجر', 'إجازات بلا راتب',
+      'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب المقطوع',
+      'بدل الطعام', 'الأجر الساعي', 'إجازات بأجر', ...leaveTypeNames, 'إجازات بلا راتب',
       'قيمة الإجازات بلا راتب', 'إجازات مرضية', 'قيمة الإجازات المرضية',
-      'إجازات ساعية', 'قيمة الإجازات الساعية', 'التأخير (د)', 'قيمة التأخير',
-      'دقائق الخروج المبكر', 'قيمة الحسم',
+      'إجازات ساعية', 'قيمة الإجازات الساعية', 'التأخير (د)', 'قيمة التأخير بعد خصمها من الرصيد المسموح',
+      'دقائق الخروج المبكر', 'قيمة الخروج المبكر بعد الحسم من الرصيد المسموح',
       'أيام الغياب', 'قيمة استقطاع الغياب',
       'إضافي أيام عادية (س)', 'قيمة إضافي عادي',
       'إضافي أيام عطل (س)', 'قيمة إضافي عطل',
@@ -1168,14 +1193,18 @@ export class PayrollService {
       const emp = empMap.get(p.employeeId);
       const allowances = p.allowancesBreakdown ? JSON.parse(p.allowancesBreakdown as string) : {};
       const bd = p.deductionBreakdown as any;
+      const empLeaveTypes = leaveTypeByEmployee.get(p.employeeId);
+      const leaveTypeValues = leaveTypeNames.map(name => empLeaveTypes?.get(name) ?? 0);
       return [
         `${emp?.firstNameAr ?? ''} ${emp?.lastNameAr ?? ''}`.trim() || '—',
+        emp?.hireDate ? new Date(emp.hireDate).toISOString().split('T')[0] : '—',
         emp?.jobTitleAr ?? '—',
         workTypeAr(emp?.workType),
         Number((p as any).deductibleBaseSalary ?? p.basicSalary ?? 0),
         Number(allowances.FOOD ?? 0),
         Number((p as any).hourlyRate ?? 0),
         Number((p as any).paidLeaveDays ?? 0),
+        ...leaveTypeValues,
         Number((p as any).unpaidLeaveDays ?? 0),
         Number((p as any).unpaidLeaveAmount ?? 0),
         Number((p as any).sickLeaveDays ?? 0),
@@ -1206,13 +1235,12 @@ export class PayrollService {
       ];
     });
 
-    // صف الإجمالي
+    // صف الإجمالي — يُبنى ديناميكياً بطول الأعمدة لتجنب أخطاء العدّ اليدوي عند إضافة أعمدة جديدة
     const totalNet = payrolls.reduce((s, p) => s + Number((p as any).roundedNetSalary ?? Math.round(Number(p.netSalary ?? 0))), 0);
-    rows.push([
-      'إجمالي كتلة الرواتب', '', '', '', '', '', '', '', '', '', '', '', '',
-      '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
-      '', totalNet, '',
-    ]);
+    const totalRow = new Array(headers.length).fill('');
+    totalRow[0] = 'إجمالي كتلة الرواتب';
+    totalRow[headers.length - 2] = totalNet; // عمود 'تقريب'
+    rows.push(totalRow);
 
     const monthNames = ['','يناير','فبراير','مارس','أبريل','مايو','يونيو',
                         'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
