@@ -99,6 +99,10 @@ export class AttendanceRecordsService {
     });
     const salaryLinked = config?.salaryLinked ?? true;
 
+    // الموظف غير المرتبط بالراتب: نسجّل الحضور الفعلي فقط، بدون تأخير/استقطاعات (غير ذات معنى له)
+    const status = salaryLinked ? computed.status : (computed.status === 'LATE' ? 'PRESENT' : computed.status);
+    const lateMinutes = salaryLinked ? computed.lateMinutes : 0;
+
     const record = await this.prisma.attendanceRecord.create({
       data: {
         employeeId,
@@ -106,8 +110,8 @@ export class AttendanceRecordsService {
         clockInTime,
         clockInLocation: dto.location,
         notes: dto.notes,
-        status: computed.status,
-        lateMinutes: computed.lateMinutes,
+        status,
+        lateMinutes,
         source: (dto as any).source || 'WEB',
         deviceSN: (dto as any).deviceSN || null,
         salaryLinked,
@@ -115,7 +119,7 @@ export class AttendanceRecordsService {
     });
 
     // Auto-create alert if late
-    if (computed.status === 'LATE') {
+    if (salaryLinked && computed.status === 'LATE') {
       await this.attendanceAlertsService.create({
         employeeId,
         date: startOfDay.toISOString().split('T')[0],
@@ -196,6 +200,17 @@ export class AttendanceRecordsService {
       totalBreakMinutes,
     });
 
+    // جلب إعدادات الراتب للموظف
+    const config = await this.prisma.employeeAttendanceConfig.findUnique({
+      where: { employeeId },
+    });
+    const salaryLinked = (record as any).salaryLinked ?? config?.salaryLinked ?? true;
+
+    // الموظف غير المرتبط بالراتب: نسجّل أوقات الحضور الفعلية فقط، بدون تأخير/خروج مبكر/استقطاعات
+    const status = salaryLinked ? computed.status : (['LATE', 'EARLY_LEAVE'].includes(computed.status) ? 'PRESENT' : computed.status);
+    const lateMinutes = salaryLinked ? computed.lateMinutes : 0;
+    const earlyLeaveMinutes = salaryLinked ? computed.earlyLeaveMinutes : 0;
+
     const updatedRecord = await this.prisma.attendanceRecord.update({
       where: { id: record.id },
       data: {
@@ -203,17 +218,17 @@ export class AttendanceRecordsService {
         clockOutLocation: dto.location,
         workedMinutes: computed.workedMinutes,
         netWorkedMinutes: computed.netWorkedMinutes,
-        lateMinutes: computed.lateMinutes,
-        earlyLeaveMinutes: computed.earlyLeaveMinutes,
+        lateMinutes,
+        earlyLeaveMinutes,
         overtimeMinutes: computed.overtimeMinutes,
         lateCompensatedMinutes: computed.lateCompensatedMinutes,
-        status: computed.status,
+        status,
         totalBreakMinutes,
       },
     });
 
     // Auto-create alert if early leave
-    if (computed.earlyLeaveMinutes > 0) {
+    if (salaryLinked && computed.earlyLeaveMinutes > 0) {
       await this.attendanceAlertsService.create({
         employeeId,
         date: startOfDay.toISOString().split('T')[0],
@@ -578,6 +593,13 @@ export class AttendanceRecordsService {
       totalBreakMinutes,
     });
 
+    // الموظف غير المرتبط بالراتب: تأخير/خروج مبكر غير ذي معنى له
+    const config = await this.prisma.employeeAttendanceConfig.findUnique({ where: { employeeId } });
+    const salaryLinked = (record as any).salaryLinked ?? config?.salaryLinked ?? true;
+    const status = salaryLinked ? computed.status : (['LATE', 'EARLY_LEAVE'].includes(computed.status) ? 'PRESENT' : computed.status);
+    const lateMinutes = salaryLinked ? computed.lateMinutes : 0;
+    const earlyLeaveMinutes = salaryLinked ? computed.earlyLeaveMinutes : 0;
+
     const punchSequenceStatus = !clockOutTime ? 'PARTIAL' : 'VALID';
 
     await this.prisma.$queryRawUnsafe(
@@ -591,9 +613,9 @@ export class AttendanceRecordsService {
        WHERE id = $12`,
       clockInTime, clockOutTime,
       computed.workedMinutes, computed.netWorkedMinutes,
-      computed.lateMinutes, computed.earlyLeaveMinutes,
+      lateMinutes, earlyLeaveMinutes,
       computed.overtimeMinutes, computed.lateCompensatedMinutes,
-      totalBreakMinutes, computed.status, punchSequenceStatus,
+      totalBreakMinutes, status, punchSequenceStatus,
       recordId,
     );
 
