@@ -1,4 +1,4 @@
-import { Controller, Post, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, UseGuards } from '@nestjs/common';
 import { DailyClosureService } from './daily-closure.service';
 import { BackfillService } from './backfill.service';
 import { JwtAuthGuard } from '@shared/auth';
@@ -37,5 +37,13 @@ export class DailyClosureController {
   @Permission('attendance.records.create')
   backfillEarlyLeave(@Param('year') year: string, @Param('month') month: string) {
     return this.dailyClosureService.backfillEarlyLeaveOffsets(parseInt(year), parseInt(month));
+  }
+
+  // تدقيق قراءة فقط — لا يكتب أي شيء بقاعدة البيانات: يقارن "المتوقع" بـ"المخزّن فعلياً" لرصيد
+  // التأخير/الانصراف المبكر المشترك لكل موظفي الشهر، ويرجّع فقط الفروقات
+  @Get('audit-offsets/:year/:month')
+  @Permission('attendance.records.create')
+  auditOffsets(@Param('year') year: string, @Param('month') month: string) {
+    return this.dailyClosureService.auditOffsets(parseInt(year), parseInt(month));
   }
 }

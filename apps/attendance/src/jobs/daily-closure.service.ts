@@ -772,6 +772,125 @@ export class DailyClosureService implements OnModuleInit {
     return { year, month, recordsProcessed, totalMinutesConsumed, totalMinutesPendingDeduction, errors };
   }
 
+  /**
+   * تدقيق (قراءة فقط — لا يكتب أو يعدّل أي شيء بقاعدة البيانات): يعيد محاكاة منطق "الرصيد المشترك"
+   * (تأخير + انصراف مبكر يستهلكان نفس رصيد الإجازة الساعية الشهرية، بالترتيب الزمني، التأخير أولاً)
+   * من الصفر لكل موظف عبر الشهر، ويقارن الناتج المتوقع مع القيم المخزّنة فعلياً بقاعدة البيانات.
+   * يرجّع فقط السجلات التي فيها فرق، مع التأثير التقريبي على الراتب (دقيقة الراتب = الراتب الأساسي/30/8/60).
+   */
+  async auditOffsets(year: number, month: number): Promise<{
+    year: number; month: number; recordsChecked: number;
+    discrepanciesFound: number; discrepancies: any[];
+  }> {
+    const monthStart = new Date(Date.UTC(year, month - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, month, 0));
+
+    const hourlyTypes = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "maxHoursPerMonth" FROM leaves.leave_types
+       WHERE code = 'HOURLY' AND "isActive" = true LIMIT 1`,
+    )) as Array<{ id: string; maxHoursPerMonth: number }>;
+    if (!hourlyTypes[0]) {
+      return { year, month, recordsChecked: 0, discrepanciesFound: 0, discrepancies: [] };
+    }
+    const leaveTypeId = hourlyTypes[0].id;
+    const maxMonthlyMinutes = (hourlyTypes[0].maxHoursPerMonth ?? 2) * 60;
+
+    // فقط الطلبات الشخصية الحقيقية (نستثني TARDINESS_AUTO / EARLY_LEAVE_AUTO لأنها نتيجة وليست مُدخَل)
+    const personalRequests = (await this.prisma.$queryRawUnsafe(
+      `SELECT "employeeId", "startDate", ("durationHours" * 60)::int AS minutes
+       FROM leaves.leave_requests
+       WHERE "isHourlyLeave" = true AND status = 'APPROVED'
+         AND ("source" IS NULL OR "source" = 'EMPLOYEE_REQUEST')
+         AND "leaveTypeId" = $1 AND "startDate" >= $2 AND "startDate" <= $3
+         AND "deletedAt" IS NULL
+       ORDER BY "employeeId" ASC, "startDate" ASC`,
+      leaveTypeId, monthStart, monthEnd,
+    )) as Array<{ employeeId: string; startDate: Date; minutes: number }>;
+
+    const personalByEmployee = new Map<string, Array<{ date: Date; minutes: number }>>();
+    for (const p of personalRequests) {
+      if (!personalByEmployee.has(p.employeeId)) personalByEmployee.set(p.employeeId, []);
+      personalByEmployee.get(p.employeeId)!.push({ date: p.startDate, minutes: p.minutes });
+    }
+
+    const records = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "employeeId", date, "lateMinutes", "lateCompensatedMinutes",
+              "earlyLeaveMinutes", "earlyLeaveCompensatedMinutes",
+              "tardinessPendingDeductionMinutes", "earlyLeavePendingDeductionMinutes"
+       FROM attendance.attendance_records
+       WHERE date >= $1::date AND date <= $2::date
+         AND status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND ("lateMinutes" > "lateCompensatedMinutes" OR "earlyLeaveMinutes" > "earlyLeaveCompensatedMinutes")
+       ORDER BY "employeeId" ASC, date ASC`,
+      monthStart, monthEnd,
+    )) as Array<{
+      id: string; employeeId: string; date: Date;
+      lateMinutes: number; lateCompensatedMinutes: number;
+      earlyLeaveMinutes: number; earlyLeaveCompensatedMinutes: number;
+      tardinessPendingDeductionMinutes: number; earlyLeavePendingDeductionMinutes: number;
+    }>;
+
+    const consumedSoFar = new Map<string, number>();
+    const discrepancies: any[] = [];
+
+    for (const r of records) {
+      const uncompLate = Math.max(0, r.lateMinutes - r.lateCompensatedMinutes);
+      const uncompEarly = Math.max(0, r.earlyLeaveMinutes - r.earlyLeaveCompensatedMinutes);
+      const totalUncomp = uncompLate + uncompEarly;
+      if (totalUncomp <= 0) continue;
+
+      const personalUsed = (personalByEmployee.get(r.employeeId) || [])
+        .filter((p) => p.date <= r.date)
+        .reduce((s, p) => s + p.minutes, 0);
+      const autoUsedSoFar = consumedSoFar.get(r.employeeId) || 0;
+      const usedMinutes = personalUsed + autoUsedSoFar;
+      const remainingBalance = Math.max(0, maxMonthlyMinutes - usedMinutes);
+      const toConsume = Math.min(totalUncomp, remainingBalance);
+      const consumedLate = Math.min(uncompLate, toConsume);
+      const consumedEarly = toConsume - consumedLate;
+
+      consumedSoFar.set(r.employeeId, autoUsedSoFar + toConsume);
+
+      const expectedPendingLate = uncompLate - consumedLate;
+      const expectedPendingEarly = uncompEarly - consumedEarly;
+      const actualPendingLate = r.tardinessPendingDeductionMinutes || 0;
+      const actualPendingEarly = r.earlyLeavePendingDeductionMinutes || 0;
+
+      if (expectedPendingLate !== actualPendingLate || expectedPendingEarly !== actualPendingEarly) {
+        discrepancies.push({
+          employeeId: r.employeeId,
+          date: r.date.toISOString().split('T')[0],
+          expectedPendingLate, actualPendingLate, diffLateMinutes: expectedPendingLate - actualPendingLate,
+          expectedPendingEarly, actualPendingEarly, diffEarlyMinutes: expectedPendingEarly - actualPendingEarly,
+        });
+      }
+    }
+
+    // إثراء الفروقات بالأثر التقريبي على الراتب (راتب أساسي فقط، بدون بدلات — تقريبي)
+    if (discrepancies.length > 0) {
+      const employeeIds = [...new Set(discrepancies.map((d) => d.employeeId))];
+      const salaries = (await this.prisma.$queryRawUnsafe(
+        `SELECT e.id AS "employeeId", e."basicSalary", u."fullName"
+         FROM users.employees e
+         LEFT JOIN users.users u ON u.id = e."userId"
+         WHERE e.id = ANY($1::text[])`,
+        employeeIds,
+      )) as Array<{ employeeId: string; basicSalary: string | null; fullName: string | null }>;
+      const salaryMap = new Map(salaries.map((s) => [s.employeeId, s]));
+
+      for (const d of discrepancies) {
+        const s = salaryMap.get(d.employeeId);
+        const basicSalary = s?.basicSalary ? parseFloat(s.basicSalary) : 0;
+        const minuteRate = basicSalary / 30 / 8 / 60;
+        const totalDiffMinutes = d.diffLateMinutes + d.diffEarlyMinutes;
+        d.employeeName = s?.fullName ?? null;
+        d.approxAmountImpact = parseFloat((totalDiffMinutes * minuteRate).toFixed(2));
+      }
+    }
+
+    return { year, month, recordsChecked: records.length, discrepanciesFound: discrepancies.length, discrepancies };
+  }
+
   private async sendTardinessNotification(
     employeeId: string,
     type: string,
