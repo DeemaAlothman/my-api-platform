@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustodyDto } from './dto/create-custody.dto';
 import { UpdateCustodyDto } from './dto/update-custody.dto';
 import { ReturnCustodyDto } from './dto/return-custody.dto';
+import { TransferCustodyDto } from './dto/transfer-custody.dto';
 import { ListCustodiesQueryDto } from './dto/list-custodies.query.dto';
 import { CustodyStatus } from './dto/custody.enums';
 
@@ -110,6 +111,7 @@ export class CustodiesService {
       where: { id, deletedAt: null },
       include: {
         attachments: true,
+        transfers: { orderBy: { createdAt: 'desc' } },
         employee: {
           select: {
             id: true,
@@ -168,6 +170,64 @@ export class CustodiesService {
         returnedDate: dto.returnedDate ? new Date(dto.returnedDate) : new Date(),
         notes: dto.notes ?? custody.notes,
       },
+    });
+  }
+
+  // نقل عهدة من الموظف الحالي لموظف جديد — يحفظ تاريخ الاستلام من القديم وتاريخ التسليم للجديد
+  // بسجل تاريخي منفصل، ولا يلمس المرفقات (الملفات) إطلاقاً
+  async transferCustody(id: string, dto: TransferCustodyDto, userId: string) {
+    const custody = await this.findOne(id);
+
+    if (custody.status !== CustodyStatus.WITH_EMPLOYEE) {
+      throw new BadRequestException('لا يمكن نقل عهدة ليست مع موظف حالياً');
+    }
+    if (dto.newEmployeeId === custody.employeeId) {
+      throw new BadRequestException('الموظف الجديد هو نفسه الموظف الحالي');
+    }
+
+    const newEmployee = await this.prisma.employee.findFirst({
+      where: { id: dto.newEmployeeId, deletedAt: null },
+    });
+    if (!newEmployee) {
+      throw new NotFoundException('الموظف الجديد غير موجود');
+    }
+
+    const returnedDate = dto.returnedDate ? new Date(dto.returnedDate) : new Date();
+    const handoverDate = dto.handoverDate ? new Date(dto.handoverDate) : new Date();
+
+    await this.prisma.custodyTransfer.create({
+      data: {
+        custodyId: id,
+        fromEmployeeId: custody.employeeId,
+        toEmployeeId: dto.newEmployeeId,
+        returnedDate,
+        handoverDate,
+        notes: dto.notes,
+        transferredBy: userId,
+      },
+    });
+
+    return this.prisma.custody.update({
+      where: { id },
+      data: {
+        employeeId: dto.newEmployeeId,
+        assignedDate: handoverDate,
+      },
+      include: {
+        attachments: true,
+        transfers: { orderBy: { createdAt: 'desc' } },
+        employee: {
+          select: { id: true, firstNameAr: true, lastNameAr: true, employeeNumber: true },
+        },
+      },
+    });
+  }
+
+  async getTransferHistory(id: string) {
+    await this.findOne(id);
+    return this.prisma.custodyTransfer.findMany({
+      where: { custodyId: id },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

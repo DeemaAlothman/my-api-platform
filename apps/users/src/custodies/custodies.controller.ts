@@ -6,6 +6,7 @@ import { CustodiesService } from './custodies.service';
 import { CreateCustodyDto } from './dto/create-custody.dto';
 import { UpdateCustodyDto } from './dto/update-custody.dto';
 import { ReturnCustodyDto } from './dto/return-custody.dto';
+import { TransferCustodyDto } from './dto/transfer-custody.dto';
 import { ListCustodiesQueryDto } from './dto/list-custodies.query.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
@@ -71,6 +72,19 @@ export class CustodiesController {
   @Permission('custodies:update')
   returnCustody(@Param('id') id: string, @Body() dto: ReturnCustodyDto) {
     return this.custodiesService.returnCustody(id, dto);
+  }
+
+  // نقل العهدة لموظف جديد — يحفظ تاريخ الاستلام من القديم وتاريخ التسليم للجديد بسجل تاريخي
+  @Patch(':id/transfer')
+  @Permission('custodies:update')
+  transferCustody(@Param('id') id: string, @Body() dto: TransferCustodyDto, @Req() req: any) {
+    return this.custodiesService.transferCustody(id, dto, req.user.sub);
+  }
+
+  @Get(':id/transfers')
+  @Permission('custodies:read')
+  getTransferHistory(@Param('id') id: string) {
+    return this.custodiesService.getTransferHistory(id);
   }
 
   @Delete(':id')

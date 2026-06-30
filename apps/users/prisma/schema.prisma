@@ -495,6 +495,7 @@ model Custody {
   notes        String?
 
   attachments  CustodyAttachment[]
+  transfers    CustodyTransfer[]
 
   createdBy    String?
   createdAt    DateTime        @default(now())
@@ -505,6 +506,29 @@ model Custody {
   @@index([status])
   @@index([serialNumber])
   @@map("custodies")
+}
+
+// سجل تاريخي لكل نقل عهدة من موظف لآخر — يحفظ تاريخ الاستلام من القديم وتاريخ التسليم للجديد
+model CustodyTransfer {
+  id              String   @id @default(uuid())
+  custodyId       String
+  custody         Custody  @relation(fields: [custodyId], references: [id], onDelete: Cascade)
+
+  fromEmployeeId  String
+  toEmployeeId    String
+
+  returnedDate    DateTime // تاريخ الاستلام من الموظف القديم
+  handoverDate    DateTime // تاريخ التسليم للموظف الجديد
+
+  notes           String?
+  transferredBy   String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([custodyId])
+  @@index([fromEmployeeId])
+  @@index([toEmployeeId])
+  @@map("custody_transfers")
 }
 
 model CustodyAttachment {
