@@ -39,6 +39,14 @@ export class DailyClosureController {
     return this.dailyClosureService.backfillEarlyLeaveOffsets(parseInt(year), parseInt(month));
   }
 
+  // سكريبت تعويضي one-off: معالجة التأخير لشهر مضى بآلية الرصيد المشترك (لا يلمس إلا سجلات
+  // التأخير غير المعالجة سابقاً)
+  @Post('backfill-tardiness/:year/:month')
+  @Permission('attendance.records.create')
+  backfillTardiness(@Param('year') year: string, @Param('month') month: string) {
+    return this.dailyClosureService.backfillTardinessOffsets(parseInt(year), parseInt(month));
+  }
+
   // تدقيق قراءة فقط — لا يكتب أي شيء بقاعدة البيانات: يقارن "المتوقع" بـ"المخزّن فعلياً" لرصيد
   // التأخير/الانصراف المبكر المشترك لكل موظفي الشهر، ويرجّع فقط الفروقات
   @Get('audit-offsets/:year/:month')
