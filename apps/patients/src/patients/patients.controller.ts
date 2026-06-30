@@ -8,6 +8,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { PatientsService } from './patients.service';
 import { patientDocumentMulterOptions } from './patient-files.config';
 import { CreatePatientDto } from './dto/create-patient.dto';
+import { UpdatePatientDto } from './dto/update-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients.query.dto';
 import { CreateConsentDto } from './dto/create-consent.dto';
 import { JwtAuthGuard } from '@shared/auth';
@@ -68,7 +69,7 @@ export class PatientsController {
 
   @Put(':id')
   @Permission(PERMISSIONS.CLINIC_PATIENTS.EDIT)
-  update(@Param('id') id: string, @Body() dto: Partial<CreatePatientDto>) {
+  update(@Param('id') id: string, @Body() dto: UpdatePatientDto) {
     return this.service.update(id, dto);
   }
 

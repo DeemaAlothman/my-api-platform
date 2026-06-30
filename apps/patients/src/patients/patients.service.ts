@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
+import { UpdatePatientDto } from './dto/update-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients.query.dto';
 import { CreateConsentDto } from './dto/create-consent.dto';
 
@@ -111,7 +112,7 @@ export class PatientsService {
     return patient;
   }
 
-  async update(id: string, dto: Partial<CreatePatientDto>) {
+  async update(id: string, dto: UpdatePatientDto) {
     const patient = await this.prisma.patient.findFirst({ where: { id, deletedAt: null } });
     if (!patient) throw new NotFoundException('المريض غير موجود');
 
