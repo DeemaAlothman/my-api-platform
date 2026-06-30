@@ -447,11 +447,42 @@ export class PayrollService {
     );
     const deductibleLateMinutes = totalPendingDeductionMinutes;
 
-    lateDeductionMinutes = this.calcDeduction(
-      deductibleLateMinutes,
-      policy?.lateDeductionType ?? 'MINUTE_BY_MINUTE',
-      policy?.lateDeductionTiers ?? null,
-    );
+    // سياسة الحسم المتدرّجة (TIERED) تُطبَّق يومياً — كل يوم تأخير له دقائقه المعلّقة (بعد خصم
+    // الرصيد المشترك) الخاصة فيه، وتُصنَّف على حدة ضمن الشرائح. أول lateToleranceMinutes دقيقة
+    // (افتراضياً 15) من أي يوم غير معوّضة بالعمل تُخصم دقيقة بدقيقة بالأجر العادي، وليست جزءاً
+    // من الشرائح. تنسيق الشريحة الفعلي بقاعدة البيانات: { fromMinute, toMinute, deductionDays }.
+    lateDeductionMinutes = 0; // دقائق تُخصم بالأجر الدقيقي العادي (ضمن حد السماح أو MINUTE_BY_MINUTE)
+    let lateDeductionDaysFromTiers = 0; // أيام ثابتة من الشرائح (TIERED)
+
+    const lateTolerancePerDay = policy?.lateToleranceMinutes ?? 15;
+    let parsedLateTiers: Array<{ fromMinute: number; toMinute: number; deductionDays: number }> = [];
+    if (policy?.lateDeductionType === 'TIERED' && policy?.lateDeductionTiers) {
+      try { parsedLateTiers = JSON.parse(policy.lateDeductionTiers); } catch { parsedLateTiers = []; }
+    }
+
+    for (const r of records) {
+      const pendingForDay = (r as any).tardinessPendingDeductionMinutes || 0;
+      if (pendingForDay <= 0) continue;
+
+      if (parsedLateTiers.length === 0 || pendingForDay <= lateTolerancePerDay) {
+        lateDeductionMinutes += pendingForDay;
+        continue;
+      }
+
+      const tier = parsedLateTiers.find(t => pendingForDay >= t.fromMinute && pendingForDay <= t.toMinute);
+      if (tier) {
+        lateDeductionDaysFromTiers += tier.deductionDays;
+        continue;
+      }
+      const lastTier = parsedLateTiers[parsedLateTiers.length - 1];
+      if (lastTier && pendingForDay > lastTier.toMinute) {
+        lateDeductionDaysFromTiers += lastTier.deductionDays; // تجاوز آخر شريحة معرّفة — نطبّق سقفها
+      } else {
+        lateDeductionMinutes += pendingForDay; // لم يقع ضمن أي شريحة (مثلاً فجوة بين شريحتين) — دقيقة بدقيقة كحل آمن
+      }
+    }
+
+    const lateDeductionAmount = (lateDeductionMinutes * minuteRate) + (lateDeductionDaysFromTiers * dailyRate);
 
     // الانصراف المبكر يشارك نفس رصيد الإجازة الساعية مع التأخير — نستخدم القيمة الدقيقة بعد خصم الرصيد
     const totalEarlyLeavePendingDeductionMinutes = records.reduce(
@@ -463,7 +494,7 @@ export class PayrollService {
       null,
     );
 
-    const deductionAmount = (lateDeductionMinutes + earlyLeaveDeductionMinutes + breakDeductionMinutes) * minuteRate;
+    const deductionAmount = lateDeductionAmount + (earlyLeaveDeductionMinutes + breakDeductionMinutes) * minuteRate;
     const absenceDeductionAmount = absenceDeductionDaysCalc * dailyRate;
     const repeatLatePenaltyAmount = repeatLatePenaltyDaysCalc * dailyRate;
 
@@ -715,7 +746,7 @@ export class PayrollService {
       tardinessCompensatedMinutes: totalCompensationMinutes,
       tardinessUncompensatedMinutes: Math.max(0, totalLateMinutes - totalCompensationMinutes - justifiedLateMinutes - tardinessOffsetMinutesPayroll),
       tardinessJustifiedMinutes: justifiedLateMinutes,
-      tardinessDeductionAmount: parseFloat((lateDeductionMinutes * minuteRate).toFixed(2)),
+      tardinessDeductionAmount: parseFloat(lateDeductionAmount.toFixed(2)),
       hourlyBalanceUsedTotal: (paidHourlyLeaveMinutes + tardinessOffsetMinutesPayroll) / 60,
       hourlyBalanceRemaining: 0, // يُحسب لاحقاً إذا لزم
       // مهمات
@@ -739,7 +770,9 @@ export class PayrollService {
           justified: justifiedLateMinutes,
           coveredByHourlyBalance: tardinessOffsetMinutesPayroll,
           deductibleMinutes: deductibleLateMinutes,
-          amount: parseFloat((lateDeductionMinutes * minuteRate).toFixed(2)),
+          deductedAsDays: lateDeductionDaysFromTiers,
+          deductedAsMinutes: lateDeductionMinutes,
+          amount: parseFloat(lateDeductionAmount.toFixed(2)),
         },
         earlyLeave: {
           totalMinutes: totalEarlyLeaveMinutes,
