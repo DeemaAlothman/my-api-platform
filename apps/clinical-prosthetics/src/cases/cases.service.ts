@@ -137,7 +137,7 @@ export class CasesService {
     const where: any = { deletedAt: null };
     if (patientId) where.patientId = patientId;
     if (status) where.status = status;
-    if (amputationType) where.amputationType = amputationType;
+    if (amputationType) where.amputationType = { has: amputationType };
     if (prosthetistId) where.prosthetistId = prosthetistId;
 
     const [items, total] = await Promise.all([

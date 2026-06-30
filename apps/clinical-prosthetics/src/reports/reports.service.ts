@@ -49,10 +49,9 @@ export class ReportsService {
       this.prisma.prostheticsCase.count({
         where: { ...where, status: 'DELIVERED' },
       }),
-      this.prisma.prostheticsCase.groupBy({
-        by: ['amputationType' as any],
+      this.prisma.prostheticsCase.findMany({
         where,
-        _count: { id: true },
+        select: { amputationType: true },
       }),
     ]);
 
@@ -61,10 +60,14 @@ export class ReportsService {
       count: s._count.id,
     }));
 
-    const byAmputationType = (casesByType as any[]).map((s) => ({
-      type: s.amputationType,
-      count: s._count.id,
-    }));
+    // amputationType مصفوفة الآن (حالة ممكن تشمل بتر علوي وسفلي سوا) — نعدّ كل نوع على حدة
+    const amputationTypeCounts = new Map<string, number>();
+    for (const c of casesByType as unknown as Array<{ amputationType: string[] }>) {
+      for (const t of c.amputationType ?? []) {
+        amputationTypeCounts.set(t, (amputationTypeCounts.get(t) ?? 0) + 1);
+      }
+    }
+    const byAmputationType = [...amputationTypeCounts.entries()].map(([type, count]) => ({ type, count }));
 
     const successRate =
       totalCases > 0 ? Math.round((deliveries / totalCases) * 100) : 0;

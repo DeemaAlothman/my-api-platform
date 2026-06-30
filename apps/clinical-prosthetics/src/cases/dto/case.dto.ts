@@ -1,6 +1,6 @@
 import {
   IsString, IsOptional, IsBoolean, IsEnum, IsDateString,
-  IsInt, Min, Max, IsNumber,
+  IsInt, Min, Max, IsNumber, IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -38,8 +38,9 @@ export class CreateCaseDto {
   @IsOptional() @IsInt() @Min(1) @Max(4) @Type(() => Number)
   amputationCount?: number;
 
-  @IsOptional() @IsEnum(AmputationTypeEnum)
-  amputationType?: string;
+  // مصفوفة — يمكن إرسال UPPER وLOWER سوا لنفس الحالة
+  @IsOptional() @IsArray() @IsEnum(AmputationTypeEnum, { each: true })
+  amputationType?: string[];
 
   @IsOptional() @IsEnum(AmputationSideEnum)
   amputationSide?: string;
@@ -129,8 +130,9 @@ export class UpdateCaseDto {
   @IsOptional() @IsInt() @Min(1) @Max(4) @Type(() => Number)
   amputationCount?: number;
 
-  @IsOptional() @IsEnum(AmputationTypeEnum)
-  amputationType?: string;
+  // مصفوفة — يمكن إرسال UPPER وLOWER سوا لنفس الحالة
+  @IsOptional() @IsArray() @IsEnum(AmputationTypeEnum, { each: true })
+  amputationType?: string[];
 
   @IsOptional() @IsEnum(AmputationSideEnum)
   amputationSide?: string;

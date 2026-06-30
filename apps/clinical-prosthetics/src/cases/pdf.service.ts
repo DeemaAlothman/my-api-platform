@@ -70,7 +70,7 @@ export class PdfService {
       row('Patient ID', c.patientId);
       row('Status', c.status);
       row('Prosthesis Type', c.prosthesisType);
-      row('Amputation Type', c.amputationType);
+      row('Amputation Type', Array.isArray(c.amputationType) ? c.amputationType.join(' / ') : c.amputationType);
       row('Amputation Side', c.amputationSide);
       row('Amputation Level', c.amputationLevel);
       row('Amputation Date', c.amputationDate ? new Date(c.amputationDate).toLocaleDateString('en-GB') : null);

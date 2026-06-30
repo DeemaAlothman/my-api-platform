@@ -287,7 +287,7 @@ model ProstheticsCase {
   // يُعبّى فقط إذا amputationCause = OTHER
   amputationCauseOtherDetail String?
   amputationCount Int      @default(1)
-  amputationType  AmputationType?
+  amputationType  AmputationType[] @default([])
   amputationSide  AmputationSide?
   amputationLevel AmputationLevel?
   // الجانب الأكثر تأثراً والذي يجري رصده وعلاجه — فقط عند amputationSide = BILATERAL
