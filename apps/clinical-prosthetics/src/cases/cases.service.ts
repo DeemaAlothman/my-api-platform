@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
-import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto, TransradialAssessmentDto, ElbowDisarticulationAssessmentDto } from './dto/assessment.dto';
+import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto, TransradialAssessmentDto, ElbowDisarticulationAssessmentDto, TranshumeralAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
@@ -192,6 +192,7 @@ export class CasesService {
         hemipelvectomyAssessment: true,
         transradialAssessment: true,
         elbowDisarticulationAssessment: true,
+        transhumeralAssessment: true,
         committeeReview: true,
         components: { orderBy: { addedAt: 'desc' } },
         gaitAnalysis: true,
@@ -404,6 +405,24 @@ export class CasesService {
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
     return this.prisma.lowerLimbAssessment.upsert({
+      where: { caseId_side: { caseId, side } },
+      create: { caseId, side, ...data },
+      update: data,
+    });
+  }
+
+  async upsertTranshumeralAssessment(caseId: string, dto: TranshumeralAssessmentDto) {
+    await this.findCaseOrThrow(caseId);
+    const side = dto.side as any;
+    const data: any = {
+      notes: dto.notes,
+      soundLimb: dto.soundLimb ?? undefined,
+      affectedLimb: dto.affectedLimb ?? undefined,
+      examinerProsthetistIds: dto.examinerProsthetistIds ?? [],
+      examinerPhysioIds: dto.examinerPhysioIds ?? [],
+      examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
+    };
+    return this.prisma.transhumeralAssessment.upsert({
       where: { caseId_side: { caseId, side } },
       create: { caseId, side, ...data },
       update: data,
