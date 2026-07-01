@@ -950,6 +950,63 @@ export class LeaveRequestsService {
     } catch { /* silent */ }
   }
 
+  private async notifyManagerOfApprovedCancellation(employeeId: string, leaveRequestId: string, leaveTypeName: string) {
+    try {
+      const mgr = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+        `SELECT e2."userId" FROM users.employees e
+         JOIN users.employees e2 ON e2.id = e."managerId"
+         WHERE e.id = $1 AND e."deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      );
+      if (!mgr[0]?.userId) return;
+      const empName = await this.prisma.$queryRawUnsafe<Array<{ name: string }>>(
+        `SELECT "fullName" as name FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      );
+      const name = empName[0]?.name ?? 'الموظف';
+      await this.prisma.$queryRawUnsafe(`
+        INSERT INTO users.notifications
+          (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+        VALUES (gen_random_uuid(), $1, $2::users."NotificationType", $3, $4, $5, $6, $7::jsonb, false, NOW())
+      `, mgr[0].userId, 'LEAVE_REQUEST_CANCELLED',
+         `إلغاء إجازة معتمدة`,
+         'Approved Leave Cancelled',
+         `قام ${name} بإلغاء إجازته المعتمدة (${leaveTypeName})`,
+         `${name} has cancelled their approved leave (${leaveTypeName})`,
+         JSON.stringify({ leaveRequestId }));
+    } catch { /* silent */ }
+  }
+
+  private async notifyHROfApprovedCancellation(leaveRequestId: string, leaveTypeName: string) {
+    try {
+      const hrUsers = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT DISTINCT u.id as "userId" FROM users.users u
+         JOIN users.user_roles ur ON ur."userId" = u.id
+         JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+         JOIN users.permissions p ON p.id = rp."permissionId"
+         WHERE p.name = 'leave_requests:approve_hr' AND u."deletedAt" IS NULL
+         AND u.id NOT IN (
+           SELECT DISTINCT ur2."userId" FROM users.user_roles ur2
+           JOIN users.role_permissions rp2 ON rp2."roleId" = ur2."roleId"
+           JOIN users.permissions p2 ON p2.id = rp2."permissionId"
+           WHERE p2.name = 'requests:ceo-approve'
+         )`,
+      );
+      for (const hr of hrUsers) {
+        await this.prisma.$queryRawUnsafe(`
+          INSERT INTO users.notifications
+            (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+          VALUES (gen_random_uuid(), $1, $2::users."NotificationType", $3, $4, $5, $6, $7::jsonb, false, NOW())
+        `, hr.userId, 'LEAVE_REQUEST_CANCELLED',
+           `إلغاء إجازة معتمدة`,
+           'Approved Leave Cancelled',
+           `تم إلغاء إجازة معتمدة (${leaveTypeName}) من قِبل الموظف`,
+           `An approved leave (${leaveTypeName}) has been cancelled by the employee`,
+           JSON.stringify({ leaveRequestId }));
+      }
+    } catch { /* silent */ }
+  }
+
   private async notifyLeaveEmployee(
     employeeId: string,
     type: string,
@@ -999,8 +1056,22 @@ export class LeaveRequestsService {
       throw new BadRequestException('Request is already cancelled');
     }
 
+    // الإجازات المعتمدة لا يمكن إلغاؤها في نفس يوم الإجازة أو بعده — يجب الإلغاء قبل يوم على الأقل
+    if (request.status === 'APPROVED') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const leaveStart = new Date(request.startDate);
+      leaveStart.setHours(0, 0, 0, 0);
+      if (today >= leaveStart) {
+        throw new BadRequestException(
+          'لا يمكن إلغاء إجازة معتمدة في يوم الإجازة أو بعده — يجب الإلغاء قبل يوم على الأقل من تاريخ الإجازة',
+        );
+      }
+    }
+
     const oldStatus = request.status;
     const year = new Date(request.startDate).getFullYear();
+    const leaveTypeName = (request as any).leaveType?.nameAr ?? 'إجازة';
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.leaveRequest.update({
@@ -1030,6 +1101,12 @@ export class LeaveRequestsService {
       'Your leave request has been cancelled',
       id,
     );
+
+    // إذا كانت الإجازة معتمدة → أشعر المدير المباشر والـ HR بالإلغاء
+    if (oldStatus === 'APPROVED') {
+      await this.notifyManagerOfApprovedCancellation(request.employeeId, id, leaveTypeName);
+      await this.notifyHROfApprovedCancellation(id, leaveTypeName);
+    }
 
     return updated;
   }
