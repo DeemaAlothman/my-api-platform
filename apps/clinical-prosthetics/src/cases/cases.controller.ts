@@ -9,7 +9,7 @@ import { CasesService } from './cases.service';
 import { caseAttachmentMulterOptions } from './case-files.config';
 import { PdfService } from './pdf.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
-import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto } from './dto/assessment.dto';
+import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
@@ -108,6 +108,12 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.ASSESSMENT_CREATE)
   upsertKneeDisarticulation(@Param('id') id: string, @Body() dto: KneeDisarticulationAssessmentDto) {
     return this.service.upsertKneeDisarticulationAssessment(id, dto);
+  }
+
+  @Post(':id/assessment-transfemoral')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.ASSESSMENT_CREATE)
+  upsertTransfemoral(@Param('id') id: string, @Body() dto: TransfemoralAssessmentDto) {
+    return this.service.upsertTransfemoralAssessment(id, dto);
   }
 
   // ── Committee ─────────────────────────────────────────────────────────────

@@ -212,6 +212,35 @@ export class LowerLimbAssessmentDto {
   examinerSupervisorIds?: string[];
 }
 
+// تقييم بتر سفلي فوق الركبة (Transfemoral - TF)
+export class TransfemoralAssessmentDto {
+  @IsEnum(['LEFT', 'RIGHT'])
+  side: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  @IsOptional() @IsString()
+  footMeasurement?: string;
+
+  // طرف سليم: مفاتيح "1" إلى "11"
+  @IsOptional() @IsObject()
+  soundLimb?: Record<string, string | number | null>;
+
+  // طرف مصاب: مفاتيح "1" إلى "12"
+  @IsOptional() @IsObject()
+  affectedLimb?: Record<string, string | number | null>;
+
+  @IsOptional() @IsArray()
+  examinerProsthetistIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerPhysioIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerSupervisorIds?: string[];
+}
+
 // تقييم بتر سفلي عبر الركبة (Knee Disarticulation - KD)
 export class KneeDisarticulationAssessmentDto {
   @IsEnum(['LEFT', 'RIGHT'])
