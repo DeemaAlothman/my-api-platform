@@ -212,6 +212,32 @@ export class LowerLimbAssessmentDto {
   examinerSupervisorIds?: string[];
 }
 
+// تقييم بتر علوي عبر المرفق (Elbow Disarticulation - ED)
+export class ElbowDisarticulationAssessmentDto {
+  @IsEnum(['LEFT', 'RIGHT'])
+  side: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  // طرف سليم: مفاتيح "1" إلى "12"
+  @IsOptional() @IsObject()
+  soundLimb?: Record<string, string | number | null>;
+
+  // طرف مصاب: مفاتيح "1" إلى "9"
+  @IsOptional() @IsObject()
+  affectedLimb?: Record<string, string | number | null>;
+
+  @IsOptional() @IsArray()
+  examinerProsthetistIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerPhysioIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerSupervisorIds?: string[];
+}
+
 // تقييم بتر علوي تحت المرفق (Transradial - TR)
 export class TransradialAssessmentDto {
   @IsEnum(['LEFT', 'RIGHT'])
