@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
-import { UpperLimbAssessmentDto, LowerLimbAssessmentDto } from './dto/assessment.dto';
+import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
@@ -185,6 +185,8 @@ export class CasesService {
       include: {
         upperAssessment: true,
         lowerAssessment: true,
+        ankleDisarticulationAssessment: true,
+        kneeDisarticulationAssessment: true,
         committeeReview: true,
         components: { orderBy: { addedAt: 'desc' } },
         gaitAnalysis: true,
@@ -397,6 +399,44 @@ export class CasesService {
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
     return this.prisma.lowerLimbAssessment.upsert({
+      where: { caseId_side: { caseId, side } },
+      create: { caseId, side, ...data },
+      update: data,
+    });
+  }
+
+  async upsertKneeDisarticulationAssessment(caseId: string, dto: KneeDisarticulationAssessmentDto) {
+    await this.findCaseOrThrow(caseId);
+    const side = dto.side as any;
+    const data: any = {
+      notes: dto.notes,
+      footMeasurement: dto.footMeasurement,
+      soundLimb: dto.soundLimb ?? undefined,
+      affectedLimb: dto.affectedLimb ?? undefined,
+      examinerProsthetistIds: dto.examinerProsthetistIds ?? [],
+      examinerPhysioIds: dto.examinerPhysioIds ?? [],
+      examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
+    };
+    return this.prisma.kneeDisarticulationAssessment.upsert({
+      where: { caseId_side: { caseId, side } },
+      create: { caseId, side, ...data },
+      update: data,
+    });
+  }
+
+  async upsertAnkleDisarticulationAssessment(caseId: string, dto: AnkleDisarticulationAssessmentDto) {
+    await this.findCaseOrThrow(caseId);
+    const side = dto.side as any;
+    const data: any = {
+      notes: dto.notes,
+      footMeasurement: dto.footMeasurement,
+      soundLimb: dto.soundLimb ?? undefined,
+      affectedLimb: dto.affectedLimb ?? undefined,
+      examinerProsthetistIds: dto.examinerProsthetistIds ?? [],
+      examinerPhysioIds: dto.examinerPhysioIds ?? [],
+      examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
+    };
+    return this.prisma.ankleDisarticulationAssessment.upsert({
       where: { caseId_side: { caseId, side } },
       create: { caseId, side, ...data },
       update: data,

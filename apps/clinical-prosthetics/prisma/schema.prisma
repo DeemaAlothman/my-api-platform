@@ -320,9 +320,11 @@ model ProstheticsCase {
   // الطرف الصناعي مكتمل التجميع (من فورم أجزاء ومكونات الطرف)
   prosthesisCompleted  Boolean @default(false)
 
-  upperAssessment  UpperLimbAssessment[]
-  lowerAssessment  LowerLimbAssessment[]
-  committeeReview  CommitteeReview?
+  upperAssessment                UpperLimbAssessment[]
+  lowerAssessment                LowerLimbAssessment[]
+  ankleDisarticulationAssessment AnkleDisarticulationAssessment[]
+  kneeDisarticulationAssessment  KneeDisarticulationAssessment[]
+  committeeReview                CommitteeReview?
   components       ProsthesisComponent[]
   gaitAnalysis     GaitAnalysis?
   balanceAssessment BalanceAssessment?
@@ -447,6 +449,58 @@ model LowerLimbAssessment {
 
   @@unique([caseId, side])
   @@map("lower_limb_assessments")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Ankle Disarticulation Assessment (AD) ────────────────────────────────
+
+model AnkleDisarticulationAssessment {
+  id     String @id @default(uuid())
+  caseId String
+  side   AssessmentSide
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  notes           String? @db.Text
+  footMeasurement String?
+
+  // مصفوفة طرف سليم — مفاتيح 1-5 مع قيمة لكل منها (nullable)
+  soundLimb    Json?
+  // مصفوفة طرف مصاب — مفاتيح 1-19 مع قيمة لكل منها (nullable)
+  affectedLimb Json?
+
+  examinerProsthetistIds String[]
+  examinerPhysioIds      String[]
+  examinerSupervisorIds  String[]
+  examinedAt             DateTime @default(now())
+
+  @@unique([caseId, side])
+  @@map("ankle_disarticulation_assessments")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Knee Disarticulation Assessment (KD) ─────────────────────────────────
+
+model KneeDisarticulationAssessment {
+  id     String @id @default(uuid())
+  caseId String
+  side   AssessmentSide
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  notes           String? @db.Text
+  footMeasurement String?
+
+  // مصفوفة طرف سليم — مفاتيح 1-5
+  soundLimb    Json?
+  // مصفوفة طرف مصاب — مفاتيح 1-12
+  affectedLimb Json?
+
+  examinerProsthetistIds String[]
+  examinerPhysioIds      String[]
+  examinerSupervisorIds  String[]
+  examinedAt             DateTime @default(now())
+
+  @@unique([caseId, side])
+  @@map("knee_disarticulation_assessments")
   @@schema("clinic_prosthetics")
 }
 

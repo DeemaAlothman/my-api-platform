@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsInt, IsArray, IsEnum, IsObject, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt, IsArray, IsEnum, IsObject, Min, Max, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpperLimbAssessmentDto {
@@ -202,6 +202,65 @@ export class LowerLimbAssessmentDto {
   muscleMotionNotes?: string;
 
   // ممكن أكثر من شخص بكل دور
+  @IsOptional() @IsArray()
+  examinerProsthetistIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerPhysioIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerSupervisorIds?: string[];
+}
+
+// تقييم بتر سفلي عبر الركبة (Knee Disarticulation - KD)
+export class KneeDisarticulationAssessmentDto {
+  @IsEnum(['LEFT', 'RIGHT'])
+  side: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  @IsOptional() @IsString()
+  footMeasurement?: string;
+
+  // طرف سليم: مفاتيح "1" إلى "5"
+  @IsOptional() @IsObject()
+  soundLimb?: Record<string, string | number | null>;
+
+  // طرف مصاب: مفاتيح "1" إلى "12"
+  @IsOptional() @IsObject()
+  affectedLimb?: Record<string, string | number | null>;
+
+  @IsOptional() @IsArray()
+  examinerProsthetistIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerPhysioIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerSupervisorIds?: string[];
+}
+
+// تقييم بتر سفلي عبر الكاحل (Ankle Disarticulation - AD)
+export class AnkleDisarticulationAssessmentDto {
+  @IsEnum(['LEFT', 'RIGHT'])
+  side: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  // قياس القدم (نص حر — يمكن أن يكون رقماً أو وصفاً)
+  @IsOptional() @IsString()
+  footMeasurement?: string;
+
+  // طرف سليم: كائن بمفاتيح "1" إلى "5" وقيمة لكل منها
+  @IsOptional() @IsObject()
+  soundLimb?: Record<string, string | number | null>;
+
+  // طرف مصاب: كائن بمفاتيح "1" إلى "19" وقيمة لكل منها
+  @IsOptional() @IsObject()
+  affectedLimb?: Record<string, string | number | null>;
+
   @IsOptional() @IsArray()
   examinerProsthetistIds?: string[];
 
