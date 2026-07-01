@@ -178,8 +178,8 @@ export class CustodiesService {
   async transferCustody(id: string, dto: TransferCustodyDto, userId: string) {
     const custody = await this.findOne(id);
 
-    if (custody.status !== CustodyStatus.WITH_EMPLOYEE) {
-      throw new BadRequestException('لا يمكن نقل عهدة ليست مع موظف حالياً');
+    if (custody.status === CustodyStatus.DAMAGED || custody.status === CustodyStatus.LOST) {
+      throw new BadRequestException('لا يمكن نقل عهدة تالفة أو مفقودة');
     }
     if (dto.newEmployeeId === custody.employeeId) {
       throw new BadRequestException('الموظف الجديد هو نفسه الموظف الحالي');
@@ -212,6 +212,7 @@ export class CustodiesService {
       data: {
         employeeId: dto.newEmployeeId,
         assignedDate: handoverDate,
+        status: CustodyStatus.WITH_EMPLOYEE,
       },
       include: {
         attachments: true,
