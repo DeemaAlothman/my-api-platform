@@ -325,6 +325,7 @@ model ProstheticsCase {
   ankleDisarticulationAssessment AnkleDisarticulationAssessment[]
   kneeDisarticulationAssessment  KneeDisarticulationAssessment[]
   transfemoralAssessment         TransfemoralAssessment[]
+  transtibialAssessment          TranstibialAssessment[]
   committeeReview                CommitteeReview?
   components       ProsthesisComponent[]
   gaitAnalysis     GaitAnalysis?
@@ -476,6 +477,32 @@ model AnkleDisarticulationAssessment {
 
   @@unique([caseId, side])
   @@map("ankle_disarticulation_assessments")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Transtibial Assessment (TT - بتر سفلي تحت الركبة) ───────────────────
+
+model TranstibialAssessment {
+  id     String @id @default(uuid())
+  caseId String
+  side   AssessmentSide
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  notes           String? @db.Text
+  footMeasurement String?
+
+  // مصفوفة طرف سليم — مفاتيح 1-5
+  soundLimb    Json?
+  // مصفوفة طرف مصاب — مفاتيح 1-19
+  affectedLimb Json?
+
+  examinerProsthetistIds String[]
+  examinerPhysioIds      String[]
+  examinerSupervisorIds  String[]
+  examinedAt             DateTime @default(now())
+
+  @@unique([caseId, side])
+  @@map("transtibial_assessments")
   @@schema("clinic_prosthetics")
 }
 
