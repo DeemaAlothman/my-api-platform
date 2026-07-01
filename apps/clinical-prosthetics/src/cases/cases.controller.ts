@@ -9,7 +9,7 @@ import { CasesService } from './cases.service';
 import { caseAttachmentMulterOptions } from './case-files.config';
 import { PdfService } from './pdf.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
-import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto } from './dto/assessment.dto';
+import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto, TransradialAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
@@ -126,6 +126,12 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.ASSESSMENT_CREATE)
   upsertHemipelvectomy(@Param('id') id: string, @Body() dto: HemipelvectomyAssessmentDto) {
     return this.service.upsertHemipelvectomyAssessment(id, dto);
+  }
+
+  @Post(':id/assessment-transradial')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.ASSESSMENT_CREATE)
+  upsertTransradial(@Param('id') id: string, @Body() dto: TransradialAssessmentDto) {
+    return this.service.upsertTransradialAssessment(id, dto);
   }
 
   // ── Committee ─────────────────────────────────────────────────────────────

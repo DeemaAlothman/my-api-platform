@@ -327,6 +327,7 @@ model ProstheticsCase {
   transfemoralAssessment         TransfemoralAssessment[]
   transtibialAssessment          TranstibialAssessment[]
   hemipelvectomyAssessment       HemipelvectomyAssessment[]
+  transradialAssessment          TransradialAssessment[]
   committeeReview                CommitteeReview?
   components       ProsthesisComponent[]
   gaitAnalysis     GaitAnalysis?
@@ -478,6 +479,31 @@ model AnkleDisarticulationAssessment {
 
   @@unique([caseId, side])
   @@map("ankle_disarticulation_assessments")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Transradial Assessment (TR - بتر علوي تحت المرفق) ───────────────────
+
+model TransradialAssessment {
+  id     String @id @default(uuid())
+  caseId String
+  side   AssessmentSide
+  case   ProstheticsCase @relation(fields: [caseId], references: [id])
+
+  notes        String? @db.Text
+
+  // مصفوفة طرف سليم — مفاتيح 1-7
+  soundLimb    Json?
+  // مصفوفة طرف مصاب — مفاتيح 1-10
+  affectedLimb Json?
+
+  examinerProsthetistIds String[]
+  examinerPhysioIds      String[]
+  examinerSupervisorIds  String[]
+  examinedAt             DateTime @default(now())
+
+  @@unique([caseId, side])
+  @@map("transradial_assessments")
   @@schema("clinic_prosthetics")
 }
 

@@ -212,6 +212,32 @@ export class LowerLimbAssessmentDto {
   examinerSupervisorIds?: string[];
 }
 
+// تقييم بتر علوي تحت المرفق (Transradial - TR)
+export class TransradialAssessmentDto {
+  @IsEnum(['LEFT', 'RIGHT'])
+  side: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  // طرف سليم: مفاتيح "1" إلى "7"
+  @IsOptional() @IsObject()
+  soundLimb?: Record<string, string | number | null>;
+
+  // طرف مصاب: مفاتيح "1" إلى "10"
+  @IsOptional() @IsObject()
+  affectedLimb?: Record<string, string | number | null>;
+
+  @IsOptional() @IsArray()
+  examinerProsthetistIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerPhysioIds?: string[];
+
+  @IsOptional() @IsArray()
+  examinerSupervisorIds?: string[];
+}
+
 // تقييم بتر سفلي عبر الحوض (Hemipelvectomy - HP)
 export class HemipelvectomyAssessmentDto {
   @IsEnum(['LEFT', 'RIGHT'])
