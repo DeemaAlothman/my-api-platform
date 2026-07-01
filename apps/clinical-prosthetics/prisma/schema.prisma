@@ -340,6 +340,7 @@ model ProstheticsCase {
   delivery         Delivery?
   followUps        FollowUp[]
   attachments      CaseAttachment[]
+  reviewPrograms   PatientReviewProgram[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -902,6 +903,30 @@ model PatientTreatmentProgram {
   updatedAt              DateTime @updatedAt
 
   @@map("patient_treatment_programs")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Patient Review Program (برنامج مراجعة المريض — بعد اكتمال العلاج) ─────────
+
+model PatientReviewProgram {
+  id               String          @id @default(uuid())
+  caseId           String
+  case             ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  sessionDate      DateTime?
+  sessionTime      String?
+  description      String?  @db.Text
+  technicianId     String?
+  sessionStartTime String?
+  sessionEndTime   String?
+  signatureUrl     String?
+  notes            String?  @db.Text
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([caseId])
+  @@map("patient_review_programs")
   @@schema("clinic_prosthetics")
 }
 

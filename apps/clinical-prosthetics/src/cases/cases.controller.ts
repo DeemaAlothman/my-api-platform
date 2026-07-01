@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Body, Param, Query,
+  Controller, Get, Post, Put, Patch, Delete, Body, Param, Query,
   UseGuards, Req, Res, UploadedFile, UseInterceptors, NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -14,7 +14,7 @@ import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
-  PatientTreatmentProgramDto,
+  PatientTreatmentProgramDto, PatientReviewProgramDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -253,6 +253,36 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
   addMediaSession(@Param('id') id: string, @Body() dto: MediaSessionDto) {
     return this.service.addMediaSession(id, dto);
+  }
+
+  // ── Patient Review Program (برنامج مراجعة المريض) ────────────────────────
+
+  @Post(':id/review-program')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  addReviewProgram(@Param('id') id: string, @Body() dto: PatientReviewProgramDto) {
+    return this.service.addReviewProgram(id, dto);
+  }
+
+  @Get(':id/review-program')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getReviewPrograms(@Param('id') id: string) {
+    return this.service.getReviewPrograms(id);
+  }
+
+  @Patch(':id/review-program/:reviewId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  updateReviewProgram(
+    @Param('id') id: string,
+    @Param('reviewId') reviewId: string,
+    @Body() dto: PatientReviewProgramDto,
+  ) {
+    return this.service.updateReviewProgram(id, reviewId, dto);
+  }
+
+  @Delete(':id/review-program/:reviewId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
+  deleteReviewProgram(@Param('id') id: string, @Param('reviewId') reviewId: string) {
+    return this.service.deleteReviewProgram(id, reviewId);
   }
 
   // ── Patient Treatment Program (Pro-004) ──────────────────────────────────

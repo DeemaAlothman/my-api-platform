@@ -9,7 +9,7 @@ import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
-  PatientTreatmentProgramDto,
+  PatientTreatmentProgramDto, PatientReviewProgramDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -855,6 +855,59 @@ export class CasesService {
         supervisorId: dto.supervisorId,
       },
     });
+  }
+
+  // ── Patient Review Program (بعد اكتمال العلاج) ──────────────────────────
+
+  async addReviewProgram(caseId: string, dto: PatientReviewProgramDto) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.patientReviewProgram.create({
+      data: {
+        caseId,
+        sessionDate:      dto.sessionDate ? new Date(dto.sessionDate) : undefined,
+        sessionTime:      dto.sessionTime,
+        description:      dto.description,
+        technicianId:     dto.technicianId,
+        sessionStartTime: dto.sessionStartTime,
+        sessionEndTime:   dto.sessionEndTime,
+        signatureUrl:     dto.signatureUrl,
+        notes:            dto.notes,
+      },
+    });
+  }
+
+  async getReviewPrograms(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.patientReviewProgram.findMany({
+      where: { caseId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async updateReviewProgram(caseId: string, reviewId: string, dto: PatientReviewProgramDto) {
+    await this.findCaseOrThrow(caseId);
+    const review = await this.prisma.patientReviewProgram.findFirst({ where: { id: reviewId, caseId } });
+    if (!review) throw new NotFoundException('Review not found');
+    return this.prisma.patientReviewProgram.update({
+      where: { id: reviewId },
+      data: {
+        sessionDate:      dto.sessionDate ? new Date(dto.sessionDate) : undefined,
+        sessionTime:      dto.sessionTime,
+        description:      dto.description,
+        technicianId:     dto.technicianId,
+        sessionStartTime: dto.sessionStartTime,
+        sessionEndTime:   dto.sessionEndTime,
+        signatureUrl:     dto.signatureUrl,
+        notes:            dto.notes,
+      },
+    });
+  }
+
+  async deleteReviewProgram(caseId: string, reviewId: string) {
+    await this.findCaseOrThrow(caseId);
+    const review = await this.prisma.patientReviewProgram.findFirst({ where: { id: reviewId, caseId } });
+    if (!review) throw new NotFoundException('Review not found');
+    return this.prisma.patientReviewProgram.delete({ where: { id: reviewId } });
   }
 
   // ── Patient Treatment Program (Pro-004) ──────────────────────────────────
