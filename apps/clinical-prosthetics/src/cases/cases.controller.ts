@@ -14,6 +14,7 @@ import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
+  PatientTreatmentProgramDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -252,6 +253,44 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
   addMediaSession(@Param('id') id: string, @Body() dto: MediaSessionDto) {
     return this.service.addMediaSession(id, dto);
+  }
+
+  // ── Patient Treatment Program (Pro-004) ──────────────────────────────────
+
+  @Post('sessions/workshop/:sessionId/treatment-program')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  upsertWorkshopTreatmentProgram(@Param('sessionId') sessionId: string, @Body() dto: PatientTreatmentProgramDto) {
+    return this.service.upsertTreatmentProgram('workshop', sessionId, dto);
+  }
+
+  @Get('sessions/workshop/:sessionId/treatment-program')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getWorkshopTreatmentProgram(@Param('sessionId') sessionId: string) {
+    return this.service.getTreatmentProgram('workshop', sessionId);
+  }
+
+  @Post('sessions/pt/:sessionId/treatment-program')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  upsertPtTreatmentProgram(@Param('sessionId') sessionId: string, @Body() dto: PatientTreatmentProgramDto) {
+    return this.service.upsertTreatmentProgram('pt', sessionId, dto);
+  }
+
+  @Get('sessions/pt/:sessionId/treatment-program')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getPtTreatmentProgram(@Param('sessionId') sessionId: string) {
+    return this.service.getTreatmentProgram('pt', sessionId);
+  }
+
+  @Post('sessions/media/:sessionId/treatment-program')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  upsertMediaTreatmentProgram(@Param('sessionId') sessionId: string, @Body() dto: PatientTreatmentProgramDto) {
+    return this.service.upsertTreatmentProgram('media', sessionId, dto);
+  }
+
+  @Get('sessions/media/:sessionId/treatment-program')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getMediaTreatmentProgram(@Param('sessionId') sessionId: string) {
+    return this.service.getTreatmentProgram('media', sessionId);
   }
 
   // ── Consumables ───────────────────────────────────────────────────────────

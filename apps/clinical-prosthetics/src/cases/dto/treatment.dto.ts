@@ -220,6 +220,29 @@ export class MediaSessionDto {
   supervisorId: string;
 }
 
+export class PatientTreatmentProgramDto {
+  @IsOptional() @IsString()
+  description?: string;
+
+  @IsOptional() @IsString()
+  sessionStartTime?: string;
+
+  @IsOptional() @IsString()
+  sessionEndTime?: string;
+
+  @IsOptional() @IsString()
+  technicianId?: string;
+
+  @IsOptional() @IsString()
+  technicianSignatureUrl?: string;
+
+  @IsOptional() @IsString()
+  managerSignatureUrl?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
+
 export class ConsumableDto {
   @IsString()
   inventoryItemId: string;

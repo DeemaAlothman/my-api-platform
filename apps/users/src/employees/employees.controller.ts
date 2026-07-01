@@ -1,5 +1,10 @@
-import { Controller, Get, Post, Put, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus, Headers, UnauthorizedException, Res } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Query, Param, Body, UseGuards, HttpCode, HttpStatus, Headers, UnauthorizedException, Res, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { randomUUID } from 'crypto';
+import { mkdirSync } from 'fs';
 import { EmployeesService } from './employees.service';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
@@ -13,6 +18,18 @@ import { LinkUserDto } from './dto/link-user.dto';
 import { TransferEmployeeDto, ChangeSalaryDto } from './dto/employee-history.dto';
 import { IsString } from 'class-validator';
 import { sendExcelMultiSheet } from '../common/utils/excel.util';
+
+const FILE_STORAGE_ROOT = process.env.FILE_STORAGE_ROOT || '/app/uploads';
+const signatureStorage = diskStorage({
+  destination: (_req: any, _file: any, cb: any) => {
+    const dir = join(FILE_STORAGE_ROOT, 'signatures');
+    try { mkdirSync(dir, { recursive: true }); } catch {}
+    cb(null, dir);
+  },
+  filename: (_req: any, file: any, cb: any) => {
+    cb(null, `${randomUUID()}${extname(file.originalname)}`);
+  },
+});
 
 class UpdateManagerNotesDto {
   @IsString()
@@ -129,6 +146,31 @@ export class EmployeesController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
     return this.employees.update(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/signature')
+  getSignature(@Param('id') id: string) {
+    return this.employees.getSignature(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/signature')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: signatureStorage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req: any, file: any, cb: any) => {
+      if (['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new BadRequestException('يُقبل JPEG/PNG/WEBP فقط للتوقيع'), false);
+      }
+    },
+  }))
+  uploadSignature(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('يجب رفع صورة التوقيع');
+    const signatureUrl = `/uploads/signatures/${file.filename}`;
+    return this.employees.updateSignature(id, signatureUrl);
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)

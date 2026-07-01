@@ -122,6 +122,7 @@ model Employee {
 
   // Personal Info (extra)
   profilePhoto       String?
+  signatureUrl       String?
   bloodType          BloodType?
   familyMembersCount Int?
   chronicDiseases    String?

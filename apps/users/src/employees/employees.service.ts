@@ -971,6 +971,22 @@ export class EmployeesService {
     return employee;
   }
 
+  async getSignature(id: string) {
+    const emp = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
+      select: { signatureUrl: true },
+    });
+    if (!emp) throw new NotFoundException('Employee not found');
+    return { hasSignature: !!emp.signatureUrl, signatureUrl: emp.signatureUrl ?? null };
+  }
+
+  async updateSignature(id: string, signatureUrl: string) {
+    const emp = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
+    if (!emp) throw new NotFoundException('Employee not found');
+    await this.prisma.employee.update({ where: { id }, data: { signatureUrl } });
+    return { signatureUrl };
+  }
+
   // B.1: Manager notes — update
   async updateManagerNotes(id: string, notes: string, updatedBy: string) {
     await this.findOne(id);

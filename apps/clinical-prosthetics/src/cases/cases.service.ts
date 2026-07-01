@@ -9,6 +9,7 @@ import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
+  PatientTreatmentProgramDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -854,6 +855,50 @@ export class CasesService {
         supervisorId: dto.supervisorId,
       },
     });
+  }
+
+  // ── Patient Treatment Program (Pro-004) ──────────────────────────────────
+
+  async upsertTreatmentProgram(
+    sessionType: 'workshop' | 'pt' | 'media',
+    sessionId: string,
+    dto: PatientTreatmentProgramDto,
+  ) {
+    if (sessionType === 'workshop') {
+      const session = await this.prisma.workshopSession.findUnique({ where: { id: sessionId } });
+      if (!session) throw new NotFoundException('Workshop session not found');
+      return this.prisma.patientTreatmentProgram.upsert({
+        where: { workshopSessionId: sessionId },
+        create: { workshopSessionId: sessionId, ...dto },
+        update: { ...dto },
+      });
+    }
+    if (sessionType === 'pt') {
+      const session = await this.prisma.ptSession.findUnique({ where: { id: sessionId } });
+      if (!session) throw new NotFoundException('PT session not found');
+      return this.prisma.patientTreatmentProgram.upsert({
+        where: { ptSessionId: sessionId },
+        create: { ptSessionId: sessionId, ...dto },
+        update: { ...dto },
+      });
+    }
+    const session = await this.prisma.mediaSession.findUnique({ where: { id: sessionId } });
+    if (!session) throw new NotFoundException('Media session not found');
+    return this.prisma.patientTreatmentProgram.upsert({
+      where: { mediaSessionId: sessionId },
+      create: { mediaSessionId: sessionId, ...dto },
+      update: { ...dto },
+    });
+  }
+
+  async getTreatmentProgram(sessionType: 'workshop' | 'pt' | 'media', sessionId: string) {
+    if (sessionType === 'workshop') {
+      return this.prisma.patientTreatmentProgram.findUnique({ where: { workshopSessionId: sessionId } });
+    }
+    if (sessionType === 'pt') {
+      return this.prisma.patientTreatmentProgram.findUnique({ where: { ptSessionId: sessionId } });
+    }
+    return this.prisma.patientTreatmentProgram.findUnique({ where: { mediaSessionId: sessionId } });
   }
 
   // ── Consumables ───────────────────────────────────────────────────────────

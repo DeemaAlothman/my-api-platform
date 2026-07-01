@@ -841,6 +841,8 @@ model WorkshopSession {
   notes           String? @db.Text
   technicianId    String
 
+  treatmentProgram PatientTreatmentProgram?
+
   @@map("workshop_sessions")
   @@schema("clinic_prosthetics")
 }
@@ -854,6 +856,8 @@ model PtSession {
   providedService String @db.Text
   notes           String? @db.Text
   physiotherapistId String
+
+  treatmentProgram PatientTreatmentProgram?
 
   @@map("pt_sessions")
   @@schema("clinic_prosthetics")
@@ -869,7 +873,35 @@ model MediaSession {
   notes           String? @db.Text
   supervisorId    String
 
+  treatmentProgram PatientTreatmentProgram?
+
   @@map("media_sessions")
+  @@schema("clinic_prosthetics")
+}
+
+model PatientTreatmentProgram {
+  id                     String   @id @default(uuid())
+
+  workshopSessionId      String?  @unique
+  ptSessionId            String?  @unique
+  mediaSessionId         String?  @unique
+
+  workshopSession        WorkshopSession? @relation(fields: [workshopSessionId], references: [id], onDelete: Cascade)
+  ptSession              PtSession?       @relation(fields: [ptSessionId], references: [id], onDelete: Cascade)
+  mediaSession           MediaSession?    @relation(fields: [mediaSessionId], references: [id], onDelete: Cascade)
+
+  description            String?  @db.Text
+  sessionStartTime       String?
+  sessionEndTime         String?
+  technicianId           String?
+  technicianSignatureUrl String?
+  managerSignatureUrl    String?
+  notes                  String?  @db.Text
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@map("patient_treatment_programs")
   @@schema("clinic_prosthetics")
 }
 
