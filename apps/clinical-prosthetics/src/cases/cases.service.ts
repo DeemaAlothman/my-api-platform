@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
-import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto } from './dto/assessment.dto';
+import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
@@ -189,6 +189,7 @@ export class CasesService {
         kneeDisarticulationAssessment: true,
         transfemoralAssessment: true,
         transtibialAssessment: true,
+        hemipelvectomyAssessment: true,
         committeeReview: true,
         components: { orderBy: { addedAt: 'desc' } },
         gaitAnalysis: true,
@@ -401,6 +402,25 @@ export class CasesService {
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
     return this.prisma.lowerLimbAssessment.upsert({
+      where: { caseId_side: { caseId, side } },
+      create: { caseId, side, ...data },
+      update: data,
+    });
+  }
+
+  async upsertHemipelvectomyAssessment(caseId: string, dto: HemipelvectomyAssessmentDto) {
+    await this.findCaseOrThrow(caseId);
+    const side = dto.side as any;
+    const data: any = {
+      notes: dto.notes,
+      footMeasurement: dto.footMeasurement,
+      soundLimb: dto.soundLimb ?? undefined,
+      affectedLimb: dto.affectedLimb ?? undefined,
+      examinerProsthetistIds: dto.examinerProsthetistIds ?? [],
+      examinerPhysioIds: dto.examinerPhysioIds ?? [],
+      examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
+    };
+    return this.prisma.hemipelvectomyAssessment.upsert({
       where: { caseId_side: { caseId, side } },
       create: { caseId, side, ...data },
       update: data,
