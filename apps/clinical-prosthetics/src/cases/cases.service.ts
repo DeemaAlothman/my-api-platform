@@ -10,6 +10,7 @@ import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
   PatientTreatmentProgramDto, PatientReviewProgramDto,
+  ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -855,6 +856,84 @@ export class CasesService {
         supervisorId: dto.supervisorId,
       },
     });
+  }
+
+  // ── Prosthetic Delivery Form Pro-019 ────────────────────────────────────
+
+  async upsertDeliveryForm(caseId: string, dto: ProstheticDeliveryFormDto) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.prostheticDeliveryForm.upsert({
+      where: { caseId },
+      create: {
+        caseId,
+        inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
+        prosthetistId:     dto.prosthetistId,
+        physiotherapistId: dto.physiotherapistId,
+        ceoId:             dto.ceoId,
+        ceoSignatureUrl:   dto.ceoSignatureUrl,
+        signatureDate: dto.signatureDate ? new Date(dto.signatureDate) : undefined,
+      },
+      update: {
+        inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
+        prosthetistId:     dto.prosthetistId,
+        physiotherapistId: dto.physiotherapistId,
+        ceoId:             dto.ceoId,
+        ceoSignatureUrl:   dto.ceoSignatureUrl,
+        signatureDate: dto.signatureDate ? new Date(dto.signatureDate) : undefined,
+      },
+      include: { items: { orderBy: { createdAt: 'asc' } } },
+    });
+  }
+
+  async getDeliveryForm(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.prostheticDeliveryForm.findUnique({
+      where: { caseId },
+      include: { items: { orderBy: { createdAt: 'asc' } } },
+    });
+  }
+
+  async addDeliveryItem(caseId: string, dto: ProstheticDeliveryItemDto) {
+    await this.findCaseOrThrow(caseId);
+    let form = await this.prisma.prostheticDeliveryForm.findUnique({ where: { caseId } });
+    if (!form) form = await this.prisma.prostheticDeliveryForm.create({ data: { caseId } });
+    return this.prisma.prostheticDeliveryItem.create({
+      data: {
+        formId:          form.id,
+        deliveredProduct: dto.deliveredProduct,
+        partCode:        dto.partCode,
+        quantity:        dto.quantity,
+        company:         dto.company,
+        notes:           dto.notes,
+      },
+    });
+  }
+
+  async updateDeliveryItem(caseId: string, itemId: string, dto: ProstheticDeliveryItemDto) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.prostheticDeliveryForm.findUnique({ where: { caseId } });
+    if (!form) throw new NotFoundException('Delivery form not found');
+    const item = await this.prisma.prostheticDeliveryItem.findFirst({ where: { id: itemId, formId: form.id } });
+    if (!item) throw new NotFoundException('Item not found');
+    return this.prisma.prostheticDeliveryItem.update({
+      where: { id: itemId },
+      data: {
+        deliveredProduct: dto.deliveredProduct,
+        partCode:        dto.partCode,
+        quantity:        dto.quantity,
+        company:         dto.company,
+        notes:           dto.notes,
+      },
+    });
+  }
+
+  async deleteDeliveryItem(caseId: string, itemId: string) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.prostheticDeliveryForm.findUnique({ where: { caseId } });
+    if (!form) throw new NotFoundException('Delivery form not found');
+    const item = await this.prisma.prostheticDeliveryItem.findFirst({ where: { id: itemId, formId: form.id } });
+    if (!item) throw new NotFoundException('Item not found');
+    return this.prisma.prostheticDeliveryItem.delete({ where: { id: itemId } });
   }
 
   // ── Patient Review Program (بعد اكتمال العلاج) ──────────────────────────

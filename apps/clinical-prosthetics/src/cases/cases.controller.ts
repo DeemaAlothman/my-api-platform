@@ -15,6 +15,7 @@ import {
   AddComponentDto, GaitAnalysisDto, BalanceAssessmentDto,
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
   PatientTreatmentProgramDto, PatientReviewProgramDto,
+  ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -253,6 +254,42 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
   addMediaSession(@Param('id') id: string, @Body() dto: MediaSessionDto) {
     return this.service.addMediaSession(id, dto);
+  }
+
+  // ── Prosthetic Delivery Form Pro-019 ─────────────────────────────────────
+
+  @Post(':id/prosthetic-delivery')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  upsertDeliveryForm(@Param('id') id: string, @Body() dto: ProstheticDeliveryFormDto) {
+    return this.service.upsertDeliveryForm(id, dto);
+  }
+
+  @Get(':id/prosthetic-delivery')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getDeliveryForm(@Param('id') id: string) {
+    return this.service.getDeliveryForm(id);
+  }
+
+  @Post(':id/prosthetic-delivery/items')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  addDeliveryItem(@Param('id') id: string, @Body() dto: ProstheticDeliveryItemDto) {
+    return this.service.addDeliveryItem(id, dto);
+  }
+
+  @Patch(':id/prosthetic-delivery/items/:itemId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  updateDeliveryItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: ProstheticDeliveryItemDto,
+  ) {
+    return this.service.updateDeliveryItem(id, itemId, dto);
+  }
+
+  @Delete(':id/prosthetic-delivery/items/:itemId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
+  deleteDeliveryItem(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.service.deleteDeliveryItem(id, itemId);
   }
 
   // ── Patient Review Program (برنامج مراجعة المريض) ────────────────────────

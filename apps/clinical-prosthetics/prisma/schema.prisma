@@ -338,9 +338,10 @@ model ProstheticsCase {
   consumables      ConsumableUsage[]
   finalEvaluation  FinalEvaluation?
   delivery         Delivery?
-  followUps        FollowUp[]
-  attachments      CaseAttachment[]
-  reviewPrograms   PatientReviewProgram[]
+  followUps          FollowUp[]
+  attachments        CaseAttachment[]
+  reviewPrograms     PatientReviewProgram[]
+  prostheticDelivery ProstheticDeliveryForm?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -903,6 +904,48 @@ model PatientTreatmentProgram {
   updatedAt              DateTime @updatedAt
 
   @@map("patient_treatment_programs")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Prosthetic Delivery Form Pro-019 ─────────────────────────────────────────
+
+model ProstheticDeliveryForm {
+  id                String          @id @default(uuid())
+  caseId            String          @unique
+  case              ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  inspectionDate    DateTime?
+  prosthetistId     String?
+  physiotherapistId String?
+  ceoId             String?
+  ceoSignatureUrl   String?
+  signatureDate     DateTime?
+
+  items             ProstheticDeliveryItem[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("prosthetic_delivery_forms")
+  @@schema("clinic_prosthetics")
+}
+
+model ProstheticDeliveryItem {
+  id               String                 @id @default(uuid())
+  formId           String
+  form             ProstheticDeliveryForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  deliveredProduct String?
+  partCode         String?
+  quantity         Int?
+  company          String?
+  notes            String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([formId])
+  @@map("prosthetic_delivery_items")
   @@schema("clinic_prosthetics")
 }
 

@@ -220,6 +220,43 @@ export class MediaSessionDto {
   supervisorId: string;
 }
 
+export class ProstheticDeliveryFormDto {
+  @IsOptional() @IsDateString()
+  inspectionDate?: string;
+
+  @IsOptional() @IsString()
+  prosthetistId?: string;
+
+  @IsOptional() @IsString()
+  physiotherapistId?: string;
+
+  @IsOptional() @IsString()
+  ceoId?: string;
+
+  @IsOptional() @IsString()
+  ceoSignatureUrl?: string;
+
+  @IsOptional() @IsDateString()
+  signatureDate?: string;
+}
+
+export class ProstheticDeliveryItemDto {
+  @IsOptional() @IsString()
+  deliveredProduct?: string;
+
+  @IsOptional() @IsString()
+  partCode?: string;
+
+  @IsOptional() @IsInt() @Type(() => Number)
+  quantity?: number;
+
+  @IsOptional() @IsString()
+  company?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
+
 export class PatientReviewProgramDto {
   @IsOptional() @IsDateString()
   sessionDate?: string;
