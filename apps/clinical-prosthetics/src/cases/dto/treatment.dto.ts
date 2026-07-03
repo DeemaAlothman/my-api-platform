@@ -381,6 +381,146 @@ export class PatientTreatmentProgramDto {
   notes?: string;
 }
 
+export class GaitAnalysisFormDto {
+  @IsOptional() @IsDateString()
+  sessionDate?: string;
+
+  @IsOptional() @IsArray()
+  suspensionSystem?: string[];
+
+  @IsOptional() @IsString()
+  socketBearing?: string;
+
+  @IsOptional() @IsString()
+  kneeJointType?: string;
+
+  @IsOptional() @IsString()
+  footType?: string;
+
+  @IsOptional() @IsArray()
+  patientComplaints?: string[];
+
+  @IsOptional() @IsInt() @Min(0) @Max(10) @Type(() => Number)
+  painIntensity?: number;
+
+  @IsOptional() @IsString()
+  alignmentCheck?: string;
+
+  @IsOptional() @IsBoolean()
+  hasRomLimitations?: boolean;
+
+  @IsOptional() @IsBoolean()
+  hasHipFlexionContracture?: boolean;
+
+  @IsOptional() @IsBoolean()
+  hasKneeFlexionContracture?: boolean;
+
+  @IsOptional() @IsBoolean()
+  weakHipAbductors?: boolean;
+
+  @IsOptional() @IsBoolean()
+  weakHipExtensors?: boolean;
+
+  @IsOptional() @IsBoolean()
+  weakTrunkMuscles?: boolean;
+
+  @IsOptional() @IsString()
+  otherWeakness?: string;
+
+  @IsOptional() @IsString()
+  trunkStability?: string;
+
+  @IsOptional() @IsString()
+  abdominalControl?: string;
+
+  @IsOptional() @IsString()
+  pelvicControl?: string;
+
+  @IsOptional() @IsString()
+  sittingBalance?: string;
+
+  @IsOptional() @IsString()
+  standingBalance?: string;
+
+  @IsOptional() @IsString()
+  assistiveDevice?: string;
+
+  @IsOptional() @IsNumber() @Type(() => Number)
+  speedMs?: number;
+
+  @IsOptional() @IsInt() @Type(() => Number)
+  cadence?: number;
+
+  @IsOptional() @IsNumber() @Type(() => Number)
+  stepLengthProsCm?: number;
+
+  @IsOptional() @IsNumber() @Type(() => Number)
+  stepLengthSoundCm?: number;
+
+  @IsOptional() @IsNumber() @Type(() => Number)
+  stancePercProsthetic?: number;
+
+  @IsOptional() @IsNumber() @Type(() => Number)
+  stancePercSound?: number;
+
+  @IsOptional() @IsString()
+  symmetry?: string;
+
+  @IsOptional() @IsObject()
+  initialContact?: any;
+
+  @IsOptional() @IsObject()
+  loadingResponse?: any;
+
+  @IsOptional() @IsObject()
+  midStance?: any;
+
+  @IsOptional() @IsObject()
+  terminalStance?: any;
+
+  @IsOptional() @IsObject()
+  preSwing?: any;
+
+  @IsOptional() @IsObject()
+  swingPhase?: any;
+
+  @IsOptional() @IsString()
+  gaitNotes?: string;
+
+  @IsOptional() @IsArray()
+  prostheticIssues?: string[];
+
+  @IsOptional() @IsString()
+  mainProblem?: string;
+
+  @IsOptional() @IsArray()
+  likelyCauses?: string[];
+
+  @IsOptional() @IsArray()
+  recommendations?: string[];
+
+  @IsOptional() @IsObject()
+  rehabPlan?: any;
+
+  @IsOptional() @IsString()
+  rehabNotes?: string;
+
+  @IsOptional() @IsString()
+  examinerProsthetistId?: string;
+
+  @IsOptional() @IsString()
+  prosthetistSignatureUrl?: string;
+
+  @IsOptional() @IsString()
+  examinerPhysiotherapistId?: string;
+
+  @IsOptional() @IsString()
+  physiotherapistSignatureUrl?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
+
 export class ConsumableDto {
   @IsString()
   inventoryItemId: string;

@@ -343,6 +343,7 @@ model ProstheticsCase {
   reviewPrograms     PatientReviewProgram[]
   prostheticDelivery   ProstheticDeliveryForm?
   balanceAssessmentForms BalanceAssessmentForm[]
+  gaitAnalysisForms  GaitAnalysisForm[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1144,4 +1145,89 @@ model FollowUp {
   @@map("follow_ups")
   @@schema("clinic_prosthetics")
   @@index([caseId])
+}
+
+// ── Gait Analysis Form Pro-016 (متعدد لكل حالة) ──────────────────────────
+
+model GaitAnalysisForm {
+  id     String @id @default(uuid())
+  caseId String
+  case   ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  sessionDate DateTime?
+
+  // تفاصيل الطرف الصناعي
+  suspensionSystem String[] @default([])
+  socketBearing    String?
+  kneeJointType    String?
+  footType         String?
+
+  // شكوى المريض
+  patientComplaints String[] @default([])
+  painIntensity     Int?
+
+  // فحص الجذمور والطرف
+  alignmentCheck            String?
+  hasRomLimitations         Boolean?
+  hasHipFlexionContracture  Boolean?
+  hasKneeFlexionContracture Boolean?
+  weakHipAbductors          Boolean?
+  weakHipExtensors          Boolean?
+  weakTrunkMuscles          Boolean?
+  otherWeakness             String?
+
+  // التقييم الأساسي (Core Assessment + Balance)
+  trunkStability   String?
+  abdominalControl String?
+  pelvicControl    String?
+  sittingBalance   String?
+  standingBalance  String?
+
+  // قياسات المشي الزمانية-المكانية
+  assistiveDevice      String?
+  speedMs              Float?
+  cadence              Int?
+  stepLengthProsCm     Float?
+  stepLengthSoundCm    Float?
+  stancePercProsthetic Float?
+  stancePercSound      Float?
+  symmetry             String?
+
+  // انحرافات المشي — JSON لكل مرحلة: {deviations: string[], possibleCause: string}
+  initialContact  Json?
+  loadingResponse Json?
+  midStance       Json?
+  terminalStance  Json?
+  preSwing        Json?
+  swingPhase      Json?
+  gaitNotes       String? @db.Text
+
+  // مشاكل خاصة بالطرف الصناعي
+  prostheticIssues String[] @default([])
+
+  // الاستنتاج السريري
+  mainProblem  String?  @db.Text
+  likelyCauses String[] @default([])
+
+  // التوصيات
+  recommendations String[] @default([])
+
+  // خطة العلاج (Rehab Plan) — {strengthening: string[], balanceTrain: string[], gaitTrain: string[]}
+  rehabPlan  Json?
+  rehabNotes String? @db.Text
+
+  // التوقيعات
+  examinerProsthetistId       String?
+  prosthetistSignatureUrl     String?
+  examinerPhysiotherapistId   String?
+  physiotherapistSignatureUrl String?
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([caseId])
+  @@map("gait_analysis_forms")
+  @@schema("clinic_prosthetics")
 }

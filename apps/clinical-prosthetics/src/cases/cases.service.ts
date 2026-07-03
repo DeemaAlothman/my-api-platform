@@ -11,7 +11,7 @@ import {
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
   PatientTreatmentProgramDto, PatientReviewProgramDto,
   ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
-  BalanceAssessmentFormDto,
+  BalanceAssessmentFormDto, GaitAnalysisFormDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -1393,5 +1393,134 @@ export class CasesService {
     if (!att) throw new NotFoundException('المرفق غير موجود');
     await this.prisma.caseAttachment.delete({ where: { id: attachmentId } });
     return { message: 'تم حذف المرفق' };
+  }
+
+  // ── Gait Analysis Form Pro-016 (متعدد لكل حالة) ──────────────────────────
+
+  async addGaitAnalysisForm(caseId: string, dto: GaitAnalysisFormDto) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.gaitAnalysisForm.create({
+      data: {
+        caseId,
+        sessionDate:              dto.sessionDate ? new Date(dto.sessionDate) : undefined,
+        suspensionSystem:         dto.suspensionSystem ?? [],
+        socketBearing:            dto.socketBearing,
+        kneeJointType:            dto.kneeJointType,
+        footType:                 dto.footType,
+        patientComplaints:        dto.patientComplaints ?? [],
+        painIntensity:            dto.painIntensity,
+        alignmentCheck:           dto.alignmentCheck,
+        hasRomLimitations:        dto.hasRomLimitations,
+        hasHipFlexionContracture: dto.hasHipFlexionContracture,
+        hasKneeFlexionContracture: dto.hasKneeFlexionContracture,
+        weakHipAbductors:         dto.weakHipAbductors,
+        weakHipExtensors:         dto.weakHipExtensors,
+        weakTrunkMuscles:         dto.weakTrunkMuscles,
+        otherWeakness:            dto.otherWeakness,
+        trunkStability:           dto.trunkStability,
+        abdominalControl:         dto.abdominalControl,
+        pelvicControl:            dto.pelvicControl,
+        sittingBalance:           dto.sittingBalance,
+        standingBalance:          dto.standingBalance,
+        assistiveDevice:          dto.assistiveDevice,
+        speedMs:                  dto.speedMs,
+        cadence:                  dto.cadence,
+        stepLengthProsCm:         dto.stepLengthProsCm,
+        stepLengthSoundCm:        dto.stepLengthSoundCm,
+        stancePercProsthetic:     dto.stancePercProsthetic,
+        stancePercSound:          dto.stancePercSound,
+        symmetry:                 dto.symmetry,
+        initialContact:           dto.initialContact,
+        loadingResponse:          dto.loadingResponse,
+        midStance:                dto.midStance,
+        terminalStance:           dto.terminalStance,
+        preSwing:                 dto.preSwing,
+        swingPhase:               dto.swingPhase,
+        gaitNotes:                dto.gaitNotes,
+        prostheticIssues:         dto.prostheticIssues ?? [],
+        mainProblem:              dto.mainProblem,
+        likelyCauses:             dto.likelyCauses ?? [],
+        recommendations:          dto.recommendations ?? [],
+        rehabPlan:                dto.rehabPlan,
+        rehabNotes:               dto.rehabNotes,
+        examinerProsthetistId:       dto.examinerProsthetistId,
+        prosthetistSignatureUrl:     dto.prosthetistSignatureUrl,
+        examinerPhysiotherapistId:   dto.examinerPhysiotherapistId,
+        physiotherapistSignatureUrl: dto.physiotherapistSignatureUrl,
+        notes:                    dto.notes,
+      },
+    });
+  }
+
+  async getGaitAnalysisForms(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.gaitAnalysisForm.findMany({
+      where: { caseId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async updateGaitAnalysisForm(caseId: string, formId: string, dto: GaitAnalysisFormDto) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.gaitAnalysisForm.findFirst({ where: { id: formId, caseId } });
+    if (!form) throw new NotFoundException('Gait analysis form not found');
+    return this.prisma.gaitAnalysisForm.update({
+      where: { id: formId },
+      data: {
+        sessionDate:              dto.sessionDate ? new Date(dto.sessionDate) : undefined,
+        suspensionSystem:         dto.suspensionSystem,
+        socketBearing:            dto.socketBearing,
+        kneeJointType:            dto.kneeJointType,
+        footType:                 dto.footType,
+        patientComplaints:        dto.patientComplaints,
+        painIntensity:            dto.painIntensity,
+        alignmentCheck:           dto.alignmentCheck,
+        hasRomLimitations:        dto.hasRomLimitations,
+        hasHipFlexionContracture: dto.hasHipFlexionContracture,
+        hasKneeFlexionContracture: dto.hasKneeFlexionContracture,
+        weakHipAbductors:         dto.weakHipAbductors,
+        weakHipExtensors:         dto.weakHipExtensors,
+        weakTrunkMuscles:         dto.weakTrunkMuscles,
+        otherWeakness:            dto.otherWeakness,
+        trunkStability:           dto.trunkStability,
+        abdominalControl:         dto.abdominalControl,
+        pelvicControl:            dto.pelvicControl,
+        sittingBalance:           dto.sittingBalance,
+        standingBalance:          dto.standingBalance,
+        assistiveDevice:          dto.assistiveDevice,
+        speedMs:                  dto.speedMs,
+        cadence:                  dto.cadence,
+        stepLengthProsCm:         dto.stepLengthProsCm,
+        stepLengthSoundCm:        dto.stepLengthSoundCm,
+        stancePercProsthetic:     dto.stancePercProsthetic,
+        stancePercSound:          dto.stancePercSound,
+        symmetry:                 dto.symmetry,
+        initialContact:           dto.initialContact,
+        loadingResponse:          dto.loadingResponse,
+        midStance:                dto.midStance,
+        terminalStance:           dto.terminalStance,
+        preSwing:                 dto.preSwing,
+        swingPhase:               dto.swingPhase,
+        gaitNotes:                dto.gaitNotes,
+        prostheticIssues:         dto.prostheticIssues,
+        mainProblem:              dto.mainProblem,
+        likelyCauses:             dto.likelyCauses,
+        recommendations:          dto.recommendations,
+        rehabPlan:                dto.rehabPlan,
+        rehabNotes:               dto.rehabNotes,
+        examinerProsthetistId:       dto.examinerProsthetistId,
+        prosthetistSignatureUrl:     dto.prosthetistSignatureUrl,
+        examinerPhysiotherapistId:   dto.examinerPhysiotherapistId,
+        physiotherapistSignatureUrl: dto.physiotherapistSignatureUrl,
+        notes:                    dto.notes,
+      },
+    });
+  }
+
+  async deleteGaitAnalysisForm(caseId: string, formId: string) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.gaitAnalysisForm.findFirst({ where: { id: formId, caseId } });
+    if (!form) throw new NotFoundException('Gait analysis form not found');
+    return this.prisma.gaitAnalysisForm.delete({ where: { id: formId } });
   }
 }

@@ -16,7 +16,7 @@ import {
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
   PatientTreatmentProgramDto, PatientReviewProgramDto,
   ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
-  BalanceAssessmentFormDto,
+  BalanceAssessmentFormDto, GaitAnalysisFormDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -498,6 +498,36 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
   deleteAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string) {
     return this.service.deleteAttachment(id, attachmentId);
+  }
+
+  // ── Gait Analysis Form Pro-016 ───────────────────────────────────────────
+
+  @Post(':id/gait-analysis-forms')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  addGaitAnalysisForm(@Param('id') id: string, @Body() dto: GaitAnalysisFormDto) {
+    return this.service.addGaitAnalysisForm(id, dto);
+  }
+
+  @Get(':id/gait-analysis-forms')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getGaitAnalysisForms(@Param('id') id: string) {
+    return this.service.getGaitAnalysisForms(id);
+  }
+
+  @Patch(':id/gait-analysis-forms/:formId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  updateGaitAnalysisForm(
+    @Param('id') id: string,
+    @Param('formId') formId: string,
+    @Body() dto: GaitAnalysisFormDto,
+  ) {
+    return this.service.updateGaitAnalysisForm(id, formId, dto);
+  }
+
+  @Delete(':id/gait-analysis-forms/:formId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
+  deleteGaitAnalysisForm(@Param('id') id: string, @Param('formId') formId: string) {
+    return this.service.deleteGaitAnalysisForm(id, formId);
   }
 
   // ── PDF Report ────────────────────────────────────────────────────────────
