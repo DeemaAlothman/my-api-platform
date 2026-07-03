@@ -11,6 +11,7 @@ import {
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
   PatientTreatmentProgramDto, PatientReviewProgramDto,
   ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
+  BalanceAssessmentFormDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -856,6 +857,87 @@ export class CasesService {
         supervisorId: dto.supervisorId,
       },
     });
+  }
+
+  // ── Balance Assessment & Exercise Program Form Pro-015 ──────────────────
+
+  async addBalanceAssessmentForm(caseId: string, dto: BalanceAssessmentFormDto) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.balanceAssessmentForm.create({
+      data: {
+        caseId,
+        assessmentDate:    dto.assessmentDate ? new Date(dto.assessmentDate) : undefined,
+        previousProsthesis: dto.previousProsthesis,
+        assistiveDevice:   dto.assistiveDevice,
+        staticBalance:     dto.staticBalance ?? undefined,
+        dynamicTasks:      dto.dynamicTasks ?? undefined,
+        dynamicActivities: dto.dynamicActivities ?? undefined,
+        historyOfFalls:    dto.historyOfFalls,
+        nearFalls:         dto.nearFalls,
+        fearOfFalling:     dto.fearOfFalling,
+        fallRiskLevel:     dto.fallRiskLevel,
+        overallBalanceLevel: dto.overallBalanceLevel,
+        limitingFactors:   dto.limitingFactors ?? [],
+        exerciseProgram:   dto.exerciseProgram ?? undefined,
+        programProgression: dto.programProgression ?? [],
+        followUpWeeks:     dto.followUpWeeks,
+        expectedOutcomes:  dto.expectedOutcomes ?? [],
+        physiotherapistId: dto.physiotherapistId,
+        physiotherapistSignatureUrl: dto.physiotherapistSignatureUrl,
+        committeeHeadId:   dto.committeeHeadId,
+        committeeHeadSignatureUrl:   dto.committeeHeadSignatureUrl,
+        followUpDate:      dto.followUpDate ? new Date(dto.followUpDate) : undefined,
+        notes:             dto.notes,
+      },
+    });
+  }
+
+  async getBalanceAssessmentForms(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.balanceAssessmentForm.findMany({
+      where: { caseId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async updateBalanceAssessmentForm(caseId: string, formId: string, dto: BalanceAssessmentFormDto) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.balanceAssessmentForm.findFirst({ where: { id: formId, caseId } });
+    if (!form) throw new NotFoundException('Balance assessment form not found');
+    return this.prisma.balanceAssessmentForm.update({
+      where: { id: formId },
+      data: {
+        assessmentDate:    dto.assessmentDate ? new Date(dto.assessmentDate) : undefined,
+        previousProsthesis: dto.previousProsthesis,
+        assistiveDevice:   dto.assistiveDevice,
+        staticBalance:     dto.staticBalance ?? undefined,
+        dynamicTasks:      dto.dynamicTasks ?? undefined,
+        dynamicActivities: dto.dynamicActivities ?? undefined,
+        historyOfFalls:    dto.historyOfFalls,
+        nearFalls:         dto.nearFalls,
+        fearOfFalling:     dto.fearOfFalling,
+        fallRiskLevel:     dto.fallRiskLevel,
+        overallBalanceLevel: dto.overallBalanceLevel,
+        limitingFactors:   dto.limitingFactors ?? [],
+        exerciseProgram:   dto.exerciseProgram ?? undefined,
+        programProgression: dto.programProgression ?? [],
+        followUpWeeks:     dto.followUpWeeks,
+        expectedOutcomes:  dto.expectedOutcomes ?? [],
+        physiotherapistId: dto.physiotherapistId,
+        physiotherapistSignatureUrl: dto.physiotherapistSignatureUrl,
+        committeeHeadId:   dto.committeeHeadId,
+        committeeHeadSignatureUrl:   dto.committeeHeadSignatureUrl,
+        followUpDate:      dto.followUpDate ? new Date(dto.followUpDate) : undefined,
+        notes:             dto.notes,
+      },
+    });
+  }
+
+  async deleteBalanceAssessmentForm(caseId: string, formId: string) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.balanceAssessmentForm.findFirst({ where: { id: formId, caseId } });
+    if (!form) throw new NotFoundException('Balance assessment form not found');
+    return this.prisma.balanceAssessmentForm.delete({ where: { id: formId } });
   }
 
   // ── Prosthetic Delivery Form Pro-019 ────────────────────────────────────

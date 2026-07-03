@@ -341,7 +341,8 @@ model ProstheticsCase {
   followUps          FollowUp[]
   attachments        CaseAttachment[]
   reviewPrograms     PatientReviewProgram[]
-  prostheticDelivery ProstheticDeliveryForm?
+  prostheticDelivery   ProstheticDeliveryForm?
+  balanceAssessmentForms BalanceAssessmentForm[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -946,6 +947,63 @@ model ProstheticDeliveryItem {
 
   @@index([formId])
   @@map("prosthetic_delivery_items")
+  @@schema("clinic_prosthetics")
+}
+
+// ── Balance Assessment & Exercise Program Form Pro-015 ────────────────────────
+
+model BalanceAssessmentForm {
+  id             String          @id @default(uuid())
+  caseId         String
+  case           ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  assessmentDate DateTime?
+
+  // بيانات المريض الإضافية
+  previousProsthesis Boolean?   // هل استخدم طرف صناعي سابق
+  assistiveDevice    String?    // NONE | CANE | CRUTCHES | WALKER
+
+  // تقييم التوازن الثابت — [{key, result: INDEPENDENT|ASSISTED|UNABLE}]
+  staticBalance     Json?
+
+  // التوازن الديناميكي - مهام — [{key, result: GOOD|FAIR|POOR}]
+  dynamicTasks      Json?
+
+  // التوازن الديناميكي - أنشطة — [{key, result: INDEPENDENT|WITH_DIFFICULTY|UNABLE}]
+  dynamicActivities Json?
+
+  // تقييم خطر السقوط
+  historyOfFalls Boolean?
+  nearFalls      Boolean?
+  fearOfFalling  Boolean?
+  fallRiskLevel  String?   // HIGH | MODERATE | LOW
+
+  // خلاصة التوازن
+  overallBalanceLevel String?   // GOOD | FAIR | POOR
+  limitingFactors     String[]  @default([])
+
+  // برنامج تمارين التوازن — [{exercise, position, dosage, support, notes}]
+  exerciseProgram Json?
+
+  // خطة تطوير البرنامج
+  programProgression String[] @default([])
+
+  // المراجعة والمتابعة
+  followUpWeeks               Int?
+  expectedOutcomes            String[] @default([])
+  physiotherapistId           String?
+  physiotherapistSignatureUrl String?
+  committeeHeadId             String?
+  committeeHeadSignatureUrl   String?
+  followUpDate                DateTime?
+
+  notes     String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([caseId])
+  @@map("balance_assessment_forms")
   @@schema("clinic_prosthetics")
 }
 

@@ -220,6 +220,81 @@ export class MediaSessionDto {
   supervisorId: string;
 }
 
+export class BalanceAssessmentFormDto {
+  @IsOptional() @IsDateString()
+  assessmentDate?: string;
+
+  @IsOptional() @IsBoolean()
+  previousProsthesis?: boolean;
+
+  // NONE | CANE | CRUTCHES | WALKER
+  @IsOptional() @IsString()
+  assistiveDevice?: string;
+
+  // [{key: string, result: 'INDEPENDENT'|'ASSISTED'|'UNABLE'}]
+  @IsOptional() @IsObject()
+  staticBalance?: any;
+
+  // [{key: string, result: 'GOOD'|'FAIR'|'POOR'}]
+  @IsOptional() @IsObject()
+  dynamicTasks?: any;
+
+  // [{key: string, result: 'INDEPENDENT'|'WITH_DIFFICULTY'|'UNABLE'}]
+  @IsOptional() @IsObject()
+  dynamicActivities?: any;
+
+  @IsOptional() @IsBoolean()
+  historyOfFalls?: boolean;
+
+  @IsOptional() @IsBoolean()
+  nearFalls?: boolean;
+
+  @IsOptional() @IsBoolean()
+  fearOfFalling?: boolean;
+
+  // HIGH | MODERATE | LOW
+  @IsOptional() @IsString()
+  fallRiskLevel?: string;
+
+  // GOOD | FAIR | POOR
+  @IsOptional() @IsString()
+  overallBalanceLevel?: string;
+
+  @IsOptional() @IsArray()
+  limitingFactors?: string[];
+
+  // [{exercise, position, dosage, support, notes}]
+  @IsOptional() @IsObject()
+  exerciseProgram?: any;
+
+  @IsOptional() @IsArray()
+  programProgression?: string[];
+
+  @IsOptional() @IsInt() @Type(() => Number)
+  followUpWeeks?: number;
+
+  @IsOptional() @IsArray()
+  expectedOutcomes?: string[];
+
+  @IsOptional() @IsString()
+  physiotherapistId?: string;
+
+  @IsOptional() @IsString()
+  physiotherapistSignatureUrl?: string;
+
+  @IsOptional() @IsString()
+  committeeHeadId?: string;
+
+  @IsOptional() @IsString()
+  committeeHeadSignatureUrl?: string;
+
+  @IsOptional() @IsDateString()
+  followUpDate?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
+
 export class ProstheticDeliveryFormDto {
   @IsOptional() @IsDateString()
   inspectionDate?: string;

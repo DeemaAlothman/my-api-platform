@@ -16,6 +16,7 @@ import {
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
   PatientTreatmentProgramDto, PatientReviewProgramDto,
   ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
+  BalanceAssessmentFormDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -254,6 +255,36 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
   addMediaSession(@Param('id') id: string, @Body() dto: MediaSessionDto) {
     return this.service.addMediaSession(id, dto);
+  }
+
+  // ── Balance Assessment & Exercise Program Form Pro-015 ───────────────────
+
+  @Post(':id/balance-assessment')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  addBalanceAssessment(@Param('id') id: string, @Body() dto: BalanceAssessmentFormDto) {
+    return this.service.addBalanceAssessmentForm(id, dto);
+  }
+
+  @Get(':id/balance-assessment')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getBalanceAssessments(@Param('id') id: string) {
+    return this.service.getBalanceAssessmentForms(id);
+  }
+
+  @Patch(':id/balance-assessment/:formId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  updateBalanceAssessment(
+    @Param('id') id: string,
+    @Param('formId') formId: string,
+    @Body() dto: BalanceAssessmentFormDto,
+  ) {
+    return this.service.updateBalanceAssessmentForm(id, formId, dto);
+  }
+
+  @Delete(':id/balance-assessment/:formId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
+  deleteBalanceAssessment(@Param('id') id: string, @Param('formId') formId: string) {
+    return this.service.deleteBalanceAssessmentForm(id, formId);
   }
 
   // ── Prosthetic Delivery Form Pro-019 ─────────────────────────────────────
