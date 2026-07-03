@@ -1089,15 +1089,17 @@ model FinalEvaluation {
   generalNotes          String? @db.Text
   supervisorId          String
 
-  physioOpinion               String? @db.Text
-  prosthetistOpinion          String? @db.Text
+  physioOpinion                String? @db.Text
+  departmentHeadOpinion        String? @db.Text
+  prosthetistOpinion           String? @db.Text
   prosthetistSupervisorOpinion String? @db.Text
-  committeeHeadOpinion        String? @db.Text
-  expertOpinion               String? @db.Text
+  committeeHeadOpinion         String? @db.Text
+  expertOpinion                String? @db.Text
 
   readyForDelivery      Boolean @default(false)
   needsFollowUp         Boolean @default(false)
   followUpPlan          String? @db.Text
+  medicalDirectorNotes  String? @db.Text
 
   medicalDirectorSignatureBase64 String? @db.Text
   medicalDirectorSignedAt        DateTime?

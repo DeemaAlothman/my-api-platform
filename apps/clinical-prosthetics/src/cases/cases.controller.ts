@@ -407,6 +407,12 @@ export class CasesController {
     return this.service.createFinalEvaluation(id, dto);
   }
 
+  @Get(':id/final-evaluation')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getFinalEval(@Param('id') id: string) {
+    return this.service.getFinalEvaluation(id);
+  }
+
   @Post(':id/final-evaluation/director-sign')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.DELIVERY_APPROVE)
   directorSign(@Param('id') id: string, @Body() dto: DirectorSignDto, @User() user: any, @Req() req: any) {

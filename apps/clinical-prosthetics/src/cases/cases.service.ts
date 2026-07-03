@@ -1145,20 +1145,27 @@ export class CasesService {
       fittingDate: dto.fittingDate ? new Date(dto.fittingDate) : undefined,
       generalNotes: dto.generalNotes,
       supervisorId: dto.supervisorId,
-      physioOpinion: dto.physioOpinion,
-      prosthetistOpinion: dto.prosthetistOpinion,
+      physioOpinion:                dto.physioOpinion,
+      departmentHeadOpinion:        dto.departmentHeadOpinion,
+      prosthetistOpinion:           dto.prosthetistOpinion,
       prosthetistSupervisorOpinion: dto.prosthetistSupervisorOpinion,
-      committeeHeadOpinion: dto.committeeHeadOpinion,
-      expertOpinion: dto.expertOpinion,
-      readyForDelivery: dto.readyForDelivery ?? false,
-      needsFollowUp: dto.needsFollowUp ?? false,
-      followUpPlan: dto.followUpPlan,
+      committeeHeadOpinion:         dto.committeeHeadOpinion,
+      expertOpinion:                dto.expertOpinion,
+      readyForDelivery:             dto.readyForDelivery ?? false,
+      needsFollowUp:                dto.needsFollowUp ?? false,
+      followUpPlan:                 dto.followUpPlan,
+      medicalDirectorNotes:         dto.medicalDirectorNotes,
     };
     return this.prisma.finalEvaluation.upsert({
       where: { caseId },
       create: { caseId, ...data },
       update: data,
     });
+  }
+
+  async getFinalEvaluation(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.finalEvaluation.findUnique({ where: { caseId } });
   }
 
   async directorSign(caseId: string, dto: DirectorSignDto, userId: string, ip: string) {
@@ -1175,6 +1182,7 @@ export class CasesService {
       medicalDirectorSignatureBase64: dto.signatureBase64,
       medicalDirectorSignedAt: new Date(),
       medicalDirectorIp: ip,
+      medicalDirectorNotes: dto.medicalDirectorNotes,
       managerNotes: dto.managerNotes,
       patientFileComplete: dto.patientFileComplete,
     };

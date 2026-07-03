@@ -27,6 +27,9 @@ export class FinalEvaluationDto {
   physioOpinion?: string;
 
   @IsOptional() @IsString()
+  departmentHeadOpinion?: string;
+
+  @IsOptional() @IsString()
   prosthetistOpinion?: string;
 
   @IsOptional() @IsString()
@@ -46,11 +49,17 @@ export class FinalEvaluationDto {
 
   @IsOptional() @IsString()
   followUpPlan?: string;
+
+  @IsOptional() @IsString()
+  medicalDirectorNotes?: string;
 }
 
 export class DirectorSignDto {
   @IsString()
   signatureBase64: string;
+
+  @IsOptional() @IsString()
+  medicalDirectorNotes?: string;
 
   @IsOptional() @IsString()
   managerNotes?: string;
