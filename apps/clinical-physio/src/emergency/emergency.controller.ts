@@ -43,8 +43,15 @@ export class EmergencyController {
     return this.emergency.myAlerts(user.userId);
   }
 
+  // تنبيهات حالة محددة — يُستخدم من صفحة الحالة لعرض تنبيهاتها فقط
+  @UseGuards(JwtAuthGuard)
+  @Get('case/:caseId')
+  alertsByCase(@Param('caseId') caseId: string) {
+    return this.emergency.alertsByCase(caseId);
+  }
+
   // تفاصيل تنبيه واحد (يُستخدم عند الضغط على الإشعار لاستخراج caseId)
-  // ملاحظة: يجب أن يبقى هذا المسار بعد المسارات الحرفية (incoming/my) لتجنّب تعارض المطابقة
+  // ملاحظة: يجب أن يبقى هذا المسار بعد المسارات الحرفية (incoming/my/case) لتجنّب تعارض المطابقة
   @UseGuards(JwtAuthGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {

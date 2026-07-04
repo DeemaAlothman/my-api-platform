@@ -91,6 +91,16 @@ export class EmergencyService {
     });
   }
 
+  // تنبيهات حالة محددة
+  async alertsByCase(caseId: string) {
+    const physioCase = await this.prisma.physioCase.findFirst({ where: { id: caseId, deletedAt: null } });
+    if (!physioCase) throw new NotFoundException({ code: 'CASE_NOT_FOUND', message: 'حالة العلاج الفيزيائي غير موجودة', details: [] });
+    return this.prisma.physioEmergencyAlert.findMany({
+      where: { caseId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   private async getEmployeeIdByUserId(userId: string): Promise<string | null> {
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM users.employees WHERE "userId" = ${userId} AND "deletedAt" IS NULL LIMIT 1
