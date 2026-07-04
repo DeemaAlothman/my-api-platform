@@ -1088,7 +1088,7 @@ model FinalEvaluation {
   linersDelivered       Int?
   fittingDate           DateTime?
   generalNotes          String? @db.Text
-  supervisorId          String
+  supervisorId          String?
 
   physioOpinion                String? @db.Text
   departmentHeadOpinion        String? @db.Text
