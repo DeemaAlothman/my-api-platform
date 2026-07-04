@@ -12,6 +12,7 @@ import {
   PatientTreatmentProgramDto, PatientReviewProgramDto,
   ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
   BalanceAssessmentFormDto, GaitAnalysisFormDto,
+  CaseTreatmentProgramDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -1069,6 +1070,61 @@ export class CasesService {
     const review = await this.prisma.patientReviewProgram.findFirst({ where: { id: reviewId, caseId } });
     if (!review) throw new NotFoundException('Review not found');
     return this.prisma.patientReviewProgram.delete({ where: { id: reviewId } });
+  }
+
+  // ── Case Treatment Program Pro-004 (مرتبط بالحالة مباشرة) ──────────────
+
+  async addCaseTreatmentProgram(caseId: string, dto: CaseTreatmentProgramDto) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.caseTreatmentProgram.create({
+      data: {
+        caseId,
+        sessionDate:            dto.sessionDate ? new Date(dto.sessionDate) : undefined,
+        sessionTime:            dto.sessionTime,
+        sessionStartTime:       dto.sessionStartTime,
+        sessionEndTime:         dto.sessionEndTime,
+        description:            dto.description,
+        technicianId:           dto.technicianId,
+        technicianSignatureUrl: dto.technicianSignatureUrl,
+        managerSignatureUrl:    dto.managerSignatureUrl,
+        notes:                  dto.notes,
+      },
+    });
+  }
+
+  async getCaseTreatmentPrograms(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.caseTreatmentProgram.findMany({
+      where: { caseId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async updateCaseTreatmentProgram(caseId: string, programId: string, dto: CaseTreatmentProgramDto) {
+    await this.findCaseOrThrow(caseId);
+    const program = await this.prisma.caseTreatmentProgram.findFirst({ where: { id: programId, caseId } });
+    if (!program) throw new NotFoundException('Treatment program not found');
+    return this.prisma.caseTreatmentProgram.update({
+      where: { id: programId },
+      data: {
+        sessionDate:            dto.sessionDate ? new Date(dto.sessionDate) : undefined,
+        sessionTime:            dto.sessionTime,
+        sessionStartTime:       dto.sessionStartTime,
+        sessionEndTime:         dto.sessionEndTime,
+        description:            dto.description,
+        technicianId:           dto.technicianId,
+        technicianSignatureUrl: dto.technicianSignatureUrl,
+        managerSignatureUrl:    dto.managerSignatureUrl,
+        notes:                  dto.notes,
+      },
+    });
+  }
+
+  async deleteCaseTreatmentProgram(caseId: string, programId: string) {
+    await this.findCaseOrThrow(caseId);
+    const program = await this.prisma.caseTreatmentProgram.findFirst({ where: { id: programId, caseId } });
+    if (!program) throw new NotFoundException('Treatment program not found');
+    return this.prisma.caseTreatmentProgram.delete({ where: { id: programId } });
   }
 
   // ── Patient Treatment Program (Pro-004) ──────────────────────────────────

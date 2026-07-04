@@ -358,6 +358,35 @@ export class PatientReviewProgramDto {
   notes?: string;
 }
 
+export class CaseTreatmentProgramDto {
+  @IsOptional() @IsDateString()
+  sessionDate?: string;
+
+  @IsOptional() @IsString()
+  sessionTime?: string;
+
+  @IsOptional() @IsString()
+  sessionStartTime?: string;
+
+  @IsOptional() @IsString()
+  sessionEndTime?: string;
+
+  @IsOptional() @IsString()
+  description?: string;
+
+  @IsOptional() @IsString()
+  technicianId?: string;
+
+  @IsOptional() @IsString()
+  technicianSignatureUrl?: string;
+
+  @IsOptional() @IsString()
+  managerSignatureUrl?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
+
 export class PatientTreatmentProgramDto {
   @IsOptional() @IsString()
   description?: string;

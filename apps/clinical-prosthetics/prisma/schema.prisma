@@ -344,6 +344,7 @@ model ProstheticsCase {
   prostheticDelivery   ProstheticDeliveryForm?
   balanceAssessmentForms BalanceAssessmentForm[]
   gaitAnalysisForms  GaitAnalysisForm[]
+  treatmentPrograms  CaseTreatmentProgram[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1147,6 +1148,31 @@ model FollowUp {
   @@map("follow_ups")
   @@schema("clinic_prosthetics")
   @@index([caseId])
+}
+
+// ── Case Treatment Program Pro-004 (مرتبط بالحالة مباشرة، متعدد) ─────────
+
+model CaseTreatmentProgram {
+  id                     String          @id @default(uuid())
+  caseId                 String
+  case                   ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  sessionDate            DateTime?
+  sessionTime            String?
+  sessionStartTime       String?
+  sessionEndTime         String?
+  description            String?  @db.Text
+  technicianId           String?
+  technicianSignatureUrl String?
+  managerSignatureUrl    String?
+  notes                  String?  @db.Text
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([caseId])
+  @@map("case_treatment_programs")
+  @@schema("clinic_prosthetics")
 }
 
 // ── Gait Analysis Form Pro-016 (متعدد لكل حالة) ──────────────────────────

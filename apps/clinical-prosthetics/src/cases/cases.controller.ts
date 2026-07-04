@@ -17,6 +17,7 @@ import {
   PatientTreatmentProgramDto, PatientReviewProgramDto,
   ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
   BalanceAssessmentFormDto, GaitAnalysisFormDto,
+  CaseTreatmentProgramDto,
 } from './dto/treatment.dto';
 import {
   FinalEvaluationDto, DirectorSignDto, DeliveryDto,
@@ -255,6 +256,36 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
   addMediaSession(@Param('id') id: string, @Body() dto: MediaSessionDto) {
     return this.service.addMediaSession(id, dto);
+  }
+
+  // ── Case Treatment Program Pro-004 ───────────────────────────────────────
+
+  @Post(':id/treatment-programs')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  addCaseTreatmentProgram(@Param('id') id: string, @Body() dto: CaseTreatmentProgramDto) {
+    return this.service.addCaseTreatmentProgram(id, dto);
+  }
+
+  @Get(':id/treatment-programs')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getCaseTreatmentPrograms(@Param('id') id: string) {
+    return this.service.getCaseTreatmentPrograms(id);
+  }
+
+  @Patch(':id/treatment-programs/:programId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  updateCaseTreatmentProgram(
+    @Param('id') id: string,
+    @Param('programId') programId: string,
+    @Body() dto: CaseTreatmentProgramDto,
+  ) {
+    return this.service.updateCaseTreatmentProgram(id, programId, dto);
+  }
+
+  @Delete(':id/treatment-programs/:programId')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
+  deleteCaseTreatmentProgram(@Param('id') id: string, @Param('programId') programId: string) {
+    return this.service.deleteCaseTreatmentProgram(id, programId);
   }
 
   // ── Balance Assessment & Exercise Program Form Pro-015 ───────────────────
