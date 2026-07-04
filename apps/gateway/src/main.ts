@@ -82,6 +82,7 @@ async function bootstrap() {
     proxyReq.end();
   };
   expressApp.use('/uploads', proxyUpload);
+  expressApp.use('/api/v1/uploads', proxyUpload);
   expressApp.use('/app/uploads', proxyUpload);
 
   // Enable text body parsing for ZKTeco PUSH protocol (accepts text/plain, octet-stream, no Content-Type, form-urlencoded)
