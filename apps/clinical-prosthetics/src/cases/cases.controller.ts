@@ -224,14 +224,6 @@ export class CasesController {
     return this.service.signGaitAnalysis(id, dto, user.userId);
   }
 
-  // ── Balance Assessment ────────────────────────────────────────────────────
-
-  @Post(':id/balance-assessment')
-  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.ASSESSMENT_CREATE)
-  createBalance(@Param('id') id: string, @Body() dto: BalanceAssessmentDto) {
-    return this.service.createBalanceAssessment(id, dto);
-  }
-
   // ── Treatment Plan ────────────────────────────────────────────────────────
 
   @Post(':id/treatment-plan')
