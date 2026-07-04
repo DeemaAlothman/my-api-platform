@@ -20,8 +20,8 @@ export class FinalEvaluationDto {
   @IsOptional() @IsString()
   generalNotes?: string;
 
-  @IsString()
-  supervisorId: string;
+  @IsOptional() @IsString()
+  supervisorId?: string;
 
   @IsOptional() @IsString()
   physioOpinion?: string;
