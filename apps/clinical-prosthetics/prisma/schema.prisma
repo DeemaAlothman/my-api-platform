@@ -316,9 +316,11 @@ model ProstheticsCase {
   supervisingDoctorId  String?
   workshopSupervisorId String?
 
-  prosthesisType       ProsthesisType?
+  prosthesisType         ProsthesisType?
+  prosthesisSuitable     Boolean?
+  proposedProsthesisType String?
   // الطرف الصناعي مكتمل التجميع (من فورم أجزاء ومكونات الطرف)
-  prosthesisCompleted  Boolean @default(false)
+  prosthesisCompleted    Boolean @default(false)
 
   upperAssessment                UpperLimbAssessment[]
   lowerAssessment                LowerLimbAssessment[]
