@@ -680,7 +680,7 @@ export class AttendanceRecordsService {
     };
   }
 
-  async addManualStamp(recordId: string, body: { timestamp: string; interpretedAs: string }, userId: string) {
+  async addManualStamp(recordId: string, body: { timestamp: string; interpretedAs: string; deviceId?: string }, userId: string) {
     const valid = ['CLOCK_IN', 'CLOCK_OUT', 'BREAK_OUT', 'BREAK_IN'];
     if (!valid.includes(body.interpretedAs)) {
       throw new BadRequestException(`interpretedAs must be one of: ${valid.join(', ')}`);
@@ -694,13 +694,18 @@ export class AttendanceRecordsService {
       throw new BadRequestException('Invalid timestamp');
     }
 
-    // جلب أي جهاز موجود — الـ deviceId FK مطلوب
-    const devices = (await this.prisma.$queryRawUnsafe(
-      `SELECT id, "serialNumber" FROM biometric.biometric_devices WHERE "isActive" = true LIMIT 1`,
-    )) as Array<{ id: string; serialNumber: string }>;
+    // جلب الجهاز المحدد أو أول جهاز نشط
+    const deviceQuery = body.deviceId
+      ? `SELECT id, "serialNumber" FROM biometric.biometric_devices WHERE id = '${body.deviceId}' AND "isActive" = true LIMIT 1`
+      : `SELECT id, "serialNumber" FROM biometric.biometric_devices WHERE "isActive" = true LIMIT 1`;
+    const devices = (await this.prisma.$queryRawUnsafe(deviceQuery)) as Array<{ id: string; serialNumber: string }>;
 
     if (!devices[0]) {
-      throw new BadRequestException('No active biometric device found — cannot create manual stamp');
+      throw new BadRequestException(
+        body.deviceId
+          ? 'الجهاز المحدد غير موجود أو غير نشط'
+          : 'No active biometric device found — cannot create manual stamp',
+      );
     }
 
     const deviceId = devices[0].id;

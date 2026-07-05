@@ -117,7 +117,7 @@ export class AttendanceRecordsController {
   @Permission('attendance.records.update-manual')
   addManualStamp(
     @Param('id') id: string,
-    @Body() body: { timestamp: string; interpretedAs: string },
+    @Body() body: { timestamp: string; interpretedAs: string; deviceId?: string },
     @UserId() userId: string,
   ) {
     return this.service.addManualStamp(id, body, userId);
