@@ -397,6 +397,10 @@ model UpperLimbAssessment {
   romData            Json?
   muscleMotionNotes  String? @db.Text
 
+  neuromaPresent       Boolean?
+  usesProstheticLimb   Boolean?
+  prostheticLimbType   String?
+
   // ممكن أكثر من شخص بكل دور
   examinerProsthetistIds String[]
   examinerPhysioIds      String[]
@@ -451,6 +455,9 @@ model LowerLimbAssessment {
 
   romData            Json?
   muscleMotionNotes  String? @db.Text
+
+  usesProstheticLimb   Boolean?
+  prostheticLimbType   String?
 
   // ممكن أكثر من شخص بكل دور
   examinerProsthetistIds String[]
