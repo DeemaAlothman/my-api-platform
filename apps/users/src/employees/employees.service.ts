@@ -625,8 +625,8 @@ export class EmployeesService {
     }
 
     if (dto.basicSalary !== undefined && Number(dto.basicSalary) !== Number(employee.basicSalary ?? 0)) {
-      const gradeId = (data.jobGradeId ?? employee.jobGradeId) as string | null;
-      if (gradeId) await this.validateSalaryRange(gradeId, Number(dto.basicSalary));
+      // يفحص الراتب فقط إذا تغيّرت الدرجة الوظيفية في نفس الطلب — مثل إضافة موظف جديد
+      if (data.jobGradeId) await this.validateSalaryRange(data.jobGradeId, Number(dto.basicSalary));
       from.salary = { basicSalary: employee.basicSalary, currency: employee.salaryCurrency };
       to.salary = { basicSalary: dto.basicSalary, currency: dto.salaryCurrency ?? employee.salaryCurrency };
       data.basicSalary = dto.basicSalary;
