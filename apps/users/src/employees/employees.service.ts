@@ -632,13 +632,6 @@ export class EmployeesService {
       if (dto.salaryCurrency) data.salaryCurrency = dto.salaryCurrency;
     }
 
-    // البدلات: إذا أُرسلت، تستبدل بدلات الموظف بالكامل ويُسجّل التغيير القديم→الجديد
-    if (dto.allowances !== undefined) {
-      from.allowances = ((employee as any).allowances ?? []).map((a: any) => ({ type: a.type, amount: a.amount }));
-      to.allowances = dto.allowances.map((a) => ({ type: a.type, amount: a.amount }));
-      data.allowances = { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) };
-    }
-
     if (Object.keys(data).length === 0) {
       throw new BadRequestException({ code: 'NO_CHANGES', message: 'لم يتم تقديم أي تغيير', details: [] });
     }
