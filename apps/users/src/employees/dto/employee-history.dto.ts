@@ -8,7 +8,7 @@ export class AllowanceInputDto {
   @Type(() => Number) @IsNumber() amount: number;
 }
 
-// نقل/تغيير وظيفي: قسم و/أو منصب و/أو درجة و/أو مدير و/أو راتب و/أو بدلات — كلها اختيارية،
+// نقل/تغيير وظيفي: قسم و/أو منصب و/أو درجة و/أو مدير و/أو راتب الأساسي — كلها اختيارية،
 // بس لازم يتغيّر شي واحد على الأقل. يُسجَّل حدث TRANSFER بالإضبارة.
 export class TransferEmployeeDto {
   @IsOptional() @IsString() departmentId?: string;
@@ -18,10 +18,6 @@ export class TransferEmployeeDto {
 
   @IsOptional() @Type(() => Number) @IsNumber() basicSalary?: number;
   @IsOptional() @IsString() salaryCurrency?: string;
-
-  // البدلات: إذا أُرسلت، تستبدل بدلات الموظف بالكامل (نفس سلوك تعديل الموظف)
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AllowanceInputDto)
-  allowances?: AllowanceInputDto[];
 
   @IsDateString() effectiveDate: string;
   @IsOptional() @IsString() note?: string;

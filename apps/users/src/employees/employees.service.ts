@@ -567,7 +567,6 @@ export class EmployeesService {
   async transfer(id: string, dto: TransferEmployeeDto, performedBy?: string) {
     const employee = await this.prisma.employee.findFirst({
       where: { id, deletedAt: null },
-      include: { allowances: true },
     });
     if (!employee) {
       throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Employee not found', details: [{ id }] });
@@ -678,13 +677,6 @@ export class EmployeesService {
     const to: any = { salary: { basicSalary: dto.basicSalary, currency: dto.salaryCurrency ?? employee.salaryCurrency } };
 
     const data: any = { basicSalary: dto.basicSalary, ...(dto.salaryCurrency ? { salaryCurrency: dto.salaryCurrency } : {}) };
-
-    // البدلات: إذا أُرسلت، تستبدل بدلات الموظف بالكامل ويُسجّل التغيير القديم→الجديد
-    if (dto.allowances !== undefined) {
-      from.allowances = ((employee as any).allowances ?? []).map((a: any) => ({ type: a.type, amount: a.amount }));
-      to.allowances = dto.allowances.map((a) => ({ type: a.type, amount: a.amount }));
-      data.allowances = { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) };
-    }
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.employee.update({ where: { id }, data });
