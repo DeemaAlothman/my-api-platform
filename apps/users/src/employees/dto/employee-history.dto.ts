@@ -19,6 +19,9 @@ export class TransferEmployeeDto {
   @IsOptional() @Type(() => Number) @IsNumber() basicSalary?: number;
   @IsOptional() @IsString() salaryCurrency?: string;
 
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AllowanceInputDto)
+  allowances?: AllowanceInputDto[];
+
   @IsDateString() effectiveDate: string;
   @IsOptional() @IsString() note?: string;
 }
