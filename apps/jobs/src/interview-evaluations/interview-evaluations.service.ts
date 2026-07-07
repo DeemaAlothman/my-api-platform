@@ -17,21 +17,36 @@ export class InterviewEvaluationsService {
     computerScores: CriteriaScoreDto[],
     technicalMaxScores: Record<string, number>,
     requiresComputer = true,
+    requiresTechnical = true,
   ) {
-    // الأوزان تتعدل بناءً على requiresComputer
-    const personalWeight  = requiresComputer ? 40 : 50;
-    const technicalWeight = requiresComputer ? 40 : 50;
-    const computerWeight  = requiresComputer ? 20 : 0;
+    // الأوزان تتعدل بناءً على requiresComputer و requiresTechnical
+    // لو ما في أسئلة تقنية، وزنها يتوزع على الشخصي والحاسوبي
+    let personalWeight: number;
+    let technicalWeight: number;
+    let computerWeight: number;
+
+    if (requiresTechnical && requiresComputer) {
+      personalWeight = 40; technicalWeight = 40; computerWeight = 20;
+    } else if (requiresTechnical && !requiresComputer) {
+      personalWeight = 50; technicalWeight = 50; computerWeight = 0;
+    } else if (!requiresTechnical && requiresComputer) {
+      personalWeight = 60; technicalWeight = 0; computerWeight = 40;
+    } else {
+      personalWeight = 100; technicalWeight = 0; computerWeight = 0;
+    }
 
     // القسم الأول: صفات شخصية (يشمل اللغة أو لا حسب ما أُرسل)
     const personalSum = personalScores.reduce((s, x) => s + x.score, 0);
     const personalMax = personalScores.length * 5 || 1;
     const personalScore = (personalSum / personalMax) * personalWeight;
 
-    // القسم الثاني: أسئلة تقنية
-    const technicalSum = technicalScores.reduce((s, x) => s + x.score, 0);
-    const technicalMax = technicalScores.reduce((s, x) => s + (technicalMaxScores[x.questionId] ?? 10), 0) || 1;
-    const technicalScore = (technicalSum / technicalMax) * technicalWeight;
+    // القسم الثاني: أسئلة تقنية (صفر إذا ما كان مطلوباً)
+    let technicalScore = 0;
+    if (requiresTechnical && technicalScores.length > 0) {
+      const technicalSum = technicalScores.reduce((s, x) => s + x.score, 0);
+      const technicalMax = technicalScores.reduce((s, x) => s + (technicalMaxScores[x.questionId] ?? 10), 0) || 1;
+      technicalScore = (technicalSum / technicalMax) * technicalWeight;
+    }
 
     // القسم الثالث: مهارات حاسوبية (صفر إذا ما كان مطلوباً)
     let computerScore = 0;
@@ -55,8 +70,11 @@ export class InterviewEvaluationsService {
     // تحقق من وجود الشاغر
     const position = await this.prisma.interviewPosition.findFirst({
       where: { id: dto.positionId, deletedAt: null },
+      include: { _count: { select: { technicalQuestions: { where: { deletedAt: null, isActive: true } } } } },
     });
     if (!position) throw new NotFoundException('الشاغر غير موجود');
+
+    const requiresTechnical = position._count.technicalQuestions > 0;
 
     // جلب maxScore للأسئلة التقنية
     const technicalMaxScores: Record<string, number> = {};
@@ -74,6 +92,7 @@ export class InterviewEvaluationsService {
       dto.computerScores ?? [],
       technicalMaxScores,
       position.requiresComputer,
+      requiresTechnical,
     );
 
     const evaluation = await this.prisma.interviewEvaluation.create({
@@ -177,8 +196,9 @@ export class InterviewEvaluationsService {
     if (dto.personalScores || dto.technicalScores || dto.computerScores) {
       const position = await this.prisma.interviewPosition.findFirst({
         where: { id: existing.positionId },
-        select: { requiresComputer: true },
+        include: { _count: { select: { technicalQuestions: { where: { deletedAt: null, isActive: true } } } } },
       });
+      const requiresTechnical = (position?._count?.technicalQuestions ?? 0) > 0;
       const technicalMaxScores: Record<string, number> = {};
       if (newTechnical.length) {
         const questions = await this.prisma.technicalQuestion.findMany({
@@ -187,7 +207,7 @@ export class InterviewEvaluationsService {
         });
         questions.forEach(q => { technicalMaxScores[q.id] = q.maxScore; });
       }
-      scores = this.calculateScores(newPersonal as any, newTechnical as any, newComputer as any, technicalMaxScores, position?.requiresComputer ?? true);
+      scores = this.calculateScores(newPersonal as any, newTechnical as any, newComputer as any, technicalMaxScores, position?.requiresComputer ?? true, requiresTechnical);
     }
 
     return this.prisma.interviewEvaluation.update({
