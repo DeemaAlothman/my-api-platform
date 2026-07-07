@@ -1028,7 +1028,10 @@ export class EmployeesService {
           WHEN e."probationPeriod" = 'ONE_MONTH'     THEN (e."hireDate" + INTERVAL '1 month')::date - CURRENT_DATE
           WHEN e."probationPeriod" = 'TWO_MONTHS'    THEN (e."hireDate" + INTERVAL '2 months')::date - CURRENT_DATE
           WHEN e."probationPeriod" = 'THREE_MONTHS'  THEN (e."hireDate" + INTERVAL '3 months')::date - CURRENT_DATE
-        END AS "daysRemaining"
+        END AS "daysRemaining",
+        EXISTS (
+          SELECT 1 FROM evaluation."ProbationEvaluation" pe WHERE pe."employeeId" = e.id
+        ) AS "hasEvaluation"
       FROM users.employees e
       LEFT JOIN users.departments d ON d.id = e."departmentId"
       WHERE e."deletedAt" IS NULL

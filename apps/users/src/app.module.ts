@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -28,6 +29,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     ThrottlerModule.forRoot([
       { name: 'hour', ttl: 3600000, limit: 30000 },
     ]),
+    ScheduleModule.forRoot(),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_ACCESS_SECRET!,

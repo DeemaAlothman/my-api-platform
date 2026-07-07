@@ -2,12 +2,13 @@ import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { EmployeesController } from './employees.controller';
 import { EmployeesService } from './employees.service';
+import { ProbationReminderService } from './probation-reminder.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Module({
   imports: [HttpModule],
   controllers: [EmployeesController],
-  providers: [EmployeesService, PrismaService],
+  providers: [EmployeesService, ProbationReminderService, PrismaService],
   exports: [EmployeesService],
 })
 export class EmployeesModule {}
