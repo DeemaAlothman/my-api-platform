@@ -1207,18 +1207,38 @@ export class PayrollService {
       }
     };
 
+    // جمع أنواع البدلات الموجودة فعلاً في بيانات الشهر — ديناميكي
+    const allowanceArNames: Record<string, string> = {
+      FOOD: 'بدل طعام',
+      PREVIOUS_EXPERIENCE: 'بدل خبرة سابقة',
+      ACADEMIC_DEGREE: 'بدل شهادة أكاديمية',
+      WORK_NATURE: 'بدل طبيعة عمل',
+      RESPONSIBILITY: 'بدل مسؤولية',
+      RESIDENCE: 'بدل سكن',
+    };
+    const allAllowanceKeys = new Set<string>();
+    for (const p of payrolls) {
+      const ab = p.allowancesBreakdown ? JSON.parse(p.allowancesBreakdown as string) : {};
+      for (const k of Object.keys(ab)) { if (Number(ab[k]) > 0) allAllowanceKeys.add(k); }
+    }
+    const allowanceKeys = [...allAllowanceKeys].sort();
+
     const headers = [
       'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب المقطوع',
-      'بدل الطعام', 'الأجر الساعي', 'إجازات بأجر', ...leaveTypeNames, 'إجازات بلا راتب',
+      ...allowanceKeys.map(k => allowanceArNames[k] ?? k),
+      'الأجر الساعي', 'إجازات بأجر', ...leaveTypeNames, 'إجازات بلا راتب',
       'قيمة الإجازات بلا راتب', 'إجازات مرضية', 'قيمة الإجازات المرضية',
-      'إجازات ساعية', 'قيمة الإجازات الساعية', 'التأخير (د)', 'قيمة التأخير بعد خصمها من الرصيد المسموح',
-      'دقائق الخروج المبكر', 'قيمة الخروج المبكر بعد الحسم من الرصيد المسموح',
+      'إجازات ساعية', 'قيمة الإجازات الساعية',
+      'التأخير (د)', 'قيمة التأخير',
+      'دقائق الخروج المبكر', 'قيمة الخروج المبكر',
+      'استقطاع تجاوز الاستراحة',
       'أيام الغياب', 'قيمة استقطاع الغياب',
       'إضافي أيام عادية (س)', 'قيمة إضافي عادي',
       'إضافي أيام عطل (س)', 'قيمة إضافي عطل',
       'أيام مهمة داخلية', 'قيمة المهمات الداخلية',
       'أيام مهمة خارجية', 'قيمة المهمات الخارجية',
-      'مكافآت', 'عمولة مبيعات', 'سلف', 'خصومات أخرى',
+      'مكافآت', 'عقوبات مادية',
+      'عمولة مبيعات', 'سلف', 'خصومات أخرى',
       'الراتب الصافي', 'تقريب', 'ملاحظات',
     ];
 
@@ -1234,7 +1254,7 @@ export class PayrollService {
         emp?.jobTitleAr ?? '—',
         workTypeAr(emp?.workType),
         Number((p as any).deductibleBaseSalary ?? p.basicSalary ?? 0),
-        Number(allowances.FOOD ?? 0),
+        ...allowanceKeys.map(k => Number(allowances[k] ?? 0)),
         Number((p as any).hourlyRate ?? 0),
         Number((p as any).paidLeaveDays ?? 0),
         ...leaveTypeValues,
@@ -1248,6 +1268,7 @@ export class PayrollService {
         Number(bd?.tardiness?.amount ?? 0),
         Number((p as any).totalEarlyLeaveMinutes ?? 0),
         Number(bd?.earlyLeave?.amount ?? 0),
+        Number(bd?.breakOverLimit?.amount ?? 0),
         Number((p as any).absentUnjustified ?? 0),
         Number(bd?.absence?.amount ?? (p as any).absenceDeductionAmount ?? 0),
         parseFloat((Number((p as any).overtimeWorkdayMinutes ?? 0) / 60).toFixed(2)),
@@ -1259,6 +1280,7 @@ export class PayrollService {
         Number((p as any).externalMissionDays ?? 0),
         Number((p as any).externalMissionAmount ?? 0),
         Number(p.bonusAmount ?? 0),
+        Number((p as any).penaltyAmount ?? 0),
         Number((p as any).commissionAmount ?? 0),
         Number((p as any).advanceDeduction ?? 0),
         Number((p as any).otherDeductionAmount ?? 0),
