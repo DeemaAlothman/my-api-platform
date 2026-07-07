@@ -487,6 +487,26 @@ export class DailyClosureService implements OnModuleInit {
         `الموظف لم يسجل خروجاً يوم ${dateStr}`,
       );
 
+      // إشعار للموظف نفسه
+      const empRows = (await this.prisma.$queryRawUnsafe(
+        `SELECT "userId" FROM users.employees WHERE id = $1 AND "userId" IS NOT NULL AND "deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      )) as Array<{ userId: string }>;
+
+      if (empRows[0]?.userId) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'ATTENDANCE_ALERT',
+              'تذكير: نسيت تسجيل الخروج', 'Reminder: Missing Clock-Out',
+              $2, $3, false, NOW())`,
+          empRows[0].userId,
+          `لم يتم تسجيل خروجك يوم ${dateStr} — يرجى مراجعة قسم الموارد البشرية إذا كان هناك سبب.`,
+          `You did not clock out on ${dateStr}. Please contact HR if needed.`,
+        );
+      }
+
       await this.auditLog(null, employeeId, dateStr, 'MISSING_CLOCK_OUT_ALERT', 'DAILY_CLOSURE',
         `تم إنشاء تنبيه خروج مفقود ليوم ${dateStr}`);
     } catch (err) {
