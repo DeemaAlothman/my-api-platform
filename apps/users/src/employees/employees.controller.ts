@@ -108,6 +108,33 @@ export class EmployeesController {
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('employees:export')
+  @Get('export-all')
+  async exportAll(@Res() res: Response) {
+    const { mainRows, allowanceRows } = await this.employees.exportAllEmployees();
+    const today = new Date().toISOString().split('T')[0];
+    await sendExcelMultiSheet(res, `employees-full-${today}`, [
+      {
+        name: 'الموظفون',
+        headers: [
+          'الرقم الوظيفي', 'الاسم عربي', 'الاسم إنجليزي', 'القسم', 'المنصب الوظيفي',
+          'الدرجة الوظيفية', 'المدير المباشر', 'رقم المدير', 'تاريخ التعيين', 'نوع العقد',
+          'نهاية العقد', 'حالة التوظيف', 'نوع العمل', 'فترة التجربة',
+          'الراتب الأساسي', 'العملة', 'الجنس', 'تاريخ الميلاد', 'الجنسية',
+          'الحالة الاجتماعية', 'رقم الهوية', 'البريد الإلكتروني', 'الهاتف', 'الجوال', 'الشركة',
+          'نتيجة التجربة', 'تاريخ إنهاء التجربة',
+        ],
+        rows: mainRows,
+      },
+      {
+        name: 'البدلات',
+        headers: ['الرقم الوظيفي', 'اسم الموظف', 'القسم', 'نوع البدل', 'المبلغ'],
+        rows: allowanceRows,
+      },
+    ]);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('employees:read')
   @Get(':id')
   findOne(@Param('id') id: string, @User() user: CurrentUser) {

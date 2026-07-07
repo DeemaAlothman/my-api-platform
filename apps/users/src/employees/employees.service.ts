@@ -1395,6 +1395,68 @@ export class EmployeesService {
     return { data: { items, total, page, limit } };
   }
 
+  async exportAllEmployees() {
+    const employees = await this.prisma.employee.findMany({
+      where: { deletedAt: null },
+      orderBy: [{ department: { nameAr: 'asc' } }, { employeeNumber: 'asc' }],
+      include: {
+        department: { select: { nameAr: true, nameEn: true } },
+        jobTitle:   { select: { nameAr: true } },
+        jobGrade:   { select: { nameAr: true } },
+        manager:    { select: { firstNameAr: true, lastNameAr: true, employeeNumber: true } },
+        allowances: true,
+      },
+    });
+
+    const fmt = (d: Date | string | null | undefined) =>
+      d ? new Date(d).toLocaleDateString('ar-SY') : '';
+
+    const mainRows = employees.map(e => [
+      e.employeeNumber,
+      `${e.firstNameAr} ${e.lastNameAr}`,
+      e.firstNameEn ? `${e.firstNameEn ?? ''} ${e.lastNameEn ?? ''}`.trim() : '',
+      e.department?.nameAr ?? '',
+      e.jobTitle?.nameAr ?? '',
+      e.jobGrade?.nameAr ?? '',
+      e.manager ? `${e.manager.firstNameAr} ${e.manager.lastNameAr}` : '',
+      e.manager?.employeeNumber ?? '',
+      fmt(e.hireDate),
+      e.contractType ?? '',
+      fmt(e.contractEndDate),
+      e.employmentStatus ?? '',
+      e.workType ?? '',
+      e.probationPeriod ?? '',
+      e.basicSalary !== null && e.basicSalary !== undefined ? Number(e.basicSalary) : '',
+      e.salaryCurrency ?? '',
+      e.gender ?? '',
+      fmt(e.dateOfBirth),
+      e.nationality ?? '',
+      e.maritalStatus ?? '',
+      e.nationalId ?? '',
+      e.email ?? '',
+      e.phone ?? '',
+      e.mobile ?? '',
+      e.company ?? '',
+      e.probationResult ?? '',
+      fmt(e.probationCompletedAt),
+    ]);
+
+    const allowanceRows: (string | number)[][] = [];
+    for (const e of employees) {
+      for (const a of e.allowances) {
+        allowanceRows.push([
+          e.employeeNumber,
+          `${e.firstNameAr} ${e.lastNameAr}`,
+          e.department?.nameAr ?? '',
+          a.type,
+          Number(a.amount),
+        ]);
+      }
+    }
+
+    return { mainRows, allowanceRows };
+  }
+
   async buildExportFullData(id: string) {
     const employee = await this.findOne(id);
 
