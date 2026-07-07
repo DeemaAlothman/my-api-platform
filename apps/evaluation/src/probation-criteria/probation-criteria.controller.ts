@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProbationCriteriaService } from './probation-criteria.service';
 import { CreateProbationCriteriaDto, JobTitleCriteriaDto } from './dto/create-probation-criteria.dto';
@@ -23,7 +23,8 @@ export class ProbationCriteriaController {
   }
 
   @Delete(':id')
-  deactivate(@Param('id') id: string) { return this.service.deactivate(id); }
+  @HttpCode(HttpStatus.OK)
+  delete(@Param('id') id: string) { return this.service.delete(id); }
 
   @Get('by-job-title/:jobTitleId')
   getByJobTitle(@Param('jobTitleId') jobTitleId: string) {

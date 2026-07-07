@@ -40,15 +40,25 @@ export class ProbationCriteriaService {
     });
   }
 
-  async deactivate(id: string) {
+  async delete(id: string) {
     const item = await this.prisma.probationCriteria.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('المعيار غير موجود');
-    if (item.isCore) throw new NotFoundException('لا يمكن تعطيل معيار أساسي');
+    if (item.isCore) throw new NotFoundException('لا يمكن حذف معيار أساسي');
 
-    return this.prisma.probationCriteria.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    const usageCount = await this.prisma.probationCriteriaScore.count({ where: { criteriaId: id } });
+
+    if (usageCount > 0) {
+      // مستخدم في تقييمات → تعطيل آمن فقط
+      return this.prisma.probationCriteria.update({
+        where: { id },
+        data: { isActive: false },
+      });
+    }
+
+    // غير مستخدم → حذف فعلي
+    await this.prisma.jobTitleCriteria.deleteMany({ where: { criteriaId: id } });
+    await this.prisma.probationCriteria.delete({ where: { id } });
+    return { deleted: true };
   }
 
   async getByJobTitle(jobTitleId: string) {
