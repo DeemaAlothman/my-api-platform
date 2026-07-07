@@ -22,7 +22,7 @@ export class AuthService {
     this.logger.log(`Login attempt for user: ${username}`);
 
     const rows = await this.prisma.$queryRaw<any[]>`
-      SELECT id, username, email, "fullName", password, "firstLoginAt", "isActive"
+      SELECT id, username, email, "fullName", password, "firstLoginAt", status
       FROM users.users
       WHERE TRIM(username) = ${username}
         AND "deletedAt" IS NULL
@@ -38,7 +38,7 @@ export class AuthService {
       });
     }
 
-    if (user.isActive === false) {
+    if (user.status === 'INACTIVE') {
       this.logger.warn(`Login failed - account deactivated: ${username}`);
       throw new UnauthorizedException({
         code: 'AUTH_ACCOUNT_INACTIVE',
@@ -211,10 +211,10 @@ export class AuthService {
 
     // جلب الـ username وتحقق من أن الحساب لا يزال نشطاً
     let username: string = payload.username ?? '';
-    const userRow = await this.prisma.$queryRaw<Array<{ username: string; isActive: boolean }>>`
-      SELECT username, "isActive" FROM users.users WHERE id = ${userId} AND "deletedAt" IS NULL LIMIT 1
+    const userRow = await this.prisma.$queryRaw<Array<{ username: string; status: string }>>`
+      SELECT username, status FROM users.users WHERE id = ${userId} AND "deletedAt" IS NULL LIMIT 1
     `;
-    if (!userRow[0] || userRow[0].isActive === false) {
+    if (!userRow[0] || userRow[0].status === 'INACTIVE') {
       throw new UnauthorizedException({
         code: 'AUTH_ACCOUNT_INACTIVE',
         message: 'الحساب غير نشط. يرجى التواصل مع المسؤول.',
