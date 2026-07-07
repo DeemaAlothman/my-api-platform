@@ -632,6 +632,10 @@ export class EmployeesService {
       if (dto.salaryCurrency) data.salaryCurrency = dto.salaryCurrency;
     }
 
+    if (dto.allowances !== undefined) {
+      data.allowances = { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) };
+    }
+
     if (Object.keys(data).length === 0) {
       throw new BadRequestException({ code: 'NO_CHANGES', message: 'لم يتم تقديم أي تغيير', details: [] });
     }
