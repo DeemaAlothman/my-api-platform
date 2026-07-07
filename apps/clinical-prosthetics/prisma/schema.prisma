@@ -289,7 +289,7 @@ model ProstheticsCase {
   amputationCount Int      @default(1)
   amputationType  AmputationType[] @default([])
   amputationSide  AmputationSide?
-  amputationLevel AmputationLevel?
+  amputationLevel AmputationLevel[] @default([])
   // الجانب الأكثر تأثراً والذي يجري رصده وعلاجه — فقط عند amputationSide = BILATERAL
   moreAffectedSide AmputationSide?
 

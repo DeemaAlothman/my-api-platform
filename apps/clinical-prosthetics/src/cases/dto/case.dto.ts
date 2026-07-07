@@ -45,8 +45,8 @@ export class CreateCaseDto {
   @IsOptional() @IsEnum(AmputationSideEnum)
   amputationSide?: string;
 
-  @IsOptional() @IsEnum(AmputationLevelEnum)
-  amputationLevel?: string;
+  @IsOptional() @IsArray() @IsEnum(AmputationLevelEnum, { each: true })
+  amputationLevel?: string[];
 
   // الجانب الأكثر تأثراً والذي يجري رصده وعلاجه — فقط عند amputationSide = BILATERAL (RIGHT أو LEFT)
   @IsOptional() @IsEnum(AmputationSideEnum)
@@ -137,8 +137,8 @@ export class UpdateCaseDto {
   @IsOptional() @IsEnum(AmputationSideEnum)
   amputationSide?: string;
 
-  @IsOptional() @IsEnum(AmputationLevelEnum)
-  amputationLevel?: string;
+  @IsOptional() @IsArray() @IsEnum(AmputationLevelEnum, { each: true })
+  amputationLevel?: string[];
 
   // الجانب الأكثر تأثراً والذي يجري رصده وعلاجه — فقط عند amputationSide = BILATERAL (RIGHT أو LEFT)
   @IsOptional() @IsEnum(AmputationSideEnum)
