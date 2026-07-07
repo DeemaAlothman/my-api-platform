@@ -22,7 +22,7 @@ export class AuthService {
     this.logger.log(`Login attempt for user: ${username}`);
 
     const rows = await this.prisma.$queryRaw<any[]>`
-      SELECT id, username, email, "fullName", password, "firstLoginAt"
+      SELECT id, username, email, "fullName", password, "firstLoginAt", "isActive"
       FROM users.users
       WHERE TRIM(username) = ${username}
         AND "deletedAt" IS NULL
@@ -34,6 +34,15 @@ export class AuthService {
       throw new UnauthorizedException({
         code: 'AUTH_INVALID_CREDENTIALS',
         message: 'Invalid username or password',
+        details: [],
+      });
+    }
+
+    if (user.isActive === false) {
+      this.logger.warn(`Login failed - account deactivated: ${username}`);
+      throw new UnauthorizedException({
+        code: 'AUTH_ACCOUNT_INACTIVE',
+        message: 'الحساب غير نشط. يرجى التواصل مع المسؤول.',
         details: [],
       });
     }
@@ -200,14 +209,19 @@ export class AuthService {
       this.logger.error(`Error loading permissions on refresh for userId=${userId}: ${error.message}`);
     }
 
-    // جلب الـ username من DB لأن refresh token لا يحتوي عليه
+    // جلب الـ username وتحقق من أن الحساب لا يزال نشطاً
     let username: string = payload.username ?? '';
-    if (!username) {
-      const userRow = await this.prisma.$queryRaw<Array<{ username: string }>>`
-        SELECT username FROM users.users WHERE id = ${userId} LIMIT 1
-      `;
-      username = userRow[0]?.username ?? '';
+    const userRow = await this.prisma.$queryRaw<Array<{ username: string; isActive: boolean }>>`
+      SELECT username, "isActive" FROM users.users WHERE id = ${userId} AND "deletedAt" IS NULL LIMIT 1
+    `;
+    if (!userRow[0] || userRow[0].isActive === false) {
+      throw new UnauthorizedException({
+        code: 'AUTH_ACCOUNT_INACTIVE',
+        message: 'الحساب غير نشط. يرجى التواصل مع المسؤول.',
+        details: [],
+      });
     }
+    username = userRow[0].username;
 
     this.logger.log(`Token refreshed for userId: ${userId}`);
     const newAccessToken = this.signAccessToken(userId, username, permissions);
