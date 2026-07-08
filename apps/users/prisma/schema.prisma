@@ -616,6 +616,8 @@ enum NotificationType {
   BREAK_EXCEEDED
   PENALTY_DECISION
   REWARD_DECISION
+  INVENTORY_REQUEST
+  INVENTORY_REQUEST_UPDATE
 }
 
 // ─── Onboarding / Offboarding ───────────────────────────────────────────────
