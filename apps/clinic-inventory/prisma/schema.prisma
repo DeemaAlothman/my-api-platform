@@ -45,8 +45,10 @@ model InventoryItem {
   supplierId    String?
   supplier      Supplier?  @relation(fields: [supplierId], references: [id])
 
-  companyName   String?
-  notes         String?  @db.Text
+  companyName       String?
+  notes             String?  @db.Text
+  status            ItemRequestStatus @default(PENDING)
+  requestedByUserId String?
   unit          String
   currentStock  Float    @default(0)
   minStockLevel Float?
@@ -94,6 +96,15 @@ model InventoryTransaction {
 enum InventoryType {
   COMPONENT
   CONSUMABLE
+
+  @@schema("clinic_inventory")
+}
+
+enum ItemRequestStatus {
+  PENDING
+  APPROVED
+  DONE
+  NOT_AVAILABLE
 
   @@schema("clinic_inventory")
 }

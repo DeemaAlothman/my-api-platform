@@ -71,8 +71,8 @@ export class InventoryController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission(PERMISSIONS.CLINIC_INVENTORY.MANAGE)
   @Post('items')
-  createItem(@Body() dto: CreateItemDto) {
-    return this.service.createItem(dto);
+  createItem(@Body() dto: CreateItemDto, @User() user: any) {
+    return this.service.createItem(dto, user.userId);
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)

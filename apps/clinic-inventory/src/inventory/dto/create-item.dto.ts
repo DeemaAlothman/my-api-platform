@@ -2,6 +2,12 @@ import { IsString, IsEnum, IsOptional, IsNumber, IsBoolean, IsUUID } from 'class
 import { Type } from 'class-transformer';
 
 export enum InventoryType { COMPONENT = 'COMPONENT', CONSUMABLE = 'CONSUMABLE' }
+export enum ItemRequestStatus {
+  PENDING       = 'PENDING',
+  APPROVED      = 'APPROVED',
+  DONE          = 'DONE',
+  NOT_AVAILABLE = 'NOT_AVAILABLE',
+}
 
 export class CreateItemDto {
   @IsString() partCode: string;
@@ -18,4 +24,5 @@ export class CreateItemDto {
   @IsOptional() @IsString() imageUrl?: string;
   @IsOptional() @IsString() companyName?: string;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsEnum(ItemRequestStatus) status?: ItemRequestStatus;
 }

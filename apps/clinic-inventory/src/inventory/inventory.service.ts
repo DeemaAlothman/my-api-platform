@@ -58,11 +58,33 @@ export class InventoryService {
     });
   }
 
-  async createItem(dto: CreateItemDto) {
-    return this.prisma.inventoryItem.create({
-      data: dto,
+  private readonly MANAGER_USER_ID = '0e5c8e2a-3bf7-4fa3-871a-daf698e472c2';
+
+  private readonly STATUS_LABEL: Record<string, string> = {
+    APPROVED:      'معتمد',
+    DONE:          'تم',
+    NOT_AVAILABLE: 'لا يوجد',
+    PENDING:       'معلق',
+  };
+
+  async createItem(dto: CreateItemDto, requestedByUserId: string) {
+    const item = await this.prisma.inventoryItem.create({
+      data: { ...dto, status: 'PENDING', requestedByUserId },
       include: { category: true, supplier: true },
     });
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO users.notifications
+         (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+       VALUES
+         (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
+          'طلب قطعة جديد', 'New Part Request', $2, $3, false, NOW())`,
+      this.MANAGER_USER_ID,
+      `طلب قطعة جديد بانتظار مراجعتك: ${item.name} (${item.partCode})`,
+      `New part request awaiting review: ${item.name} (${item.partCode})`,
+    );
+
+    return item;
   }
 
   async findItem(id: string) {
@@ -84,12 +106,29 @@ export class InventoryService {
   }
 
   async updateItem(id: string, data: Partial<CreateItemDto>) {
-    await this.findItem(id);
-    return this.prisma.inventoryItem.update({
+    const existing = await this.findItem(id);
+    const updated = await this.prisma.inventoryItem.update({
       where: { id },
       data,
       include: { category: true, supplier: true },
     });
+
+    if (data.status && data.status !== existing.status && existing.requestedByUserId) {
+      const label = this.STATUS_LABEL[data.status] ?? data.status;
+      const notesText = data.notes ? ` — ملاحظة: ${data.notes}` : '';
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO users.notifications
+           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+         VALUES
+           (gen_random_uuid(), $1, 'INVENTORY_REQUEST_UPDATE',
+            'تحديث طلب قطعة', 'Part Request Update', $2, $3, false, NOW())`,
+        existing.requestedByUserId,
+        `تم تحديث حالة طلب القطعة "${existing.name}" إلى: ${label}${notesText}`,
+        `Part request "${existing.name}" status updated to: ${label}`,
+      );
+    }
+
+    return updated;
   }
 
   async deleteItem(id: string) {
