@@ -95,24 +95,24 @@ export class CasesService {
     return c;
   }
 
-  private async callInventoryDeduct(inventoryItemId: string, caseId: string, userId: string) {
-    const url = `${process.env.INVENTORY_SERVICE_URL || 'http://clinic-inventory:4014'}/api/v1/inventory/transactions/internal-deduct`;
-    const token = process.env.INTERNAL_SERVICE_TOKEN || '';
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-internal-token': token,
-        },
-        body: JSON.stringify({ itemId: inventoryItemId, quantity: 1, caseId, reason: 'PROSTHETICS_COMPONENT', userId }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).message || 'Inventory deduction failed');
-      }
-    } catch (e: any) {
-      throw new InternalServerErrorException(`Failed to deduct from inventory: ${e.message}`);
+  private readonly INVENTORY_MANAGER_IDS = [
+    '415be69c-749b-41f5-a800-43b63baa794c',
+    'f2297d60-1c06-44d7-b68d-cc5980affd37',
+  ];
+
+  private async notifyInventoryManagers(partCode: string, partName: string, caseId: string) {
+    const msg = `طلب قطعة للحالة ${caseId}: ${partName} (${partCode}) — يرجى معالجة المخزون والاعتماد.`;
+    for (const managerId of this.INVENTORY_MANAGER_IDS) {
+      try {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
+              'طلب قطعة — باطراف صناعية', 'Part Request — Prosthetics', $2, $3, false, NOW())`,
+          managerId, msg, msg,
+        );
+      } catch (_) {}
     }
   }
 
@@ -621,10 +621,6 @@ export class CasesService {
       matchedInInventory = !!inventoryItemId;
     }
 
-    if (inventoryItemId) {
-      await this.callInventoryDeduct(inventoryItemId, caseId, userId);
-    }
-
     const component = await this.prisma.prosthesisComponent.create({
       data: {
         caseId,
@@ -637,6 +633,9 @@ export class CasesService {
         addedBy: userId,
       },
     });
+
+    await this.notifyInventoryManagers(dto.partCode, dto.partName, caseId);
+
     return { ...component, matchedInInventory };
   }
 
