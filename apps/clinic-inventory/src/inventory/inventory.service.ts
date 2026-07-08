@@ -58,7 +58,10 @@ export class InventoryService {
     });
   }
 
-  private readonly MANAGER_USER_ID = '0e5c8e2a-3bf7-4fa3-871a-daf698e472c2';
+  private readonly MANAGER_USER_IDS = [
+    '0e5c8e2a-3bf7-4fa3-871a-daf698e472c2',
+    '33b61a24-7a56-47f2-a9e0-ef104e1bc1be',
+  ];
 
   private readonly STATUS_LABEL: Record<string, string> = {
     APPROVED:      'معتمد',
@@ -73,16 +76,18 @@ export class InventoryService {
       include: { category: true, supplier: true },
     });
 
-    await this.prisma.$queryRawUnsafe(
-      `INSERT INTO users.notifications
-         (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
-       VALUES
-         (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
-          'طلب قطعة جديد', 'New Part Request', $2, $3, false, NOW())`,
-      this.MANAGER_USER_ID,
-      `طلب قطعة جديد بانتظار مراجعتك: ${item.name} (${item.partCode})`,
-      `New part request awaiting review: ${item.name} (${item.partCode})`,
-    );
+    for (const managerId of this.MANAGER_USER_IDS) {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO users.notifications
+           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+         VALUES
+           (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
+            'طلب قطعة جديد', 'New Part Request', $2, $3, false, NOW())`,
+        managerId,
+        `طلب قطعة جديد بانتظار مراجعتك: ${item.name} (${item.partCode})`,
+        `New part request awaiting review: ${item.name} (${item.partCode})`,
+      );
+    }
 
     return item;
   }
