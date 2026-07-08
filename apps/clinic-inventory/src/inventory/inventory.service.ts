@@ -92,6 +92,78 @@ export class InventoryService {
     });
   }
 
+  async deleteItem(id: string) {
+    await this.findItem(id);
+    await this.prisma.inventoryItem.update({
+      where: { id },
+      data: { isActive: false },
+    });
+    return { deleted: true };
+  }
+
+  async importFromExcel(buffer: Buffer): Promise<{ created: number; skipped: number; errors: string[] }> {
+    const ExcelJS = await import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+
+    const sheet = workbook.worksheets[0];
+    if (!sheet) throw new BadRequestException('الملف فارغ أو لا يحتوي على أوراق');
+
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    // الصف الأول هو الرؤوس — نبدأ من الصف الثاني
+    sheet.eachRow({ includeEmpty: false }, async (row, rowNumber) => {
+      if (rowNumber === 1) return;
+
+      const cell = (col: number) => {
+        const v = row.getCell(col).value;
+        return v !== null && v !== undefined ? String(v).trim() : '';
+      };
+
+      const partCode   = cell(1);
+      const name       = cell(2);
+      const nameAr     = cell(3);
+      const companyName = cell(4);
+      const unit       = cell(5);
+      const type       = cell(6).toUpperCase() as any;
+      const currentStock = parseFloat(cell(7)) || 0;
+      const minStockLevel = cell(8) ? parseFloat(cell(8)) : undefined;
+      const unitCostUsd   = cell(9) ? parseFloat(cell(9)) : undefined;
+
+      if (!partCode || !name || !unit) {
+        errors.push(`صف ${rowNumber}: رمز الصنف، الاسم، والوحدة إلزامية`);
+        return;
+      }
+
+      try {
+        await this.prisma.inventoryItem.upsert({
+          where: { partCode },
+          create: {
+            partCode, name, nameAr: nameAr || null,
+            companyName: companyName || null, unit,
+            type: ['COMPONENT', 'CONSUMABLE'].includes(type) ? type : undefined,
+            currentStock, minStockLevel, unitCostUsd,
+          },
+          update: {
+            name, nameAr: nameAr || null,
+            companyName: companyName || null, unit,
+            type: ['COMPONENT', 'CONSUMABLE'].includes(type) ? type : undefined,
+            currentStock, minStockLevel, unitCostUsd,
+            isActive: true,
+          },
+        });
+        created++;
+      } catch {
+        skipped++;
+        errors.push(`صف ${rowNumber}: فشل حفظ الصنف "${partCode}"`);
+      }
+    });
+
+    return { created, skipped, errors };
+  }
+
   // ── Transactions ──────────────────────────────────────────────────
 
   async addTransaction(itemId: string, dto: CreateTransactionDto, userId: string) {

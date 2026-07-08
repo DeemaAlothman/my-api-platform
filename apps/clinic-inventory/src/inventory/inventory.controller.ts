@@ -1,6 +1,8 @@
 import {
-  Controller, Get, Post, Put, Body, Param, Query, UseGuards,
+  Controller, Get, Post, Put, Delete, Body, Param, Query,
+  UseGuards, UseInterceptors, UploadedFile, BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { InventoryService } from './inventory.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { CreateTransactionDto, InternalDeductDto } from './dto/create-transaction.dto';
@@ -92,6 +94,22 @@ export class InventoryController {
   @Put('items/:id')
   updateItem(@Param('id') id: string, @Body() dto: Partial<CreateItemDto>) {
     return this.service.updateItem(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission(PERMISSIONS.CLINIC_INVENTORY.MANAGE)
+  @Delete('items/:id')
+  deleteItem(@Param('id') id: string) {
+    return this.service.deleteItem(id);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission(PERMISSIONS.CLINIC_INVENTORY.MANAGE)
+  @Post('items/import-excel')
+  @UseInterceptors(FileInterceptor('file'))
+  async importExcel(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('لم يتم رفع ملف');
+    return this.service.importFromExcel(file.buffer);
   }
 
   // ── Transactions ──────────────────────────────────────────────────

@@ -16,4 +16,5 @@ export class CreateItemDto {
   @IsOptional() @Type(() => Number) @IsNumber() minStockLevel?: number;
   @IsOptional() @Type(() => Number) @IsNumber() unitCostUsd?: number;
   @IsOptional() @IsString() imageUrl?: string;
+  @IsOptional() @IsString() companyName?: string;
 }
