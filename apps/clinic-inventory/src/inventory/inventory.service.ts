@@ -77,16 +77,18 @@ export class InventoryService {
     });
 
     for (const managerId of this.MANAGER_USER_IDS) {
-      await this.prisma.$queryRawUnsafe(
-        `INSERT INTO users.notifications
-           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
-         VALUES
-           (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
-            'طلب قطعة جديد', 'New Part Request', $2, $3, false, NOW())`,
-        managerId,
-        `طلب قطعة جديد بانتظار مراجعتك: ${item.name} (${item.partCode})`,
-        `New part request awaiting review: ${item.name} (${item.partCode})`,
-      );
+      try {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
+              'طلب قطعة جديد', 'New Part Request', $2, $3, false, NOW())`,
+          managerId,
+          `طلب قطعة جديد بانتظار مراجعتك: ${item.name} (${item.partCode})`,
+          `New part request awaiting review: ${item.name} (${item.partCode})`,
+        );
+      } catch (_) { /* userId غير موجود — تجاهل */ }
     }
 
     return item;
@@ -121,16 +123,18 @@ export class InventoryService {
     if (data.status && data.status !== existing.status && existing.requestedByUserId) {
       const label = this.STATUS_LABEL[data.status] ?? data.status;
       const notesText = data.notes ? ` — ملاحظة: ${data.notes}` : '';
-      await this.prisma.$queryRawUnsafe(
-        `INSERT INTO users.notifications
-           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
-         VALUES
-           (gen_random_uuid(), $1, 'INVENTORY_REQUEST_UPDATE',
-            'تحديث طلب قطعة', 'Part Request Update', $2, $3, false, NOW())`,
-        existing.requestedByUserId,
-        `تم تحديث حالة طلب القطعة "${existing.name}" إلى: ${label}${notesText}`,
-        `Part request "${existing.name}" status updated to: ${label}`,
-      );
+      try {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'INVENTORY_REQUEST_UPDATE',
+              'تحديث طلب قطعة', 'Part Request Update', $2, $3, false, NOW())`,
+          existing.requestedByUserId,
+          `تم تحديث حالة طلب القطعة "${existing.name}" إلى: ${label}${notesText}`,
+          `Part request "${existing.name}" status updated to: ${label}`,
+        );
+      } catch (_) { /* userId غير موجود — تجاهل */ }
     }
 
     return updated;
