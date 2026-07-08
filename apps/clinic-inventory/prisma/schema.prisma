@@ -46,6 +46,7 @@ model InventoryItem {
   supplier      Supplier?  @relation(fields: [supplierId], references: [id])
 
   companyName   String?
+  notes         String?  @db.Text
   unit          String
   currentStock  Float    @default(0)
   minStockLevel Float?
