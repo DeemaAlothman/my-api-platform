@@ -59,8 +59,8 @@ export class InventoryService {
   }
 
   private readonly MANAGER_USER_IDS = [
-    '0e5c8e2a-3bf7-4fa3-871a-daf698e472c2',
-    '33b61a24-7a56-47f2-a9e0-ef104e1bc1be',
+    '415be69c-749b-41f5-a800-43b63baa794c',
+    'f2297d60-1c06-44d7-b68d-cc5980affd37',
   ];
 
   private readonly STATUS_LABEL: Record<string, string> = {
