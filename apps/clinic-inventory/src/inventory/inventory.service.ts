@@ -104,7 +104,7 @@ export class InventoryService {
   async importFromExcel(buffer: Buffer): Promise<{ created: number; skipped: number; errors: string[] }> {
     const ExcelJS = await import('exceljs');
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(buffer as unknown as Buffer);
 
     const sheet = workbook.worksheets[0];
     if (!sheet) throw new BadRequestException('الملف فارغ أو لا يحتوي على أوراق');
