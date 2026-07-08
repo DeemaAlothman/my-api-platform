@@ -409,7 +409,7 @@ model UpperLimbAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("upper_limb_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -467,7 +467,7 @@ model LowerLimbAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("lower_limb_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -493,7 +493,7 @@ model AnkleDisarticulationAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("ankle_disarticulation_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -518,7 +518,7 @@ model TranshumeralAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("transhumeral_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -543,7 +543,7 @@ model ElbowDisarticulationAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("elbow_disarticulation_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -568,7 +568,7 @@ model TransradialAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("transradial_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -594,7 +594,7 @@ model HemipelvectomyAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("hemipelvectomy_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -620,7 +620,7 @@ model TranstibialAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("transtibial_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -646,7 +646,7 @@ model TransfemoralAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("transfemoral_assessments")
   @@schema("clinic_prosthetics")
 }
@@ -672,7 +672,7 @@ model KneeDisarticulationAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
-  @@unique([caseId, side])
+  @@index([caseId, side])
   @@map("knee_disarticulation_assessments")
   @@schema("clinic_prosthetics")
 }

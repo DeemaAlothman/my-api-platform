@@ -187,16 +187,16 @@ export class CasesService {
     const c = await this.prisma.prostheticsCase.findFirst({
       where: { id, deletedAt: null },
       include: {
-        upperAssessment: true,
-        lowerAssessment: true,
-        ankleDisarticulationAssessment: true,
-        kneeDisarticulationAssessment: true,
-        transfemoralAssessment: true,
-        transtibialAssessment: true,
-        hemipelvectomyAssessment: true,
-        transradialAssessment: true,
-        elbowDisarticulationAssessment: true,
-        transhumeralAssessment: true,
+        upperAssessment:                { orderBy: { examinedAt: 'desc' } },
+        lowerAssessment:                { orderBy: { examinedAt: 'desc' } },
+        ankleDisarticulationAssessment: { orderBy: { examinedAt: 'desc' } },
+        kneeDisarticulationAssessment:  { orderBy: { examinedAt: 'desc' } },
+        transfemoralAssessment:         { orderBy: { examinedAt: 'desc' } },
+        transtibialAssessment:          { orderBy: { examinedAt: 'desc' } },
+        hemipelvectomyAssessment:       { orderBy: { examinedAt: 'desc' } },
+        transradialAssessment:          { orderBy: { examinedAt: 'desc' } },
+        elbowDisarticulationAssessment: { orderBy: { examinedAt: 'desc' } },
+        transhumeralAssessment:         { orderBy: { examinedAt: 'desc' } },
         committeeReview: true,
         components: { orderBy: { addedAt: 'desc' } },
         gaitAnalysis: true,
@@ -301,9 +301,8 @@ export class CasesService {
   async upsertUpperAssessment(caseId: string, dto: UpperLimbAssessmentDto) {
     await this.findCaseOrThrow(caseId);
     const side = dto.side as any;
-    return this.prisma.upperLimbAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: {
+    return this.prisma.upperLimbAssessment.create({
+      data: {
         caseId,
         side,
         residualLimbLength: dto.residualLimbLength as any,
@@ -335,37 +334,6 @@ export class CasesService {
         examinerProsthetistIds: dto.examinerProsthetistIds ?? [],
         examinerPhysioIds: dto.examinerPhysioIds ?? [],
         examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
-      },
-      update: {
-        residualLimbLength: dto.residualLimbLength as any,
-        residualLimbShape: dto.residualLimbShape as any,
-        residualLimbPhotoUrl: dto.residualLimbPhotoUrl,
-        painPresent: dto.painPresent,
-        painArea: dto.painArea,
-        painIntensity: dto.painIntensity,
-        painTypes: dto.painTypes as any,
-        painTypeOtherDetail: dto.painTypeOtherDetail,
-        phantomPainPresent: dto.phantomPainPresent,
-        phantomPainIntensity: dto.phantomPainIntensity,
-        residualLimbPalpable: dto.residualLimbPalpable,
-        neuromaPalpable: dto.neuromaPalpable,
-        skinAppearance: dto.skinAppearance as any,
-        skinNotes: dto.skinNotes,
-        skinColor: dto.skinColor as any,
-        skinTemperature: dto.skinTemperature as any,
-        scarCondition: dto.scarCondition as any,
-        hasSkinGrafts: dto.hasSkinGrafts,
-        graftArea: dto.graftArea,
-        hasOtherAffectedLimbs: dto.hasOtherAffectedLimbs,
-        canBalanceOneSide: dto.canBalanceOneSide,
-        usesCompressionBandage: dto.usesCompressionBandage,
-        jointsRangeOfMotion: dto.jointsRangeOfMotion as any,
-        activityLevel: dto.activityLevel as any,
-        romData: dto.romData,
-        muscleMotionNotes: dto.muscleMotionNotes,
-        examinerProsthetistIds: dto.examinerProsthetistIds,
-        examinerPhysioIds: dto.examinerPhysioIds,
-        examinerSupervisorIds: dto.examinerSupervisorIds,
       },
     });
   }
@@ -408,10 +376,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.lowerLimbAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.lowerLimbAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
@@ -426,10 +392,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.transhumeralAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.transhumeralAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
@@ -444,10 +408,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.elbowDisarticulationAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.elbowDisarticulationAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
@@ -462,10 +424,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.transradialAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.transradialAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
@@ -481,10 +441,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.hemipelvectomyAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.hemipelvectomyAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
@@ -500,10 +458,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.transtibialAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.transtibialAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
@@ -519,10 +475,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.transfemoralAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.transfemoralAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
@@ -538,10 +492,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.kneeDisarticulationAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.kneeDisarticulationAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
@@ -557,10 +509,8 @@ export class CasesService {
       examinerPhysioIds: dto.examinerPhysioIds ?? [],
       examinerSupervisorIds: dto.examinerSupervisorIds ?? [],
     };
-    return this.prisma.ankleDisarticulationAssessment.upsert({
-      where: { caseId_side: { caseId, side } },
-      create: { caseId, side, ...data },
-      update: data,
+    return this.prisma.ankleDisarticulationAssessment.create({
+      data: { caseId, side, ...data },
     });
   }
 
