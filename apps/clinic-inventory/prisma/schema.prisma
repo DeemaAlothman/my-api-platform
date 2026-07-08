@@ -47,7 +47,7 @@ model InventoryItem {
 
   companyName       String?
   notes             String?  @db.Text
-  status            ItemRequestStatus @default(PENDING)
+  status            ItemRequestStatus?
   requestedByUserId String?
   unit          String
   currentStock  Float    @default(0)

@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsNumber, IsBoolean, IsUUID } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsNumber, IsBoolean, IsUUID, IsNotIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum InventoryType { COMPONENT = 'COMPONENT', CONSUMABLE = 'CONSUMABLE' }
@@ -25,4 +25,5 @@ export class CreateItemDto {
   @IsOptional() @IsString() companyName?: string;
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsEnum(ItemRequestStatus) status?: ItemRequestStatus;
+  @IsOptional() @IsBoolean() isRequest?: boolean;
 }

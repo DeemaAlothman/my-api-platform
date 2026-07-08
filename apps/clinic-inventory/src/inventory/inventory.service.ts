@@ -71,24 +71,32 @@ export class InventoryService {
   };
 
   async createItem(dto: CreateItemDto, requestedByUserId: string) {
+    const { isRequest, ...itemData } = dto;
+    const isPartRequest = isRequest === true;
+
     const item = await this.prisma.inventoryItem.create({
-      data: { ...dto, status: 'PENDING', requestedByUserId },
+      data: {
+        ...itemData,
+        ...(isPartRequest ? { status: 'PENDING', requestedByUserId } : {}),
+      },
       include: { category: true, supplier: true },
     });
 
-    for (const managerId of this.MANAGER_USER_IDS) {
-      try {
-        await this.prisma.$queryRawUnsafe(
-          `INSERT INTO users.notifications
-             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
-           VALUES
-             (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
-              'طلب قطعة جديد', 'New Part Request', $2, $3, false, NOW())`,
-          managerId,
-          `طلب قطعة جديد بانتظار مراجعتك: ${item.name} (${item.partCode})`,
-          `New part request awaiting review: ${item.name} (${item.partCode})`,
-        );
-      } catch (_) { /* userId غير موجود — تجاهل */ }
+    if (isPartRequest) {
+      for (const managerId of this.MANAGER_USER_IDS) {
+        try {
+          await this.prisma.$queryRawUnsafe(
+            `INSERT INTO users.notifications
+               (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+             VALUES
+               (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
+                'طلب صنف جديد', 'New Item Request', $2, $3, false, NOW())`,
+            managerId,
+            `طلب إضافة صنف جديد بانتظار مراجعتك: ${item.name} (${item.partCode})`,
+            `New item request awaiting review: ${item.name} (${item.partCode})`,
+          );
+        } catch (_) {}
+      }
     }
 
     return item;
@@ -123,6 +131,24 @@ export class InventoryService {
     if (data.status && data.status !== existing.status && existing.requestedByUserId) {
       const label = this.STATUS_LABEL[data.status] ?? data.status;
       const notesText = data.notes ? ` — ملاحظة: ${data.notes}` : '';
+
+      // حسم من المخزون عند الاعتماد (فقط لو في رصيد)
+      if (data.status === 'APPROVED' && existing.currentStock > 0) {
+        await this.prisma.inventoryItem.update({
+          where: { id: existing.id },
+          data: { currentStock: existing.currentStock - 1 },
+        });
+        await this.prisma.inventoryTransaction.create({
+          data: {
+            itemId: existing.id,
+            type: 'ISSUED',
+            quantity: 1,
+            notes: `اعتماد طلب — ${notesText || 'تمت الموافقة'}`,
+            createdBy: existing.requestedByUserId,
+          },
+        });
+      }
+
       try {
         await this.prisma.$queryRawUnsafe(
           `INSERT INTO users.notifications
@@ -134,7 +160,7 @@ export class InventoryService {
           `تم تحديث حالة طلب القطعة "${existing.name}" إلى: ${label}${notesText}`,
           `Part request "${existing.name}" status updated to: ${label}`,
         );
-      } catch (_) { /* userId غير موجود — تجاهل */ }
+      } catch (_) {}
     }
 
     return updated;
