@@ -34,7 +34,7 @@ model Supplier {
 
 model InventoryItem {
   id            String   @id @default(uuid())
-  partCode      String   @unique
+  partCode      String
   name          String
   nameAr        String?
   description   String?  @db.Text
@@ -45,10 +45,11 @@ model InventoryItem {
   supplierId    String?
   supplier      Supplier?  @relation(fields: [supplierId], references: [id])
 
-  companyName       String?
-  notes             String?  @db.Text
-  status            ItemRequestStatus?
-  requestedByUserId String?
+  companyName           String?
+  notes                 String?  @db.Text
+  status                ItemRequestStatus?
+  requestedByUserId     String?
+  linkedInventoryItemId String?
   unit          String
   currentStock  Float    @default(0)
   minStockLevel Float?
@@ -66,6 +67,7 @@ model InventoryItem {
   @@schema("clinic_inventory")
   @@index([partCode])
   @@index([currentStock])
+  @@index([status])
 }
 
 model InventoryTransaction {

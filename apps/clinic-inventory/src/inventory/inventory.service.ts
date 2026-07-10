@@ -112,8 +112,8 @@ export class InventoryService {
   }
 
   async findItemByCode(partCode: string) {
-    const item = await this.prisma.inventoryItem.findUnique({
-      where: { partCode },
+    const item = await this.prisma.inventoryItem.findFirst({
+      where: { partCode, status: null },
       include: { category: true, supplier: true },
     });
     if (!item) throw new NotFoundException('Item not found');
@@ -132,21 +132,28 @@ export class InventoryService {
       const label = this.STATUS_LABEL[data.status] ?? data.status;
       const notesText = data.notes ? ` — ملاحظة: ${data.notes}` : '';
 
-      // حسم من المخزون عند الاعتماد (فقط لو في رصيد)
-      if (data.status === 'APPROVED' && existing.currentStock > 0) {
-        await this.prisma.inventoryItem.update({
-          where: { id: existing.id },
-          data: { currentStock: existing.currentStock - 1 },
-        });
-        await this.prisma.inventoryTransaction.create({
-          data: {
-            itemId: existing.id,
-            type: 'ISSUED',
-            quantity: 1,
-            notes: `اعتماد طلب — ${notesText || 'تمت الموافقة'}`,
-            createdBy: existing.requestedByUserId,
-          },
-        });
+      // حسم من المخزون عند الاعتماد
+      if (data.status === 'APPROVED') {
+        // إذا كان طلباً مرتبطاً بصنف أصلي → نحسم منه
+        const deductId = (existing as any).linkedInventoryItemId ?? null;
+        if (deductId) {
+          const realItem = await this.prisma.inventoryItem.findUnique({ where: { id: deductId } });
+          if (realItem && realItem.currentStock > 0) {
+            await this.prisma.inventoryItem.update({
+              where: { id: deductId },
+              data: { currentStock: realItem.currentStock - 1 },
+            });
+            await this.prisma.inventoryTransaction.create({
+              data: {
+                itemId: deductId,
+                type: 'ISSUED',
+                quantity: 1,
+                notes: `اعتماد طلب — ${notesText || 'تمت الموافقة'}`,
+                createdBy: existing.requestedByUserId ?? 'system',
+              },
+            });
+          }
+        }
       }
 
       try {
@@ -212,22 +219,20 @@ export class InventoryService {
       }
 
       try {
-        await this.prisma.inventoryItem.upsert({
-          where: { partCode },
-          create: {
-            partCode, name, nameAr: nameAr || null,
-            companyName: companyName || null, unit,
-            type: ['COMPONENT', 'CONSUMABLE'].includes(type) ? type : undefined,
-            currentStock, minStockLevel, unitCostUsd,
-          },
-          update: {
-            name, nameAr: nameAr || null,
-            companyName: companyName || null, unit,
-            type: ['COMPONENT', 'CONSUMABLE'].includes(type) ? type : undefined,
-            currentStock, minStockLevel, unitCostUsd,
-            isActive: true,
-          },
+        const existing = await this.prisma.inventoryItem.findFirst({
+          where: { partCode, status: null },
         });
+        const itemType = ['COMPONENT', 'CONSUMABLE'].includes(type) ? type : undefined;
+        if (existing) {
+          await this.prisma.inventoryItem.update({
+            where: { id: existing.id },
+            data: { name, nameAr: nameAr || null, companyName: companyName || null, unit, type: itemType as any, currentStock, minStockLevel, unitCostUsd, isActive: true },
+          });
+        } else {
+          await this.prisma.inventoryItem.create({
+            data: { partCode, name, nameAr: nameAr || null, companyName: companyName || null, unit, type: itemType as any, currentStock, minStockLevel, unitCostUsd },
+          });
+        }
         created++;
       } catch {
         skipped++;

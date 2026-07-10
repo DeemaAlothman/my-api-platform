@@ -634,6 +634,30 @@ export class CasesService {
       },
     });
 
+    // إنشاء record طلب في المخزون (PENDING) مرتبط بالصنف الأصلي
+    if (inventoryItemId) {
+      try {
+        const rows = await this.prisma.$queryRawUnsafe<Array<{ partCode: string; name: string; unit: string }>>(
+          `SELECT "partCode", name, unit FROM clinic_inventory.inventory_items WHERE id = $1 LIMIT 1`,
+          inventoryItemId,
+        );
+        if (rows[0]) {
+          await this.prisma.$queryRawUnsafe(
+            `INSERT INTO clinic_inventory.inventory_items
+               (id, "partCode", name, unit, status, "requestedByUserId", "linkedInventoryItemId",
+                "isActive", "currentStock", "createdAt", "updatedAt")
+             VALUES
+               (gen_random_uuid(), $1, $2, $3, 'PENDING', $4, $5, true, 0, NOW(), NOW())`,
+            rows[0].partCode,
+            rows[0].name,
+            rows[0].unit,
+            userId,
+            inventoryItemId,
+          );
+        }
+      } catch (_) {}
+    }
+
     await this.notifyInventoryManagers(dto.partCode, dto.partName, caseId);
 
     return { ...component, matchedInInventory };
