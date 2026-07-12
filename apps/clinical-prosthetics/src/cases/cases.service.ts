@@ -638,8 +638,14 @@ export class CasesService {
 
     // إنشاء record طلب في المخزون (PENDING) مرتبط بالصنف الحقيقي دائماً
     // لو الـ inventoryItemId يشير لطلب سابق (status != null) نرجع للصنف الأصلي عبر linkedInventoryItemId
-    if (inventoryItemId) {
-      try {
+    try {
+      // نبحث عن الصنف الحقيقي إن وجد، ونجهّز بيانات الطلب
+      let realItemId: string | null = null;
+      let reqPartCode = dto.partCode;
+      let reqName = dto.partName;
+      let reqUnit = 'قطعة';
+
+      if (inventoryItemId) {
         const rows = await this.prisma.$queryRawUnsafe<Array<{
           partCode: string; name: string; unit: string;
           status: string | null; linkedInventoryItemId: string | null;
@@ -649,8 +655,7 @@ export class CasesService {
           inventoryItemId,
         );
         if (rows[0]) {
-          // إذا كان الـ id يشير لطلب سابق → نستخدم الصنف الحقيقي
-          const realItemId = rows[0].status !== null && rows[0].linkedInventoryItemId
+          realItemId = rows[0].status !== null && rows[0].linkedInventoryItemId
             ? rows[0].linkedInventoryItemId
             : inventoryItemId;
 
@@ -662,28 +667,32 @@ export class CasesService {
             : rows;
 
           const item = realRows[0] ?? rows[0];
-          // RETURNING id لنربط المكون بطلبه الخاص
-          const requestRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
-            `INSERT INTO clinic_inventory.inventory_items
-               (id, "partCode", name, unit, status, "requestedByUserId", "linkedInventoryItemId",
-                "isActive", "currentStock", "createdAt", "updatedAt")
-             VALUES
-               (gen_random_uuid(), $1, $2, $3, 'PENDING', $4, $5, true, 0, NOW(), NOW())
-             RETURNING id`,
-            item.partCode, item.name, item.unit, userId, realItemId,
-          );
-          // نحدّث المكون ليشير مباشرة لطلبه — كل مكون له pointer خاص فيه
-          if (requestRows[0]?.id) {
-            await this.prisma.prosthesisComponent.update({
-              where: { id: component.id },
-              data: { inventoryItemId: requestRows[0].id },
-            });
-            (component as any).inventoryItemId = requestRows[0].id;
-            inventoryRequest = { requestId: requestRows[0].id, status: 'PENDING', notes: null };
-          }
+          reqPartCode = item.partCode;
+          reqName = item.name;
+          reqUnit = item.unit;
         }
-      } catch (_) {}
-    }
+      }
+
+      // دائماً أنشئ طلب PENDING — حتى لو القطعة مو موجودة بالمخزون (linkedInventoryItemId = null)
+      const requestRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `INSERT INTO clinic_inventory.inventory_items
+           (id, "partCode", name, unit, status, "requestedByUserId", "linkedInventoryItemId",
+            "isActive", "currentStock", "createdAt", "updatedAt")
+         VALUES
+           (gen_random_uuid(), $1, $2, $3, 'PENDING', $4, $5, true, 0, NOW(), NOW())
+         RETURNING id`,
+        reqPartCode, reqName, reqUnit, userId, realItemId,
+      );
+
+      if (requestRows[0]?.id) {
+        await this.prisma.prosthesisComponent.update({
+          where: { id: component.id },
+          data: { inventoryItemId: requestRows[0].id },
+        });
+        (component as any).inventoryItemId = requestRows[0].id;
+        inventoryRequest = { requestId: requestRows[0].id, status: 'PENDING', notes: null };
+      }
+    } catch (_) {}
 
     await this.notifyInventoryManagers(dto.partCode, dto.partName, caseId);
 
