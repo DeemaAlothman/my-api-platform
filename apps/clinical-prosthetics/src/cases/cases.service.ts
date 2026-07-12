@@ -98,6 +98,7 @@ export class CasesService {
   private readonly INVENTORY_MANAGER_IDS = [
     '415be69c-749b-41f5-a800-43b63baa794c',
     'f2297d60-1c06-44d7-b68d-cc5980affd37',
+    '0aa5dc3e-d1e1-4b11-ac92-b4a6648556cc',
   ];
 
   private async notifyInventoryManagers(partCode: string, partName: string, caseId: string) {
