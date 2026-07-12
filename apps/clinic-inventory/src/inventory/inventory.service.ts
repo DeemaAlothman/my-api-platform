@@ -122,6 +122,21 @@ export class InventoryService {
 
   async updateItem(id: string, data: Partial<CreateItemDto>) {
     const existing = await this.findItem(id);
+
+    // فحص المخزون قبل الـ update — لو APPROVED والمخزون صفر نوقف العملية
+    if (data.status === 'APPROVED' && data.status !== existing.status) {
+      const deductId = (existing as any).linkedInventoryItemId ?? null;
+      if (deductId) {
+        const realItem = await this.prisma.inventoryItem.findUnique({ where: { id: deductId } });
+        if (!realItem || realItem.currentStock <= 0) {
+          throw new BadRequestException({
+            code: 'INSUFFICIENT_STOCK',
+            message: 'لا يمكن اعتماد الطلب — المخزون صفر أو الصنف غير موجود',
+          });
+        }
+      }
+    }
+
     const updated = await this.prisma.inventoryItem.update({
       where: { id },
       data,
@@ -132,13 +147,12 @@ export class InventoryService {
       const label = this.STATUS_LABEL[data.status] ?? data.status;
       const notesText = data.notes ? ` — ملاحظة: ${data.notes}` : '';
 
-      // حسم من المخزون عند الاعتماد
+      // حسم من المخزون عند الاعتماد (المخزون تم التحقق منه أعلاه)
       if (data.status === 'APPROVED') {
-        // إذا كان طلباً مرتبطاً بصنف أصلي → نحسم منه
         const deductId = (existing as any).linkedInventoryItemId ?? null;
         if (deductId) {
           const realItem = await this.prisma.inventoryItem.findUnique({ where: { id: deductId } });
-          if (realItem && realItem.currentStock > 0) {
+          if (realItem) {
             await this.prisma.inventoryItem.update({
               where: { id: deductId },
               data: { currentStock: realItem.currentStock - 1 },
