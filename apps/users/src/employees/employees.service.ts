@@ -670,13 +670,25 @@ export class EmployeesService {
       await this.validateSalaryRange(employee.jobGradeId, Number(dto.basicSalary));
     }
 
-    const from: any = { salary: { basicSalary: employee.basicSalary, currency: employee.salaryCurrency } };
-    const to: any = { salary: { basicSalary: dto.basicSalary, currency: dto.salaryCurrency ?? employee.salaryCurrency } };
+    const from: any = {
+      salary: { basicSalary: employee.basicSalary, currency: employee.salaryCurrency },
+      allowances: employee.allowances.map(a => ({ type: a.type, amount: Number(a.amount) })),
+    };
+    const to: any = {
+      salary: { basicSalary: dto.basicSalary, currency: dto.salaryCurrency ?? employee.salaryCurrency },
+      allowances: dto.allowances?.map(a => ({ type: a.type, amount: a.amount })) ?? from.allowances,
+    };
 
-    const data: any = { basicSalary: dto.basicSalary, ...(dto.salaryCurrency ? { salaryCurrency: dto.salaryCurrency } : {}) };
+    const data: any = {
+      basicSalary: dto.basicSalary,
+      ...(dto.salaryCurrency ? { salaryCurrency: dto.salaryCurrency } : {}),
+      ...(dto.allowances !== undefined ? {
+        allowances: { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) },
+      } : {}),
+    };
 
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.employee.update({ where: { id }, data });
+      const updated = await tx.employee.update({ where: { id }, data, include: { allowances: true } });
       await tx.employeeHistoryEvent.create({
         data: {
           employeeId: id,
