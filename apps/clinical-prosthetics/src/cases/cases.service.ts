@@ -604,7 +604,7 @@ export class CasesService {
   // يبحث عن صنف بالمخزون عبر كوده — قراءة فقط، عبر استعلام عابر للـ schema
   private async findInventoryItemIdByCode(code: string): Promise<string | null> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT id FROM clinic_inventory.inventory_items WHERE "partCode" = $1 AND "isActive" = true LIMIT 1`,
+      `SELECT id FROM clinic_inventory.inventory_items WHERE "partCode" = $1 AND "isActive" = true AND status IS NULL LIMIT 1`,
       code,
     ).catch(() => [] as Array<{ id: string }>);
     return rows[0]?.id ?? null;
