@@ -689,10 +689,38 @@ export class CasesService {
 
   async getComponents(caseId: string) {
     await this.findCaseOrThrow(caseId);
-    return this.prisma.prosthesisComponent.findMany({
+    const components = await this.prisma.prosthesisComponent.findMany({
       where: { caseId },
       orderBy: { addedAt: 'desc' },
     });
+
+    // جلب حالة طلب المخزون لكل مكون مرتبط بـ inventoryItemId
+    const itemIds = components.map((c: any) => c.inventoryItemId).filter(Boolean);
+    if (!itemIds.length) return components;
+
+    const requests = await this.prisma.$queryRawUnsafe<Array<{
+      linkedInventoryItemId: string; status: string; id: string; notes: string | null;
+    }>>(
+      `SELECT id, "linkedInventoryItemId", status::text AS status, notes
+       FROM clinic_inventory.inventory_items
+       WHERE "linkedInventoryItemId" = ANY($1::text[])
+         AND status IS NOT NULL
+       ORDER BY "createdAt" DESC`,
+      itemIds,
+    ).catch(() => [] as any[]);
+
+    // لكل مكون، نلاقي آخر طلب مرتبط فيه
+    const requestMap = new Map<string, { status: string; requestId: string; notes: string | null }>();
+    for (const r of requests) {
+      if (!requestMap.has(r.linkedInventoryItemId)) {
+        requestMap.set(r.linkedInventoryItemId, { status: r.status, requestId: r.id, notes: r.notes });
+      }
+    }
+
+    return components.map((c: any) => ({
+      ...c,
+      inventoryRequest: c.inventoryItemId ? (requestMap.get(c.inventoryItemId) ?? null) : null,
+    }));
   }
 
   async removeComponent(caseId: string, compId: string) {
