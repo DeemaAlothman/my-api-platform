@@ -125,9 +125,10 @@ export class InventoryService {
 
     // فحص قبل الاعتماد
     if (data.status === 'APPROVED' && data.status !== existing.status) {
-      const deductId = (existing as any).linkedInventoryItemId ?? null;
+      // نستخدم linkedInventoryItemId الجديد لو جاء بنفس الطلب، وإلا الموجود
+      const deductId = (data as any).linkedInventoryItemId ?? (existing as any).linkedInventoryItemId ?? null;
 
-      // إذا الطلب بدون صنف مرتبط → الصنف غير موجود بالمخزون، ممنوع الاعتماد
+      // إذا الطلب بدون صنف مرتبط → ممنوع الاعتماد
       if (!deductId) {
         throw new BadRequestException({
           code: 'ITEM_NOT_IN_INVENTORY',
@@ -156,7 +157,7 @@ export class InventoryService {
 
       // حسم من المخزون عند الاعتماد (المخزون تم التحقق منه أعلاه)
       if (data.status === 'APPROVED') {
-        const deductId = (existing as any).linkedInventoryItemId ?? null;
+        const deductId = (data as any).linkedInventoryItemId ?? (existing as any).linkedInventoryItemId ?? null;
         if (deductId) {
           const realItem = await this.prisma.inventoryItem.findUnique({ where: { id: deductId } });
           if (realItem) {

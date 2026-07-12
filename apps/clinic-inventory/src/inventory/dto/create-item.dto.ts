@@ -26,4 +26,5 @@ export class CreateItemDto {
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsEnum(ItemRequestStatus) status?: ItemRequestStatus;
   @IsOptional() @IsBoolean() isRequest?: boolean;
+  @IsOptional() @IsUUID() linkedInventoryItemId?: string;
 }
