@@ -718,9 +718,8 @@ export class CasesService {
       itemIds,
     ).catch(() => [] as any[]);
 
-    const itemMap = new Map<string, { status: string | null; notes: string | null }>(
-      items.map((i: any) => [i.id, i]),
-    );
+    const itemMap = new Map<string, { status: string | null; notes: string | null }>();
+    for (const i of items) itemMap.set(i.id, i);
 
     return components.map((c: any) => {
       const inv = c.inventoryItemId ? itemMap.get(c.inventoryItemId) : null;
