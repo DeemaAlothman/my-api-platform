@@ -660,14 +660,24 @@ export class CasesService {
             : rows;
 
           const item = realRows[0] ?? rows[0];
-          await this.prisma.$queryRawUnsafe(
+          // RETURNING id لنربط المكون بطلبه الخاص
+          const requestRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
             `INSERT INTO clinic_inventory.inventory_items
                (id, "partCode", name, unit, status, "requestedByUserId", "linkedInventoryItemId",
                 "isActive", "currentStock", "createdAt", "updatedAt")
              VALUES
-               (gen_random_uuid(), $1, $2, $3, 'PENDING', $4, $5, true, 0, NOW(), NOW())`,
+               (gen_random_uuid(), $1, $2, $3, 'PENDING', $4, $5, true, 0, NOW(), NOW())
+             RETURNING id`,
             item.partCode, item.name, item.unit, userId, realItemId,
           );
+          // نحدّث المكون ليشير مباشرة لطلبه — كل مكون له pointer خاص فيه
+          if (requestRows[0]?.id) {
+            await this.prisma.prosthesisComponent.update({
+              where: { id: component.id },
+              data: { inventoryItemId: requestRows[0].id },
+            });
+            (component as any).inventoryItemId = requestRows[0].id;
+          }
         }
       } catch (_) {}
     }
@@ -698,29 +708,32 @@ export class CasesService {
     const itemIds = components.map((c: any) => c.inventoryItemId).filter(Boolean);
     if (!itemIds.length) return components;
 
-    const requests = await this.prisma.$queryRawUnsafe<Array<{
-      linkedInventoryItemId: string; status: string; id: string; notes: string | null;
+    // كل مكون يشير مباشرة لطلبه (status IS NOT NULL) أو للصنف الحقيقي (status IS NULL)
+    const items = await this.prisma.$queryRawUnsafe<Array<{
+      id: string; status: string | null; notes: string | null;
     }>>(
-      `SELECT id, "linkedInventoryItemId", status::text AS status, notes
+      `SELECT id, status::text AS status, notes
        FROM clinic_inventory.inventory_items
-       WHERE "linkedInventoryItemId" = ANY($1::text[])
-         AND status IS NOT NULL
-       ORDER BY "createdAt" DESC`,
+       WHERE id = ANY($1::text[])`,
       itemIds,
     ).catch(() => [] as any[]);
 
-    // لكل مكون، نلاقي آخر طلب مرتبط فيه
-    const requestMap = new Map<string, { status: string; requestId: string; notes: string | null }>();
-    for (const r of requests) {
-      if (!requestMap.has(r.linkedInventoryItemId)) {
-        requestMap.set(r.linkedInventoryItemId, { status: r.status, requestId: r.id, notes: r.notes });
-      }
-    }
+    const itemMap = new Map<string, { status: string | null; notes: string | null }>(
+      items.map((i: any) => [i.id, i]),
+    );
 
-    return components.map((c: any) => ({
-      ...c,
-      inventoryRequest: c.inventoryItemId ? (requestMap.get(c.inventoryItemId) ?? null) : null,
-    }));
+    return components.map((c: any) => {
+      const inv = c.inventoryItemId ? itemMap.get(c.inventoryItemId) : null;
+      const hasRequest = inv && inv.status !== null;
+      return {
+        ...c,
+        inventoryRequest: hasRequest ? {
+          requestId: c.inventoryItemId,
+          status: inv.status,
+          notes: inv.notes,
+        } : null,
+      };
+    });
   }
 
   async removeComponent(caseId: string, compId: string) {
