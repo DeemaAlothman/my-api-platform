@@ -621,6 +621,8 @@ export class CasesService {
       matchedInInventory = !!inventoryItemId;
     }
 
+    let inventoryRequest: { requestId: string; status: string; notes: string | null } | null = null;
+
     const component = await this.prisma.prosthesisComponent.create({
       data: {
         caseId,
@@ -677,6 +679,7 @@ export class CasesService {
               data: { inventoryItemId: requestRows[0].id },
             });
             (component as any).inventoryItemId = requestRows[0].id;
+            inventoryRequest = { requestId: requestRows[0].id, status: 'PENDING', notes: null };
           }
         }
       } catch (_) {}
@@ -684,7 +687,7 @@ export class CasesService {
 
     await this.notifyInventoryManagers(dto.partCode, dto.partName, caseId);
 
-    return { ...component, matchedInInventory };
+    return { ...component, matchedInInventory, inventoryRequest };
   }
 
   // إضافة عدة مكونات بنداء واحد (نفس منطق addComponent لكل عنصر)
