@@ -634,25 +634,39 @@ export class CasesService {
       },
     });
 
-    // إنشاء record طلب في المخزون (PENDING) مرتبط بالصنف الأصلي
+    // إنشاء record طلب في المخزون (PENDING) مرتبط بالصنف الحقيقي دائماً
+    // لو الـ inventoryItemId يشير لطلب سابق (status != null) نرجع للصنف الأصلي عبر linkedInventoryItemId
     if (inventoryItemId) {
       try {
-        const rows = await this.prisma.$queryRawUnsafe<Array<{ partCode: string; name: string; unit: string }>>(
-          `SELECT "partCode", name, unit FROM clinic_inventory.inventory_items WHERE id = $1 LIMIT 1`,
+        const rows = await this.prisma.$queryRawUnsafe<Array<{
+          partCode: string; name: string; unit: string;
+          status: string | null; linkedInventoryItemId: string | null;
+        }>>(
+          `SELECT "partCode", name, unit, status, "linkedInventoryItemId"
+           FROM clinic_inventory.inventory_items WHERE id = $1 LIMIT 1`,
           inventoryItemId,
         );
         if (rows[0]) {
+          // إذا كان الـ id يشير لطلب سابق → نستخدم الصنف الحقيقي
+          const realItemId = rows[0].status !== null && rows[0].linkedInventoryItemId
+            ? rows[0].linkedInventoryItemId
+            : inventoryItemId;
+
+          const realRows = realItemId !== inventoryItemId
+            ? await this.prisma.$queryRawUnsafe<Array<{ partCode: string; name: string; unit: string }>>(
+                `SELECT "partCode", name, unit FROM clinic_inventory.inventory_items WHERE id = $1 LIMIT 1`,
+                realItemId,
+              )
+            : rows;
+
+          const item = realRows[0] ?? rows[0];
           await this.prisma.$queryRawUnsafe(
             `INSERT INTO clinic_inventory.inventory_items
                (id, "partCode", name, unit, status, "requestedByUserId", "linkedInventoryItemId",
                 "isActive", "currentStock", "createdAt", "updatedAt")
              VALUES
                (gen_random_uuid(), $1, $2, $3, 'PENDING', $4, $5, true, 0, NOW(), NOW())`,
-            rows[0].partCode,
-            rows[0].name,
-            rows[0].unit,
-            userId,
-            inventoryItemId,
+            item.partCode, item.name, item.unit, userId, realItemId,
           );
         }
       } catch (_) {}
