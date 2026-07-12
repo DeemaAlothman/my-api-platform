@@ -101,17 +101,18 @@ export class CasesService {
     '0aa5dc3e-d1e1-4b11-ac92-b4a6648556cc',
   ];
 
-  private async notifyInventoryManagers(partCode: string, partName: string, caseId: string) {
-    const msg = `طلب قطعة للحالة ${caseId}: ${partName} (${partCode}) — يرجى معالجة المخزون والاعتماد.`;
+  private async notifyInventoryManagers(partCode: string, partName: string, caseId: string, requestId: string | null) {
+    const msgAr = `طلب قطعة جديد: ${partName} (${partCode})`;
+    const data = JSON.stringify({ requestId, caseId, partCode, partName });
     for (const managerId of this.INVENTORY_MANAGER_IDS) {
       try {
         await this.prisma.$queryRawUnsafe(
           `INSERT INTO users.notifications
-             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "data", "createdAt")
            VALUES
              (gen_random_uuid(), $1, 'INVENTORY_REQUEST',
-              'طلب قطعة — باطراف صناعية', 'Part Request — Prosthetics', $2, $3, false, NOW())`,
-          managerId, msg, msg,
+              'طلب قطعة — أطراف صناعية', 'Part Request — Prosthetics', $2, $3, false, $4::jsonb, NOW())`,
+          managerId, msgAr, msgAr, data,
         );
       } catch (_) {}
     }
@@ -695,7 +696,7 @@ export class CasesService {
       }
     } catch (_) {}
 
-    await this.notifyInventoryManagers(dto.partCode, dto.partName, caseId);
+    await this.notifyInventoryManagers(dto.partCode, dto.partName, caseId, inventoryRequest?.requestId ?? null);
 
     return { ...component, matchedInInventory, inventoryRequest };
   }

@@ -24,7 +24,7 @@ export class DashboardDataController {
       where: { userId, isRead: false },
       orderBy: { createdAt: 'desc' },
       take: 10,
-      select: { id: true, titleAr: true, titleEn: true, messageAr: true, messageEn: true, type: true, createdAt: true },
+      select: { id: true, titleAr: true, titleEn: true, messageAr: true, messageEn: true, type: true, data: true, createdAt: true },
     });
 
     const employeeProfile = employee ? {
