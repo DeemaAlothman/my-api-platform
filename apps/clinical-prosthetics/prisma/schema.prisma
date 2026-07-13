@@ -1175,6 +1175,8 @@ model CaseTreatmentProgram {
   technicianSignatureUrl String?
   managerSignatureUrl    String?
   notes                  String?  @db.Text
+  archivedAt             DateTime?
+  archiveNotes           String?  @db.Text
 
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt

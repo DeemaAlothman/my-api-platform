@@ -1168,6 +1168,17 @@ export class CasesService {
     return this.prisma.caseTreatmentProgram.delete({ where: { id: programId } });
   }
 
+  async archiveCaseTreatmentProgram(caseId: string, programId: string, notes?: string) {
+    await this.findCaseOrThrow(caseId);
+    const program = await this.prisma.caseTreatmentProgram.findFirst({ where: { id: programId, caseId } });
+    if (!program) throw new NotFoundException('Treatment program not found');
+    if ((program as any).archivedAt) throw new BadRequestException('الجلسة مؤرشفة مسبقاً');
+    return this.prisma.caseTreatmentProgram.update({
+      where: { id: programId },
+      data: { archivedAt: new Date(), archiveNotes: notes ?? null },
+    });
+  }
+
   // ── Patient Treatment Program (Pro-004) ──────────────────────────────────
 
   async upsertTreatmentProgram(

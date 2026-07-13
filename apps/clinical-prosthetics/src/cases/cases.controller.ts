@@ -280,6 +280,16 @@ export class CasesController {
     return this.service.deleteCaseTreatmentProgram(id, programId);
   }
 
+  @Post(':id/treatment-programs/:programId/archive')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  archiveCaseTreatmentProgram(
+    @Param('id') id: string,
+    @Param('programId') programId: string,
+    @Body() body: { notes?: string },
+  ) {
+    return this.service.archiveCaseTreatmentProgram(id, programId, body.notes);
+  }
+
   // ── Balance Assessment & Exercise Program Form Pro-015 ───────────────────
 
   @Post(':id/balance-assessment')
