@@ -353,6 +353,55 @@ export class ProstheticDeliveryItemDto {
   itemAddedDate?: string;
 }
 
+export class FinalDeliveryFormDto {
+  @IsOptional() @IsDateString()
+  inspectionDate?: string;
+
+  @IsOptional() @IsString()
+  prosthetistId?: string;
+
+  @IsOptional() @IsString()
+  physiotherapistId?: string;
+
+  @IsOptional() @IsString()
+  ceoId?: string;
+
+  @IsOptional() @IsString()
+  ceoSignatureUrl?: string;
+
+  @IsOptional() @IsDateString()
+  signatureDate?: string;
+
+  @IsOptional() @IsString()
+  medicalDirectorId?: string;
+
+  @IsOptional() @IsString()
+  medicalDirectorSignatureUrl?: string;
+
+  @IsOptional() @IsDateString()
+  medicalDirectorSignedAt?: string;
+}
+
+export class FinalDeliveryItemDto {
+  @IsOptional() @IsString()
+  deliveredProduct?: string;
+
+  @IsOptional() @IsString()
+  partCode?: string;
+
+  @IsOptional() @IsInt() @Type(() => Number)
+  quantity?: number;
+
+  @IsOptional() @IsString()
+  company?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  @IsOptional() @IsDateString()
+  itemAddedDate?: string;
+}
+
 export class PatientReviewProgramDto {
   @IsOptional() @IsDateString()
   sessionDate?: string;

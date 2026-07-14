@@ -11,6 +11,7 @@ import {
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
   PatientTreatmentProgramDto, PatientReviewProgramDto,
   ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
+  FinalDeliveryFormDto,
   BalanceAssessmentFormDto, GaitAnalysisFormDto,
   CaseTreatmentProgramDto,
 } from './dto/treatment.dto';
@@ -1112,12 +1113,76 @@ export class CasesService {
     return this.prisma.prostheticDeliveryItem.delete({ where: { id: itemId } });
   }
 
-  // التسليم النهائي — نفس نموذج التسليم لكن يظهر فقط القطع المعتمدة
+  // ── التسليم النهائي (FINAL) — entity مستقلة ─────────────────────────────
+
+  async createFinalDelivery(caseId: string, dto: FinalDeliveryFormDto) {
+    await this.findCaseOrThrow(caseId);
+    const existing = await this.prisma.finalDeliveryForm.findUnique({ where: { caseId } });
+    if (existing) throw new BadRequestException('التسليم النهائي موجود مسبقاً — استخدم PATCH للتعديل');
+
+    // نسخ القطع المعتمدة من التسليم التجريبي تلقائياً
+    const trialForm = await this.prisma.prostheticDeliveryForm.findUnique({
+      where: { caseId },
+      include: { items: { where: { isApproved: true } } },
+    });
+
+    const formData = {
+      caseId,
+      inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : trialForm?.inspectionDate,
+      prosthetistId:     dto.prosthetistId     ?? trialForm?.prosthetistId,
+      physiotherapistId: dto.physiotherapistId ?? trialForm?.physiotherapistId,
+      ceoId:             dto.ceoId             ?? trialForm?.ceoId,
+      ceoSignatureUrl:   dto.ceoSignatureUrl   ?? trialForm?.ceoSignatureUrl,
+      signatureDate: dto.signatureDate ? new Date(dto.signatureDate) : trialForm?.signatureDate,
+      medicalDirectorId:           dto.medicalDirectorId           ?? trialForm?.medicalDirectorId,
+      medicalDirectorSignatureUrl: dto.medicalDirectorSignatureUrl ?? trialForm?.medicalDirectorSignatureUrl,
+      medicalDirectorSignedAt: dto.medicalDirectorSignedAt ? new Date(dto.medicalDirectorSignedAt) : trialForm?.medicalDirectorSignedAt,
+      items: trialForm?.items?.length
+        ? {
+            create: (trialForm.items as any[]).map(i => ({
+              deliveredProduct: i.deliveredProduct,
+              partCode:        i.partCode,
+              quantity:        i.quantity,
+              company:         i.company,
+              notes:           i.notes,
+              itemAddedDate:   i.itemAddedDate,
+            })),
+          }
+        : undefined,
+    };
+
+    return this.prisma.finalDeliveryForm.create({
+      data: formData,
+      include: { items: { orderBy: { createdAt: 'asc' } } },
+    });
+  }
+
   async getFinalDelivery(caseId: string) {
     await this.findCaseOrThrow(caseId);
-    return this.prisma.prostheticDeliveryForm.findUnique({
+    return this.prisma.finalDeliveryForm.findUnique({
       where: { caseId },
-      include: { items: { where: { isApproved: true }, orderBy: { approvedAt: 'asc' } } },
+      include: { items: { orderBy: { createdAt: 'asc' } } },
+    });
+  }
+
+  async updateFinalDelivery(caseId: string, dto: FinalDeliveryFormDto) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.finalDeliveryForm.findUnique({ where: { caseId } });
+    if (!form) throw new NotFoundException('التسليم النهائي غير موجود — أنشئه أولاً');
+    return this.prisma.finalDeliveryForm.update({
+      where: { caseId },
+      data: {
+        inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
+        prosthetistId:     dto.prosthetistId,
+        physiotherapistId: dto.physiotherapistId,
+        ceoId:             dto.ceoId,
+        ceoSignatureUrl:   dto.ceoSignatureUrl,
+        signatureDate: dto.signatureDate ? new Date(dto.signatureDate) : undefined,
+        medicalDirectorId:           dto.medicalDirectorId,
+        medicalDirectorSignatureUrl: dto.medicalDirectorSignatureUrl,
+        medicalDirectorSignedAt: dto.medicalDirectorSignedAt ? new Date(dto.medicalDirectorSignedAt) : undefined,
+      },
+      include: { items: { orderBy: { createdAt: 'asc' } } },
     });
   }
 

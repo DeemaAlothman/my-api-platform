@@ -344,6 +344,7 @@ model ProstheticsCase {
   attachments        CaseAttachment[]
   reviewPrograms     PatientReviewProgram[]
   prostheticDelivery   ProstheticDeliveryForm?
+  finalDelivery        FinalDeliveryForm?
   balanceAssessmentForms BalanceAssessmentForm[]
   gaitAnalysisForms  GaitAnalysisForm[]
   treatmentPrograms  CaseTreatmentProgram[]
@@ -944,6 +945,8 @@ model ProstheticDeliveryForm {
   caseId            String          @unique
   case              ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
+  status            String          @default("TRIAL")
+
   inspectionDate    DateTime?
   prosthetistId     String?
   physiotherapistId String?
@@ -983,6 +986,53 @@ model ProstheticDeliveryItem {
 
   @@index([formId])
   @@map("prosthetic_delivery_items")
+  @@schema("clinic_prosthetics")
+}
+
+model FinalDeliveryForm {
+  id                String          @id @default(uuid())
+  caseId            String          @unique
+  case              ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  status            String          @default("FINAL")
+
+  inspectionDate    DateTime?
+  prosthetistId     String?
+  physiotherapistId String?
+  ceoId             String?
+  ceoSignatureUrl   String?
+  signatureDate     DateTime?
+
+  medicalDirectorId           String?
+  medicalDirectorSignatureUrl String?
+  medicalDirectorSignedAt     DateTime?
+
+  items             FinalDeliveryItem[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("final_delivery_forms")
+  @@schema("clinic_prosthetics")
+}
+
+model FinalDeliveryItem {
+  id               String            @id @default(uuid())
+  formId           String
+  form             FinalDeliveryForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  deliveredProduct String?
+  partCode         String?
+  quantity         Int?
+  company          String?
+  notes            String?
+  itemAddedDate    DateTime?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([formId])
+  @@map("final_delivery_items")
   @@schema("clinic_prosthetics")
 }
 

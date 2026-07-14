@@ -16,6 +16,7 @@ import {
   TreatmentPlanDto, WorkshopSessionDto, PtSessionDto, MediaSessionDto, ConsumableDto,
   PatientTreatmentProgramDto, PatientReviewProgramDto,
   ProstheticDeliveryFormDto, ProstheticDeliveryItemDto,
+  FinalDeliveryFormDto,
   BalanceAssessmentFormDto, GaitAnalysisFormDto,
   CaseTreatmentProgramDto,
 } from './dto/treatment.dto';
@@ -414,12 +415,24 @@ export class CasesController {
     return this.service.deleteDeliveryItem(id, itemId);
   }
 
-  // ── التسليم النهائي — يظهر فقط القطع المعتمدة (isApproved = true) ────────
+  // ── التسليم النهائي (FINAL) — entity مستقلة ─────────────────────────────
+
+  @Post(':id/final-delivery')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  createFinalDelivery(@Param('id') id: string, @Body() dto: FinalDeliveryFormDto) {
+    return this.service.createFinalDelivery(id, dto);
+  }
 
   @Get(':id/final-delivery')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
   getFinalDelivery(@Param('id') id: string) {
     return this.service.getFinalDelivery(id);
+  }
+
+  @Patch(':id/final-delivery')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  updateFinalDelivery(@Param('id') id: string, @Body() dto: FinalDeliveryFormDto) {
+    return this.service.updateFinalDelivery(id, dto);
   }
 
   @Patch(':id/prosthetic-delivery/items/:itemId/approve')
