@@ -419,7 +419,7 @@ export class AppointmentsService implements OnModuleInit {
 
     if (dto.status === 'CONFIRMED' && (appt as any).caseType === 'PROSTHETICS' && (appt as any).caseId) {
       const url = `${process.env.PROSTHETICS_SERVICE_URL || 'http://clinical-prosthetics:4011'}/api/v1/prosthetics/cases/internal/treatment-program-from-appointment`;
-      const sessionTime = appt.startTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const sessionTime = appt.startTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' });
       fetch(url, {
         method: 'POST',
         headers: {
