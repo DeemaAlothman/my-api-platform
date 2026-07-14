@@ -937,8 +937,9 @@ export class CasesService {
       data: {
         caseId,
         assessmentDate:    dto.assessmentDate ? new Date(dto.assessmentDate) : undefined,
-        previousProsthesis: dto.previousProsthesis,
-        assistiveDevice:   dto.assistiveDevice,
+        previousProsthesis:      dto.previousProsthesis,
+        previousProsthesisNotes: dto.previousProsthesisNotes,
+        assistiveDevice:         dto.assistiveDevice,
         staticBalance:     dto.staticBalance ?? undefined,
         dynamicTasks:      dto.dynamicTasks ?? undefined,
         dynamicActivities: dto.dynamicActivities ?? undefined,
@@ -946,8 +947,10 @@ export class CasesService {
         nearFalls:         dto.nearFalls,
         fearOfFalling:     dto.fearOfFalling,
         fallRiskLevel:     dto.fallRiskLevel,
-        overallBalanceLevel: dto.overallBalanceLevel,
-        limitingFactors:   dto.limitingFactors ?? [],
+        fallRiskNotes:     dto.fallRiskNotes,
+        overallBalanceLevel:          dto.overallBalanceLevel,
+        limitingFactors:              dto.limitingFactors ?? [],
+        limitingFactorsOtherNotes:    dto.limitingFactorsOtherNotes,
         exerciseProgram:   dto.exerciseProgram ?? undefined,
         programProgression: dto.programProgression ?? [],
         followUpWeeks:     dto.followUpWeeks,
@@ -974,12 +977,14 @@ export class CasesService {
     await this.findCaseOrThrow(caseId);
     const form = await this.prisma.balanceAssessmentForm.findFirst({ where: { id: formId, caseId } });
     if (!form) throw new NotFoundException('Balance assessment form not found');
+    if ((form as any).isSaved) throw new BadRequestException('النموذج محفوظ ولا يمكن تعديله');
     return this.prisma.balanceAssessmentForm.update({
       where: { id: formId },
       data: {
         assessmentDate:    dto.assessmentDate ? new Date(dto.assessmentDate) : undefined,
-        previousProsthesis: dto.previousProsthesis,
-        assistiveDevice:   dto.assistiveDevice,
+        previousProsthesis:      dto.previousProsthesis,
+        previousProsthesisNotes: dto.previousProsthesisNotes,
+        assistiveDevice:         dto.assistiveDevice,
         staticBalance:     dto.staticBalance ?? undefined,
         dynamicTasks:      dto.dynamicTasks ?? undefined,
         dynamicActivities: dto.dynamicActivities ?? undefined,
@@ -987,8 +992,10 @@ export class CasesService {
         nearFalls:         dto.nearFalls,
         fearOfFalling:     dto.fearOfFalling,
         fallRiskLevel:     dto.fallRiskLevel,
-        overallBalanceLevel: dto.overallBalanceLevel,
-        limitingFactors:   dto.limitingFactors ?? [],
+        fallRiskNotes:     dto.fallRiskNotes,
+        overallBalanceLevel:          dto.overallBalanceLevel,
+        limitingFactors:              dto.limitingFactors ?? [],
+        limitingFactorsOtherNotes:    dto.limitingFactorsOtherNotes,
         exerciseProgram:   dto.exerciseProgram ?? undefined,
         programProgression: dto.programProgression ?? [],
         followUpWeeks:     dto.followUpWeeks,
@@ -1000,6 +1007,25 @@ export class CasesService {
         followUpDate:      dto.followUpDate ? new Date(dto.followUpDate) : undefined,
         notes:             dto.notes,
       },
+    });
+  }
+
+  async saveBalanceAssessmentForm(caseId: string, formId: string) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.balanceAssessmentForm.findFirst({ where: { id: formId, caseId } });
+    if (!form) throw new NotFoundException('Balance assessment form not found');
+    if ((form as any).isSaved) throw new BadRequestException('النموذج محفوظ مسبقاً');
+    return this.prisma.balanceAssessmentForm.update({ where: { id: formId }, data: { isSaved: true } });
+  }
+
+  async archiveBalanceAssessmentForm(caseId: string, formId: string, reason: string) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.balanceAssessmentForm.findFirst({ where: { id: formId, caseId } });
+    if (!form) throw new NotFoundException('Balance assessment form not found');
+    if ((form as any).archivedAt) throw new BadRequestException('النموذج مؤرشف مسبقاً');
+    return this.prisma.balanceAssessmentForm.update({
+      where: { id: formId },
+      data: { archivedAt: new Date(), archiveNotes: reason },
     });
   }
 
@@ -1640,7 +1666,9 @@ export class CasesService {
         socketBearing:            dto.socketBearing,
         kneeJointType:            dto.kneeJointType,
         footType:                 dto.footType,
-        patientComplaints:        dto.patientComplaints ?? [],
+        patientComplaints:           dto.patientComplaints ?? [],
+        patientComplaintsOtherNotes: dto.patientComplaintsOtherNotes,
+        suspensionSystemOtherNotes:  dto.suspensionSystemOtherNotes,
         painIntensity:            dto.painIntensity,
         alignmentCheck:           dto.alignmentCheck,
         hasRomLimitations:        dto.hasRomLimitations,
@@ -1670,10 +1698,14 @@ export class CasesService {
         preSwing:                 dto.preSwing,
         swingPhase:               dto.swingPhase,
         gaitNotes:                dto.gaitNotes,
-        prostheticIssues:         dto.prostheticIssues ?? [],
+        prostheticIssues:           dto.prostheticIssues ?? [],
+        prostheticIssuesOtherNotes: dto.prostheticIssuesOtherNotes,
         mainProblem:              dto.mainProblem,
+        mainProblemNotes:         dto.mainProblemNotes,
         likelyCauses:             dto.likelyCauses ?? [],
+        likelyCausesOtherNotes:   dto.likelyCausesOtherNotes,
         recommendations:          dto.recommendations ?? [],
+        recommendationsNotes:     dto.recommendationsNotes,
         rehabPlan:                dto.rehabPlan,
         rehabNotes:               dto.rehabNotes,
         examinerProsthetistId:       dto.examinerProsthetistId,
@@ -1697,6 +1729,7 @@ export class CasesService {
     await this.findCaseOrThrow(caseId);
     const form = await this.prisma.gaitAnalysisForm.findFirst({ where: { id: formId, caseId } });
     if (!form) throw new NotFoundException('Gait analysis form not found');
+    if ((form as any).isSaved) throw new BadRequestException('النموذج محفوظ ولا يمكن تعديله');
     return this.prisma.gaitAnalysisForm.update({
       where: { id: formId },
       data: {
@@ -1706,6 +1739,8 @@ export class CasesService {
         kneeJointType:            dto.kneeJointType,
         footType:                 dto.footType,
         patientComplaints:        dto.patientComplaints,
+        patientComplaintsOtherNotes: dto.patientComplaintsOtherNotes,
+        suspensionSystemOtherNotes:  dto.suspensionSystemOtherNotes,
         painIntensity:            dto.painIntensity,
         alignmentCheck:           dto.alignmentCheck,
         hasRomLimitations:        dto.hasRomLimitations,
@@ -1736,9 +1771,13 @@ export class CasesService {
         swingPhase:               dto.swingPhase,
         gaitNotes:                dto.gaitNotes,
         prostheticIssues:         dto.prostheticIssues,
+        prostheticIssuesOtherNotes: dto.prostheticIssuesOtherNotes,
         mainProblem:              dto.mainProblem,
+        mainProblemNotes:         dto.mainProblemNotes,
         likelyCauses:             dto.likelyCauses,
+        likelyCausesOtherNotes:   dto.likelyCausesOtherNotes,
         recommendations:          dto.recommendations,
+        recommendationsNotes:     dto.recommendationsNotes,
         rehabPlan:                dto.rehabPlan,
         rehabNotes:               dto.rehabNotes,
         examinerProsthetistId:       dto.examinerProsthetistId,
@@ -1747,6 +1786,25 @@ export class CasesService {
         physiotherapistSignatureUrl: dto.physiotherapistSignatureUrl,
         notes:                    dto.notes,
       },
+    });
+  }
+
+  async saveGaitAnalysisForm(caseId: string, formId: string) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.gaitAnalysisForm.findFirst({ where: { id: formId, caseId } });
+    if (!form) throw new NotFoundException('Gait analysis form not found');
+    if ((form as any).isSaved) throw new BadRequestException('النموذج محفوظ مسبقاً');
+    return this.prisma.gaitAnalysisForm.update({ where: { id: formId }, data: { isSaved: true } });
+  }
+
+  async archiveGaitAnalysisForm(caseId: string, formId: string, reason: string) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.gaitAnalysisForm.findFirst({ where: { id: formId, caseId } });
+    if (!form) throw new NotFoundException('Gait analysis form not found');
+    if ((form as any).archivedAt) throw new BadRequestException('النموذج مؤرشف مسبقاً');
+    return this.prisma.gaitAnalysisForm.update({
+      where: { id: formId },
+      data: { archivedAt: new Date(), archiveNotes: reason },
     });
   }
 

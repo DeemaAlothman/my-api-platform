@@ -996,8 +996,9 @@ model BalanceAssessmentForm {
   assessmentDate DateTime?
 
   // بيانات المريض الإضافية
-  previousProsthesis Boolean?   // هل استخدم طرف صناعي سابق
-  assistiveDevice    String?    // NONE | CANE | CRUTCHES | WALKER
+  previousProsthesis      Boolean?   // هل استخدم طرف صناعي سابق
+  previousProsthesisNotes String?    // تفاصيل اختيارية عند نعم
+  assistiveDevice         String?    // NONE | CANE | CRUTCHES | WALKER
 
   // تقييم التوازن الثابت — [{key, result: INDEPENDENT|ASSISTED|UNABLE}]
   staticBalance     Json?
@@ -1013,10 +1014,12 @@ model BalanceAssessmentForm {
   nearFalls      Boolean?
   fearOfFalling  Boolean?
   fallRiskLevel  String?   // HIGH | MODERATE | LOW
+  fallRiskNotes  String?   @db.Text  // تفاصيل اختيارية عند HIGH
 
   // خلاصة التوازن
-  overallBalanceLevel String?   // GOOD | FAIR | POOR
-  limitingFactors     String[]  @default([])
+  overallBalanceLevel       String?   // GOOD | FAIR | POOR
+  limitingFactors           String[]  @default([])
+  limitingFactorsOtherNotes String?   @db.Text
 
   // برنامج تمارين التوازن — [{exercise, position, dosage, support, notes}]
   exerciseProgram Json?
@@ -1033,7 +1036,11 @@ model BalanceAssessmentForm {
   committeeHeadSignatureUrl   String?
   followUpDate                DateTime?
 
-  notes     String? @db.Text
+  notes String? @db.Text
+
+  isSaved      Boolean   @default(false)
+  archivedAt   DateTime?
+  archiveNotes String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1274,11 +1281,21 @@ model GaitAnalysisForm {
   likelyCauses String[] @default([])
 
   // التوصيات
-  recommendations String[] @default([])
+  recommendations      String[] @default([])
+  recommendationsNotes String?  @db.Text
 
   // خطة العلاج (Rehab Plan) — {strengthening: string[], balanceTrain: string[], gaitTrain: string[]}
   rehabPlan  Json?
   rehabNotes String? @db.Text
+
+  // ملاحظات التشخيص
+  mainProblemNotes String? @db.Text
+
+  // ملاحظات "أخرى" للحقول المتعددة
+  patientComplaintsOtherNotes String?  @db.Text
+  suspensionSystemOtherNotes  String?
+  prostheticIssuesOtherNotes  String?  @db.Text
+  likelyCausesOtherNotes      String?  @db.Text
 
   // التوقيعات
   examinerProsthetistId       String?
@@ -1287,6 +1304,10 @@ model GaitAnalysisForm {
   physiotherapistSignatureUrl String?
 
   notes String? @db.Text
+
+  isSaved      Boolean   @default(false)
+  archivedAt   DateTime?
+  archiveNotes String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

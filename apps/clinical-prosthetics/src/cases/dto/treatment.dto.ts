@@ -227,6 +227,9 @@ export class BalanceAssessmentFormDto {
   @IsOptional() @IsBoolean()
   previousProsthesis?: boolean;
 
+  @IsOptional() @IsString()
+  previousProsthesisNotes?: string;
+
   // NONE | CANE | CRUTCHES | WALKER
   @IsOptional() @IsString()
   assistiveDevice?: string;
@@ -256,12 +259,18 @@ export class BalanceAssessmentFormDto {
   @IsOptional() @IsString()
   fallRiskLevel?: string;
 
+  @IsOptional() @IsString()
+  fallRiskNotes?: string;
+
   // GOOD | FAIR | POOR
   @IsOptional() @IsString()
   overallBalanceLevel?: string;
 
   @IsOptional() @IsArray()
   limitingFactors?: string[];
+
+  @IsOptional() @IsString()
+  limitingFactorsOtherNotes?: string;
 
   // [{exercise, position, dosage, support, notes}]
   @IsOptional() @IsObject()
@@ -540,11 +549,29 @@ export class GaitAnalysisFormDto {
   @IsOptional() @IsArray()
   recommendations?: string[];
 
+  @IsOptional() @IsString()
+  recommendationsNotes?: string;
+
   @IsOptional() @IsObject()
   rehabPlan?: any;
 
   @IsOptional() @IsString()
   rehabNotes?: string;
+
+  @IsOptional() @IsString()
+  mainProblemNotes?: string;
+
+  @IsOptional() @IsString()
+  patientComplaintsOtherNotes?: string;
+
+  @IsOptional() @IsString()
+  suspensionSystemOtherNotes?: string;
+
+  @IsOptional() @IsString()
+  prostheticIssuesOtherNotes?: string;
+
+  @IsOptional() @IsString()
+  likelyCausesOtherNotes?: string;
 
   @IsOptional() @IsString()
   examinerProsthetistId?: string;

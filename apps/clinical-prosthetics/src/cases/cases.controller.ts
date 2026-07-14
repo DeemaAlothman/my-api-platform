@@ -356,6 +356,22 @@ export class CasesController {
     return this.service.updateBalanceAssessmentForm(id, formId, dto);
   }
 
+  @Post(':id/balance-assessment/:formId/save')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  saveBalanceAssessment(@Param('id') id: string, @Param('formId') formId: string) {
+    return this.service.saveBalanceAssessmentForm(id, formId);
+  }
+
+  @Post(':id/balance-assessment/:formId/archive')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  archiveBalanceAssessment(
+    @Param('id') id: string,
+    @Param('formId') formId: string,
+    @Body() body: { reason: string },
+  ) {
+    return this.service.archiveBalanceAssessmentForm(id, formId, body.reason);
+  }
+
   @Delete(':id/balance-assessment/:formId')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
   deleteBalanceAssessment(@Param('id') id: string, @Param('formId') formId: string) {
@@ -617,6 +633,22 @@ export class CasesController {
     @Body() dto: GaitAnalysisFormDto,
   ) {
     return this.service.updateGaitAnalysisForm(id, formId, dto);
+  }
+
+  @Post(':id/gait-analysis-forms/:formId/save')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  saveGaitAnalysisForm(@Param('id') id: string, @Param('formId') formId: string) {
+    return this.service.saveGaitAnalysisForm(id, formId);
+  }
+
+  @Post(':id/gait-analysis-forms/:formId/archive')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  archiveGaitAnalysisForm(
+    @Param('id') id: string,
+    @Param('formId') formId: string,
+    @Body() body: { reason: string },
+  ) {
+    return this.service.archiveGaitAnalysisForm(id, formId, body.reason);
   }
 
   @Delete(':id/gait-analysis-forms/:formId')
