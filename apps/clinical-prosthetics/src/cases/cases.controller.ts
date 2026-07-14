@@ -314,7 +314,7 @@ export class CasesController {
     @Body() body: { note: string },
     @User() user: any,
   ) {
-    return this.service.alertCase(id, body.note, user.id);
+    return this.service.alertCase(id, body.note, user.userId);
   }
 
   @Get(':id/alerts')
