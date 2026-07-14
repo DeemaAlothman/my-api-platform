@@ -385,13 +385,18 @@ export class CasesController {
     return this.service.deleteDeliveryItem(id, itemId);
   }
 
-  // ── التسليم النهائي — يعرض نفس بيانات prosthetic-delivery تلقائياً ──────
-  // POST/PATCH/DELETE يتم عبر endpoints prosthetic-delivery العادية وتنعكس هنا فوراً
+  // ── التسليم النهائي — يظهر فقط القطع المعتمدة (isApproved = true) ────────
 
   @Get(':id/final-delivery')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
   getFinalDelivery(@Param('id') id: string) {
     return this.service.getFinalDelivery(id);
+  }
+
+  @Patch(':id/prosthetic-delivery/items/:itemId/approve')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  approveDeliveryItem(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.service.approveDeliveryItem(id, itemId);
   }
 
   // ── Patient Review Program (برنامج مراجعة المريض) ────────────────────────

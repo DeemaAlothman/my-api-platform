@@ -963,6 +963,8 @@ model ProstheticDeliveryItem {
   company          String?
   notes            String?
   itemAddedDate    DateTime?
+  isApproved       Boolean  @default(false)
+  approvedAt       DateTime?
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

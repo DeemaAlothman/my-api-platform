@@ -1058,9 +1058,25 @@ export class CasesService {
     return this.prisma.prostheticDeliveryItem.delete({ where: { id: itemId } });
   }
 
-  // التسليم النهائي — يعرض نفس بيانات prosthetic-delivery (نفس السجل، endpoint مختلف للفرونت)
+  // التسليم النهائي — نفس نموذج التسليم لكن يظهر فقط القطع المعتمدة
   async getFinalDelivery(caseId: string) {
-    return this.getDeliveryForm(caseId);
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.prostheticDeliveryForm.findUnique({
+      where: { caseId },
+      include: { items: { where: { isApproved: true }, orderBy: { approvedAt: 'asc' } } },
+    });
+  }
+
+  async approveDeliveryItem(caseId: string, itemId: string) {
+    await this.findCaseOrThrow(caseId);
+    const form = await this.prisma.prostheticDeliveryForm.findUnique({ where: { caseId } });
+    if (!form) throw new NotFoundException('Delivery form not found');
+    const item = await this.prisma.prostheticDeliveryItem.findFirst({ where: { id: itemId, formId: form.id } });
+    if (!item) throw new NotFoundException('Item not found');
+    return this.prisma.prostheticDeliveryItem.update({
+      where: { id: itemId },
+      data: { isApproved: true, approvedAt: new Date() },
+    });
   }
 
   // ── Patient Review Program (بعد اكتمال العلاج) ──────────────────────────
