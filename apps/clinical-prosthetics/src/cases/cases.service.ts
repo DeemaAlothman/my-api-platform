@@ -756,6 +756,34 @@ export class CasesService {
     return this.prisma.prosthesisComponent.delete({ where: { id: compId } });
   }
 
+  async approveComponent(caseId: string, compId: string) {
+    await this.findCaseOrThrow(caseId);
+    const comp = await this.prisma.prosthesisComponent.findFirst({ where: { id: compId, caseId } });
+    if (!comp) throw new NotFoundException('Component not found');
+
+    const approved = await this.prisma.prosthesisComponent.update({
+      where: { id: compId },
+      data: { isApproved: true, approvedAt: new Date() },
+    });
+
+    // إنشاء نموذج التسليم تلقائياً إذا ما موجود
+    let form = await this.prisma.prostheticDeliveryForm.findUnique({ where: { caseId } });
+    if (!form) form = await this.prisma.prostheticDeliveryForm.create({ data: { caseId } });
+
+    // إضافة القطعة تلقائياً كـ item في التسليم
+    await this.prisma.prostheticDeliveryItem.create({
+      data: {
+        formId:          form.id,
+        deliveredProduct: (comp as any).partName,
+        partCode:        (comp as any).partCode,
+        company:         (comp as any).supplier,
+        itemAddedDate:   new Date(),
+      },
+    });
+
+    return approved;
+  }
+
   // ── Gait Analysis ─────────────────────────────────────────────────────────
 
   async upsertGaitAnalysis(caseId: string, dto: GaitAnalysisDto) {

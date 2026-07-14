@@ -745,6 +745,8 @@ model ProsthesisComponent {
   reason          String?
   addedAt         DateTime @default(now())
   addedBy         String
+  isApproved      Boolean  @default(false)
+  approvedAt      DateTime?
 
   @@map("prosthesis_components")
   @@schema("clinic_prosthetics")

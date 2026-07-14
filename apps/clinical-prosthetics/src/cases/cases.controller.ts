@@ -208,6 +208,12 @@ export class CasesController {
     return this.service.getComponents(id);
   }
 
+  @Patch(':id/components/:compId/approve')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.COMPONENTS_ADD)
+  approveComponent(@Param('id') id: string, @Param('compId') compId: string) {
+    return this.service.approveComponent(id, compId);
+  }
+
   @Delete(':id/components/:compId')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.COMPONENTS_ADD)
   removeComponent(@Param('id') id: string, @Param('compId') compId: string) {
