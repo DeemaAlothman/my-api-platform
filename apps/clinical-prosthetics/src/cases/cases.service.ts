@@ -1245,14 +1245,10 @@ export class CasesService {
   }
 
   async alertCase(caseId: string, note: string, userId: string) {
-    const cs = await this.findCaseOrThrow(caseId);
-    if ((cs as any).alertSentAt && !(cs as any).alertRespondedAt) {
-      throw new BadRequestException('يوجد تنبيه نشط لهذه الحالة — انتظر رد رئيس القسم أولاً');
-    }
+    await this.findCaseOrThrow(caseId);
 
-    const updated = await this.prisma.prostheticsCase.update({
-      where: { id: caseId },
-      data: { alertNote: note, alertSentAt: new Date(), alertSentByUserId: userId, alertResponseNote: null, alertRespondedAt: null },
+    const alert = await this.prisma.caseAlert.create({
+      data: { caseId, note, sentByUserId: userId },
     });
 
     const headIds = await this.getUsersByJobTitle('VTX-JTL-000035');
@@ -1263,33 +1259,39 @@ export class CasesService {
          VALUES
            (gen_random_uuid(), $1, 'GENERAL', 'تنبيه من برنامج المتابعة', 'Treatment Program Alert', $2, $2, $3::jsonb, false, NOW())`,
         headId, note,
-        JSON.stringify({ caseId, type: 'CASE_ALERT' }),
+        JSON.stringify({ caseId, alertId: alert.id, type: 'CASE_ALERT' }),
       ).catch(() => {});
     }
 
-    return updated;
+    return alert;
   }
 
-  async respondToCaseAlert(caseId: string, responseNote: string) {
-    const cs = await this.findCaseOrThrow(caseId);
-    if (!(cs as any).alertSentAt) throw new BadRequestException('لا يوجد تنبيه لهذه الحالة');
+  async getCaseAlerts(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.caseAlert.findMany({
+      where: { caseId },
+      orderBy: { sentAt: 'desc' },
+    });
+  }
 
-    const updated = await this.prisma.prostheticsCase.update({
-      where: { id: caseId },
-      data: { alertResponseNote: responseNote, alertRespondedAt: new Date() },
+  async respondToCaseAlert(caseId: string, alertId: string, responseNote: string) {
+    await this.findCaseOrThrow(caseId);
+    const alert = await this.prisma.caseAlert.findFirst({ where: { id: alertId, caseId } });
+    if (!alert) throw new NotFoundException('التنبيه غير موجود');
+
+    const updated = await this.prisma.caseAlert.update({
+      where: { id: alertId },
+      data: { responseNote, respondedAt: new Date() },
     });
 
-    const technicianId = (cs as any).alertSentByUserId;
-    if (technicianId) {
-      await this.prisma.$queryRawUnsafe(
-        `INSERT INTO users.notifications
-           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
-         VALUES
-           (gen_random_uuid(), $1, 'GENERAL', 'رد على تنبيه برنامج المتابعة', 'Alert Response', $2, $2, $3::jsonb, false, NOW())`,
-        technicianId, responseNote,
-        JSON.stringify({ caseId, type: 'CASE_ALERT_RESPONSE' }),
-      ).catch(() => {});
-    }
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO users.notifications
+         (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+       VALUES
+         (gen_random_uuid(), $1, 'GENERAL', 'رد على تنبيه برنامج المتابعة', 'Alert Response', $2, $2, $3::jsonb, false, NOW())`,
+      alert.sentByUserId, responseNote,
+      JSON.stringify({ caseId, alertId, type: 'CASE_ALERT_RESPONSE' }),
+    ).catch(() => {});
 
     return updated;
   }

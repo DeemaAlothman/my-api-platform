@@ -347,12 +347,7 @@ model ProstheticsCase {
   balanceAssessmentForms BalanceAssessmentForm[]
   gaitAnalysisForms  GaitAnalysisForm[]
   treatmentPrograms  CaseTreatmentProgram[]
-
-  alertNote              String?   @db.Text
-  alertSentAt            DateTime?
-  alertSentByUserId      String?
-  alertResponseNote      String?   @db.Text
-  alertRespondedAt       DateTime?
+  alerts             CaseAlert[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -364,6 +359,21 @@ model ProstheticsCase {
   @@index([patientId])
   @@index([status])
   @@index([caseNumber])
+}
+
+model CaseAlert {
+  id           String          @id @default(uuid())
+  caseId       String
+  case         ProstheticsCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  note         String          @db.Text
+  sentAt       DateTime        @default(now())
+  sentByUserId String
+  responseNote String?         @db.Text
+  respondedAt  DateTime?
+
+  @@index([caseId])
+  @@map("case_alerts")
+  @@schema("clinic_prosthetics")
 }
 
 // ── Assessments ───────────────────────────────────────────────────────────
