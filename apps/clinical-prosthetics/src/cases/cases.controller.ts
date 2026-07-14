@@ -300,25 +300,23 @@ export class CasesController {
     return this.service.archiveCaseTreatmentProgram(id, programId, body.notes);
   }
 
-  @Post(':id/treatment-programs/:programId/alert')
+  @Post(':id/alert')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
-  alertCaseTreatmentProgram(
+  alertCase(
     @Param('id') id: string,
-    @Param('programId') programId: string,
     @Body() body: { note: string },
     @User() user: any,
   ) {
-    return this.service.alertCaseTreatmentProgram(id, programId, body.note, user.id);
+    return this.service.alertCase(id, body.note, user.id);
   }
 
-  @Post(':id/treatment-programs/:programId/alert-response')
+  @Post(':id/alert-response')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
-  respondToCaseTreatmentProgramAlert(
+  respondToCaseAlert(
     @Param('id') id: string,
-    @Param('programId') programId: string,
     @Body() body: { note: string },
   ) {
-    return this.service.respondToCaseTreatmentProgramAlert(id, programId, body.note);
+    return this.service.respondToCaseAlert(id, body.note);
   }
 
   // ── Balance Assessment & Exercise Program Form Pro-015 ───────────────────
