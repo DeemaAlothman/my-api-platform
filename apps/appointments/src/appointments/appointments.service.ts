@@ -416,6 +416,24 @@ export class AppointmentsService implements OnModuleInit {
         this.notifySupervisors(appt, supervisorMsg),
       ]);
     }
+
+    if (dto.status === 'CONFIRMED' && (appt as any).caseType === 'PROSTHETICS' && (appt as any).caseId) {
+      const url = `${process.env.PROSTHETICS_SERVICE_URL || 'http://clinical-prosthetics:4011'}/api/v1/prosthetics/cases/internal/treatment-program-from-appointment`;
+      const sessionTime = appt.startTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN || '',
+        },
+        body: JSON.stringify({
+          caseId: (appt as any).caseId,
+          sessionDate: appt.startTime.toISOString(),
+          sessionTime,
+        }),
+      }).catch(() => {});
+    }
+
     return updated;
   }
 }

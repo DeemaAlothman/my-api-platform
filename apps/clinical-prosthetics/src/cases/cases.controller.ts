@@ -40,6 +40,16 @@ export class CasesInternalController {
   deleteByPatient(@Param('patientId') patientId: string) {
     return this.service.deleteByPatientInternal(patientId);
   }
+
+  @Post('treatment-program-from-appointment')
+  @UseGuards(InternalAuthGuard)
+  createFromAppointment(@Body() body: { caseId: string; sessionDate: string; sessionTime: string }) {
+    return this.service.createTreatmentProgramFromAppointment(
+      body.caseId,
+      new Date(body.sessionDate),
+      body.sessionTime,
+    );
+  }
 }
 
 @Controller('prosthetics/cases')
@@ -288,6 +298,27 @@ export class CasesController {
     @Body() body: { notes?: string },
   ) {
     return this.service.archiveCaseTreatmentProgram(id, programId, body.notes);
+  }
+
+  @Post(':id/treatment-programs/:programId/alert')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  alertCaseTreatmentProgram(
+    @Param('id') id: string,
+    @Param('programId') programId: string,
+    @Body() body: { note: string },
+    @User() user: any,
+  ) {
+    return this.service.alertCaseTreatmentProgram(id, programId, body.note, user.id);
+  }
+
+  @Post(':id/treatment-programs/:programId/alert-response')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
+  respondToCaseTreatmentProgramAlert(
+    @Param('id') id: string,
+    @Param('programId') programId: string,
+    @Body() body: { note: string },
+  ) {
+    return this.service.respondToCaseTreatmentProgramAlert(id, programId, body.note);
   }
 
   // ── Balance Assessment & Exercise Program Form Pro-015 ───────────────────

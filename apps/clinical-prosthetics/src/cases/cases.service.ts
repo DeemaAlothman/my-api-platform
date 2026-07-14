@@ -1179,6 +1179,75 @@ export class CasesService {
     });
   }
 
+  private async getUsersByJobTitle(code: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT e."userId" FROM users.employees e
+       JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+       WHERE jt.code = $1 AND e."deletedAt" IS NULL`,
+      code,
+    ).catch(() => [] as Array<{ userId: string }>);
+    return rows.map(r => r.userId).filter(Boolean);
+  }
+
+  async createTreatmentProgramFromAppointment(caseId: string, sessionDate: Date, sessionTime: string) {
+    const cs = await this.prisma.prostheticsCase.findFirst({ where: { id: caseId, deletedAt: null } });
+    if (!cs) return null;
+    return this.prisma.caseTreatmentProgram.create({
+      data: { caseId, sessionDate, sessionTime },
+    });
+  }
+
+  async alertCaseTreatmentProgram(caseId: string, programId: string, note: string, userId: string) {
+    await this.findCaseOrThrow(caseId);
+    const program = await this.prisma.caseTreatmentProgram.findFirst({ where: { id: programId, caseId } });
+    if (!program) throw new NotFoundException('Treatment program not found');
+
+    const updated = await this.prisma.caseTreatmentProgram.update({
+      where: { id: programId },
+      data: { alertNote: note, alertSentAt: new Date(), alertSentByUserId: userId },
+    });
+
+    const headIds = await this.getUsersByJobTitle('VTX-JTL-000035');
+    for (const headId of headIds) {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO users.notifications
+           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+         VALUES
+           (gen_random_uuid(), $1, 'GENERAL', 'تنبيه من برنامج المتابعة', 'Treatment Program Alert', $2, $2, $3::jsonb, false, NOW())`,
+        headId, note,
+        JSON.stringify({ programId, caseId, type: 'TREATMENT_PROGRAM_ALERT' }),
+      ).catch(() => {});
+    }
+
+    return updated;
+  }
+
+  async respondToCaseTreatmentProgramAlert(caseId: string, programId: string, responseNote: string) {
+    await this.findCaseOrThrow(caseId);
+    const program = await this.prisma.caseTreatmentProgram.findFirst({ where: { id: programId, caseId } });
+    if (!program) throw new NotFoundException('Treatment program not found');
+    if (!(program as any).alertSentAt) throw new BadRequestException('لا يوجد تنبيه لهذه الجلسة');
+
+    const updated = await this.prisma.caseTreatmentProgram.update({
+      where: { id: programId },
+      data: { alertResponseNote: responseNote, alertRespondedAt: new Date() },
+    });
+
+    const technicianId = (program as any).alertSentByUserId;
+    if (technicianId) {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO users.notifications
+           (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+         VALUES
+           (gen_random_uuid(), $1, 'GENERAL', 'رد على تنبيه برنامج المتابعة', 'Alert Response', $2, $2, $3::jsonb, false, NOW())`,
+        technicianId, responseNote,
+        JSON.stringify({ programId, caseId, type: 'TREATMENT_PROGRAM_ALERT_RESPONSE' }),
+      ).catch(() => {});
+    }
+
+    return updated;
+  }
+
   // ── Patient Treatment Program (Pro-004) ──────────────────────────────────
 
   async upsertTreatmentProgram(

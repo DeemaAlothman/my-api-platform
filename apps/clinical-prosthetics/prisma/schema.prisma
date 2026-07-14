@@ -1178,6 +1178,12 @@ model CaseTreatmentProgram {
   archivedAt             DateTime?
   archiveNotes           String?  @db.Text
 
+  alertNote              String?   @db.Text
+  alertSentAt            DateTime?
+  alertSentByUserId      String?
+  alertResponseNote      String?   @db.Text
+  alertRespondedAt       DateTime?
+
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
