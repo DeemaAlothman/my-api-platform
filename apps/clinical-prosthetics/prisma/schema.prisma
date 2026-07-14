@@ -939,6 +939,10 @@ model ProstheticDeliveryForm {
   ceoSignatureUrl   String?
   signatureDate     DateTime?
 
+  medicalDirectorId           String?
+  medicalDirectorSignatureUrl String?
+  medicalDirectorSignedAt     DateTime?
+
   items             ProstheticDeliveryItem[]
 
   createdAt         DateTime @default(now())
@@ -958,6 +962,7 @@ model ProstheticDeliveryItem {
   quantity         Int?
   company          String?
   notes            String?
+  itemAddedDate    DateTime?
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

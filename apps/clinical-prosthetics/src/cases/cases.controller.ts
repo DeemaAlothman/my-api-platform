@@ -385,6 +385,15 @@ export class CasesController {
     return this.service.deleteDeliveryItem(id, itemId);
   }
 
+  // ── التسليم النهائي — يعرض نفس بيانات prosthetic-delivery تلقائياً ──────
+  // POST/PATCH/DELETE يتم عبر endpoints prosthetic-delivery العادية وتنعكس هنا فوراً
+
+  @Get(':id/final-delivery')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  getFinalDelivery(@Param('id') id: string) {
+    return this.service.getFinalDelivery(id);
+  }
+
   // ── Patient Review Program (برنامج مراجعة المريض) ────────────────────────
 
   @Post(':id/review-program')

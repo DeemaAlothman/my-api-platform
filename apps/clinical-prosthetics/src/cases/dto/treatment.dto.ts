@@ -313,6 +313,15 @@ export class ProstheticDeliveryFormDto {
 
   @IsOptional() @IsDateString()
   signatureDate?: string;
+
+  @IsOptional() @IsString()
+  medicalDirectorId?: string;
+
+  @IsOptional() @IsString()
+  medicalDirectorSignatureUrl?: string;
+
+  @IsOptional() @IsDateString()
+  medicalDirectorSignedAt?: string;
 }
 
 export class ProstheticDeliveryItemDto {
@@ -330,6 +339,9 @@ export class ProstheticDeliveryItemDto {
 
   @IsOptional() @IsString()
   notes?: string;
+
+  @IsOptional() @IsDateString()
+  itemAddedDate?: string;
 }
 
 export class PatientReviewProgramDto {

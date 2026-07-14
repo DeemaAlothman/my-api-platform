@@ -986,25 +986,21 @@ export class CasesService {
 
   async upsertDeliveryForm(caseId: string, dto: ProstheticDeliveryFormDto) {
     await this.findCaseOrThrow(caseId);
+    const formData = {
+      inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
+      prosthetistId:     dto.prosthetistId,
+      physiotherapistId: dto.physiotherapistId,
+      ceoId:             dto.ceoId,
+      ceoSignatureUrl:   dto.ceoSignatureUrl,
+      signatureDate: dto.signatureDate ? new Date(dto.signatureDate) : undefined,
+      medicalDirectorId:           dto.medicalDirectorId,
+      medicalDirectorSignatureUrl: dto.medicalDirectorSignatureUrl,
+      medicalDirectorSignedAt: dto.medicalDirectorSignedAt ? new Date(dto.medicalDirectorSignedAt) : undefined,
+    };
     return this.prisma.prostheticDeliveryForm.upsert({
       where: { caseId },
-      create: {
-        caseId,
-        inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
-        prosthetistId:     dto.prosthetistId,
-        physiotherapistId: dto.physiotherapistId,
-        ceoId:             dto.ceoId,
-        ceoSignatureUrl:   dto.ceoSignatureUrl,
-        signatureDate: dto.signatureDate ? new Date(dto.signatureDate) : undefined,
-      },
-      update: {
-        inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
-        prosthetistId:     dto.prosthetistId,
-        physiotherapistId: dto.physiotherapistId,
-        ceoId:             dto.ceoId,
-        ceoSignatureUrl:   dto.ceoSignatureUrl,
-        signatureDate: dto.signatureDate ? new Date(dto.signatureDate) : undefined,
-      },
+      create: { caseId, ...formData },
+      update: formData,
       include: { items: { orderBy: { createdAt: 'asc' } } },
     });
   }
@@ -1029,6 +1025,7 @@ export class CasesService {
         quantity:        dto.quantity,
         company:         dto.company,
         notes:           dto.notes,
+        itemAddedDate:   dto.itemAddedDate ? new Date(dto.itemAddedDate) : undefined,
       },
     });
   }
@@ -1047,6 +1044,7 @@ export class CasesService {
         quantity:        dto.quantity,
         company:         dto.company,
         notes:           dto.notes,
+        itemAddedDate:   dto.itemAddedDate ? new Date(dto.itemAddedDate) : undefined,
       },
     });
   }
@@ -1058,6 +1056,11 @@ export class CasesService {
     const item = await this.prisma.prostheticDeliveryItem.findFirst({ where: { id: itemId, formId: form.id } });
     if (!item) throw new NotFoundException('Item not found');
     return this.prisma.prostheticDeliveryItem.delete({ where: { id: itemId } });
+  }
+
+  // التسليم النهائي — يعرض نفس بيانات prosthetic-delivery (نفس السجل، endpoint مختلف للفرونت)
+  async getFinalDelivery(caseId: string) {
+    return this.getDeliveryForm(caseId);
   }
 
   // ── Patient Review Program (بعد اكتمال العلاج) ──────────────────────────
