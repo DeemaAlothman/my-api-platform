@@ -972,19 +972,21 @@ model ProstheticDeliveryItem {
   formId           String
   form             ProstheticDeliveryForm @relation(fields: [formId], references: [id], onDelete: Cascade)
 
-  deliveredProduct String?
-  partCode         String?
-  quantity         Int?
-  company          String?
-  notes            String?
-  itemAddedDate    DateTime?
-  isApproved       Boolean  @default(false)
-  approvedAt       DateTime?
+  deliveredProduct    String?
+  partCode            String?
+  quantity            Int?
+  company             String?
+  notes               String?
+  itemAddedDate       DateTime?
+  isApproved          Boolean  @default(false)
+  approvedAt          DateTime?
+  sourceComponentId   String?
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([formId])
+  @@index([sourceComponentId])
   @@map("prosthetic_delivery_items")
   @@schema("clinic_prosthetics")
 }

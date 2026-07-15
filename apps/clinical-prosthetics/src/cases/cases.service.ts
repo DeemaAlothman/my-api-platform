@@ -1062,10 +1062,51 @@ export class CasesService {
 
   async getDeliveryForm(caseId: string) {
     await this.findCaseOrThrow(caseId);
+    await this.syncApprovedComponentsToDelivery(caseId);
     return this.prisma.prostheticDeliveryForm.findUnique({
       where: { caseId },
       include: { items: { orderBy: { createdAt: 'asc' } } },
     });
+  }
+
+  private async syncApprovedComponentsToDelivery(caseId: string) {
+    const components = await this.prisma.prosthesisComponent.findMany({ where: { caseId } });
+    if (!components.length) return;
+
+    const itemIds = components.map((c: any) => c.inventoryItemId).filter(Boolean);
+    if (!itemIds.length) return;
+
+    const invItems = await this.prisma.$queryRawUnsafe<Array<{ id: string; status: string }>>(
+      `SELECT id, status::text AS status FROM clinic_inventory.inventory_items WHERE id = ANY($1::text[])`,
+      itemIds,
+    ).catch(() => [] as any[]);
+
+    const approvedIds = new Set(invItems.filter(i => i.status === 'APPROVED').map(i => i.id));
+    const approvedComponents = components.filter((c: any) => approvedIds.has(c.inventoryItemId));
+    if (!approvedComponents.length) return;
+
+    let form = await this.prisma.prostheticDeliveryForm.findUnique({ where: { caseId } });
+    if (!form) form = await this.prisma.prostheticDeliveryForm.create({ data: { caseId } });
+
+    const existingItems = await this.prisma.prostheticDeliveryItem.findMany({
+      where: { formId: form.id, sourceComponentId: { not: null } },
+      select: { sourceComponentId: true },
+    });
+    const alreadySynced = new Set(existingItems.map((i: any) => i.sourceComponentId));
+
+    for (const comp of approvedComponents) {
+      if (alreadySynced.has((comp as any).id)) continue;
+      await this.prisma.prostheticDeliveryItem.create({
+        data: {
+          formId:           form.id,
+          deliveredProduct: (comp as any).partName,
+          partCode:         (comp as any).partCode,
+          company:          (comp as any).supplier,
+          sourceComponentId: (comp as any).id,
+          itemAddedDate:    new Date(),
+        },
+      });
+    }
   }
 
   async addDeliveryItem(caseId: string, dto: ProstheticDeliveryItemDto) {
