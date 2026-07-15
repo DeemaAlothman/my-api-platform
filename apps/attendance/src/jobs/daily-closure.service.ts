@@ -182,6 +182,12 @@ export class DailyClosureService implements OnModuleInit {
     )) as Array<{ employeeId: string; salaryLinked: boolean }>;
     const salaryLinkedMap = new Map(configRows.map(r => [r.employeeId, r.salaryLinked]));
 
+    // فحص الأجهزة البيومترية: إذا كان الجهاز فاصلاً عند تشغيل الإغلاق → لا تنبيهات للموظفين المرتبطين به
+    const offlineDeviceIds = await this.getOfflineDeviceIds();
+    const employeeDeviceMap = offlineDeviceIds.size > 0
+      ? await this.getEmployeeLastDeviceMap(workingEmployeeIds)
+      : new Map<string, string>();
+
     let absentCreated = 0;
     let missingClockOutAlerts = 0;
     let onLeaveApplied = 0;
@@ -205,13 +211,15 @@ export class DailyClosureService implements OnModuleInit {
         continue;
       }
 
+      const isDeviceOffline = this.isEmployeeDeviceOffline(employeeId, employeeDeviceMap, offlineDeviceIds);
+
       if (!record) {
-        await this.createAbsentRecord(employeeId, dateStr, salaryLinked);
+        await this.createAbsentRecord(employeeId, dateStr, salaryLinked, isDeviceOffline);
         absentCreated++;
       } else if (['ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'ABSENT'].includes(record.status)) {
         skipped++;
       } else if (record.clockInTime && !record.clockOutTime) {
-        await this.createMissingClockOutAlert(employeeId, dateStr, salaryLinked);
+        await this.createMissingClockOutAlert(employeeId, dateStr, salaryLinked, isDeviceOffline);
         missingClockOutAlerts++;
       } else {
         skipped++;
@@ -231,7 +239,7 @@ export class DailyClosureService implements OnModuleInit {
     await this.processBreakOverLimit(dateStr);
 
     // C.6: Detect anomalous attendance patterns
-    await this.processAnomalyDetection(dateStr);
+    await this.processAnomalyDetection(dateStr, offlineDeviceIds, employeeDeviceMap);
 
     // C.7: Compute overtime from approved requests (replaces auto-calculated overtime)
     await this.processOvertimeFromRequests(dateStr);
@@ -492,7 +500,7 @@ export class DailyClosureService implements OnModuleInit {
     }
   }
 
-  private async createAbsentRecord(employeeId: string, dateStr: string, salaryLinked = true) {
+  private async createAbsentRecord(employeeId: string, dateStr: string, salaryLinked = true, skipAlert = false) {
     try {
       await this.prisma.$queryRawUnsafe(
         `INSERT INTO attendance.attendance_records
@@ -506,8 +514,8 @@ export class DailyClosureService implements OnModuleInit {
         employeeId, dateStr,
       );
 
-      // Only create alert if attendance is linked to salary
-      if (salaryLinked) {
+      // Only create alert if attendance is linked to salary and device was not offline
+      if (salaryLinked && !skipAlert) {
         await this.prisma.$queryRawUnsafe(
           `INSERT INTO attendance.attendance_alerts
              (id, "employeeId", date, "alertType", severity, message, "messageAr",
@@ -528,8 +536,8 @@ export class DailyClosureService implements OnModuleInit {
     }
   }
 
-  private async createMissingClockOutAlert(employeeId: string, dateStr: string, salaryLinked = true) {
-    if (!salaryLinked) return; // exempt employees don't get alerts
+  private async createMissingClockOutAlert(employeeId: string, dateStr: string, salaryLinked = true, skipAlert = false) {
+    if (!salaryLinked || skipAlert) return; // exempt employees and device-offline cases don't get alerts
 
     try {
       const existing = (await this.prisma.$queryRawUnsafe(
@@ -1318,7 +1326,7 @@ export class DailyClosureService implements OnModuleInit {
   }
 
   /** Phase 7.4: كشف السلوك الشاذ — عمل زائد > 4h، بصمات كثيرة > 8، لا بصمة ولا إجازة */
-  private async processAnomalyDetection(dateStr: string): Promise<void> {
+  private async processAnomalyDetection(dateStr: string, offlineDeviceIds = new Set<string>(), employeeDeviceMap = new Map<string, string>()): Promise<void> {
     try {
       // 7.4-a: workedMinutes > scheduledMinutes + 4h
       const overtimeAnomalies = (await this.prisma.$queryRawUnsafe(
@@ -1440,6 +1448,7 @@ export class DailyClosureService implements OnModuleInit {
 
         for (const emp of empIds) {
           if (!stampSet.has(emp) && !leaveSet.has(emp)) {
+            if (this.isEmployeeDeviceOffline(emp, employeeDeviceMap, offlineDeviceIds)) continue;
             await this.prisma.$queryRawUnsafe(
               `INSERT INTO attendance.attendance_alerts
                  (id, "employeeId", date, "alertType", severity, message, "messageAr",
@@ -1594,6 +1603,56 @@ export class DailyClosureService implements OnModuleInit {
     const start = Math.max(clockIn.getTime(), wStart.getTime());
     const end   = Math.min(clockOut.getTime(), wEnd.getTime());
     return Math.max(0, Math.floor((end - start) / 60000));
+  }
+
+  private async getOfflineDeviceIds(thresholdHours = 4): Promise<Set<string>> {
+    try {
+      const devices = (await this.prisma.$queryRawUnsafe(
+        `SELECT id, "lastSyncAt" FROM biometric.biometric_devices WHERE "isActive" = true`,
+      )) as Array<{ id: string; lastSyncAt: Date | null }>;
+
+      const now = Date.now();
+      const offlineIds = new Set<string>();
+      for (const device of devices) {
+        if (!device.lastSyncAt) { offlineIds.add(device.id); continue; }
+        if ((now - device.lastSyncAt.getTime()) / 3600000 > thresholdHours) {
+          offlineIds.add(device.id);
+        }
+      }
+      if (offlineIds.size > 0) {
+        this.logger.warn(`getOfflineDeviceIds: ${offlineIds.size} device(s) offline (threshold: ${thresholdHours}h)`);
+      }
+      return offlineIds;
+    } catch {
+      return new Set<string>();
+    }
+  }
+
+  private async getEmployeeLastDeviceMap(employeeIds: string[]): Promise<Map<string, string>> {
+    if (employeeIds.length === 0) return new Map();
+    try {
+      const rows = (await this.prisma.$queryRawUnsafe(
+        `SELECT DISTINCT ON ("employeeId") "employeeId", "deviceId"
+         FROM biometric.raw_attendance_logs
+         WHERE "employeeId" = ANY($1::text[])
+         ORDER BY "employeeId", "createdAt" DESC`,
+        employeeIds,
+      )) as Array<{ employeeId: string; deviceId: string }>;
+      return new Map(rows.map(r => [r.employeeId, r.deviceId]));
+    } catch {
+      return new Map();
+    }
+  }
+
+  private isEmployeeDeviceOffline(
+    employeeId: string,
+    employeeDeviceMap: Map<string, string>,
+    offlineDeviceIds: Set<string>,
+  ): boolean {
+    if (offlineDeviceIds.size === 0) return false;
+    const deviceId = employeeDeviceMap.get(employeeId);
+    if (!deviceId) return false; // لا يوجد جهاز معروف للموظف → نفترض الجهاز شغال ونبعت التنبيه
+    return offlineDeviceIds.has(deviceId);
   }
 
   async auditLog(
