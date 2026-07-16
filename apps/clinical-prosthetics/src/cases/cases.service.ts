@@ -1181,7 +1181,7 @@ export class CasesService {
     // نسخ القطع المعتمدة من التسليم التجريبي تلقائياً
     const trialForm = await this.prisma.prostheticDeliveryForm.findUnique({
       where: { caseId },
-      include: { items: { where: { isApproved: true } } },
+      include: { items: { orderBy: { createdAt: 'asc' } } },
     });
 
     const formData = {
