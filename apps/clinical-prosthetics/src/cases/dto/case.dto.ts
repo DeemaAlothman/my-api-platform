@@ -2,7 +2,10 @@ import {
   IsString, IsOptional, IsBoolean, IsEnum, IsDateString,
   IsInt, Min, Max, IsNumber, IsArray,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
+
+const toArray = ({ value }: { value: unknown }) =>
+  Array.isArray(value) ? value : value !== undefined && value !== null ? [value] : value;
 
 export enum AmputationTypeEnum  { UPPER = 'UPPER', LOWER = 'LOWER' }
 export enum AmputationSideEnum  { RIGHT = 'RIGHT', LEFT = 'LEFT', BILATERAL = 'BILATERAL' }
@@ -39,13 +42,13 @@ export class CreateCaseDto {
   amputationCount?: number;
 
   // مصفوفة — يمكن إرسال UPPER وLOWER سوا لنفس الحالة
-  @IsOptional() @IsArray() @IsEnum(AmputationTypeEnum, { each: true })
+  @IsOptional() @Transform(toArray) @IsArray() @IsEnum(AmputationTypeEnum, { each: true })
   amputationType?: string[];
 
   @IsOptional() @IsEnum(AmputationSideEnum)
   amputationSide?: string;
 
-  @IsOptional() @IsArray() @IsEnum(AmputationLevelEnum, { each: true })
+  @IsOptional() @Transform(toArray) @IsArray() @IsEnum(AmputationLevelEnum, { each: true })
   amputationLevel?: string[];
 
   // الجانب الأكثر تأثراً والذي يجري رصده وعلاجه — فقط عند amputationSide = BILATERAL (RIGHT أو LEFT)
@@ -131,13 +134,13 @@ export class UpdateCaseDto {
   amputationCount?: number;
 
   // مصفوفة — يمكن إرسال UPPER وLOWER سوا لنفس الحالة
-  @IsOptional() @IsArray() @IsEnum(AmputationTypeEnum, { each: true })
+  @IsOptional() @Transform(toArray) @IsArray() @IsEnum(AmputationTypeEnum, { each: true })
   amputationType?: string[];
 
   @IsOptional() @IsEnum(AmputationSideEnum)
   amputationSide?: string;
 
-  @IsOptional() @IsArray() @IsEnum(AmputationLevelEnum, { each: true })
+  @IsOptional() @Transform(toArray) @IsArray() @IsEnum(AmputationLevelEnum, { each: true })
   amputationLevel?: string[];
 
   // الجانب الأكثر تأثراً والذي يجري رصده وعلاجه — فقط عند amputationSide = BILATERAL (RIGHT أو LEFT)
