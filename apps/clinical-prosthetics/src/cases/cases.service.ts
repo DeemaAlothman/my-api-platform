@@ -521,6 +521,23 @@ export class CasesService {
 
   async submitCommitteeOpinion(caseId: string, dto: CommitteeOpinionDto, userId: string) {
     await this.findCaseOrThrow(caseId);
+
+    // قفل الرأي: لا يمكن تعديله بعد تقديمه
+    const opinionFieldByRole: Record<string, string> = {
+      PROSTHETIST:     'prosthetistOpinion',
+      PHYSIOTHERAPIST: 'physiotherapistOpinion',
+      DOCTOR:          'doctorOpinion',
+      COMMITTEE_HEAD:  'committeeHeadOpinion',
+      EXPERT:          'expertOpinion',
+    };
+    const opinionField = opinionFieldByRole[dto.role];
+    if (opinionField) {
+      const existing = await this.prisma.committeeReview.findUnique({ where: { caseId } });
+      if (existing && (existing as any)[opinionField]) {
+        throw new ConflictException('لا يمكن تعديل الرأي بعد تقديمه');
+      }
+    }
+
     const now = new Date();
     const roleFieldMap: Record<string, any> = {
       PROSTHETIST:     { prosthetistOpinion: dto.opinion, prosthetistUserId: userId, prosthetistReviewedAt: now },
