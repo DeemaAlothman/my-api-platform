@@ -43,4 +43,5 @@ export class CreatePatientDto {
   @IsOptional() @IsEnum(ConsentDecision) consentDecision?: ConsentDecision;
   @IsOptional() @IsString() consentSignedByPatient?: string;
   @IsOptional() @IsString() consentSignatureBase64?: string;
+  @IsOptional() @IsDateString() consentSignedAt?: string;
 }
