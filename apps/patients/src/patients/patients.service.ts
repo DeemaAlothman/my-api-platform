@@ -52,15 +52,28 @@ export class PatientsService {
       ? Math.round((dto.weightKg / Math.pow(dto.heightCm / 100, 2)) * 10) / 10
       : null;
 
+    const { consentDecision, consentSignedByPatient, consentSignatureBase64, ...patientData } = dto;
+
     return this.prisma.patient.create({
       data: {
-        ...dto,
+        ...patientData,
         patientNumber,
         bmi,
         dateOfBirth: new Date(dto.dateOfBirth),
         createdBy: userId,
+        ...(consentDecision && {
+          consents: {
+            create: {
+              type: 'DOCUMENTATION',
+              decision: consentDecision,
+              signedByPatient: consentSignedByPatient ?? `${dto.firstName} ${dto.lastName}`,
+              signatureBase64: consentSignatureBase64,
+              signedAt: new Date(),
+            },
+          },
+        }),
       },
-      include: { city: true },
+      include: { city: true, consents: true },
     });
   }
 

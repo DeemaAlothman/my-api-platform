@@ -8,6 +8,7 @@ export enum MaritalStatus { SINGLE = 'SINGLE', MARRIED = 'MARRIED', DIVORCED = '
 export enum LivingCondition { WITH_FAMILY = 'WITH_FAMILY', INDEPENDENT = 'INDEPENDENT', SHELTER_CAMP = 'SHELTER_CAMP', OTHER = 'OTHER' }
 export enum FinancialStatus { LOW = 'LOW', MODERATE = 'MODERATE', GOOD = 'GOOD', NOT_WORKING = 'NOT_WORKING', RETIRED = 'RETIRED' }
 export enum ReferralSource { SELF = 'SELF', RELATIVES = 'RELATIVES', SOCIAL_MEDIA = 'SOCIAL_MEDIA', MEDICAL_REFERRAL = 'MEDICAL_REFERRAL', OTHER = 'OTHER' }
+export enum ConsentDecision { REFUSED = 'REFUSED', FUNDER_ONLY = 'FUNDER_ONLY', FUNDER_AND_SOCIAL = 'FUNDER_AND_SOCIAL' }
 
 export class CreatePatientDto {
   @IsString() firstName: string;
@@ -37,4 +38,9 @@ export class CreatePatientDto {
 
   @IsOptional() @IsEnum(ReferralSource) referralSource?: ReferralSource;
   @IsOptional() @IsString() referralDetails?: string;
+
+  // موافقة التوثيق — اختيارية عند إنشاء المريض
+  @IsOptional() @IsEnum(ConsentDecision) consentDecision?: ConsentDecision;
+  @IsOptional() @IsString() consentSignedByPatient?: string;
+  @IsOptional() @IsString() consentSignatureBase64?: string;
 }
