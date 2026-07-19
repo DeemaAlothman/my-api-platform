@@ -102,6 +102,28 @@ export class CasesService {
     return map;
   }
 
+  private readonly STATUS_ORDER = [
+    'INTAKE', 'ASSESSMENT', 'FITTING', 'SOCKET_TRIAL',
+    'GAIT_TRAINING', 'FOLLOW_UP', 'FINAL_REVIEW', 'DELIVERED',
+  ];
+
+  private async autoAdvanceStatus(caseId: string, targetStatus: string): Promise<void> {
+    try {
+      const c = await this.prisma.prostheticsCase.findFirst({
+        where: { id: caseId, deletedAt: null },
+        select: { status: true },
+      });
+      if (!c || c.status === 'CANCELLED') return;
+      const currentIdx = this.STATUS_ORDER.indexOf(c.status as string);
+      const targetIdx  = this.STATUS_ORDER.indexOf(targetStatus);
+      if (targetIdx <= currentIdx) return;
+      await this.prisma.prostheticsCase.update({
+        where: { id: caseId },
+        data: { status: targetStatus as any },
+      });
+    } catch { /* لا يوقف العملية الأصلية */ }
+  }
+
   private async generateCaseNumber(): Promise<string> {
     const year = new Date().getFullYear();
     const count = await this.prisma.prostheticsCase.count();
@@ -268,6 +290,7 @@ export class CasesService {
 
   async update(id: string, dto: UpdateCaseDto) {
     await this.findCaseOrThrow(id);
+    await this.autoAdvanceStatus(id, 'ASSESSMENT');
     return this.prisma.prostheticsCase.update({
       where: { id },
       data: {
@@ -337,6 +360,7 @@ export class CasesService {
 
   async upsertUpperAssessment(caseId: string, dto: UpperLimbAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     return this.prisma.upperLimbAssessment.create({
       data: {
@@ -377,6 +401,7 @@ export class CasesService {
 
   async upsertLowerAssessment(caseId: string, dto: LowerLimbAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       residualLimbLength: dto.residualLimbLength as any,
@@ -420,6 +445,7 @@ export class CasesService {
 
   async upsertTranshumeralAssessment(caseId: string, dto: TranshumeralAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -436,6 +462,7 @@ export class CasesService {
 
   async upsertElbowDisarticulationAssessment(caseId: string, dto: ElbowDisarticulationAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -452,6 +479,7 @@ export class CasesService {
 
   async upsertTransradialAssessment(caseId: string, dto: TransradialAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -468,6 +496,7 @@ export class CasesService {
 
   async upsertHemipelvectomyAssessment(caseId: string, dto: HemipelvectomyAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -485,6 +514,7 @@ export class CasesService {
 
   async upsertTranstibialAssessment(caseId: string, dto: TranstibialAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -502,6 +532,7 @@ export class CasesService {
 
   async upsertTransfemoralAssessment(caseId: string, dto: TransfemoralAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -519,6 +550,7 @@ export class CasesService {
 
   async upsertKneeDisarticulationAssessment(caseId: string, dto: KneeDisarticulationAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -536,6 +568,7 @@ export class CasesService {
 
   async upsertAnkleDisarticulationAssessment(caseId: string, dto: AnkleDisarticulationAssessmentDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING');
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -555,6 +588,7 @@ export class CasesService {
 
   async submitCommitteeOpinion(caseId: string, dto: CommitteeOpinionDto, userId: string) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'ASSESSMENT');
 
     // قفل الرأي: لا يمكن تعديله بعد تقديمه
     const opinionFieldByRole: Record<string, string> = {
@@ -592,6 +626,7 @@ export class CasesService {
 
   async committeeDecide(caseId: string, dto: CommitteeDecideDto, userId: string) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'ASSESSMENT');
     return this.prisma.committeeReview.upsert({
       where: { caseId },
       create: {
@@ -666,6 +701,7 @@ export class CasesService {
 
   async addComponent(caseId: string, dto: AddComponentDto, userId: string) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'ASSESSMENT');
 
     // إذا ما انبعت inventoryItemId، نبحث تلقائياً بالكود. إذا ما لقينا تطابق، نحفظ بدون خصم من المخزون
     let inventoryItemId = dto.inventoryItemId ?? null;
@@ -840,6 +876,7 @@ export class CasesService {
 
   async upsertGaitAnalysis(caseId: string, dto: GaitAnalysisDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'GAIT_TRAINING');
     const data: any = {
       suspensionSystem: (dto.suspensionSystem ?? []) as any,
       socketBearing: dto.socketBearing as any,
@@ -985,6 +1022,7 @@ export class CasesService {
 
   async addBalanceAssessmentForm(caseId: string, dto: BalanceAssessmentFormDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'GAIT_TRAINING');
     return this.prisma.balanceAssessmentForm.create({
       data: {
         caseId,
@@ -1092,6 +1130,7 @@ export class CasesService {
 
   async upsertDeliveryForm(caseId: string, dto: ProstheticDeliveryFormDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'SOCKET_TRIAL');
     const formData = {
       inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
       prosthetistId:     dto.prosthetistId,
@@ -1162,6 +1201,7 @@ export class CasesService {
 
   async addDeliveryItem(caseId: string, dto: ProstheticDeliveryItemDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'SOCKET_TRIAL');
     let form = await this.prisma.prostheticDeliveryForm.findUnique({ where: { caseId } });
     if (!form) form = await this.prisma.prostheticDeliveryForm.create({ data: { caseId } });
     return this.prisma.prostheticDeliveryItem.create({
@@ -1209,6 +1249,7 @@ export class CasesService {
 
   async createFinalDelivery(caseId: string, dto: FinalDeliveryFormDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FINAL_REVIEW');
     const existing = await this.prisma.finalDeliveryForm.findUnique({ where: { caseId } });
     if (existing) throw new BadRequestException('التسليم النهائي موجود مسبقاً — استخدم PATCH للتعديل');
 
@@ -1545,6 +1586,7 @@ export class CasesService {
 
   async createFinalEvaluation(caseId: string, dto: FinalEvaluationDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'DELIVERED');
     const data: any = {
       residualLimbCondition: dto.residualLimbCondition,
       suspensionSystemUsed: dto.suspensionSystemUsed,
@@ -1650,6 +1692,7 @@ export class CasesService {
 
   async addFollowUp(caseId: string, dto: FollowUpDto, userId: string) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'FOLLOW_UP');
     return this.prisma.followUp.create({
       data: {
         caseId,
@@ -1815,6 +1858,7 @@ export class CasesService {
 
   async addGaitAnalysisForm(caseId: string, dto: GaitAnalysisFormDto) {
     await this.findCaseOrThrow(caseId);
+    await this.autoAdvanceStatus(caseId, 'GAIT_TRAINING');
     return this.prisma.gaitAnalysisForm.create({
       data: {
         caseId,
