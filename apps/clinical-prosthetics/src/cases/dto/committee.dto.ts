@@ -20,8 +20,8 @@ export class CommitteeDecideDto {
   @IsString()
   decision: string;
 
-  @IsOptional() @IsString()
-  finalSummary?: string;
+  @IsString()
+  finalSummary: string;
 }
 
 export enum CommitteeSignerRoleEnum {
