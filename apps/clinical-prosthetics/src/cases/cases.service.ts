@@ -83,6 +83,25 @@ export class CasesService {
     return map;
   }
 
+  private async resolveUserNames(
+    userIds: Array<string | null | undefined>,
+  ): Promise<Record<string, { firstNameAr: string; lastNameAr: string }>> {
+    const ids = [...new Set(userIds.filter(Boolean) as string[])];
+    if (ids.length === 0) return {};
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      userId: string; firstNameAr: string; lastNameAr: string;
+    }>>(
+      `SELECT u.id as "userId", e."firstNameAr", e."lastNameAr"
+       FROM users.users u
+       JOIN users.employees e ON e."userId" = u.id
+       WHERE u.id = ANY($1::text[]) AND e."deletedAt" IS NULL`,
+      ids,
+    ).catch(() => []);
+    const map: Record<string, { firstNameAr: string; lastNameAr: string }> = {};
+    for (const r of rows) map[r.userId] = { firstNameAr: r.firstNameAr, lastNameAr: r.lastNameAr };
+    return map;
+  }
+
   private async generateCaseNumber(): Promise<string> {
     const year = new Date().getFullYear();
     const count = await this.prisma.prostheticsCase.count();
@@ -222,6 +241,13 @@ export class CasesService {
     const empMap = await this.resolveEmployeeNames([
       c.prosthetistId, c.physiotherapistId, c.supervisingDoctorId, c.workshopSupervisorId,
     ]);
+
+    const cr = c.committeeReview as any;
+    const userMap = await this.resolveUserNames([
+      cr?.prosthetistUserId, cr?.physiotherapistUserId, cr?.doctorUserId,
+      cr?.committeeHeadUserId, cr?.expertUserId,
+    ]);
+
     return {
       ...c,
       patient: nameMap[c.patientId] ?? null,
@@ -229,6 +255,14 @@ export class CasesService {
       physiotherapist: c.physiotherapistId ? (empMap[c.physiotherapistId] ?? null) : null,
       supervisingDoctor: c.supervisingDoctorId ? (empMap[c.supervisingDoctorId] ?? null) : null,
       workshopSupervisor: c.workshopSupervisorId ? (empMap[c.workshopSupervisorId] ?? null) : null,
+      committeeReview: cr ? {
+        ...cr,
+        prosthetistUser:      cr.prosthetistUserId      ? (userMap[cr.prosthetistUserId]      ?? null) : null,
+        physiotherapistUser:  cr.physiotherapistUserId  ? (userMap[cr.physiotherapistUserId]  ?? null) : null,
+        doctorUser:           cr.doctorUserId           ? (userMap[cr.doctorUserId]           ?? null) : null,
+        committeeHeadUser:    cr.committeeHeadUserId    ? (userMap[cr.committeeHeadUserId]    ?? null) : null,
+        expertUser:           cr.expertUserId           ? (userMap[cr.expertUserId]           ?? null) : null,
+      } : null,
     };
   }
 
