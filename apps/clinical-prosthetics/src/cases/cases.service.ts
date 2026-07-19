@@ -1388,6 +1388,8 @@ export class CasesService {
 
   async addCaseTreatmentProgram(caseId: string, dto: CaseTreatmentProgramDto) {
     await this.findCaseOrThrow(caseId);
+    const finalDelivery = await this.prisma.finalDeliveryForm.findUnique({ where: { caseId } });
+    if (finalDelivery) throw new BadRequestException('لا يمكن إضافة جلسات بعد إتمام التسليم النهائي');
     return this.prisma.caseTreatmentProgram.create({
       data: {
         caseId,
