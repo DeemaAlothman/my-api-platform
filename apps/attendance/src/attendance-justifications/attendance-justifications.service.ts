@@ -57,14 +57,6 @@ export class AttendanceJustificationsService {
       });
     }
 
-    // التحقق أن التنبيه من النوع القابل للتبرير
-    if (!['LATE', 'EARLY_LEAVE', 'ABSENT'].includes(alert.alertType)) {
-      throw new BadRequestException({
-        code: 'ALERT_TYPE_NOT_JUSTIFIABLE',
-        message: 'Only LATE, EARLY_LEAVE, and ABSENT alerts can be justified',
-      });
-    }
-
     // التحقق من عدم وجود تبرير سابق
     if (alert.justification) {
       throw new BadRequestException({
