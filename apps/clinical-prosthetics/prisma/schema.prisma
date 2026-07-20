@@ -724,6 +724,7 @@ model CommitteeReview {
   finalDecision            CommitteeDecision?
   finalSummary             String? @db.Text
   decidedAt                DateTime?
+  decidedByUserId          String?
 
   doctorSignatureBase64    String? @db.Text
   doctorSignedAt           DateTime?

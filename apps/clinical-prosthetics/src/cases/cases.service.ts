@@ -659,11 +659,13 @@ export class CasesService {
         finalDecision: dto.decision as any,
         finalSummary: dto.finalSummary,
         decidedAt: new Date(),
+        decidedByUserId: userId,
       },
       update: {
         finalDecision: dto.decision as any,
         finalSummary: dto.finalSummary,
         decidedAt: new Date(),
+        decidedByUserId: userId,
       },
     });
   }
