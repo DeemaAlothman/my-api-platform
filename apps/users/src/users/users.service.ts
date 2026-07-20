@@ -149,20 +149,22 @@ export class UsersService {
       }
     }
 
-    // تحقق من email موجود (نشط أو محذوف سابقاً)
-    const existingEmail = await this.prisma.user.findFirst({
-      where: { email: dto.email },
-    });
+    // تحقق من email موجود (نشط أو محذوف سابقاً) — فقط إذا أُرسل
+    if (dto.email) {
+      const existingEmail = await this.prisma.user.findFirst({
+        where: { email: dto.email },
+      });
 
-    if (existingEmail) {
-      if (existingEmail.deletedAt !== null) {
-        await this.prisma.user.delete({ where: { id: existingEmail.id } });
-      } else {
-        throw new ConflictException({
-          code: 'RESOURCE_ALREADY_EXISTS',
-          message: 'Email already exists',
-          details: [{ field: 'email', value: dto.email }],
-        });
+      if (existingEmail) {
+        if (existingEmail.deletedAt !== null) {
+          await this.prisma.user.delete({ where: { id: existingEmail.id } });
+        } else {
+          throw new ConflictException({
+            code: 'RESOURCE_ALREADY_EXISTS',
+            message: 'Email already exists',
+            details: [{ field: 'email', value: dto.email }],
+          });
+        }
       }
     }
 
