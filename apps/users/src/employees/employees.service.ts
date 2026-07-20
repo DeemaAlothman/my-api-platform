@@ -1419,6 +1419,7 @@ export class EmployeesService {
         jobTitle:   { select: { nameAr: true } },
         jobGrade:   { select: { nameAr: true } },
         manager:    { select: { firstNameAr: true, lastNameAr: true, employeeNumber: true } },
+        user:       { select: { username: true } },
         allowances: true,
       },
     });
@@ -1454,6 +1455,7 @@ export class EmployeesService {
       e.company ?? '',
       e.probationResult ?? '',
       fmt(e.probationCompletedAt),
+      (e as any).user?.username ?? '',
     ]);
 
     const allowanceRows: (string | number)[][] = [];
