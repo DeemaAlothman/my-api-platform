@@ -35,7 +35,13 @@ export class ProbationEvaluationsService {
     });
 
     const allCriteria = await this.prisma.probationCriteria.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        OR: [
+          { targetEmployeeId: null },
+          { targetEmployeeId: dto.employeeId },
+        ],
+      },
       orderBy: { displayOrder: 'asc' },
     });
 

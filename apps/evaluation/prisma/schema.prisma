@@ -273,16 +273,17 @@ model EvaluationHistory {
 // =============================================
 
 model ProbationCriteria {
-  id           String   @id @default(uuid())
-  nameAr       String
-  nameEn       String?
-  isCore       Boolean  @default(false)
-  isActive     Boolean  @default(true)
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  nameAr             String
+  nameEn             String?
+  isCore             Boolean  @default(false)
+  isActive           Boolean  @default(true)
+  displayOrder       Int      @default(0)
+  targetEmployeeId   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  scores       ProbationCriteriaScore[]
+  scores            ProbationCriteriaScore[]
   jobTitleOverrides JobTitleCriteria[]
 
   @@schema("evaluation")

@@ -8,6 +8,7 @@ export class CreateProbationCriteriaDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isCore?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() displayOrder?: number;
+  @ApiPropertyOptional() @IsOptional() @IsString() targetEmployeeId?: string;
 }
 
 export class JobTitleCriteriaDto {

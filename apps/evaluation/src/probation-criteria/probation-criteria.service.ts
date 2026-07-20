@@ -6,9 +6,15 @@ import { CreateProbationCriteriaDto } from './dto/create-probation-criteria.dto'
 export class ProbationCriteriaService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(employeeId?: string) {
     return this.prisma.probationCriteria.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        OR: [
+          { targetEmployeeId: null },
+          ...(employeeId ? [{ targetEmployeeId: employeeId }] : []),
+        ],
+      },
       orderBy: { displayOrder: 'asc' },
     });
   }
@@ -21,6 +27,7 @@ export class ProbationCriteriaService {
         isCore: dto.isCore ?? false,
         isActive: dto.isActive ?? true,
         displayOrder: dto.displayOrder ?? 0,
+        targetEmployeeId: dto.targetEmployeeId ?? null,
       },
     });
   }
@@ -36,6 +43,7 @@ export class ProbationCriteriaService {
         ...(dto.nameEn !== undefined && { nameEn: dto.nameEn }),
         ...(dto.displayOrder !== undefined && { displayOrder: dto.displayOrder }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.targetEmployeeId !== undefined && { targetEmployeeId: dto.targetEmployeeId }),
       },
     });
   }
