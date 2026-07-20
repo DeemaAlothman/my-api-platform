@@ -227,7 +227,15 @@ export class CasesService {
     return { items: enriched, total, page, limit };
   }
 
-  async findOne(id: string) {
+  private async resolveEmployeeIdByUserId(userId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM users.employees WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      userId,
+    ).catch(() => []);
+    return rows[0]?.id ?? null;
+  }
+
+  async findOne(id: string, currentUserId?: string) {
     const c = await this.prisma.prostheticsCase.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -270,6 +278,22 @@ export class CasesService {
       cr?.committeeHeadUserId, cr?.expertUserId,
     ]);
 
+    // تحديد دور المستخدم الحالي في اللجنة
+    let myCommitteeRole: string | null = null;
+    if (currentUserId) {
+      const myEmployeeId = await this.resolveEmployeeIdByUserId(currentUserId);
+      if (myEmployeeId) {
+        if (myEmployeeId === c.prosthetistId)       myCommitteeRole = 'PROSTHETIST';
+        else if (myEmployeeId === c.physiotherapistId) myCommitteeRole = 'PHYSIOTHERAPIST';
+        else if (myEmployeeId === c.supervisingDoctorId) myCommitteeRole = 'DOCTOR';
+      }
+      // COMMITTEE_HEAD / EXPERT: يُعرف عبر userId بعد تقديم الرأي
+      if (!myCommitteeRole && cr) {
+        if (cr.committeeHeadUserId === currentUserId) myCommitteeRole = 'COMMITTEE_HEAD';
+        else if (cr.expertUserId === currentUserId)   myCommitteeRole = 'EXPERT';
+      }
+    }
+
     return {
       ...c,
       patient: nameMap[c.patientId] ?? null,
@@ -277,6 +301,7 @@ export class CasesService {
       physiotherapist: c.physiotherapistId ? (empMap[c.physiotherapistId] ?? null) : null,
       supervisingDoctor: c.supervisingDoctorId ? (empMap[c.supervisingDoctorId] ?? null) : null,
       workshopSupervisor: c.workshopSupervisorId ? (empMap[c.workshopSupervisorId] ?? null) : null,
+      myCommitteeRole,
       committeeReview: cr ? {
         ...cr,
         prosthetistUser:      cr.prosthetistUserId      ? (userMap[cr.prosthetistUserId]      ?? null) : null,

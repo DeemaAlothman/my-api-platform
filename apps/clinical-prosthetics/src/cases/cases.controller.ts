@@ -83,8 +83,8 @@ export class CasesController {
 
   @Get(':id')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(@Param('id') id: string, @User() user: any) {
+    return this.service.findOne(id, user.userId);
   }
 
   @Put(':id')
