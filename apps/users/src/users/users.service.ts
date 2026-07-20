@@ -174,9 +174,9 @@ export class UsersService {
     const user = await this.prisma.user.create({
       data: {
         username: dto.username,
-        email: dto.email,
+        email: dto.email ?? null,
         password: hashedPassword,
-        fullName: dto.fullName,
+        fullName: dto.fullName ?? null,
         anydesk: dto.anydesk ?? null,
         status: 'ACTIVE',
       },
