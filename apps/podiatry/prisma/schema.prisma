@@ -1,0 +1,87 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["clinic_podiatry"]
+}
+
+model PodiatryReception {
+  id        String   @id @default(uuid())
+  patientId String
+
+  // حقول إضافية في الاستقبال
+  height     Float?
+  weight     Float?
+  occupation String?
+  activities String?
+
+  // الشكوى الرئيسية
+  problemDescription String?  @db.Text
+  historyOfSymptoms  String?  @db.Text
+  affectedSide       String[]
+
+  // أعراض القدم - متعدد
+  footSymptoms String[]
+
+  // نوع الزيارة - متعدد
+  visitTypes String[]
+
+  // التاريخ المرضي - متعدد
+  medicalHistory      String[]
+  medicalHistoryOther String?
+
+  // شدة الألم
+  vasScore Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String
+
+  sessions PodiatrySession[]
+
+  @@map("podiatry_receptions")
+  @@schema("clinic_podiatry")
+}
+
+model PodiatrySession {
+  id          String   @id @default(uuid())
+  receptionId String
+  patientId   String
+  sessionDate DateTime @default(now())
+
+  // الخطة العلاجية - متعدد
+  clinicalPlan String[]
+
+  // تحليل FootBalance - القدم اليمنى
+  rightFlatFoot      Boolean @default(false)
+  rightHighArch      Boolean @default(false)
+  rightPronation     Boolean @default(false)
+  rightSupination    Boolean @default(false)
+  rightPressureNotes String?
+  rightAsymmetry     String?
+
+  // تحليل FootBalance - القدم اليسرى
+  leftFlatFoot      Boolean @default(false)
+  leftHighArch      Boolean @default(false)
+  leftPronation     Boolean @default(false)
+  leftSupination    Boolean @default(false)
+  leftPressureNotes String?
+  leftAsymmetry     String?
+
+  // التوقيع
+  clinicianName      String?
+  clinicianSignature String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String
+
+  reception PodiatryReception @relation(fields: [receptionId], references: [id])
+
+  @@map("podiatry_sessions")
+  @@schema("clinic_podiatry")
+}

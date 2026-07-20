@@ -60,6 +60,7 @@ import {
   PhysioProxyController,
   AppointmentsProxyController,
   InventoryProxyController,
+  PodiatryProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -123,6 +124,7 @@ import {
     PhysioProxyController,
     AppointmentsProxyController,
     InventoryProxyController,
+    PodiatryProxyController,
   ],
   providers: [ProxyService],
 })

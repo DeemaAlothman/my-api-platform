@@ -279,6 +279,22 @@ services:
     networks:
       - app-network
 
+  podiatry:
+    build:
+      context: .
+      dockerfile: apps/podiatry/Dockerfile
+    container_name: myapiplatform-podiatry
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=clinic_podiatry
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -300,6 +316,7 @@ services:
       CLINICAL_PHYSIO_SERVICE_URL: http://clinical-physio:4012
       APPOINTMENTS_SERVICE_URL: http://appointments:4013
       INVENTORY_SERVICE_URL: http://clinic-inventory:4014
+      PODIATRY_SERVICE_URL: http://podiatry:4015
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012,http://159.198.37.52:3012,http://159.198.37.52:3000
@@ -335,6 +352,8 @@ services:
       appointments:
         condition: service_started
       clinic-inventory:
+        condition: service_started
+      podiatry:
         condition: service_started
     networks:
       - app-network

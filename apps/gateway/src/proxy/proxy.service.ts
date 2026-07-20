@@ -86,6 +86,11 @@ export class ProxyService {
       url: process.env.INVENTORY_SERVICE_URL || 'http://localhost:4014',
       prefix: '/inventory',
     });
+
+    this.services.set('podiatry', {
+      url: process.env.PODIATRY_SERVICE_URL || 'http://localhost:4015',
+      prefix: '/podiatry',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {
