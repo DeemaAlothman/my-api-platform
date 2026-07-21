@@ -304,17 +304,49 @@ export class ProbationEvaluationsService {
       throw new BadRequestException('التقييم ليس في مرحلة توثيق الموارد البشرية');
     }
 
+    // إذا كان المدير الأعلى هو نفسه المدير التنفيذي → نتخطّى خطوة CEO
+    const seniorIsCeo = await this.isEmployeeCeo(evaluation.seniorManagerId);
+
+    if (seniorIsCeo) {
+      await this.prisma.probationEvaluation.update({
+        where: { id },
+        data: { status: 'PENDING_MEETING_SCHEDULE', hrManagerId: performedBy, ceoId: evaluation.seniorManagerId },
+      });
+
+      await this.notifyHr('PROBATION_REMINDER',
+        'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
+        'Probation Meeting Needs Scheduling',
+        'تم توثيق التقييم — يرجى تحديد موعد اجتماع لمراجعته',
+        'The evaluation has been documented — please schedule the review meeting',
+        { evaluationId: id });
+
+      await this.logHistory(id, 'HR_DOCUMENT', performedBy,
+        (dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية') +
+        ' — المدير الأعلى هو المدير التنفيذي، تم تخطّي خطوة الاعتماد التنفيذي');
+
+      return this.findOne(id);
+    }
+
     await this.prisma.probationEvaluation.update({
       where: { id },
-      data: { status: 'PENDING_MEETING_SCHEDULE', hrManagerId: performedBy },
+      data: { status: 'PENDING_CEO', hrManagerId: performedBy },
     });
 
-    await this.notifyHr('PROBATION_REMINDER',
-      'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
-      'Probation Meeting Needs Scheduling',
-      'تم توثيق التقييم — يرجى تحديد موعد اجتماع لمراجعته',
-      'The evaluation has been documented — please schedule the review meeting',
-      { evaluationId: id });
+    const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+      SELECT DISTINCT u.id FROM users.users u
+      INNER JOIN users.user_roles ur ON ur."userId" = u.id
+      INNER JOIN users.roles r ON r.id = ur."roleId"
+      WHERE r.name IN ('CEO', 'super_admin')
+        AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+    `);
+    for (const ceo of ceoRows) {
+      await this.sendNotification(ceo.id, 'EVALUATION_ASSIGNED',
+        'بانتظار اعتمادك النهائي لتقييم فترة تجربة',
+        'Probation Evaluation Awaiting Your Final Approval',
+        'تقييم فترة تجربة موظف بانتظار اعتمادك النهائي',
+        'A probation evaluation is awaiting your final approval',
+        { evaluationId: id });
+    }
 
     await this.logHistory(id, 'HR_DOCUMENT', performedBy, dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية');
 
