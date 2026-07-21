@@ -76,6 +76,9 @@ model PodiatrySession {
   clinicianName      String?
   clinicianSignature String? @db.Text
 
+  archivedAt DateTime?
+  archivedBy String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String

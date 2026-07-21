@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { SessionsService } from './sessions.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
@@ -15,8 +15,8 @@ export class SessionsController {
   }
 
   @Get()
-  findAll(@Param('receptionId') receptionId: string) {
-    return this.service.findAll(receptionId);
+  findAll(@Param('receptionId') receptionId: string, @Query('includeArchived') includeArchived?: string) {
+    return this.service.findAll(receptionId, includeArchived === 'true');
   }
 
   @Get(':sessionId')
@@ -31,6 +31,11 @@ export class SessionsController {
     @Body() dto: UpdateSessionDto,
   ) {
     return this.service.update(receptionId, sessionId, dto);
+  }
+
+  @Post(':sessionId/archive')
+  archive(@Param('receptionId') receptionId: string, @Param('sessionId') sessionId: string, @User() user: any) {
+    return this.service.archive(receptionId, sessionId, user.userId);
   }
 
   @Delete(':sessionId')

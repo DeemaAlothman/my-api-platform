@@ -35,11 +35,11 @@ export class SessionsService {
     });
   }
 
-  async findAll(receptionId: string) {
+  async findAll(receptionId: string, includeArchived = false) {
     const reception = await this.prisma.podiatryReception.findUnique({ where: { id: receptionId } });
     if (!reception) throw new NotFoundException('Reception not found');
     return this.prisma.podiatrySession.findMany({
-      where: { receptionId },
+      where: { receptionId, ...(!includeArchived && { archivedAt: null }) },
       orderBy: { sessionDate: 'asc' },
     });
   }
@@ -73,6 +73,14 @@ export class SessionsService {
         ...(dto.clinicianName      !== undefined && { clinicianName: dto.clinicianName }),
         ...(dto.clinicianSignature !== undefined && { clinicianSignature: dto.clinicianSignature }),
       },
+    });
+  }
+
+  async archive(receptionId: string, sessionId: string, userId: string) {
+    await this.findOne(receptionId, sessionId);
+    return this.prisma.podiatrySession.update({
+      where: { id: sessionId },
+      data: { archivedAt: new Date(), archivedBy: userId },
     });
   }
 
