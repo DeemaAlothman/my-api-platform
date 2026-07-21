@@ -287,10 +287,12 @@ export class CasesService {
         else if (myEmployeeId === c.physiotherapistId) myCommitteeRole = 'PHYSIOTHERAPIST';
         else if (myEmployeeId === c.supervisingDoctorId) myCommitteeRole = 'DOCTOR';
       }
-      // COMMITTEE_HEAD / EXPERT: يُعرف عبر userId بعد تقديم الرأي
+      // COMMITTEE_HEAD / EXPERT: يُعرف عبر التعيين المسبق أو عبر userId بعد التقديم
       if (!myCommitteeRole && cr) {
-        if (cr.committeeHeadUserId === currentUserId) myCommitteeRole = 'COMMITTEE_HEAD';
-        else if (cr.expertUserId === currentUserId)   myCommitteeRole = 'EXPERT';
+        if (cr.assignedCommitteeHeadUserId === currentUserId || cr.committeeHeadUserId === currentUserId)
+          myCommitteeRole = 'COMMITTEE_HEAD';
+        else if (cr.assignedExpertUserId === currentUserId || cr.expertUserId === currentUserId)
+          myCommitteeRole = 'EXPERT';
       }
     }
 
@@ -646,6 +648,18 @@ export class CasesService {
       where: { caseId },
       create: { caseId, ...updateData },
       update: updateData,
+    });
+  }
+
+  async assignCommitteeMembers(caseId: string, data: { committeeHeadUserId?: string; expertUserId?: string }) {
+    await this.findCaseOrThrow(caseId);
+    const update: any = {};
+    if (data.committeeHeadUserId !== undefined) update.assignedCommitteeHeadUserId = data.committeeHeadUserId;
+    if (data.expertUserId        !== undefined) update.assignedExpertUserId        = data.expertUserId;
+    return this.prisma.committeeReview.upsert({
+      where:  { caseId },
+      create: { caseId, ...update },
+      update,
     });
   }
 

@@ -182,6 +182,12 @@ export class CasesController {
     return this.service.committeeSign(id, dto, user.userId, ip);
   }
 
+  @Put(':id/committee/assign')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.COMMITTEE_DECIDE)
+  assignCommittee(@Param('id') id: string, @Body() body: { committeeHeadUserId?: string; expertUserId?: string }) {
+    return this.service.assignCommitteeMembers(id, body);
+  }
+
   @Get(':id/committee/pending')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
   getCommitteePending(@Param('id') id: string) {

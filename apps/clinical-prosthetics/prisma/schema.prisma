@@ -713,6 +713,9 @@ model CommitteeReview {
   doctorUserId             String?
   doctorReviewedAt         DateTime?
 
+  assignedCommitteeHeadUserId String?
+  assignedExpertUserId        String?
+
   committeeHeadOpinion     String? @db.Text
   committeeHeadUserId      String?
   committeeHeadReviewedAt  DateTime?
