@@ -304,60 +304,17 @@ export class ProbationEvaluationsService {
       throw new BadRequestException('التقييم ليس في مرحلة توثيق الموارد البشرية');
     }
 
-    // إذا كان المدير الأعلى هو نفسه المدير التنفيذي → نتخطّى خطوة CEO المكرّرة
-    // (قراره ملتقَط أصلاً في مرحلة اعتماد المدير) ونروح مباشرة لجدولة الاجتماع
-    const seniorIsCeo = await this.isEmployeeCeo(evaluation.seniorManagerId);
-
-    if (seniorIsCeo) {
-      await this.prisma.probationEvaluation.update({
-        where: { id },
-        data: {
-          status: 'PENDING_MEETING_SCHEDULE',
-          hrManagerId: performedBy,
-          ceoId: evaluation.seniorManagerId,
-        },
-      });
-
-      // إشعار HR بأنّ عليه تحديد موعد الاجتماع (تخطّينا خطوة CEO لأن المدير الأعلى هو التنفيذي)
-      await this.notifyHr('PROBATION_REMINDER',
-        'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
-        'Probation Meeting Needs Scheduling',
-        'تم توثيق التقييم — يرجى تحديد موعد اجتماع لمراجعته',
-        'The evaluation has been documented — please schedule the review meeting',
-        { evaluationId: id });
-
-      await this.logHistory(id, 'HR_DOCUMENT', performedBy,
-        (dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية') +
-        ' — المدير الأعلى هو المدير التنفيذي، تم تخطّي خطوة الاعتماد التنفيذي');
-
-      return this.findOne(id);
-    }
-
     await this.prisma.probationEvaluation.update({
       where: { id },
-      data: {
-        status: 'PENDING_CEO',
-        hrManagerId: performedBy,
-      },
+      data: { status: 'PENDING_MEETING_SCHEDULE', hrManagerId: performedBy },
     });
 
-    // Notify CEO/super_admin users
-    const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
-      SELECT DISTINCT u.id FROM users.users u
-      INNER JOIN users.user_roles ur ON ur."userId" = u.id
-      INNER JOIN users.roles r ON r.id = ur."roleId"
-      WHERE r.name IN ('CEO', 'super_admin')
-        AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
-    `);
-    for (const ceo of ceoRows) {
-      await this.sendNotification(ceo.id, 'EVALUATION_ASSIGNED',
-        'بانتظار اعتمادك النهائي لتقييم فترة تجربة',
-        'Probation Evaluation Awaiting Your Final Approval',
-        'تقييم فترة تجربة موظف بانتظار اعتمادك النهائي',
-        'A probation evaluation is awaiting your final approval',
-        { evaluationId: id },
-      );
-    }
+    await this.notifyHr('PROBATION_REMINDER',
+      'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
+      'Probation Meeting Needs Scheduling',
+      'تم توثيق التقييم — يرجى تحديد موعد اجتماع لمراجعته',
+      'The evaluation has been documented — please schedule the review meeting',
+      { evaluationId: id });
 
     await this.logHistory(id, 'HR_DOCUMENT', performedBy, dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية');
 
@@ -425,13 +382,12 @@ export class ProbationEvaluationsService {
         meetingProposedAt,
         meetingConfirmedByEmployee: false,
         meetingConfirmedByManager: false,
-        meetingConfirmedByCeo: false,
         meetingConfirmedAt: null,
+        meetingRescheduleNote: null,
       } as any,
     });
 
-    // إشعار أطراف الموافقة (الموظف + المدير المباشر + التنفيذي) للموافقة على الموعد
-    // (الـ Set يدمج لو المدير المباشر هو نفسه التنفيذي → إشعار واحد)
+    // إشعار أطراف الموافقة (الموظف + المدير المباشر) للموافقة على الموعد
     const dateStr = meetingProposedAt.toLocaleString('en-GB');
     await this.notifyMeetingApprovers(evaluation, 'PROBATION_REMINDER',
       'تم تحديد موعد اجتماع تقييم فترة التجربة — يرجى الموافقة',
@@ -454,17 +410,11 @@ export class ProbationEvaluationsService {
     const updateData: any = {};
     if (role === 'employee') updateData.meetingConfirmedByEmployee = true;
     else if (role === 'manager') updateData.meetingConfirmedByManager = true;
-    else if (role === 'ceo') updateData.meetingConfirmedByCeo = true;
 
     const byEmp = role === 'employee' || (evaluation as any).meetingConfirmedByEmployee;
     const byMgr = role === 'manager' || (evaluation as any).meetingConfirmedByManager;
-    const byCeo = role === 'ceo' || (evaluation as any).meetingConfirmedByCeo;
 
-    // دمج: لو المدير المباشر هو نفسه التنفيذي → موافقة المدير تكفي عن التنفيذي
-    const seniorIsCeo = await this.isEmployeeCeo(evaluation.seniorManagerId);
-    const ceoSatisfied = seniorIsCeo ? byMgr : byCeo;
-
-    const allConfirmed = byEmp && byMgr && ceoSatisfied;
+    const allConfirmed = byEmp && byMgr;
     if (allConfirmed) {
       updateData.meetingConfirmedAt = new Date();
     }
@@ -472,16 +422,38 @@ export class ProbationEvaluationsService {
     await this.prisma.probationEvaluation.update({ where: { id }, data: updateData });
 
     if (allConfirmed) {
-      // وافق الجميع → إشعار HR بأنّ الموعد تأكّد وعليه إغلاق التقييم
       await this.notifyHr('PROBATION_REMINDER',
         'تأكّد موعد الاجتماع — يلزم إغلاق التقييم',
         'Meeting Confirmed — Evaluation Needs Closing',
-        'وافق جميع الأطراف (الموظف + المدير المباشر + التنفيذي) على موعد الاجتماع — يرجى إغلاق التقييم',
-        'All parties (employee + direct manager + executive) confirmed the meeting — please close the evaluation',
+        'وافق الموظف والمدير المباشر على موعد الاجتماع — يرجى إغلاق التقييم',
+        'Employee and direct manager confirmed the meeting — please close the evaluation',
         { evaluationId: id });
     }
 
     await this.logHistory(id, 'MEETING_CONFIRMED', performedBy, `تأكيد الاجتماع من قِبل: ${role}`);
+    return this.findOne(id);
+  }
+
+  async suggestMeetingChange(id: string, performedBy: string, note: string) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_MEETING_SCHEDULE') {
+      throw new BadRequestException('التقييم ليس في مرحلة جدولة الاجتماع');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: { meetingRescheduleNote: note, meetingConfirmedByManager: false } as any,
+    });
+
+    await this.notifyHr('PROBATION_REMINDER',
+      'طلب المدير المباشر تغيير موعد الاجتماع',
+      'Direct Manager Requested Meeting Reschedule',
+      `المدير المباشر يرى أن الموعد المقترح غير مناسب — يرجى تحديد موعد جديد. الملاحظة: ${note}`,
+      `The direct manager finds the proposed date unsuitable — please schedule a new date. Note: ${note}`,
+      { evaluationId: id });
+
+    await this.logHistory(id, 'MEETING_RESCHEDULE_REQUESTED', performedBy, `طلب تغيير الموعد: ${note}`);
     return this.findOne(id);
   }
 
@@ -586,22 +558,22 @@ export class ProbationEvaluationsService {
       orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_SENIOR_MANAGER' });
       // كموظف: بانتظار إقراري
       orConditions.push({ employeeId, status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT' });
-      // اجتماع: حُدّد موعده (proposedAt موجود) ولم يتأكّد كلياً بعد، وبانتظار موافقتي
+      // اجتماع: حُدّد موعده ولم يتأكّد كلياً بعد، وبانتظار موافقتي
       orConditions.push({ employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: { not: null }, meetingConfirmedAt: null, meetingConfirmedByEmployee: false });
       orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: { not: null }, meetingConfirmedAt: null, meetingConfirmedByManager: false });
     }
 
-    // كـ HR: بانتظار توثيقي + اجتماع يحتاج جدولة + اجتماع تأكّد ويحتاج إغلاق
+    // كـ HR: بانتظار توثيقي + اجتماع يحتاج جدولة/إعادة جدولة + اجتماع تأكّد ويحتاج إغلاق
     if (isHr) {
       orConditions.push({ status: 'PENDING_HR' });
-      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: null });             // يحتاج تحديد موعد
-      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedAt: { not: null } });   // تأكّد → يحتاج إغلاق
+      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: null });
+      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingConfirmedAt: { not: null } });
+      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingRescheduleNote: { not: null } } as any);
     }
 
-    // كمدير تنفيذي: بانتظار قراري + اجتماع مجدول بانتظار موافقتي
+    // CEO قديم: يبقى مرئياً للـ CEO إن وُجد تقييم في PENDING_CEO (بيانات قديمة)
     if (isCeo) {
       orConditions.push({ status: 'PENDING_CEO' });
-      orConditions.push({ status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: { not: null }, meetingConfirmedAt: null, meetingConfirmedByCeo: false });
     }
 
     return this.prisma.probationEvaluation.findMany({
@@ -752,15 +724,6 @@ export class ProbationEvaluationsService {
         if (u) userIds.add(u);
       }
     }
-    // التنفيذي حسب الدور
-    const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
-      SELECT DISTINCT u.id FROM users.users u
-      INNER JOIN users.user_roles ur ON ur."userId" = u.id
-      INNER JOIN users.roles r ON r.id = ur."roleId"
-      WHERE r.name IN ('CEO', 'CEOO') AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
-    `);
-    for (const ru of ceoRows) userIds.add(ru.id);
-    // الـ Set يضمن إشعار واحد لو المدير المباشر هو نفسه التنفيذي
     for (const uid of userIds) {
       await this.sendNotification(uid, type, titleAr, titleEn, messageAr, messageEn, data);
     }
