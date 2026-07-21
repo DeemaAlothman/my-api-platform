@@ -74,6 +74,32 @@ export class EmployeesController {
     return this.employees.findByUsername(user.username);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('my/signature')
+  getMySignature(@User() user: CurrentUser) {
+    return this.employees.getMySignature(user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('my/signature')
+  updateMySignatureBase64(@User() user: CurrentUser, @Body() body: { signatureBase64?: string }) {
+    return this.employees.updateMySignature(user.userId, { signatureBase64: body.signatureBase64 });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('my/signature/image')
+  @UseInterceptors(FileInterceptor('file', { storage: signatureStorage }))
+  async updateMySignatureImage(
+    @User() user: CurrentUser,
+    @UploadedFile() file: Express.Multer.File,
+    @Res() res: Response,
+  ) {
+    if (!file) throw new BadRequestException('لم يتم رفع ملف');
+    const signatureUrl = `/uploads/signatures/${file.filename}`;
+    const result = await this.employees.updateMySignature(user.userId, { signatureUrl });
+    return res.json({ success: true, data: result, meta: { timestamp: new Date().toISOString() } });
+  }
+
   // B.4: HR Reports
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('employees:probation-report:read')

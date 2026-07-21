@@ -1503,4 +1503,30 @@ export class EmployeesService {
       alerts: alerts.status === 'fulfilled' ? alerts.value : [],
     };
   }
+
+  async getMySignature(userId: string) {
+    const emp = await this.prisma.employee.findFirst({
+      where: { userId, deletedAt: null },
+      select: { id: true, signatureUrl: true, signatureBase64: true, signatureUpdatedAt: true },
+    });
+    if (!emp) throw new NotFoundException('Employee not found');
+    return emp;
+  }
+
+  async updateMySignature(userId: string, data: { signatureBase64?: string; signatureUrl?: string }) {
+    const emp = await this.prisma.employee.findFirst({
+      where: { userId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!emp) throw new NotFoundException('Employee not found');
+    return this.prisma.employee.update({
+      where: { id: emp.id },
+      data: {
+        ...(data.signatureBase64 !== undefined && { signatureBase64: data.signatureBase64 }),
+        ...(data.signatureUrl    !== undefined && { signatureUrl:    data.signatureUrl }),
+        signatureUpdatedAt: new Date(),
+      },
+      select: { id: true, signatureUrl: true, signatureBase64: true, signatureUpdatedAt: true },
+    });
+  }
 }

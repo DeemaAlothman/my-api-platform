@@ -123,6 +123,8 @@ model Employee {
   // Personal Info (extra)
   profilePhoto       String?
   signatureUrl       String?
+  signatureBase64    String?  @db.Text
+  signatureUpdatedAt DateTime?
   bloodType          BloodType?
   familyMembersCount Int?
   chronicDiseases    String?
