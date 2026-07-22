@@ -3,12 +3,39 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
 
+const PATIENTS_URL   = process.env.PATIENTS_SERVICE_URL   || 'http://patients:4010';
+const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+
 @Injectable()
 export class ReceptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async resolvePatients(
+    patientIds: string[],
+  ): Promise<Record<string, { firstName: string; lastName: string; patientNumber: string }>> {
+    const ids = [...new Set(patientIds.filter(Boolean))];
+    if (ids.length === 0) return {};
+    try {
+      const res = await fetch(`${PATIENTS_URL}/api/v1/patients/internal/find-by-ids`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+        body: JSON.stringify({ patientIds: ids }),
+      });
+      if (!res.ok) return {};
+      const json: any = await res.json();
+      const list: any[] = Array.isArray(json) ? json : (json?.data ?? []);
+      const map: Record<string, any> = {};
+      for (const p of list) {
+        if (p?.id) map[p.id] = { firstName: p.firstName, lastName: p.lastName, patientNumber: p.patientNumber };
+      }
+      return map;
+    } catch {
+      return {};
+    }
+  }
+
   async create(dto: CreateReceptionDto, userId: string) {
-    return this.prisma.podiatryReception.create({
+    const reception = await this.prisma.podiatryReception.create({
       data: {
         patientId:           dto.patientId,
         height:              dto.height ?? null,
@@ -27,14 +54,18 @@ export class ReceptionsService {
       },
       include: { sessions: true },
     });
+    const patientMap = await this.resolvePatients([reception.patientId]);
+    return { ...reception, patient: patientMap[reception.patientId] ?? null };
   }
 
   async findAll(patientId?: string) {
-    return this.prisma.podiatryReception.findMany({
+    const receptions = await this.prisma.podiatryReception.findMany({
       where: patientId ? { patientId } : undefined,
       orderBy: { createdAt: 'desc' },
       include: { sessions: { orderBy: { sessionDate: 'asc' } } },
     });
+    const patientMap = await this.resolvePatients(receptions.map(r => r.patientId));
+    return receptions.map(r => ({ ...r, patient: patientMap[r.patientId] ?? null }));
   }
 
   async findOne(id: string) {
@@ -43,12 +74,12 @@ export class ReceptionsService {
       include: { sessions: { orderBy: { sessionDate: 'asc' } } },
     });
     if (!reception) throw new NotFoundException('Reception not found');
-    return reception;
+    const patientMap = await this.resolvePatients([reception.patientId]);
+    return { ...reception, patient: patientMap[reception.patientId] ?? null };
   }
 
   async update(id: string, dto: UpdateReceptionDto) {
-    await this.findOne(id);
-    return this.prisma.podiatryReception.update({
+    const reception = await this.prisma.podiatryReception.update({
       where: { id },
       data: {
         ...(dto.height              !== undefined && { height: dto.height }),
@@ -66,6 +97,8 @@ export class ReceptionsService {
       },
       include: { sessions: true },
     });
+    const patientMap = await this.resolvePatients([reception.patientId]);
+    return { ...reception, patient: patientMap[reception.patientId] ?? null };
   }
 
   async remove(id: string) {
