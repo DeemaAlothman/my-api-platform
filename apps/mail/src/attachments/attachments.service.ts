@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const MAX_MB    = parseInt(process.env.MAX_ATTACHMENT_SIZE_MB || '25', 10);
+const MAX_MB    = parseInt(process.env.MAX_ATTACHMENT_SIZE_MB || '50', 10);
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 const ALLOWED_MIME = (process.env.ALLOWED_ATTACHMENT_MIME || [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',

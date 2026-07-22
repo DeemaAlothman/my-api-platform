@@ -21,7 +21,7 @@ export class AttachmentsController {
   @Post(':messageId')
   @Permission('mail:send')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
   upload(
     @Param('messageId') messageId: string,
     @UploadedFile() file: Express.Multer.File,
