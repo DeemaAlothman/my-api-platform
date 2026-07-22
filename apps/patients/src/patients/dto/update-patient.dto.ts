@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsNumber, IsEmail, IsDateString } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsNumber, IsEmail, IsDateString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IdType, Gender, EducationLevel, MaritalStatus, LivingCondition, FinancialStatus, ReferralSource } from './create-patient.dto';
 
@@ -32,4 +32,7 @@ export class UpdatePatientDto {
 
   @IsOptional() @IsEnum(ReferralSource) referralSource?: ReferralSource;
   @IsOptional() @IsString() referralDetails?: string;
+
+  @IsOptional() @IsString() documentConsent?: string;
+  @IsOptional() @IsBoolean() mediaConsent?: boolean;
 }

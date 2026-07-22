@@ -132,6 +132,10 @@ model Patient {
   financialStatus  FinancialStatus?
   receivesAid      String?         // اسم الجهة/المساعدة التي يتلقاها (نص)
 
+  // Consent preferences (quick-access, independent of signed Consent records)
+  documentConsent String?   // e.g. FULL, NONE
+  mediaConsent    Boolean?
+
   // Referral
   referralSource  ReferralSource?
   referralDetails String?
