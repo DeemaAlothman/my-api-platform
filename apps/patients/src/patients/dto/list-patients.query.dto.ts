@@ -10,4 +10,6 @@ export class ListPatientsQueryDto {
   @IsOptional() @IsEnum(Gender) gender?: Gender;
   @IsOptional() @IsString() governorate?: string;
   @IsOptional() @IsString() documentConsent?: string;
+  @IsOptional() @IsString() consentDecision?: string;
+  @IsOptional() @IsString() department?: string;
 }

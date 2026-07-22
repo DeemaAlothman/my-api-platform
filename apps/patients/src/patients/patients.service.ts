@@ -77,6 +77,29 @@ export class PatientsService {
     });
   }
 
+  private async getPatientIdsByDepartment(department: string): Promise<string[]> {
+    const rows: { patientId: string }[] = [];
+
+    if (department === 'physio') {
+      const r = await this.prisma.$queryRaw<{ patientId: string }[]>`
+        SELECT DISTINCT "patientId" FROM clinic_physio.physio_cases WHERE "deletedAt" IS NULL
+      `;
+      rows.push(...r);
+    } else if (department === 'prosthetics') {
+      const [r1, r2] = await Promise.all([
+        this.prisma.$queryRaw<{ patientId: string }[]>`
+          SELECT DISTINCT "patientId" FROM clinic_prosthetics.prosthetics_cases WHERE "deletedAt" IS NULL
+        `,
+        this.prisma.$queryRaw<{ patientId: string }[]>`
+          SELECT DISTINCT "patientId" FROM clinic_podiatry.podiatry_receptions
+        `,
+      ]);
+      rows.push(...r1, ...r2);
+    }
+
+    return [...new Set(rows.map(r => r.patientId))];
+  }
+
   async findAll(query: ListPatientsQueryDto) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 20));
@@ -97,6 +120,15 @@ export class PatientsService {
     if (query.gender) where.gender = query.gender;
     if (query.governorate) where.city = { governorate: query.governorate };
     if (query.documentConsent) where.documentConsent = query.documentConsent;
+    if (query.consentDecision) {
+      where.consents = query.consentDecision === 'NONE'
+        ? { none: {} }
+        : { some: { decision: query.consentDecision } };
+    }
+    if (query.department) {
+      const ids = await this.getPatientIdsByDepartment(query.department);
+      where.id = { in: ids };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.patient.findMany({
