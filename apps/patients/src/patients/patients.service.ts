@@ -96,6 +96,7 @@ export class PatientsService {
     if (query.cityId) where.cityId = query.cityId;
     if (query.gender) where.gender = query.gender;
     if (query.governorate) where.city = { governorate: query.governorate };
+    if (query.documentConsent) where.documentConsent = query.documentConsent;
 
     const [items, total] = await Promise.all([
       this.prisma.patient.findMany({

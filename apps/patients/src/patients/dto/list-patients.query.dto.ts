@@ -9,4 +9,5 @@ export class ListPatientsQueryDto {
   @IsOptional() @Type(() => Number) @IsNumber() cityId?: number;
   @IsOptional() @IsEnum(Gender) gender?: Gender;
   @IsOptional() @IsString() governorate?: string;
+  @IsOptional() @IsString() documentConsent?: string;
 }

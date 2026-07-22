@@ -388,6 +388,8 @@ export class AuthService {
       'payroll.commissions.read', 'payroll.commissions.create', 'payroll.commissions.update', 'payroll.commissions.confirm', 'payroll.commissions.delete',
       'probation:view-all', 'probation:submit', 'probation:senior-review', 'probation:hr-review',
       'probation:ceo-review', 'probation:acknowledge',
+      'clinic.podiatry.reception.view', 'clinic.podiatry.reception.create', 'clinic.podiatry.reception.edit',
+      'clinic.podiatry.session.create', 'clinic.podiatry.session.edit', 'clinic.podiatry.session.archive',
     ];
   }
 
