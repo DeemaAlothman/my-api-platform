@@ -1323,13 +1323,14 @@ export class PayrollService {
       }
       if (!sickLeaveValueInserted) leaveValuesWithSick.push(Number(bd?.sickLeave?.total ?? 0));
 
-      // خلية إجازات بأجر: الرقم + أنواع الإجازات المدفوعة بين قوسين (مثل: 2 (وفاة))
-      const paidDaysTotal = Number((p as any).paidLeaveDays ?? 0);
+      // خلية إجازات بأجر: نطرح السنوية من المخزون لأنها تظهر في عمودها المنفصل
+      const annualDays = empLeaveTypes?.get('إجازة سنوية') ?? 0;
+      const paidDaysTotal = Math.max(0, Number((p as any).paidLeaveDays ?? 0) - annualDays);
       const paidTypeLabels = [...(empLeaveTypes?.entries() ?? [])]
         .filter(([name, days]) => paidLeaveTypeNamesSet.has(name) && !PAID_LEAVE_EXCLUDE.has(name) && days > 0)
         .map(([name]) => name);
       const paidLeaveCell = paidDaysTotal > 0 && paidTypeLabels.length > 0
-        ? `${paidDaysTotal} (${paidTypeLabels.join('، ')})`
+        ? `${paidDaysTotal} (${paidTypeLabels.join('/')})`
         : paidDaysTotal;
 
       return [
