@@ -157,6 +157,7 @@ enum ScarCondition {
   CLOSED
   FLEXIBLE
   HEALED
+  HEALED_WITH_PINS
   OOZING
   INFLAMED
   DRY
