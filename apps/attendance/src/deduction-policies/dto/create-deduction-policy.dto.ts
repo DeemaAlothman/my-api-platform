@@ -32,6 +32,15 @@ export class CreateDeductionPolicyDto {
   earlyLeaveDeductionType?: string;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  earlyLeaveToleranceMinutes?: number;
+
+  @IsOptional()
+  @IsString()
+  earlyLeaveDeductionTiers?: string;
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   absenceDeductionDays?: number;

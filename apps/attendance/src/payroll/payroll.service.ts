@@ -341,10 +341,11 @@ export class PayrollService {
         policy.lateDeductionTiers,
       );
 
+      const effectiveEarlyMinutes = Math.max(0, totalEarlyLeaveMinutes - ((policy.earlyLeaveToleranceMinutes ?? 0) * earlyLeaveDays));
       earlyLeaveDeductionMinutes = this.calcDeduction(
-        totalEarlyLeaveMinutes,
+        effectiveEarlyMinutes,
         policy.earlyLeaveDeductionType,
-        null,
+        policy.earlyLeaveDeductionTiers ?? null,
       );
 
       absenceDeductionDaysCalc = absentUnjustified * policy.absenceDeductionDays;
@@ -488,10 +489,11 @@ export class PayrollService {
     const totalEarlyLeavePendingDeductionMinutes = records.reduce(
       (sum, r) => sum + ((r as any).earlyLeavePendingDeductionMinutes || 0), 0,
     );
+    const effectiveEarlyPendingMinutes = Math.max(0, totalEarlyLeavePendingDeductionMinutes - ((policy?.earlyLeaveToleranceMinutes ?? 0) * earlyLeaveDays));
     earlyLeaveDeductionMinutes = this.calcDeduction(
-      totalEarlyLeavePendingDeductionMinutes,
+      effectiveEarlyPendingMinutes,
       policy?.earlyLeaveDeductionType ?? 'MINUTE_BY_MINUTE',
-      null,
+      (policy as any)?.earlyLeaveDeductionTiers ?? null,
     );
 
     const deductionAmount = lateDeductionAmount + (earlyLeaveDeductionMinutes + breakDeductionMinutes) * minuteRate;
@@ -819,6 +821,8 @@ export class PayrollService {
         lateDeductionType: policy.lateDeductionType,
         lateDeductionTiers: policy.lateDeductionTiers,
         earlyLeaveDeductionType: policy.earlyLeaveDeductionType,
+        earlyLeaveToleranceMinutes: policy.earlyLeaveToleranceMinutes,
+        earlyLeaveDeductionTiers: policy.earlyLeaveDeductionTiers,
         absenceDeductionDays: policy.absenceDeductionDays,
         repeatLateThreshold: policy.repeatLateThreshold,
         repeatLatePenaltyDays: policy.repeatLatePenaltyDays,
