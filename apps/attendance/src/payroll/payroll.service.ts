@@ -371,11 +371,8 @@ export class PayrollService {
 
       absenceDeductionDaysCalc = absentUnjustified * policy.absenceDeductionDays;
 
-      if (policy.breakOverLimitDeduction === 'MINUTE_BY_MINUTE') {
-        breakDeductionMinutes = breakOverLimitMinutes;
-      } else if (policy.breakOverLimitDeduction === 'DOUBLE') {
-        breakDeductionMinutes = breakOverLimitMinutes * 2;
-      }
+      // تجاوز الاستراحة لا يُخصم من الراتب
+      breakDeductionMinutes = 0;
 
       if (policy.repeatLateThreshold && lateDays > policy.repeatLateThreshold) {
         repeatLatePenaltyDaysCalc = policy.repeatLatePenaltyDays || 0;
