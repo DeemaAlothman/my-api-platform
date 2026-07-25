@@ -135,6 +135,8 @@ async function bootstrap() {
 
   const port = process.env.PORT || 8000;
   await app.listen(port);
+  const UPLOAD_TIMEOUT_MS = parseInt(process.env.UPLOAD_TIMEOUT_MS || '300000', 10);
+  app.getHttpServer().setTimeout(UPLOAD_TIMEOUT_MS);
   console.log(`Gateway running on port ${port}`);
 }
 bootstrap();

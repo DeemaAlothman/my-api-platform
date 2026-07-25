@@ -152,6 +152,7 @@ export class ProxyService {
               path,
               method: req.method,
               headers: { ...headers, 'content-type': req.headers['content-type'] },
+              timeout: parseInt(process.env.UPLOAD_TIMEOUT_MS || '300000', 10),
             },
             (proxyRes: any) => {
               res.status(proxyRes.statusCode);

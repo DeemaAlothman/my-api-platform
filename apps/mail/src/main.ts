@@ -20,6 +20,7 @@ async function bootstrap() {
   SwaggerModule.setup('api/v1/docs', app, SwaggerModule.createDocument(app, config));
 
   await app.listen(4009);
+  app.getHttpServer().setTimeout(parseInt(process.env.UPLOAD_TIMEOUT_MS || '300000', 10));
   console.log('Mail Service is running on port 4009');
 }
 bootstrap();
