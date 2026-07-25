@@ -503,18 +503,40 @@ export class PayrollService {
 
     const lateDeductionAmount = (lateDeductionMinutes * minuteRate) + (lateDeductionDaysFromTiers * dailyRate);
 
-    // الانصراف المبكر يشارك نفس رصيد الإجازة الساعية مع التأخير — نستخدم القيمة الدقيقة بعد خصم الرصيد
-    const totalEarlyLeavePendingDeductionMinutes = records.reduce(
-      (sum, r) => sum + ((r as any).earlyLeavePendingDeductionMinutes || 0), 0,
-    );
-    const effectiveEarlyPendingMinutes = Math.max(0, totalEarlyLeavePendingDeductionMinutes - ((policy?.earlyLeaveToleranceMinutes ?? 0) * earlyLeaveDays));
-    earlyLeaveDeductionMinutes = this.calcDeduction(
-      effectiveEarlyPendingMinutes,
-      policy?.earlyLeaveDeductionType ?? 'MINUTE_BY_MINUTE',
-      (policy as any)?.earlyLeaveDeductionTiers ?? null,
-    );
+    // الانصراف المبكر — نفس منطق التأخير: يومي بالشرائح
+    const earlyTolerancePerDay = policy?.earlyLeaveToleranceMinutes ?? 0;
+    let parsedEarlyTiers: Array<{ fromMinute: number; toMinute: number; deductionDays: number }> = [];
+    if (policy?.earlyLeaveDeductionType === 'TIERED' && (policy as any)?.earlyLeaveDeductionTiers) {
+      try { parsedEarlyTiers = JSON.parse((policy as any).earlyLeaveDeductionTiers); } catch { parsedEarlyTiers = []; }
+    }
 
-    const deductionAmount = lateDeductionAmount + (earlyLeaveDeductionMinutes + breakDeductionMinutes) * minuteRate;
+    earlyLeaveDeductionMinutes = 0;
+    let earlyLeaveDeductionDaysFromTiers = 0;
+
+    for (const r of records) {
+      const pendingForDay = (r as any).earlyLeavePendingDeductionMinutes || 0;
+      if (pendingForDay <= 0) continue;
+
+      if (parsedEarlyTiers.length === 0 || pendingForDay <= earlyTolerancePerDay) {
+        earlyLeaveDeductionMinutes += pendingForDay;
+        continue;
+      }
+
+      const tier = parsedEarlyTiers.find(t => pendingForDay >= t.fromMinute && pendingForDay <= t.toMinute);
+      if (tier) {
+        earlyLeaveDeductionDaysFromTiers += tier.deductionDays;
+        continue;
+      }
+      const lastEarlyTier = parsedEarlyTiers[parsedEarlyTiers.length - 1];
+      if (lastEarlyTier && pendingForDay > lastEarlyTier.toMinute) {
+        earlyLeaveDeductionDaysFromTiers += lastEarlyTier.deductionDays;
+      } else {
+        earlyLeaveDeductionMinutes += pendingForDay;
+      }
+    }
+
+    const earlyLeaveDeductionAmount = (earlyLeaveDeductionMinutes * minuteRate) + (earlyLeaveDeductionDaysFromTiers * dailyRate);
+    const deductionAmount = lateDeductionAmount + earlyLeaveDeductionAmount + (breakDeductionMinutes * minuteRate);
     const absenceDeductionAmount = absenceDeductionDaysCalc * dailyRate;
     const repeatLatePenaltyAmount = repeatLatePenaltyDaysCalc * dailyRate;
 
@@ -797,7 +819,8 @@ export class PayrollService {
         earlyLeave: {
           totalMinutes: totalEarlyLeaveMinutes,
           deductibleMinutes: earlyLeaveDeductionMinutes,
-          amount: parseFloat((earlyLeaveDeductionMinutes * minuteRate).toFixed(2)),
+          deductedAsDays: earlyLeaveDeductionDaysFromTiers,
+          amount: parseFloat(earlyLeaveDeductionAmount.toFixed(2)),
         },
         breakOverLimit: {
           totalMinutes: breakOverLimitMinutes,
