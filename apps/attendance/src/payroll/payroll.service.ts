@@ -525,6 +525,13 @@ export class PayrollService {
       const pendingForDay = (r as any).earlyLeavePendingDeductionMinutes || 0;
       if (pendingForDay <= 0) continue;
 
+      // تجاهل أي يوم ليس فيه خروج مبكر فعلي (بيانات شاذة)
+      if (!((r as any).earlyLeaveMinutes > 0)) continue;
+
+      // إذا عوّض الموظف الخروج المبكر بالعمل الإضافي → لا استقطاع
+      const compensatedEarlyForDay = (r as any).earlyLeaveCompensatedMinutes || 0;
+      if (compensatedEarlyForDay >= pendingForDay) continue;
+
       if (parsedEarlyTiers.length === 0 || pendingForDay <= earlyTolerancePerDay) {
         earlyLeaveDeductionMinutes += pendingForDay;
         continue;
