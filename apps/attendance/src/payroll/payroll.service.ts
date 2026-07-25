@@ -484,6 +484,9 @@ export class PayrollService {
       const pendingForDay = (r as any).tardinessPendingDeductionMinutes || 0;
       if (pendingForDay <= 0) continue;
 
+      // تجاهل أي يوم ليس فيه تأخير فعلي (بيانات شاذة)
+      if (!((r as any).lateMinutes > 0)) continue;
+
       // إذا عوّض الموظف التأخير بالعمل الإضافي → لا استقطاع لهذا اليوم
       const compensatedForDay = (r as any).lateCompensatedMinutes || 0;
       if (compensatedForDay >= pendingForDay) continue;
