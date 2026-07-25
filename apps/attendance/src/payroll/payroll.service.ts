@@ -263,6 +263,23 @@ export class PayrollService {
       justifications.forEach(j => justifiedIds.add(j.attendanceRecordId));
     }
 
+    // التبريرات لسجلات البصمة الوحيدة (دخول بدون خروج بعد يومين)
+    const singlePunchRecordIds = records
+      .filter(r => {
+        if (['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE'].includes(r.status)) return false;
+        if (!(r as any).clockInTime || (r as any).clockOutTime) return false;
+        return Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000) >= 2;
+      })
+      .map(r => r.id);
+    const singlePunchJustifiedIds = new Set<string>();
+    if (singlePunchRecordIds.length > 0) {
+      const spJustifications = await this.prisma.attendanceJustification.findMany({
+        where: { attendanceRecordId: { in: singlePunchRecordIds }, status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] } },
+        select: { attendanceRecordId: true },
+      });
+      spJustifications.forEach(j => singlePunchJustifiedIds.add(j.attendanceRecordId));
+    }
+
     // التبريرات المقبولة للتأخير
     const lateRecordIds = records.filter(r => r.lateMinutes > 0).map(r => r.id);
     let justifiedLateMinutes = 0;
@@ -288,6 +305,11 @@ export class PayrollService {
       if ((r as any).clockInTime && !(r as any).clockOutTime) {
         const daysSince = Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000);
         if (daysSince < 2) continue;
+        if (!singlePunchJustifiedIds.has(r.id)) {
+          absentDays++;
+          absentUnjustified++;
+          continue;
+        }
         presentDays++;
         const halfMinutes = Math.floor(dailyWorkMinutes / 2);
         totalWorkedMinutes += halfMinutes;
