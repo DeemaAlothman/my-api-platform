@@ -1222,10 +1222,10 @@ export class PayrollService {
     // تفصيل الإجازات اليومية حسب نوع الإجازة (يستثني الساعية والتعويضية التلقائية — لها أعمدتها الخاصة)
     const monthStart = new Date(Date.UTC(year, month - 1, 1));
     const monthEnd = new Date(Date.UTC(year, month, 0));
-    let leaveTypeRows: Array<{ employeeId: string; typeName: string; days: number }> = [];
+    let leaveTypeRows: Array<{ employeeId: string; typeName: string; isPaid: boolean; days: number }> = [];
     if (empIds.length > 0) {
       leaveTypeRows = await this.prisma.$queryRawUnsafe(`
-        SELECT lr."employeeId", lt."nameAr" as "typeName", SUM(lr."totalDays")::float as days
+        SELECT lr."employeeId", lt."nameAr" as "typeName", lt."isPaid", SUM(lr."totalDays")::float as days
         FROM leaves.leave_requests lr
         JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
         WHERE lr."employeeId" = ANY($1::text[])
@@ -1234,7 +1234,7 @@ export class PayrollService {
           AND lr."isHourlyLeave" = false
           AND (lr.source IS NULL OR lr.source = 'EMPLOYEE_REQUEST')
           AND lr."startDate" <= $3 AND lr."endDate" >= $2
-        GROUP BY lr."employeeId", lt."nameAr"
+        GROUP BY lr."employeeId", lt."nameAr", lt."isPaid"
       `, empIds, monthStart, monthEnd) as any[];
     }
     const leaveTypeNames = [...new Set(leaveTypeRows.map(r => r.typeName))].sort();
@@ -1269,10 +1269,15 @@ export class PayrollService {
     }
     const allowanceKeys = [...allAllowanceKeys].sort();
 
-    // الأنواع المدمجة في إجازات بأجر (كل ما هو مدفوع يومي ما عدا السنوية والمرضية)
+    // الأنواع المدمجة في إجازات بأجر (مدفوعة فقط، ما عدا السنوية والمرضية)
+    const paidLeaveTypeNamesSet = new Set(
+      leaveTypeRows.filter(r => r.isPaid).map(r => r.typeName),
+    );
     const HIDE_FROM_INDIVIDUAL = ['إجازة وفاة'];
     const individualLeaveNames = leaveTypeNames.filter(n => !HIDE_FROM_INDIVIDUAL.includes(n));
-    const paidLeaveTypes = leaveTypeNames.filter(n => !['إجازة سنوية', 'إجازة مرضية'].includes(n));
+    const paidLeaveTypes = leaveTypeNames.filter(
+      n => paidLeaveTypeNamesSet.has(n) && !['إجازة سنوية', 'إجازة مرضية'].includes(n),
+    );
     const paidLeaveHeader = paidLeaveTypes.length > 0
       ? `إجازات بأجر (${paidLeaveTypes.join('، ')})`
       : 'إجازات بأجر';
