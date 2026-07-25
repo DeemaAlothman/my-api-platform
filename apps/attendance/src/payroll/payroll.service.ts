@@ -1275,12 +1275,7 @@ export class PayrollService {
     );
     const HIDE_FROM_INDIVIDUAL = ['إجازة وفاة'];
     const individualLeaveNames = leaveTypeNames.filter(n => !HIDE_FROM_INDIVIDUAL.includes(n));
-    const paidLeaveTypes = leaveTypeNames.filter(
-      n => paidLeaveTypeNamesSet.has(n) && !['إجازة سنوية', 'إجازة مرضية'].includes(n),
-    );
-    const paidLeaveHeader = paidLeaveTypes.length > 0
-      ? `إجازات بأجر (${paidLeaveTypes.join('، ')})`
-      : 'إجازات بأجر';
+    const PAID_LEAVE_EXCLUDE = new Set(['إجازة سنوية', 'إجازة مرضية']);
 
     // بناء أعمدة أنواع الإجازات مع حقن قيمة استقطاع الإجازة المرضية بعد إجازة مرضية مباشرة
     const leaveHeaders: string[] = [];
@@ -1297,7 +1292,7 @@ export class PayrollService {
     const headers = [
       'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب المقطوع',
       ...allowanceKeys.map(k => allowanceArNames[k] ?? k),
-      'الأجر الساعي', paidLeaveHeader, ...leaveHeaders, 'إجازات بلا راتب',
+      'الأجر الساعي', 'إجازات بأجر', ...leaveHeaders, 'إجازات بلا راتب',
       'قيمة الإجازات بلا راتب',
       'إجازات ساعية', 'قيمة الإجازات الساعية',
       'التأخير (د)', 'قيمة التأخير',
@@ -1327,6 +1322,16 @@ export class PayrollService {
         }
       }
       if (!sickLeaveValueInserted) leaveValuesWithSick.push(Number(bd?.sickLeave?.total ?? 0));
+
+      // خلية إجازات بأجر: الرقم + أنواع الإجازات المدفوعة بين قوسين (مثل: 2 (وفاة))
+      const paidDaysTotal = Number((p as any).paidLeaveDays ?? 0);
+      const paidTypeLabels = [...(empLeaveTypes?.entries() ?? [])]
+        .filter(([name, days]) => paidLeaveTypeNamesSet.has(name) && !PAID_LEAVE_EXCLUDE.has(name) && days > 0)
+        .map(([name]) => name);
+      const paidLeaveCell = paidDaysTotal > 0 && paidTypeLabels.length > 0
+        ? `${paidDaysTotal} (${paidTypeLabels.join('، ')})`
+        : paidDaysTotal;
+
       return [
         `${emp?.firstNameAr ?? ''} ${emp?.lastNameAr ?? ''}`.trim() || '—',
         emp?.hireDate ? new Date(emp.hireDate).toISOString().split('T')[0] : '—',
@@ -1335,7 +1340,7 @@ export class PayrollService {
         Number((p as any).deductibleBaseSalary ?? p.basicSalary ?? 0),
         ...allowanceKeys.map(k => Number(allowances[k] ?? 0)),
         Number((p as any).hourlyRate ?? 0),
-        Number((p as any).paidLeaveDays ?? 0),
+        paidLeaveCell,
         ...leaveValuesWithSick,
         Number((p as any).unpaidLeaveDays ?? 0),
         Number((p as any).unpaidLeaveAmount ?? 0),
