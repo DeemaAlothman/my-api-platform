@@ -156,17 +156,20 @@ export class PayrollService {
       SELECT lr."startDate", lr."endDate", lr."totalDays",
              lr."isHourlyLeave", lr."durationHours", lr."deductionInfo",
              lt.code as "typeCode", lt."isPaid", lt."nameAr" as "typeName",
+             lt."maxHoursPerMonth",
              COALESCE(lr.source, 'EMPLOYEE_REQUEST') as source
       FROM leaves.leave_requests lr
       JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
       WHERE lr."employeeId" = $1 AND lr.status = 'APPROVED'
         AND lr."deletedAt" IS NULL
         AND lr."startDate" <= $2 AND lr."endDate" >= $3
+      ORDER BY lr."startDate" ASC
     `, employeeId, endDate, startDate) as Array<{
       startDate: Date; endDate: Date; totalDays: number;
       isHourlyLeave: boolean; durationHours: number | null;
       deductionInfo: { overLimitHours?: number } | null;
-      typeCode: string; isPaid: boolean; typeName: string; source: string;
+      typeCode: string; isPaid: boolean; typeName: string;
+      maxHoursPerMonth: number | null; source: string;
     }>;
 
     // بناء مجموعة أيام الإجازات (للاستثناء من الغياب) + تصنيف الإجازات
@@ -182,6 +185,9 @@ export class PayrollService {
     let tardinessOffsetMinutesPayroll = 0;
     let totalUnpaidDailyDays = 0;
 
+    // تتبع الساعات المستخدمة لكل نوع إجازة ساعية لحساب الزيادة عن الحد الشهري ديناميكياً
+    const hourlyUsedByType = new Map<string, number>();
+
     for (const leave of leavesWithType) {
       if (!leave.isHourlyLeave) {
         const d = new Date(leave.startDate);
@@ -195,11 +201,22 @@ export class PayrollService {
 
       if (leave.isHourlyLeave) {
         const minutes = Math.round((leave.durationHours || 0) * 60);
-        // ساعات تجاوزت الحد الشهري المجاني تُعامَل كغير مدفوعة، حتى لو نوع الإجازة مدفوع أساساً
-        const overLimitMinutes = Math.min(
-          minutes,
-          Math.round((leave.deductionInfo?.overLimitHours || 0) * 60),
-        );
+        // حساب الزيادة عن الحد الشهري ديناميكياً (يتجاوز deductionInfo المخزونة إذا كانت null)
+        const maxHoursPerMonth = leave.maxHoursPerMonth ?? null;
+        let overLimitMinutes = 0;
+        if (leave.isPaid && maxHoursPerMonth !== null && maxHoursPerMonth > 0) {
+          const usedHours = hourlyUsedByType.get(leave.typeCode) ?? 0;
+          const maxMinutes = maxHoursPerMonth * 60;
+          const usedMinutes = usedHours * 60;
+          if (usedMinutes >= maxMinutes) {
+            overLimitMinutes = minutes;
+          } else if (usedMinutes + minutes > maxMinutes) {
+            overLimitMinutes = (usedMinutes + minutes) - maxMinutes;
+          }
+          hourlyUsedByType.set(leave.typeCode, usedHours + (leave.durationHours || 0));
+        } else if (!leave.isPaid) {
+          overLimitMinutes = minutes;
+        }
         const freeMinutes = minutes - overLimitMinutes;
         if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') {
           tardinessOffsetMinutesPayroll += minutes;
