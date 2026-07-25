@@ -1268,10 +1268,22 @@ export class PayrollService {
     }
     const allowanceKeys = [...allAllowanceKeys].sort();
 
+    // بناء أعمدة أنواع الإجازات مع حقن قيمة استقطاع الإجازة المرضية بعد إجازة مرضية مباشرة
+    const leaveHeaders: string[] = [];
+    let sickLeaveHeaderInserted = false;
+    for (const name of leaveTypeNames) {
+      leaveHeaders.push(name === 'إجازة سنوية' ? 'إجازة سنوية (إجازة إدارية)' : name);
+      if (name === 'إجازة مرضية') {
+        leaveHeaders.push('قيمة استقطاع الإجازة المرضية');
+        sickLeaveHeaderInserted = true;
+      }
+    }
+    if (!sickLeaveHeaderInserted) leaveHeaders.push('قيمة استقطاع الإجازة المرضية');
+
     const headers = [
       'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب المقطوع',
       ...allowanceKeys.map(k => allowanceArNames[k] ?? k),
-      'الأجر الساعي', 'إجازات بأجر', ...leaveTypeNames.map(n => n === 'إجازة سنوية' ? 'إجازة سنوية (إجازة إدارية)' : n), 'قيمة استقطاع الإجازة المرضية', 'إجازات بلا راتب',
+      'الأجر الساعي', 'إجازات بأجر', ...leaveHeaders, 'إجازات بلا راتب',
       'قيمة الإجازات بلا راتب',
       'إجازات ساعية', 'قيمة الإجازات الساعية',
       'التأخير (د)', 'قيمة التأخير',
@@ -1291,7 +1303,16 @@ export class PayrollService {
       const allowances = p.allowancesBreakdown ? JSON.parse(p.allowancesBreakdown as string) : {};
       const bd = p.deductionBreakdown as any;
       const empLeaveTypes = leaveTypeByEmployee.get(p.employeeId);
-      const leaveTypeValues = leaveTypeNames.map(name => empLeaveTypes?.get(name) ?? 0);
+      const leaveValuesWithSick: number[] = [];
+      let sickLeaveValueInserted = false;
+      for (const name of leaveTypeNames) {
+        leaveValuesWithSick.push(empLeaveTypes?.get(name) ?? 0);
+        if (name === 'إجازة مرضية') {
+          leaveValuesWithSick.push(Number(bd?.sickLeave?.total ?? 0));
+          sickLeaveValueInserted = true;
+        }
+      }
+      if (!sickLeaveValueInserted) leaveValuesWithSick.push(Number(bd?.sickLeave?.total ?? 0));
       return [
         `${emp?.firstNameAr ?? ''} ${emp?.lastNameAr ?? ''}`.trim() || '—',
         emp?.hireDate ? new Date(emp.hireDate).toISOString().split('T')[0] : '—',
@@ -1301,8 +1322,7 @@ export class PayrollService {
         ...allowanceKeys.map(k => Number(allowances[k] ?? 0)),
         Number((p as any).hourlyRate ?? 0),
         Number((p as any).paidLeaveDays ?? 0),
-        ...leaveTypeValues,
-        Number(bd?.sickLeave?.total ?? 0),
+        ...leaveValuesWithSick,
         Number((p as any).unpaidLeaveDays ?? 0),
         Number((p as any).unpaidLeaveAmount ?? 0),
         parseFloat((Number((p as any).hourlyLeaveMinutes ?? 0) / 60).toFixed(2)),
