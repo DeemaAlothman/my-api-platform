@@ -311,9 +311,8 @@ export class PayrollService {
           continue;
         }
         presentDays++;
-        const halfMinutes = Math.floor(dailyWorkMinutes / 2);
-        totalWorkedMinutes += halfMinutes;
-        netWorkedMinutes += halfMinutes;
+        totalWorkedMinutes += dailyWorkMinutes;
+        netWorkedMinutes += dailyWorkMinutes;
         if (r.lateMinutes > 0) { lateDays++; totalLateMinutes += r.lateMinutes; }
         continue;
       }
