@@ -155,7 +155,7 @@ export class PayrollService {
     const leavesWithType = await this.prisma.$queryRawUnsafe(`
       SELECT lr."startDate", lr."endDate", lr."totalDays",
              lr."isHourlyLeave", lr."durationHours", lr."deductionInfo",
-             lt.code as "typeCode", lt."isPaid",
+             lt.code as "typeCode", lt."isPaid", lt."nameAr" as "typeName",
              COALESCE(lr.source, 'EMPLOYEE_REQUEST') as source
       FROM leaves.leave_requests lr
       JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
@@ -166,7 +166,7 @@ export class PayrollService {
       startDate: Date; endDate: Date; totalDays: number;
       isHourlyLeave: boolean; durationHours: number | null;
       deductionInfo: { overLimitHours?: number } | null;
-      typeCode: string; isPaid: boolean; source: string;
+      typeCode: string; isPaid: boolean; typeName: string; source: string;
     }>;
 
     // بناء مجموعة أيام الإجازات (للاستثناء من الغياب) + تصنيف الإجازات
@@ -223,6 +223,7 @@ export class PayrollService {
         unpaidLeaveDays += Number(leave.totalDays);
         continue;
       }
+      if (leave.typeName === 'إجازة سنوية') continue; // السنوية لها عمود منفصل
       paidLeaveDays += Number(leave.totalDays);
     }
     // المجموع الإجمالي للإجازة الساعية (للعرض)
@@ -1268,10 +1269,18 @@ export class PayrollService {
     }
     const allowanceKeys = [...allAllowanceKeys].sort();
 
+    // الأنواع المدمجة في إجازات بأجر (كل ما هو مدفوع يومي ما عدا السنوية والمرضية)
+    const HIDE_FROM_INDIVIDUAL = ['إجازة وفاة'];
+    const individualLeaveNames = leaveTypeNames.filter(n => !HIDE_FROM_INDIVIDUAL.includes(n));
+    const paidLeaveTypes = leaveTypeNames.filter(n => !['إجازة سنوية', 'إجازة مرضية'].includes(n));
+    const paidLeaveHeader = paidLeaveTypes.length > 0
+      ? `إجازات بأجر (${paidLeaveTypes.join('، ')})`
+      : 'إجازات بأجر';
+
     // بناء أعمدة أنواع الإجازات مع حقن قيمة استقطاع الإجازة المرضية بعد إجازة مرضية مباشرة
     const leaveHeaders: string[] = [];
     let sickLeaveHeaderInserted = false;
-    for (const name of leaveTypeNames) {
+    for (const name of individualLeaveNames) {
       leaveHeaders.push(name === 'إجازة سنوية' ? 'إجازة سنوية (إجازة إدارية)' : name);
       if (name === 'إجازة مرضية') {
         leaveHeaders.push('قيمة استقطاع الإجازة المرضية');
@@ -1283,7 +1292,7 @@ export class PayrollService {
     const headers = [
       'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب المقطوع',
       ...allowanceKeys.map(k => allowanceArNames[k] ?? k),
-      'الأجر الساعي', 'إجازات بأجر', ...leaveHeaders, 'إجازات بلا راتب',
+      'الأجر الساعي', paidLeaveHeader, ...leaveHeaders, 'إجازات بلا راتب',
       'قيمة الإجازات بلا راتب',
       'إجازات ساعية', 'قيمة الإجازات الساعية',
       'التأخير (د)', 'قيمة التأخير',
@@ -1305,7 +1314,7 @@ export class PayrollService {
       const empLeaveTypes = leaveTypeByEmployee.get(p.employeeId);
       const leaveValuesWithSick: number[] = [];
       let sickLeaveValueInserted = false;
-      for (const name of leaveTypeNames) {
+      for (const name of individualLeaveNames) {
         leaveValuesWithSick.push(empLeaveTypes?.get(name) ?? 0);
         if (name === 'إجازة مرضية') {
           leaveValuesWithSick.push(Number(bd?.sickLeave?.total ?? 0));
