@@ -59,4 +59,19 @@ export class CreateDeductionPolicyDto {
   @IsString()
   @IsIn(['MINUTE_BY_MINUTE', 'IGNORE', 'DOUBLE'])
   breakOverLimitDeduction?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  holidayOvertimeMultiplier?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  internalMissionDailyRate?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  externalMissionDailyRate?: number;
 }
