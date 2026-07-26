@@ -474,6 +474,9 @@ export class SyncService {
         WHERE id = ${recordId}
       `;
 
+      // تنظيف الإجازات التلقائية إذا صارت غير صالحة (مثلاً: ZKTeco صحّح البيانات بعد الإغلاق اليومي)
+      await this.reconcileAutoLeaves(tx, employeeId, dateStr, effectiveLateMinutes, effectiveEarlyLeaveMinutes);
+
       // Phase 2: إشعار المدير إذا السجل يحتاج مراجعة
       if (punchSequenceStatus === 'NEEDS_REVIEW') {
         await this.notifyManagerNeedsReview(employeeId, dateStr, tx);
@@ -491,6 +494,119 @@ export class SyncService {
           status: { from: currentStatus, to: newStatus },
         },
       );
+    }
+  }
+
+  /**
+   * يُشغَّل تلقائياً بعد كل تحديث بصمة.
+   * إذا كان الـ daily-closure قد ولّد TARDINESS_AUTO/EARLY_LEAVE_AUTO سابقاً،
+   * وصحّح ZKTeco البيانات لاحقاً (مثلاً صفّر earlyLeaveMinutes)،
+   * تُحذَف الإجازات التلقائية الزائدة (soft-delete) ويُعاد رصيد الإجازات.
+   * آمن: لا يحذف شيئاً نهائياً، يُسجّل كل إجراء في الـ log.
+   */
+  private async reconcileAutoLeaves(
+    tx: any,
+    employeeId: string,
+    dateStr: string,
+    newLateMinutes: number,
+    newEarlyLeaveMinutes: number,
+  ): Promise<void> {
+    try {
+      const autoLeaves = await tx.$queryRaw<Array<{
+        id: string;
+        source: string;
+        durationHours: number;
+        leaveTypeId: string;
+      }>>`
+        SELECT id, source, "durationHours", "leaveTypeId"
+        FROM leaves.leave_requests
+        WHERE "employeeId" = ${employeeId}
+          AND "startDate"::date = ${dateStr}::date
+          AND source IN ('TARDINESS_AUTO', 'EARLY_LEAVE_AUTO')
+          AND "deletedAt" IS NULL
+      `;
+
+      if (autoLeaves.length === 0) return;
+
+      const toDelete: string[] = [];
+      let deletedTardinessMinutes = 0;
+      let deletedEarlyMinutes = 0;
+
+      for (const leave of autoLeaves) {
+        const leaveMinutes = Math.round(Number(leave.durationHours) * 60);
+        if (leave.source === 'TARDINESS_AUTO' && leaveMinutes > newLateMinutes) {
+          toDelete.push(leave.id);
+          deletedTardinessMinutes += leaveMinutes;
+        } else if (leave.source === 'EARLY_LEAVE_AUTO' && leaveMinutes > newEarlyLeaveMinutes) {
+          toDelete.push(leave.id);
+          deletedEarlyMinutes += leaveMinutes;
+        }
+      }
+
+      if (toDelete.length === 0) return;
+
+      for (const id of toDelete) {
+        await tx.$executeRaw`
+          UPDATE leaves.leave_requests
+          SET "deletedAt" = NOW(), "updatedAt" = NOW()
+          WHERE id = ${id}
+        `;
+      }
+
+      if (deletedTardinessMinutes > 0) {
+        await tx.$executeRaw`
+          UPDATE attendance.attendance_records
+          SET "tardinessOffsetMinutes"          = 0,
+              "tardinessPendingDeductionMinutes" = ${newLateMinutes},
+              "updatedAt" = NOW()
+          WHERE "employeeId" = ${employeeId}
+            AND date = ${dateStr}::date
+        `;
+      }
+
+      if (deletedEarlyMinutes > 0) {
+        await tx.$executeRaw`
+          UPDATE attendance.attendance_records
+          SET "earlyLeaveOffsetMinutes"           = 0,
+              "earlyLeavePendingDeductionMinutes" = ${newEarlyLeaveMinutes},
+              "updatedAt" = NOW()
+          WHERE "employeeId" = ${employeeId}
+            AND date = ${dateStr}::date
+        `;
+      }
+
+      const totalDeletedMinutes = deletedTardinessMinutes + deletedEarlyMinutes;
+      if (totalDeletedMinutes > 0 && autoLeaves[0]) {
+        const leaveTypeId = autoLeaves[0].leaveTypeId;
+        const ltRow = await tx.$queryRaw<Array<{ maxHoursPerMonth: number | null }>>`
+          SELECT "maxHoursPerMonth" FROM leaves.leave_types WHERE id = ${leaveTypeId} LIMIT 1
+        `;
+        const maxHoursPerMonth = Math.max(1, Number(ltRow[0]?.maxHoursPerMonth ?? 2));
+        const usedDaysToRestore = totalDeletedMinutes / 60 / maxHoursPerMonth;
+        const parts = dateStr.split('-');
+        const year = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+
+        await tx.$executeRaw`
+          UPDATE leaves.leave_balances
+          SET "usedDays" = GREATEST(0, "usedDays" - ${usedDaysToRestore}),
+              "updatedAt" = NOW()
+          WHERE "employeeId" = ${employeeId}
+            AND "leaveTypeId" = ${leaveTypeId}
+            AND year = ${year}
+            AND month = ${month}
+        `;
+      }
+
+      this.logger.log(
+        `[AUTO_LEAVE_RECONCILE] employeeId=${employeeId} date=${dateStr} deletedLeaves=${toDelete.length} tardiness=${deletedTardinessMinutes}m early=${deletedEarlyMinutes}m newLate=${newLateMinutes}m newEarly=${newEarlyLeaveMinutes}m`,
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `[AUTO_LEAVE_RECONCILE_FAILED] employeeId=${employeeId} date=${dateStr} — ${msg}`,
+      );
+      // فشل التنظيف لا يوقف عملية الـ sync
     }
   }
 
