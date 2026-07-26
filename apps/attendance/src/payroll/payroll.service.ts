@@ -246,6 +246,28 @@ export class PayrollService {
     // المجموع الإجمالي للإجازة الساعية (للعرض)
     const hourlyLeaveMinutes = paidHourlyLeaveMinutes + unpaidHourlyLeaveMinutes + tardinessOffsetMinutesPayroll;
 
+    // خريطة تغطية الإجازات لكل يوم — تحدد دقائق التأخير/الخروج المبكر المبررة بإجازة معتمدة
+    const dateTardinessCoverageMinutes = new Map<string, number>();
+    const dateEarlyLeaveCoverageMinutes = new Map<string, number>();
+    for (const leave of leavesWithType) {
+      if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') continue;
+      if (leave.isHourlyLeave) {
+        const dk = new Date(leave.startDate).toISOString().split('T')[0];
+        const mins = Math.round((leave.durationHours || 0) * 60);
+        dateTardinessCoverageMinutes.set(dk, (dateTardinessCoverageMinutes.get(dk) ?? 0) + mins);
+        dateEarlyLeaveCoverageMinutes.set(dk, (dateEarlyLeaveCoverageMinutes.get(dk) ?? 0) + mins);
+      } else {
+        const d = new Date(leave.startDate);
+        const end = new Date(leave.endDate);
+        while (d <= end) {
+          const dk = d.toISOString().split('T')[0];
+          dateTardinessCoverageMinutes.set(dk, Number.POSITIVE_INFINITY);
+          dateEarlyLeaveCoverageMinutes.set(dk, Number.POSITIVE_INFINITY);
+          d.setDate(d.getDate() + 1);
+        }
+      }
+    }
+
     // العطل الرسمية
     const holidays = await this.prisma.$queryRawUnsafe(
       `SELECT date::date as date FROM leaves.holidays WHERE date >= $1 AND date <= $2`,
@@ -473,23 +495,15 @@ export class PayrollService {
     const hourlyLeaveAmount = unpaidHourlyLeaveMinutes * minuteRate;
     const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
 
-    // حساب الدقائق القابلة للحسم — تستخدم tardinessPendingDeductionMinutes من السجلات
-    // (daily-closure يحسبها بعد خصم رصيد HOURLY_PAID، لا حاجة لـ monthlyTolerance)
-    const totalCompensationMinutes = records.reduce(
-      (sum, r) => sum + ((r as any).lateCompensatedMinutes || 0), 0,
-    );
-    const totalLateMinutesEffective = Math.max(0, totalLateMinutes - totalCompensationMinutes - justifiedLateMinutes);
-    const totalPendingDeductionMinutes = records.reduce(
-      (sum, r) => sum + ((r as any).tardinessPendingDeductionMinutes || 0), 0,
-    );
-    const deductibleLateMinutes = totalPendingDeductionMinutes;
+    const totalCompensationMinutes = 0;
+    const totalLateMinutesEffective = Math.max(0, totalLateMinutes - justifiedLateMinutes);
 
     // سياسة الحسم المتدرّجة (TIERED) تُطبَّق يومياً — كل يوم تأخير له دقائقه المعلّقة (بعد خصم
     // الرصيد المشترك) الخاصة فيه، وتُصنَّف على حدة ضمن الشرائح. أول lateToleranceMinutes دقيقة
     // (افتراضياً 15) من أي يوم غير معوّضة بالعمل تُخصم دقيقة بدقيقة بالأجر العادي، وليست جزءاً
     // من الشرائح. تنسيق الشريحة الفعلي بقاعدة البيانات: { fromMinute, toMinute, deductionDays }.
-    lateDeductionMinutes = 0; // دقائق تُخصم بالأجر الدقيقي العادي (ضمن حد السماح أو MINUTE_BY_MINUTE)
-    let lateDeductionDaysFromTiers = 0; // أيام ثابتة من الشرائح (TIERED)
+    lateDeductionMinutes = 0;
+    let lateDeductionDaysFromTiers = 0;
 
     const lateTolerancePerDay = policy?.lateToleranceMinutes ?? 15;
     let parsedLateTiers: Array<{ fromMinute: number; toMinute: number; deductionDays: number }> = [];
@@ -498,21 +512,16 @@ export class PayrollService {
     }
 
     for (const r of records) {
-      const pendingForDay = (r as any).tardinessPendingDeductionMinutes || 0;
+      const dayLateMinutes = r.lateMinutes ?? 0;
+      if (dayLateMinutes <= 0) continue;
+      const dateKey = new Date(r.date).toISOString().split('T')[0];
+      const covered = dateTardinessCoverageMinutes.get(dateKey) ?? 0;
+      const pendingForDay = Math.max(0, dayLateMinutes - covered);
       if (pendingForDay <= 0) continue;
-
-      // تجاهل أي يوم ليس فيه تأخير فعلي (بيانات شاذة)
-      if (!((r as any).lateMinutes > 0)) continue;
-
-      // إذا عوّض الموظف التأخير بالعمل الإضافي → لا استقطاع لهذا اليوم
-      const compensatedForDay = (r as any).lateCompensatedMinutes || 0;
-      if (compensatedForDay >= pendingForDay) continue;
-
       if (parsedLateTiers.length === 0 || pendingForDay <= lateTolerancePerDay) {
         lateDeductionMinutes += pendingForDay;
         continue;
       }
-
       const tier = parsedLateTiers.find(t => pendingForDay >= t.fromMinute && pendingForDay <= t.toMinute);
       if (tier) {
         lateDeductionDaysFromTiers += tier.deductionDays;
@@ -520,11 +529,12 @@ export class PayrollService {
       }
       const lastTier = parsedLateTiers[parsedLateTiers.length - 1];
       if (lastTier && pendingForDay > lastTier.toMinute) {
-        lateDeductionDaysFromTiers += lastTier.deductionDays; // تجاوز آخر شريحة معرّفة — نطبّق سقفها
+        lateDeductionDaysFromTiers += lastTier.deductionDays;
       } else {
-        lateDeductionMinutes += pendingForDay; // لم يقع ضمن أي شريحة (مثلاً فجوة بين شريحتين) — دقيقة بدقيقة كحل آمن
+        lateDeductionMinutes += pendingForDay;
       }
     }
+    const deductibleLateMinutes = lateDeductionMinutes;
 
     const lateDeductionAmount = (lateDeductionMinutes * minuteRate) + (lateDeductionDaysFromTiers * dailyRate);
 
@@ -539,21 +549,16 @@ export class PayrollService {
     let earlyLeaveDeductionDaysFromTiers = 0;
 
     for (const r of records) {
-      const pendingForDay = (r as any).earlyLeavePendingDeductionMinutes || 0;
+      const dayEarlyMinutes = r.earlyLeaveMinutes ?? 0;
+      if (dayEarlyMinutes <= 0) continue;
+      const dateKey = new Date(r.date).toISOString().split('T')[0];
+      const covered = dateEarlyLeaveCoverageMinutes.get(dateKey) ?? 0;
+      const pendingForDay = Math.max(0, dayEarlyMinutes - covered);
       if (pendingForDay <= 0) continue;
-
-      // تجاهل أي يوم ليس فيه خروج مبكر فعلي (بيانات شاذة)
-      if (!((r as any).earlyLeaveMinutes > 0)) continue;
-
-      // إذا عوّض الموظف الخروج المبكر بالعمل الإضافي → لا استقطاع
-      const compensatedEarlyForDay = (r as any).earlyLeaveCompensatedMinutes || 0;
-      if (compensatedEarlyForDay >= pendingForDay) continue;
-
       if (parsedEarlyTiers.length === 0 || pendingForDay <= earlyTolerancePerDay) {
         earlyLeaveDeductionMinutes += pendingForDay;
         continue;
       }
-
       const tier = parsedEarlyTiers.find(t => pendingForDay >= t.fromMinute && pendingForDay <= t.toMinute);
       if (tier) {
         earlyLeaveDeductionDaysFromTiers += tier.deductionDays;
