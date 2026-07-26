@@ -250,7 +250,6 @@ export class PayrollService {
     const dateTardinessCoverageMinutes = new Map<string, number>();
     const dateEarlyLeaveCoverageMinutes = new Map<string, number>();
     for (const leave of leavesWithType) {
-      if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') continue;
       if (leave.isHourlyLeave) {
         const dk = new Date(leave.startDate).toISOString().split('T')[0];
         const mins = Math.round((leave.durationHours || 0) * 60);
