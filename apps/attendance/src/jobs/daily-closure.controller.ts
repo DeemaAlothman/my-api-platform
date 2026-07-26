@@ -54,4 +54,12 @@ export class DailyClosureController {
   auditOffsets(@Param('year') year: string, @Param('month') month: string) {
     return this.dailyClosureService.auditOffsets(parseInt(year), parseInt(month));
   }
+
+  // إعادة توليد الإجازات التلقائية المفقودة (TARDINESS_AUTO / EARLY_LEAVE_AUTO) لشهر كامل.
+  // آمن: لا يحذف شيئاً، يتحقق من وجود الإجازة قبل إنشائها (يمنع التكرار).
+  @Post('regenerate-auto-leaves/:year/:month')
+  @Permission('attendance.records.create')
+  regenerateAutoLeaves(@Param('year') year: string, @Param('month') month: string) {
+    return this.dailyClosureService.regenerateMissingAutoLeaves(parseInt(year), parseInt(month));
+  }
 }

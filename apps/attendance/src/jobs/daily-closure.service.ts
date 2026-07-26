@@ -1095,6 +1095,175 @@ export class DailyClosureService implements OnModuleInit {
     return { year, month, recordsChecked: records.length, discrepanciesFound: discrepancies.length, discrepancies };
   }
 
+  /**
+   * إعادة توليد الإجازات التلقائية المفقودة (TARDINESS_AUTO / EARLY_LEAVE_AUTO) لشهر كامل.
+   * آمن تماماً: لا يحذف أي بيانات، لا يلمس clockIn/clockOut/status/lateMinutes.
+   * يتحقق من وجود إجازة تلقائية في leave_requests لكل يوم قبل إنشاء أي جديدة (يمنع التكرار).
+   * يعالج السجلات بالترتيب الزمني لكل موظف لحساب الرصيد بشكل صحيح.
+   */
+  async regenerateMissingAutoLeaves(year: number, month: number): Promise<{
+    year: number; month: number; recordsProcessed: number;
+    tardinessCoveredMinutes: number; earlyCoveredMinutes: number; errors: number;
+  }> {
+    let recordsProcessed = 0;
+    let tardinessCoveredMinutes = 0;
+    let earlyCoveredMinutes = 0;
+    let errors = 0;
+
+    const monthStart = new Date(Date.UTC(year, month - 1, 1));
+    const monthEnd = new Date(Date.UTC(year, month, 0));
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const hourlyTypes = (await this.prisma.$queryRawUnsafe(
+      `SELECT id, "maxHoursPerMonth" FROM leaves.leave_types
+       WHERE code = 'HOURLY' AND "isActive" = true LIMIT 1`,
+    )) as Array<{ id: string; maxHoursPerMonth: number }>;
+
+    if (!hourlyTypes[0]) {
+      this.logger.warn('regenerateMissingAutoLeaves: HOURLY leave type not found — aborting');
+      return { year, month, recordsProcessed: 0, tardinessCoveredMinutes: 0, earlyCoveredMinutes: 0, errors: 0 };
+    }
+
+    const leaveTypeId = hourlyTypes[0].id;
+    const maxMonthlyMinutes = (hourlyTypes[0].maxHoursPerMonth ?? 2) * 60;
+
+    const records = (await this.prisma.$queryRawUnsafe(
+      `SELECT ar.id, ar."employeeId", ar.date,
+              ar."lateMinutes", ar."earlyLeaveMinutes",
+              ar."lateCompensatedMinutes", ar."earlyLeaveCompensatedMinutes",
+              ar."tardinessOffsetMinutes", ar."earlyLeaveOffsetMinutes"
+       FROM attendance.attendance_records ar
+       WHERE ar.date >= $1::date AND ar.date <= $2::date
+         AND (ar."lateMinutes" > 0 OR ar."earlyLeaveMinutes" > 0)
+         AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+       ORDER BY ar."employeeId" ASC, ar.date ASC`,
+      monthStart, monthEnd,
+    )) as Array<{
+      id: string; employeeId: string; date: Date;
+      lateMinutes: number; earlyLeaveMinutes: number;
+      lateCompensatedMinutes: number; earlyLeaveCompensatedMinutes: number;
+      tardinessOffsetMinutes: number; earlyLeaveOffsetMinutes: number;
+    }>;
+
+    for (const record of records) {
+      const dateStr = record.date.toISOString().split('T')[0];
+      if (dateStr >= todayStr) continue;
+
+      try {
+        // ما الموجود فعلاً من إجازات تلقائية لهذا اليوم
+        const existingRows = (await this.prisma.$queryRawUnsafe(
+          `SELECT
+             COALESCE(SUM(CASE WHEN source = 'TARDINESS_AUTO'  THEN ("durationHours" * 60)::int ELSE 0 END), 0) AS tardiness_covered,
+             COALESCE(SUM(CASE WHEN source = 'EARLY_LEAVE_AUTO' THEN ("durationHours" * 60)::int ELSE 0 END), 0) AS early_covered
+           FROM leaves.leave_requests
+           WHERE "employeeId" = $1
+             AND "startDate" = $2::date
+             AND "isHourlyLeave" = true
+             AND status = 'APPROVED'
+             AND "deletedAt" IS NULL`,
+          record.employeeId, dateStr,
+        )) as Array<{ tardiness_covered: number; early_covered: number }>;
+
+        const existingTardiness = Number(existingRows[0]?.tardiness_covered ?? 0);
+        const existingEarly     = Number(existingRows[0]?.early_covered     ?? 0);
+
+        // ما يحتاج تغطية إضافية بعد طرح المعوَّض يدوياً والمولَّد تلقائياً مسبقاً
+        const stillNeedLate  = Math.max(0, record.lateMinutes  - record.lateCompensatedMinutes  - existingTardiness);
+        const stillNeedEarly = Math.max(0, record.earlyLeaveMinutes - record.earlyLeaveCompensatedMinutes - existingEarly);
+
+        if (stillNeedLate <= 0 && stillNeedEarly <= 0) continue;
+
+        // رصيد الشهر المتبقي حتى هذا اليوم (بعد احتساب كل الإجازات الساعية المعتمدة)
+        const usedRows = (await this.prisma.$queryRawUnsafe(
+          `SELECT COALESCE(SUM("durationHours" * 60), 0)::int AS used
+           FROM leaves.leave_requests
+           WHERE "employeeId" = $1
+             AND "isHourlyLeave" = true
+             AND status = 'APPROVED'
+             AND "startDate" >= $2
+             AND "startDate" <= $3::date
+             AND "leaveTypeId" = $4
+             AND "deletedAt" IS NULL`,
+          record.employeeId, monthStart, dateStr, leaveTypeId,
+        )) as Array<{ used: number }>;
+
+        const usedMinutes      = Number(usedRows[0]?.used ?? 0);
+        const remainingBalance = Math.max(0, maxMonthlyMinutes - usedMinutes);
+
+        const totalStillNeeded = stillNeedLate + stillNeedEarly;
+        const toConsume        = Math.min(totalStillNeeded, remainingBalance);
+
+        if (toConsume <= 0) continue;
+
+        // التأخير يستهلك أولاً ثم الانصراف المبكر بما تبقى
+        const consumedLate  = Math.min(stillNeedLate, toConsume);
+        const consumedEarly = toConsume - consumedLate;
+
+        if (consumedLate > 0) {
+          await this.prisma.$queryRawUnsafe(
+            `INSERT INTO leaves.leave_requests
+               (id, "employeeId", "leaveTypeId", "startDate", "endDate", "totalDays",
+                "isHourlyLeave", "durationHours", status, reason, source, "isAutoGenerated",
+                "createdAt", "updatedAt")
+             VALUES
+               (gen_random_uuid(), $1, $2, $3::date, $3::date, 0,
+                true, $4, 'APPROVED', $5, 'TARDINESS_AUTO', true, NOW(), NOW())`,
+            record.employeeId, leaveTypeId, dateStr, consumedLate / 60,
+            `تعويض تأخير ${consumedLate} دقيقة بتاريخ ${dateStr} (إعادة معالجة)`,
+          );
+          tardinessCoveredMinutes += consumedLate;
+        }
+
+        if (consumedEarly > 0) {
+          await this.prisma.$queryRawUnsafe(
+            `INSERT INTO leaves.leave_requests
+               (id, "employeeId", "leaveTypeId", "startDate", "endDate", "totalDays",
+                "isHourlyLeave", "durationHours", status, reason, source, "isAutoGenerated",
+                "createdAt", "updatedAt")
+             VALUES
+               (gen_random_uuid(), $1, $2, $3::date, $3::date, 0,
+                true, $4, 'APPROVED', $5, 'EARLY_LEAVE_AUTO', true, NOW(), NOW())`,
+            record.employeeId, leaveTypeId, dateStr, consumedEarly / 60,
+            `تعويض انصراف مبكر ${consumedEarly} دقيقة بتاريخ ${dateStr} (إعادة معالجة)`,
+          );
+          earlyCoveredMinutes += consumedEarly;
+        }
+
+        // تحديث رصيد الإجازة الساعية
+        await this.prisma.$queryRawUnsafe(
+          `UPDATE leaves.leave_balances
+           SET "usedHours" = "usedHours" + $1, "updatedAt" = NOW()
+           WHERE "employeeId" = $2 AND "leaveTypeId" = $3 AND year = $4`,
+          toConsume / 60, record.employeeId, leaveTypeId, year,
+        );
+
+        // تحديث أعمدة الإزاحة والمعلق في سجل الحضور
+        const newTardinessOffset = existingTardiness + consumedLate;
+        const newEarlyOffset     = existingEarly     + consumedEarly;
+        const newPendingLate  = Math.max(0, record.lateMinutes  - record.lateCompensatedMinutes  - newTardinessOffset);
+        const newPendingEarly = Math.max(0, record.earlyLeaveMinutes - record.earlyLeaveCompensatedMinutes - newEarlyOffset);
+
+        await this.prisma.$queryRawUnsafe(
+          `UPDATE attendance.attendance_records
+           SET "tardinessOffsetMinutes" = $1, "tardinessPendingDeductionMinutes" = $2,
+               "earlyLeaveOffsetMinutes" = $3, "earlyLeavePendingDeductionMinutes" = $4,
+               "updatedAt" = NOW()
+           WHERE id = $5`,
+          newTardinessOffset, newPendingLate, newEarlyOffset, newPendingEarly, record.id,
+        );
+
+        recordsProcessed++;
+      } catch (err) {
+        errors++;
+        this.logger.error(
+          `regenerateMissingAutoLeaves failed for employee ${record.employeeId} on ${dateStr}: ${(err as any)?.message}`,
+        );
+      }
+    }
+
+    return { year, month, recordsProcessed, tardinessCoveredMinutes, earlyCoveredMinutes, errors };
+  }
+
   private async sendTardinessNotification(
     employeeId: string,
     type: string,
