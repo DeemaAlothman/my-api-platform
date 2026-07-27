@@ -1381,7 +1381,7 @@ export class PayrollService {
         ...leaveValuesWithSick,
         Number((p as any).unpaidLeaveDays ?? 0),
         Number((p as any).unpaidLeaveAmount ?? 0),
-        parseFloat((Number((p as any).tardinessOffsetMinutes ?? 0) / 60).toFixed(2)),
+        parseFloat(((Number((p as any).tardinessOffsetMinutes ?? 0) + Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0)) / 60).toFixed(2)),
         parseFloat(((Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0)) * Number((p as any).minuteRate ?? 0)).toFixed(2)),
         parseFloat(((Number((p as any).paidHourlyLeaveMinutes ?? 0) + Number((p as any).unpaidHourlyLeaveMinutes ?? 0)) / 60).toFixed(2)),
         parseFloat((Number((p as any).unpaidHourlyLeaveMinutes ?? 0) * Number((p as any).minuteRate ?? 0)).toFixed(2)),
