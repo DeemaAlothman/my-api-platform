@@ -494,7 +494,7 @@ export class PayrollService {
     const hourlyLeaveAmount = unpaidHourlyLeaveMinutes * minuteRate;
     const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
 
-    const totalCompensationMinutes = 0;
+    const totalCompensationMinutes = records.reduce((sum, r) => sum + (r.lateCompensatedMinutes ?? 0), 0);
     const totalLateMinutesEffective = Math.max(0, totalLateMinutes - justifiedLateMinutes);
 
     // سياسة الحسم المتدرّجة (TIERED) تُطبَّق يومياً — كل يوم تأخير له دقائقه المعلّقة (بعد خصم
@@ -515,7 +515,8 @@ export class PayrollService {
       if (dayLateMinutes <= 0) continue;
       const dateKey = new Date(r.date).toISOString().split('T')[0];
       const covered = dateTardinessCoverageMinutes.get(dateKey) ?? 0;
-      const pendingForDay = Math.max(0, dayLateMinutes - covered);
+      const compensatedForDay = r.lateCompensatedMinutes ?? 0;
+      const pendingForDay = Math.max(0, dayLateMinutes - covered - compensatedForDay);
       if (pendingForDay <= 0) continue;
       if (parsedLateTiers.length === 0 || pendingForDay <= lateTolerancePerDay) {
         lateDeductionMinutes += pendingForDay;
