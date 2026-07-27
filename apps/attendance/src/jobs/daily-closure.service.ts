@@ -244,6 +244,17 @@ export class DailyClosureService implements OnModuleInit {
     // C.7: Compute overtime from approved requests (replaces auto-calculated overtime)
     await this.processOvertimeFromRequests(dateStr);
 
+    // C.8: Catch ZKTeco upward corrections — generate missing auto-leaves for any
+    // attendance record in the current month that has tardiness/early-leave but no
+    // coverage yet (e.g. ZKTeco synced 0→32 min AFTER the previous daily closure ran).
+    // Errors are logged but never abort the closure result.
+    try {
+      const [year, month] = dateStr.split('-').map(Number);
+      await this.regenerateMissingAutoLeaves(year, month);
+    } catch (err) {
+      this.logger.error(`processDayForAllEmployees: regenerateMissingAutoLeaves failed for ${dateStr}: ${(err as any)?.message}`);
+    }
+
     return { date: dateStr, absentCreated, missingClockOutAlerts, onLeaveApplied, holidayApplied: 0, orphanNotified, skipped };
   }
 
