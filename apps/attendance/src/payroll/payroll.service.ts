@@ -1284,6 +1284,22 @@ export class PayrollService {
       leaveTypeByEmployee.get(row.employeeId)!.set(row.typeName, Number(row.days));
     }
 
+    // عدد أيام نصف اليوم (حضور نصف دوام) لكل موظف خلال الشهر
+    const halfDayByEmployee = new Map<string, number>();
+    if (empIds.length > 0) {
+      const halfDayRows = await this.prisma.$queryRawUnsafe(`
+        SELECT ar."employeeId", COUNT(*)::int as count
+        FROM attendance.attendance_records ar
+        WHERE ar."employeeId" = ANY($1::text[])
+          AND ar."halfDayPeriod" IS NOT NULL
+          AND ar.date >= $2 AND ar.date <= $3
+        GROUP BY ar."employeeId"
+      `, empIds, monthStart, monthEnd) as Array<{ employeeId: string; count: number }>;
+      for (const row of halfDayRows) {
+        halfDayByEmployee.set(row.employeeId, Number(row.count));
+      }
+    }
+
     const workTypeAr = (wt: string | null): string => {
       switch (wt) {
         case 'FULL_TIME': return 'كامل';
@@ -1325,28 +1341,27 @@ export class PayrollService {
     for (const name of individualLeaveNames) {
       leaveHeaders.push(name === 'إجازة سنوية' ? 'إجازة سنوية (إجازة إدارية)' : name);
       if (name === 'إجازة مرضية') {
-        leaveHeaders.push('قيمة استقطاع الإجازة المرضية');
+        leaveHeaders.push('قيمة استقطاع الإجازة المرضية $');
         sickLeaveHeaderInserted = true;
       }
     }
-    if (!sickLeaveHeaderInserted) leaveHeaders.push('قيمة استقطاع الإجازة المرضية');
+    if (!sickLeaveHeaderInserted) leaveHeaders.push('قيمة استقطاع الإجازة المرضية $');
 
     const headers = [
-      'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب المقطوع',
-      ...allowanceKeys.map(k => allowanceArNames[k] ?? k),
-      'الأجر الساعي', 'إجازات بأجر', ...leaveHeaders, 'إجازات بلا راتب',
-      'قيمة الإجازات بلا راتب',
-      'الإجازة الساعية التلقائية', 'قيمة الإجازات الساعية', 'الإجازة الساعية اليدوية', 'قيمة خصم الساعية اليدوية',
-      'إجمالي دقائق التأخير', 'دقائق التأخير المحسومة',
-      'إجمالي دقائق الخروج المبكر', 'دقائق الخروج المبكر المحسومة',
-      'أيام الغياب', 'قيمة استقطاع الغياب',
-      'إضافي أيام عادية (س)', 'قيمة إضافي عادي',
-      'إضافي أيام عطل (س)', 'قيمة إضافي عطل',
-      'أيام مهمة داخلية', 'قيمة المهمات الداخلية',
-      'أيام مهمة خارجية', 'قيمة المهمات الخارجية',
-      'مكافآت', 'عقوبات مادية',
-      'عمولة مبيعات', 'سلف', 'خصومات أخرى',
-      'الراتب الصافي', 'تقريب', 'ملاحظات',
+      'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب الأساسي $',
+      ...allowanceKeys.map(k => (allowanceArNames[k] ?? k) + ' $'),
+      'الأجر الساعي $', 'إجازات بأجر', ...leaveHeaders, 'إجازات بلا راتب',
+      'قيمة الإجازات بلا راتب $', 'إجازة نصف يوم',
+      'إجمالي دقائق التأخير', 'إجمالي دقائق الخروج المبكر',
+      'الإجازة الساعية التلقائية', 'قيمة الإجازات الساعية $', 'الإجازة الساعية اليدوية', 'قيمة خصم الساعية اليدوية $',
+      'أيام الغياب', 'قيمة استقطاع الغياب $',
+      'إضافي أيام عادية (س)', 'قيمة إضافي عادي $',
+      'إضافي أيام عطل (س)', 'قيمة إضافي عطل $',
+      'أيام مهمة داخلية', 'قيمة المهمات الداخلية $',
+      'أيام مهمة خارجية', 'قيمة المهمات الخارجية $',
+      'مكافآت $', 'عقوبات مادية $',
+      'عمولة مبيعات $', 'سلف $', 'خصومات أخرى $', 'إضافات أخرى $',
+      'الراتب الصافي $', 'تقريب $', 'ملاحظات',
     ];
 
     const rows = payrolls.map(p => {
@@ -1380,21 +1395,20 @@ export class PayrollService {
         emp?.hireDate ? new Date(emp.hireDate).toISOString().split('T')[0] : '—',
         emp?.jobTitleAr ?? '—',
         workTypeAr(emp?.workType),
-        Number((p as any).deductibleBaseSalary ?? p.basicSalary ?? 0),
+        Number(p.basicSalary ?? 0),
         ...allowanceKeys.map(k => Number(allowances[k] ?? 0)),
         Number((p as any).hourlyRate ?? 0),
         paidLeaveCell,
         ...leaveValuesWithSick,
         Number((p as any).unpaidLeaveDays ?? 0),
         Number((p as any).unpaidLeaveAmount ?? 0),
+        halfDayByEmployee.get(p.employeeId) ?? 0,
+        Number((p as any).totalLateMinutesEffective ?? 0),
+        Number((p as any).totalEarlyLeaveMinutes ?? 0),
         parseFloat(((Number((p as any).tardinessOffsetMinutes ?? 0) + Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0)) / 60).toFixed(2)),
         parseFloat(((Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0)) * Number((p as any).minuteRate ?? 0)).toFixed(2)),
         parseFloat(((Number((p as any).paidHourlyLeaveMinutes ?? 0) + Number((p as any).unpaidHourlyLeaveMinutes ?? 0)) / 60).toFixed(2)),
         parseFloat((Number((p as any).unpaidHourlyLeaveMinutes ?? 0) * Number((p as any).minuteRate ?? 0)).toFixed(2)),
-        Number((p as any).totalLateMinutesEffective ?? 0),
-        Number((p as any).lateDeductionMinutes ?? 0),
-        Number((p as any).totalEarlyLeaveMinutes ?? 0),
-        Number((p as any).earlyLeaveDeductionMinutes ?? 0),
         Number((p as any).absentUnjustified ?? 0),
         Number(bd?.absence?.amount ?? (p as any).absenceDeductionAmount ?? 0),
         parseFloat((Number((p as any).overtimeWorkdayMinutes ?? 0) / 60).toFixed(2)),
@@ -1410,6 +1424,7 @@ export class PayrollService {
         Number((p as any).commissionAmount ?? 0),
         Number((p as any).advanceDeduction ?? 0),
         Number((p as any).otherDeductionAmount ?? 0),
+        Number((p as any).otherAdditionAmount ?? 0),
         Number(p.netSalary ?? 0),
         Number((p as any).roundedNetSalary ?? Math.round(Number(p.netSalary ?? 0))),
         (p as any).notes ?? '',
