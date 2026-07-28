@@ -1310,7 +1310,9 @@ export class PayrollService {
       leaveTypeRows.filter(r => r.isPaid).map(r => r.typeName),
     );
     const HIDE_FROM_INDIVIDUAL = ['إجازة وفاة'];
-    const individualLeaveNames = leaveTypeNames.filter(n => !HIDE_FROM_INDIVIDUAL.includes(n));
+    const individualLeaveNames = leaveTypeNames.filter(n =>
+      !HIDE_FROM_INDIVIDUAL.includes(n) && paidLeaveTypeNamesSet.has(n),
+    );
     const PAID_LEAVE_EXCLUDE = new Set(['إجازة سنوية', 'إجازة مرضية']);
 
     // بناء أعمدة أنواع الإجازات مع حقن قيمة استقطاع الإجازة المرضية بعد إجازة مرضية مباشرة
