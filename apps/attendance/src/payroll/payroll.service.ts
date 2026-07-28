@@ -188,6 +188,17 @@ export class PayrollService {
     // تتبع الساعات المستخدمة لكل نوع إجازة ساعية لحساب الزيادة عن الحد الشهري ديناميكياً
     const hourlyUsedByType = new Map<string, number>();
 
+    // عدد أيام الإجازة التي تقع فعلاً داخل فترة الراتب (لإصلاح إجازات تمتد عبر شهرين)
+    const calcOverlapDays = (ls: Date, le: Date): number => {
+      const s = ls < startDate ? startDate : ls;
+      const e = le > endDate ? endDate : le;
+      if (s > e) return 0;
+      let n = 0;
+      const d = new Date(s);
+      while (d <= e) { n++; d.setDate(d.getDate() + 1); }
+      return n;
+    };
+
     for (const leave of leavesWithType) {
       if (!leave.isHourlyLeave) {
         const d = new Date(leave.startDate);
@@ -229,19 +240,19 @@ export class PayrollService {
         continue;
       }
       if (leave.typeCode === 'SICK') {
-        sickLeaveDays += Number(leave.totalDays);
+        sickLeaveDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
         continue;
       }
       if (leave.typeCode === 'UNPAID_DAILY') {
-        totalUnpaidDailyDays += Number(leave.totalDays);
+        totalUnpaidDailyDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
         continue;
       }
       if (leave.typeCode === 'UNPAID' || !leave.isPaid) {
-        unpaidLeaveDays += Number(leave.totalDays);
+        unpaidLeaveDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
         continue;
       }
       if (leave.typeName === 'إجازة سنوية') continue; // السنوية لها عمود منفصل
-      paidLeaveDays += Number(leave.totalDays);
+      paidLeaveDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
     }
     // المجموع الإجمالي للإجازة الساعية (للعرض)
     const hourlyLeaveMinutes = paidHourlyLeaveMinutes + unpaidHourlyLeaveMinutes + tardinessOffsetMinutesPayroll;
@@ -1342,27 +1353,27 @@ export class PayrollService {
     for (const name of individualLeaveNames) {
       leaveHeaders.push(name === 'إجازة سنوية' ? 'إجازة سنوية (إجازة إدارية)' : name);
       if (name === 'إجازة مرضية') {
-        leaveHeaders.push('قيمة استقطاع الإجازة المرضية $');
+        leaveHeaders.push('$ قيمة استقطاع الإجازة المرضية');
         sickLeaveHeaderInserted = true;
       }
     }
-    if (!sickLeaveHeaderInserted) leaveHeaders.push('قيمة استقطاع الإجازة المرضية $');
+    if (!sickLeaveHeaderInserted) leaveHeaders.push('$ قيمة استقطاع الإجازة المرضية');
 
     const headers = [
-      'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', 'الراتب الأساسي $',
-      ...allowanceKeys.map(k => (allowanceArNames[k] ?? k) + ' $'),
-      'الأجر الساعي $', 'إجازات بأجر', ...leaveHeaders, 'إجازات بلا راتب',
-      'قيمة الإجازات بلا راتب $', 'إجازة نصف يوم',
+      'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', '$ الراتب الأساسي',
+      ...allowanceKeys.map(k => '$ ' + (allowanceArNames[k] ?? k)),
+      '$ الأجر الساعي', 'إجازات بأجر', ...leaveHeaders, 'إجازات بلا راتب',
+      '$ قيمة الإجازات بلا راتب', 'إجازة نصف يوم',
       'إجمالي دقائق التأخير', 'إجمالي دقائق الخروج المبكر',
-      'الإجازة الساعية التلقائية', 'قيمة الإجازات الساعية $', 'الإجازة الساعية اليدوية', 'قيمة خصم الساعية اليدوية $',
-      'أيام الغياب', 'قيمة استقطاع الغياب $',
-      'إضافي أيام عادية (س)', 'قيمة إضافي عادي $',
-      'إضافي أيام عطل (س)', 'قيمة إضافي عطل $',
-      'أيام مهمة داخلية', 'قيمة المهمات الداخلية $',
-      'أيام مهمة خارجية', 'قيمة المهمات الخارجية $',
-      'مكافآت $', 'عقوبات مادية $',
-      'عمولة مبيعات $', 'سلف $', 'خصومات أخرى $', 'إضافات أخرى $',
-      'الراتب الصافي $', 'تقريب $', 'ملاحظات',
+      'الإجازة الساعية التلقائية', '$ قيمة الإجازات الساعية', 'الإجازة الساعية اليدوية', '$ قيمة خصم الساعية اليدوية',
+      'أيام الغياب', '$ قيمة استقطاع الغياب',
+      'إضافي أيام عادية (س)', '$ قيمة إضافي عادي',
+      'إضافي أيام عطل (س)', '$ قيمة إضافي عطل',
+      'أيام مهمة داخلية', '$ قيمة المهمات الداخلية',
+      'أيام مهمة خارجية', '$ قيمة المهمات الخارجية',
+      '$ مكافآت', '$ عقوبات مادية',
+      '$ عمولة مبيعات', '$ سلف', '$ خصومات أخرى', '$ إضافات أخرى',
+      '$ الراتب الصافي', '$ تقريب', 'ملاحظات',
     ];
 
     const rows = payrolls.map(p => {
