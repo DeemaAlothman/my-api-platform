@@ -202,6 +202,25 @@ export class ListPhysioCasesQueryDto {
 
 // ── الشكوى المرضية (Medical Complaint) ──
 export class ComplaintDto {
+  // حقول الشكوى الرئيسية
+  @IsOptional() @IsString()
+  majorComplaint?: string;
+
+  @IsOptional() @IsString()
+  symptoms?: string;
+
+  @IsOptional() @IsString()
+  currentJob?: string;
+
+  @IsOptional() @IsEnum(LifeType)
+  lifeType?: LifeType;
+
+  @IsOptional() @IsString()
+  complaintStartDate?: string;
+
+  @IsOptional() @IsString()
+  possibleCause?: string;
+
   // 1) نوع الشكاية المرضية
   @IsOptional() @IsString()
   complaintType?: string;
@@ -218,23 +237,46 @@ export class ComplaintDto {
   @IsOptional() @IsString()
   complaintNotes?: string;
 
+  // مستوى الألم ومدته وتطوره
+  @IsOptional() @IsEnum(PainLevel)
+  painLevel?: PainLevel;
+
+  @IsOptional() @IsEnum(PainDuration)
+  painDuration?: PainDuration;
+
+  @IsOptional() @IsString()
+  painProgression?: string;
+
+  @IsOptional() @IsString()
+  hadPreviousInjury?: string;
+
+  @IsOptional() @IsString()
+  bestTimeOfDay?: string;
+
+  @IsOptional() @IsString()
+  worstTimeOfDay?: string;
+
   // 5) هل يوجد أمراض مزمنة؟ + التفصيل عند نعم
   @IsOptional() @IsBoolean()
   hasChronicDiseases?: boolean;
   @IsOptional() @IsString()
   chronicDiseasesDetail?: string;
 
-  // 6) هل سبق وزرت طبيباً مختصاً؟ + السبب عند نعم (يُخزّن في previousDoctorSeen)
+  // 6) هل سبق وزرت طبيباً مختصاً؟ + التفصيل عند نعم
   @IsOptional() @IsBoolean()
   visitedSpecialist?: boolean;
   @IsOptional() @IsString()
-  specialistReason?: string;
+  previousDoctorSeen?: string;
+  @IsOptional() @IsString()
+  specialistReason?: string; // alias للتوافق مع الإصدارات القديمة
 
-  // 7) هل خضعت لجلسات علاج فيزيائي سابقاً؟ + القيمة عند نعم (يُخزّن في previousTreatment)
+  // 7) هل خضعت لجلسات علاج فيزيائي سابقاً؟ + التفصيل عند نعم
   @IsOptional() @IsBoolean()
   hadPreviousPT?: boolean;
   @IsOptional() @IsString()
-  previousPTDetail?: string;
+  previousTreatment?: string;
+  @IsOptional() @IsString()
+  previousPTDetail?: string; // alias للتوافق مع الإصدارات القديمة
 
   // 8) هل سبق وخضعت لعمل جراحي؟ + التفصيل عند نعم
   @IsOptional() @IsBoolean()

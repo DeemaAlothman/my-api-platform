@@ -279,17 +279,31 @@ export class CasesService {
     await this.findCaseOrThrow(caseId);
     // نمرّر فقط الحقول المُرسلة (undefined لا يغيّر القيمة الحالية)
     const data: any = {
+      majorComplaint: dto.majorComplaint,
+      symptoms: dto.symptoms,
+      currentJob: dto.currentJob,
+      lifeType: dto.lifeType,
+      complaintStartDate: dto.complaintStartDate,
+      possibleCause: dto.possibleCause,
       complaintType: dto.complaintType,
       painLocation: dto.painLocation,
       complaintDuration: dto.complaintDuration,
       complaintNotes: dto.complaintNotes,
+      painLevel: dto.painLevel,
+      painDuration: dto.painDuration,
+      painProgression: dto.painProgression,
+      hadPreviousInjury: dto.hadPreviousInjury,
+      bestTimeOfDay: dto.bestTimeOfDay,
+      worstTimeOfDay: dto.worstTimeOfDay,
       hasChronicDiseases: dto.hasChronicDiseases,
       // التفصيل يُمسح إذا كان الجواب "لا"
       chronicDiseasesDetail: dto.hasChronicDiseases === false ? null : dto.chronicDiseasesDetail,
       visitedSpecialist: dto.visitedSpecialist,
-      previousDoctorSeen: dto.visitedSpecialist === false ? null : dto.specialistReason,
+      // يقبل previousDoctorSeen مباشرة أو specialistReason (alias قديم)
+      previousDoctorSeen: dto.visitedSpecialist === false ? null : (dto.previousDoctorSeen ?? dto.specialistReason),
       hadPreviousPT: dto.hadPreviousPT,
-      previousTreatment: dto.hadPreviousPT === false ? null : dto.previousPTDetail,
+      // يقبل previousTreatment مباشرة أو previousPTDetail (alias قديم)
+      previousTreatment: dto.hadPreviousPT === false ? null : (dto.previousTreatment ?? dto.previousPTDetail),
       hadSurgery: dto.hadSurgery,
       surgeryDetail: dto.hadSurgery === false ? null : dto.surgeryDetail,
     };
