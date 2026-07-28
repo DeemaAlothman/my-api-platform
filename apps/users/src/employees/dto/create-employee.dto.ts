@@ -265,6 +265,12 @@ export class CreateEmployeeDto {
   @IsString()
   salaryCurrency?: string;
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Sales commission must be a number' })
+  @Min(0)
+  salesCommission?: number;
+
   // Personal Info (extra)
   @IsOptional()
   @IsString()

@@ -425,8 +425,9 @@ export class PayrollService {
       basicSalary: string | null;
       salaryCurrency: string | null;
       hireDate: Date | null;
+      salesCommission: string | null;
     }>>`
-      SELECT "basicSalary", "salaryCurrency", "hireDate"
+      SELECT "basicSalary", "salaryCurrency", "hireDate", "salesCommission"
       FROM users.employees
       WHERE id = ${employeeId} AND "deletedAt" IS NULL
     `;
@@ -688,8 +689,11 @@ export class PayrollService {
     const internalMissionAmount = internalMissionDays * internalRate;
     const externalMissionAmount = externalMissionDays * externalRate;
 
-    // G: عمولات المبيعات المعتمدة
-    let commissionAmount = 0;
+    // G: عمولات المبيعات المعتمدة + عمولة البيع الثابتة على سجل الموظف
+    const fixedSalesCommission = empFinancial[0]?.salesCommission
+      ? parseFloat(empFinancial[0].salesCommission)
+      : 0;
+    let commissionAmount = fixedSalesCommission;
     try {
       const commissions = await this.prisma.$queryRawUnsafe(`
         SELECT COALESCE(SUM(amount::numeric), 0) as total
@@ -697,7 +701,7 @@ export class PayrollService {
         WHERE "employeeId" = $1 AND year = $2 AND month = $3
           AND status = 'CONFIRMED' AND "deletedAt" IS NULL
       `, employeeId, year, month) as Array<{ total: string }>;
-      commissionAmount = parseFloat(commissions[0]?.total ?? '0') || 0;
+      commissionAmount += parseFloat(commissions[0]?.total ?? '0') || 0;
     } catch (err) {
       console.error(`[payroll] commissions load failed for ${employeeId}:`, (err as any)?.message);
     }

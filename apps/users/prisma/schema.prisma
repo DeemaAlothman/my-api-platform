@@ -93,9 +93,10 @@ model Employee {
   separationDate DateTime? @db.Date
 
   // Salary
-  basicSalary    Decimal?  @db.Decimal(15, 2)
-  salaryCurrency String?   @default("SYP")
-  dailyWage      Decimal?  @db.Decimal(15, 2)
+  basicSalary      Decimal?  @db.Decimal(15, 2)
+  salaryCurrency   String?   @default("SYP")
+  dailyWage        Decimal?  @db.Decimal(15, 2)
+  salesCommission  Decimal?  @db.Decimal(15, 2)
 
   // Biometric
   fingerprintId  String?

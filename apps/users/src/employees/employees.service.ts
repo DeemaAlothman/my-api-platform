@@ -632,6 +632,10 @@ export class EmployeesService {
       if (dto.salaryCurrency) data.salaryCurrency = dto.salaryCurrency;
     }
 
+    if (dto.salesCommission !== undefined) {
+      data.salesCommission = dto.salesCommission;
+    }
+
     if (dto.allowances !== undefined) {
       data.allowances = { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) };
     }
@@ -682,6 +686,7 @@ export class EmployeesService {
     const data: any = {
       basicSalary: dto.basicSalary,
       ...(dto.salaryCurrency ? { salaryCurrency: dto.salaryCurrency } : {}),
+      ...(dto.salesCommission !== undefined ? { salesCommission: dto.salesCommission } : {}),
       ...(dto.allowances !== undefined ? {
         allowances: { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) },
       } : {}),
