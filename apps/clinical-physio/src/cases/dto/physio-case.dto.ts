@@ -463,6 +463,22 @@ export class MedicalHistoryDto {
   hospitalizedLastYear?: boolean;
   @IsOptional() @IsString()
   hospitalizedDetail?: string;
+
+  // 16) التشخيص
+  @IsOptional() @IsString()
+  diagnosis?: string;
+
+  // 17) الإجراءات التصويرية (صور + وصف)
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ImagingProcedureDto)
+  imagingProcedures?: ImagingProcedureDto[];
+}
+
+export class ImagingProcedureDto {
+  @IsOptional() @IsString()
+  imageUrl?: string;
+
+  @IsOptional() @IsString()
+  description?: string;
 }
 
 export class SurgeryDto {

@@ -411,6 +411,8 @@ export class CasesService {
       boneDensityDetail: dto.boneDensityTest === false ? null : dto.boneDensityDetail,
       hospitalizedLastYear: dto.hospitalizedLastYear ?? false,
       hospitalizedDetail: dto.hospitalizedLastYear === false ? null : dto.hospitalizedDetail,
+      diagnosis: dto.diagnosis,
+      imagingProcedures: dto.imagingProcedures !== undefined ? (dto.imagingProcedures as any) : undefined,
     };
     return this.prisma.medicalHistory.upsert({
       where: { caseId },

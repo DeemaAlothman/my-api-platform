@@ -334,6 +334,12 @@ model MedicalHistory {
   hospitalizedDetail         String? // سبب/تفاصيل دخول المستشفى عند نعم
   receivingOtherTreatment    Boolean @default(false)
 
+  // التشخيص
+  diagnosis                  String? @db.Text
+
+  // الإجراءات التصويرية: مصفوفة من { imageUrl, description }
+  imagingProcedures          Json?
+
   @@map("medical_histories")
   @@schema("clinic_physio")
 }
