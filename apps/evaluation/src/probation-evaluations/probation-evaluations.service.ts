@@ -112,14 +112,23 @@ export class ProbationEvaluationsService {
   }
 
   async findByEmployee(employeeId: string) {
-    return this.prisma.probationEvaluation.findMany({
-      where: { employeeId },
-      include: {
-        scores: { include: { criteria: true } },
-        history: { orderBy: { createdAt: 'desc' }, take: 3 },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [evaluations, empRows] = await Promise.all([
+      this.prisma.probationEvaluation.findMany({
+        where: { employeeId },
+        include: {
+          scores: { include: { criteria: true } },
+          history: { orderBy: { createdAt: 'desc' }, take: 3 },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.$queryRawUnsafe<Array<{ commissions: any }>>(
+        `SELECT commissions FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      ),
+    ]);
+
+    const commissions = empRows[0]?.commissions ?? [];
+    return { evaluations, employeeCommissions: commissions };
   }
 
   async selfEvaluate(id: string, performedBy: string, dto: WorkflowActionDto) {

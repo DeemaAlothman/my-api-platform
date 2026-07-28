@@ -1,6 +1,16 @@
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString, IsUUID, IsNumber, IsInt, IsBoolean, Min, Max, ValidateNested, IsArray, IsDecimal } from 'class-validator';
 import { Type } from 'class-transformer';
 
+export class CommissionItemDto {
+  @Type(() => Number)
+  @IsNumber({}, { message: 'Commission amount must be a number' })
+  @Min(0)
+  amount: number;
+
+  @IsString()
+  description: string;
+}
+
 
 export enum Gender {
   MALE = 'MALE',
@@ -270,6 +280,12 @@ export class CreateEmployeeDto {
   @IsNumber({}, { message: 'Sales commission must be a number' })
   @Min(0)
   salesCommission?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CommissionItemDto)
+  commissions?: CommissionItemDto[];
 
   // Personal Info (extra)
   @IsOptional()

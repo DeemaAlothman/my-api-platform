@@ -98,6 +98,9 @@ model Employee {
   dailyWage        Decimal?  @db.Decimal(15, 2)
   salesCommission  Decimal?  @db.Decimal(15, 2)
 
+  // عمولات ثابتة متعددة: [{amount, description}]
+  commissions      Json      @default("[]")
+
   // Biometric
   fingerprintId  String?
 

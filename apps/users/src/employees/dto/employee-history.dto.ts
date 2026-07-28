@@ -1,6 +1,6 @@
 import { IsOptional, IsString, IsNumber, IsDateString, IsIn, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AllowanceType } from './create-employee.dto';
+import { AllowanceType, CommissionItemDto } from './create-employee.dto';
 
 // بدل واحد (نوع + قيمة) — نفس بدلات إنشاء الموظف
 export class AllowanceInputDto {
@@ -36,6 +36,9 @@ export class ChangeSalaryDto {
   allowances?: AllowanceInputDto[];
 
   @IsOptional() @IsIn(['SALARY_CHANGE', 'PROMOTION']) eventType?: 'SALARY_CHANGE' | 'PROMOTION';
+
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => CommissionItemDto)
+  commissions?: CommissionItemDto[];
 
   @IsDateString() effectiveDate: string;
   @IsOptional() @IsString() note?: string;

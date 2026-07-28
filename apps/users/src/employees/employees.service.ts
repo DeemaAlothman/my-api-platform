@@ -508,7 +508,7 @@ export class EmployeesService {
       await this.validateSalaryRange(dto.jobGradeId, dto.basicSalary);
     }
 
-    const { attachments, trainingCertificates, allowances, ...employeeData } = dto;
+    const { attachments, trainingCertificates, allowances, commissions, ...employeeData } = dto;
 
     // B.2: Default contractEndDate = Dec 31 of the hire year
     let contractEndDate: Date | null = dto.contractEndDate ? new Date(dto.contractEndDate) : null;
@@ -524,6 +524,7 @@ export class EmployeesService {
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
         hireDate: new Date(dto.hireDate),
         contractEndDate,
+        commissions: (commissions ?? []) as any,
         ...(attachments?.length ? { attachments: { create: attachments } } : {}),
         ...(trainingCertificates?.length ? { trainingCertificates: { create: trainingCertificates.map(({ name, attachmentUrl }) => ({ name, attachmentUrl })) } } : {}),
         ...(allowances?.length ? { allowances: { create: allowances.map(({ type, amount }) => ({ type, amount })) } } : {}),
@@ -685,6 +686,7 @@ export class EmployeesService {
       ...(dto.allowances !== undefined ? {
         allowances: { deleteMany: {}, create: dto.allowances.map(({ type, amount }) => ({ type, amount })) },
       } : {}),
+      ...(dto.commissions !== undefined ? { commissions: dto.commissions } : {}),
     };
 
     return this.prisma.$transaction(async (tx) => {
@@ -856,7 +858,7 @@ export class EmployeesService {
       await this.validateSalaryRange(gradeId, salary);
     }
 
-    const { attachments, trainingCertificates, allowances, ...employeeData } = dto;
+    const { attachments, trainingCertificates, allowances, commissions, ...employeeData } = dto;
 
     // B.2: If contractEndDate is explicitly null in the DTO, reset to end of current year
     let contractEndDateUpdate: Date | undefined | null = undefined;
@@ -884,6 +886,7 @@ export class EmployeesService {
         hireDate: dto.hireDate ? new Date(dto.hireDate) : undefined,
         contractEndDate: contractEndDateUpdate,
         separationDate: separationDateUpdate,
+        ...(commissions !== undefined ? { commissions: commissions as any } : {}),
         ...(attachments !== undefined ? {
           attachments: { deleteMany: {}, create: attachments.map(({ fileUrl, fileName }) => ({ fileUrl, fileName })) },
         } : {}),

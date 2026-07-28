@@ -425,9 +425,9 @@ export class PayrollService {
       basicSalary: string | null;
       salaryCurrency: string | null;
       hireDate: Date | null;
-      salesCommission: string | null;
+      commissions: Array<{ amount: number; description: string }> | null;
     }>>`
-      SELECT "basicSalary", "salaryCurrency", "hireDate", "salesCommission"
+      SELECT "basicSalary", "salaryCurrency", "hireDate", "commissions"
       FROM users.employees
       WHERE id = ${employeeId} AND "deletedAt" IS NULL
     `;
@@ -689,9 +689,10 @@ export class PayrollService {
     const internalMissionAmount = internalMissionDays * internalRate;
     const externalMissionAmount = externalMissionDays * externalRate;
 
-    // G: عمولات المبيعات المعتمدة + عمولة البيع الثابتة على سجل الموظف
-    const fixedSalesCommission = empFinancial[0]?.salesCommission
-      ? parseFloat(empFinancial[0].salesCommission)
+    // G: عمولات المبيعات المعتمدة + العمولات الثابتة على سجل الموظف
+    const employeeCommissions = empFinancial[0]?.commissions ?? [];
+    const fixedSalesCommission = Array.isArray(employeeCommissions)
+      ? employeeCommissions.reduce((sum: number, c: any) => sum + (Number(c?.amount) || 0), 0)
       : 0;
     let commissionAmount = fixedSalesCommission;
     try {
