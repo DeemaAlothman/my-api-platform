@@ -75,11 +75,11 @@ export class CreatePhysioCaseDto {
   @IsOptional() @IsDateString()
   painStartDate?: string;
 
-  @IsOptional() @IsEnum(PainLevel)
-  painLevel?: PainLevel;
+  @IsOptional() @IsString()
+  painLevel?: string;
 
-  @IsOptional() @IsEnum(PainDuration)
-  painDuration?: PainDuration;
+  @IsOptional() @IsString()
+  painDuration?: string;
 
   @IsOptional() @IsString()
   painProgression?: string;
@@ -238,11 +238,11 @@ export class ComplaintDto {
   complaintNotes?: string;
 
   // مستوى الألم ومدته وتطوره
-  @IsOptional() @IsEnum(PainLevel)
-  painLevel?: PainLevel;
+  @IsOptional() @IsString()
+  painLevel?: string;
 
-  @IsOptional() @IsEnum(PainDuration)
-  painDuration?: PainDuration;
+  @IsOptional() @IsString()
+  painDuration?: string;
 
   @IsOptional() @IsString()
   painProgression?: string;

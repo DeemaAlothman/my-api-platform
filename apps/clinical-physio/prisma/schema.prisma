@@ -18,20 +18,7 @@ enum LifeType {
   @@schema("clinic_physio")
 }
 
-enum PainLevel {
-  MILD
-  MODERATE
-  SEVERE
-  EXCRUCIATING
-  @@schema("clinic_physio")
-}
-
-enum PainDuration {
-  INTERMITTENT
-  CONSTANT
-  WITH_CERTAIN_MOTIONS
-  @@schema("clinic_physio")
-}
+// PainLevel و PainDuration حُوِّلا إلى TEXT في DB — لم تعد تُستخدم كـ enum
 
 enum PhysioPainType {
   NUMBNESS
@@ -197,8 +184,8 @@ model PhysioCase {
   evalSummary         String?  @db.Text // التقييم
 
   painStartDate       DateTime?
-  painLevel           PainLevel?
-  painDuration        PainDuration?
+  painLevel           String?
+  painDuration        String?
   painProgression     String?
   bestTimeOfDay       String?
   worstTimeOfDay      String?
