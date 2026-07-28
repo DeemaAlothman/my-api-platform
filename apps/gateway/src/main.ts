@@ -52,9 +52,10 @@ async function bootstrap() {
   // URL-encoded body parser
   expressApp.use(require('express').urlencoded({ extended: true, limit: '25mb' }));
 
-  // Proxy static file uploads to users service (before global prefix)
+  // Proxy static file uploads (before global prefix)
   const nodeHttp = require('http');
-  const proxyUpload = (req: any, res: any) => {
+
+  const makeUploadProxy = (serviceUrl: string, prefix: string) => (req: any, res: any) => {
     const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',').map((o: string) => o.trim());
     const origin = req.headers.origin;
     if (origin && allowedOrigins.includes(origin)) {
@@ -67,9 +68,8 @@ async function bootstrap() {
       res.statusCode = 204;
       return res.end();
     }
-    const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
-    const urlObj = new URL(usersUrl);
-    const filePath = '/uploads' + req.url;
+    const urlObj = new URL(serviceUrl);
+    const filePath = prefix + req.url;
     const proxyReq = nodeHttp.request(
       { hostname: urlObj.hostname, port: parseInt(urlObj.port) || 80, path: filePath, method: 'GET', headers: { host: urlObj.host } },
       (proxyRes: any) => {
@@ -81,6 +81,16 @@ async function bootstrap() {
     proxyReq.on('error', () => res.status(502).end());
     proxyReq.end();
   };
+
+  const patientsUrl = process.env.PATIENTS_SERVICE_URL || 'http://patients:4010';
+  const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
+
+  // ملفات المرضى → patients service (يجب أن يكون قبل /uploads العام)
+  const proxyPatientUpload = makeUploadProxy(patientsUrl, '/uploads');
+  expressApp.use('/uploads/patients', proxyPatientUpload);
+
+  // ملفات الموظفين والعامة → users service
+  const proxyUpload = makeUploadProxy(usersUrl, '/uploads');
   expressApp.use('/uploads', proxyUpload);
   expressApp.use('/api/v1/uploads', proxyUpload);
   expressApp.use('/app/uploads', proxyUpload);
