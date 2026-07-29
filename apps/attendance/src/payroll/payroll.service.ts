@@ -243,15 +243,15 @@ export class PayrollService {
         continue;
       }
       if (leave.typeCode === 'SICK') {
-        sickLeaveDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
+        sickLeaveDays += leave.totalDays;
         continue;
       }
       if (leave.typeCode === 'UNPAID_DAILY') {
-        totalUnpaidDailyDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
+        totalUnpaidDailyDays += leave.totalDays;
         continue;
       }
       if (leave.typeCode === 'UNPAID' || !leave.isPaid) {
-        unpaidLeaveDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
+        unpaidLeaveDays += leave.totalDays;
         continue;
       }
       if (leave.typeName === 'إجازة سنوية') continue; // السنوية لها عمود منفصل
