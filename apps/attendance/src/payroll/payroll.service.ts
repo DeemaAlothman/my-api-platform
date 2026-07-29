@@ -230,7 +230,8 @@ export class PayrollService {
         }
         const freeMinutes = minutes - overLimitMinutes;
         if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') {
-          tardinessOffsetMinutesPayroll += minutes;
+          tardinessOffsetMinutesPayroll += freeMinutes;   // ضمن الحد — بدون حسم
+          unpaidHourlyLeaveMinutes += overLimitMinutes;   // تجاوز الحد — يُحسم
         } else if (leave.isPaid) {
           paidHourlyLeaveMinutes += freeMinutes;
           unpaidHourlyLeaveMinutes += overLimitMinutes;
