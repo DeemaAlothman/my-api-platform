@@ -613,7 +613,7 @@ export class PayrollService {
       const segments = leave.deductionInfo as Array<{ fromDay: number; toDay: number; days: number; deductionPercent: number }>;
       if (!segments || !Array.isArray(segments)) continue;
       for (const seg of segments) {
-        const segAmount = (basicSalary / 30) * seg.days * (seg.deductionPercent / 100);
+        const segAmount = (deductibleBase / 30) * seg.days * (seg.deductionPercent / 100);
         sickLeaveDeductionAmount += segAmount;
         sickLeaveDetails.push({
           requestId: leave.id,
@@ -1422,7 +1422,7 @@ export class PayrollService {
         halfDayByEmployee.get(p.employeeId) ?? 0,
         Number((p as any).totalLateMinutesEffective ?? 0),
         Number((p as any).totalEarlyLeaveMinutes ?? 0),
-        parseFloat(((Number((p as any).tardinessOffsetMinutes ?? 0) + Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0)) / 60).toFixed(2)),
+        parseFloat(((Number((p as any).tardinessOffsetMinutes ?? 0) + Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0) + Number(bd?.hourlyLeave?.autoOverLimitMinutes ?? 0)) / 60).toFixed(2)),
         Number(bd?.hourlyLeave?.autoOverLimitAmount ?? 0),
         parseFloat(((Number((p as any).paidHourlyLeaveMinutes ?? 0) + Number((p as any).unpaidHourlyLeaveMinutes ?? 0)) / 60).toFixed(2)),
         parseFloat((Number((p as any).unpaidHourlyLeaveMinutes ?? 0) * Number((p as any).minuteRate ?? 0)).toFixed(2)),
