@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
+import { ComplaintDto, MedicalHistoryDto } from './dto/complaint.dto';
 
 const PATIENTS_URL   = process.env.PATIENTS_SERVICE_URL   || 'http://patients:4010';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
@@ -104,5 +105,29 @@ export class ReceptionsService {
   async remove(id: string) {
     await this.findOne(id);
     return this.prisma.podiatryReception.delete({ where: { id } });
+  }
+
+  async upsertComplaint(id: string, dto: ComplaintDto) {
+    await this.findOne(id);
+    const data: any = {};
+    if (dto.problemDescription !== undefined) data.problemDescription = dto.problemDescription;
+    if (dto.historyOfSymptoms  !== undefined) data.historyOfSymptoms  = dto.historyOfSymptoms;
+    if (dto.affectedSide       !== undefined) data.affectedSide       = dto.affectedSide;
+    if (dto.footSymptoms       !== undefined) data.footSymptoms       = dto.footSymptoms;
+    if (dto.visitTypes         !== undefined) data.visitTypes         = dto.visitTypes;
+    if (dto.vasScore           !== undefined) data.vasScore           = dto.vasScore;
+    if (dto.occupation         !== undefined) data.occupation         = dto.occupation;
+    if (dto.activities         !== undefined) data.activities         = dto.activities;
+    return this.prisma.podiatryReception.update({ where: { id }, data });
+  }
+
+  async upsertMedicalHistory(id: string, dto: MedicalHistoryDto) {
+    await this.findOne(id);
+    const data: any = {};
+    if (dto.medicalHistory      !== undefined) data.medicalHistory      = dto.medicalHistory;
+    if (dto.medicalHistoryOther !== undefined) data.medicalHistoryOther = dto.medicalHistoryOther;
+    if (dto.height              !== undefined) data.height              = dto.height;
+    if (dto.weight              !== undefined) data.weight              = dto.weight;
+    return this.prisma.podiatryReception.update({ where: { id }, data });
   }
 }
