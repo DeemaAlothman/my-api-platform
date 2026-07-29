@@ -353,9 +353,20 @@ export class AttendanceRecordsService {
   async update(id: string, dto: UpdateAttendanceRecordDto, userId?: string) {
     const existing = await this.findOne(id);
 
+    const attendanceChanged =
+      (dto as any).lateMinutes !== undefined ||
+      (dto as any).earlyLeaveMinutes !== undefined ||
+      (dto as any).status !== undefined;
+
+    const updateData: any = { ...dto };
+    if (attendanceChanged) {
+      updateData.tardinessPendingDeductionMinutes = 0;
+      updateData.earlyLeavePendingDeductionMinutes = 0;
+    }
+
     const updated = await this.prisma.attendanceRecord.update({
       where: { id },
-      data: dto,
+      data: updateData,
     });
 
     const trackedFields = ['status', 'lateMinutes', 'earlyLeaveMinutes', 'overtimeMinutes', 'clockInTime', 'clockOutTime', 'workedMinutes', 'netWorkedMinutes'];
@@ -609,7 +620,10 @@ export class AttendanceRecordsService {
          "lateMinutes" = $5, "earlyLeaveMinutes" = $6,
          "overtimeMinutes" = $7, "lateCompensatedMinutes" = $8,
          "totalBreakMinutes" = $9, status = $10,
-         "punchSequenceStatus" = $11, "updatedAt" = NOW()
+         "punchSequenceStatus" = $11,
+         "tardinessPendingDeductionMinutes" = 0,
+         "earlyLeavePendingDeductionMinutes" = 0,
+         "updatedAt" = NOW()
        WHERE id = $12`,
       clockInTime, clockOutTime,
       computed.workedMinutes, computed.netWorkedMinutes,
