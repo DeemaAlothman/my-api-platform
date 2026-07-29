@@ -257,6 +257,14 @@ export class PayrollService {
       if (leave.typeName === 'إجازة سنوية') continue; // السنوية لها عمود منفصل
       paidLeaveDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
     }
+    // دقائق التأخير/الخروج المبكر غير المبررة التي انتهى رصيدها ولم تُولَّد لها طلبات إجازة تلقائية
+    // تُضاف مباشرة للخصم التلقائي لتظهر في عمودَي V (الإجازة التلقائية) وW (القيمة)
+    const attendancePendingMinutes = records.reduce(
+      (sum, r) => sum + (r.earlyLeavePendingDeductionMinutes ?? 0) + (r.tardinessPendingDeductionMinutes ?? 0),
+      0,
+    );
+    autoLeaveOverLimitMinutes += attendancePendingMinutes;
+
     // المجموع الإجمالي للإجازة الساعية (للعرض)
     const hourlyLeaveMinutes = paidHourlyLeaveMinutes + unpaidHourlyLeaveMinutes + tardinessOffsetMinutesPayroll;
 
