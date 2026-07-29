@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>شرح آلية حساب الراتب</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background: #f4f6f8;
+    color: #222;
+    margin: 0;
+    padding: 0;
+    line-height: 1.8;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 30px 20px 80px; }
+  header {
+    background: linear-gradient(135deg, #1f4e79, #2c6ca3);
+    color: #fff;
+    padding: 40px 20px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 10px; font-size: 28px; }
+  header p { margin: 0; opacity: .9; font-size: 15px; }
+
+  h2 {
+    color: #1f4e79;
+    border-right: 5px solid #2c6ca3;
+    padding-right: 12px;
+    margin-top: 50px;
+    font-size: 22px;
+  }
+  h3 { color: #2c6ca3; font-size: 18px; margin-top: 25px; }
+
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin: 15px 0;
+  }
+
+  .formula {
+    background: #0d2538;
+    color: #9fe6b8;
+    font-family: "Consolas", monospace;
+    padding: 18px 20px;
+    border-radius: 8px;
+    direction: ltr;
+    text-align: left;
+    font-size: 15px;
+    overflow-x: auto;
+    margin: 15px 0;
+    white-space: pre-wrap;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 12px 14px;
+    text-align: right;
+    border-bottom: 1px solid #e8eaed;
+    font-size: 15px;
+  }
+  th { background: #2c6ca3; color: #fff; }
+  tr:last-child td { border-bottom: none; }
+
+  .tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .tag.green { background: #e3f6e8; color: #1d8a4a; }
+  .tag.red   { background: #fdeaea; color: #c0392b; }
+  .tag.orange{ background: #fff3e0; color: #b9770e; }
+
+  .example {
+    background: #fffbe8;
+    border: 1px dashed #e0c64c;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin: 15px 0;
+  }
+  .example b { color: #946c00; }
+
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px; height: 30px;
+    background: #2c6ca3;
+    color: #fff;
+    border-radius: 50%;
+    font-weight: bold;
+    margin-left: 10px;
+    flex-shrink: 0;
+  }
+  .step-title { display: flex; align-items: center; }
+
+  .note {
+    background: #eef6fb;
+    border-right: 4px solid #2c6ca3;
+    padding: 12px 18px;
+    border-radius: 6px;
+    margin: 15px 0;
+    font-size: 14.5px;
+  }
+
+  .toc {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .toc ul { margin: 0; padding-right: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: #2c6ca3; text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  .final-box {
+    background: #1f4e79;
+    color: #fff;
+    border-radius: 10px;
+    padding: 25px;
+    margin-top: 20px;
+  }
+  .final-box .formula { background: #0a1d2c; }
+
+  footer {
+    text-align: center;
+    color: #888;
+    font-size: 13px;
+    margin-top: 60px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>شرح آلية حساب الراتب</h1>
+  <p>دليل مبسّط لفهم كيف يُحسَب راتب الموظف شهرياً، وكيف تؤثر الإجازات والغياب والتأخير عليه</p>
+</header>
+
+<div class="wrap">
+
+  <div class="toc">
+    <h3 style="margin-top:0;">محتويات الصفحة</h3>
+    <ul>
+      <li><a href="#basic">1. الراتب الأساسي</a></li>
+      <li><a href="#rate">2. معدّل اليوم والساعة والدقيقة</a></li>
+      <li><a href="#leave">3. تأثير الإجازات</a></li>
+      <li><a href="#absence">4. تأثير الغياب</a></li>
+      <li><a href="#late">5. التأخير والانصراف المبكر</a></li>
+      <li><a href="#extra">6. الإضافات (مكافآت، عمولات، إضافي)</a></li>
+      <li><a href="#deduct">7. استقطاعات أخرى (سلف، عقوبات)</a></li>
+      <li><a href="#final">8. المعادلة النهائية الكاملة</a></li>
+      <li><a href="#check">9. كيف تتأكد إن الراتب صحيح</a></li>
+    </ul>
+  </div>
+
+  <h2 id="basic">1. الراتب الأساسي</h2>
+  <div class="card">
+    <p>كل موظف له راتب أساسي ثابت مسجّل في ملفه الوظيفي. هذا هو نقطة الانطلاق لكل الحسابات.</p>
+    <div class="note">
+      <b>حالة خاصة:</b> إذا كان الموظف يُحاسَب "بالأجر اليومي" (وليس راتب شهري ثابت)، فإن راتبه الأساسي لهذا الشهر = <b>الأجر اليومي × عدد أيام الحضور الفعلية</b>. أي إن لم يحضر، لا يُحسب له شيء عن تلك الأيام أساساً (لا حاجة لاستقطاع لأنه لم يُحسب له من الأساس).
+    </div>
+  </div>
+
+  <h2 id="rate">2. معدّل اليوم والساعة والدقيقة</h2>
+  <div class="card">
+    <p>كل الاستقطاعات (تأخير، غياب، إجازة غير مدفوعة...) تُحسب بالاعتماد على "معدّل اليوم"، وهو ناتج قسمة الراتب على 30:</p>
+    <div class="formula">معدّل اليوم   = (الراتب الأساسي + البدلات) ÷ 30
+معدّل الساعة  = معدّل اليوم ÷ 8
+معدّل الدقيقة = معدّل الساعة ÷ 60</div>
+    <div class="note">
+      <b>ملاحظة مهمة جداً:</b> القسمة هي دائماً على <b>30 يوم تقويمي ثابت</b> — وليس على عدد أيام العمل الفعلية في الشهر (التي قد تكون 22 أو 26 يوماً). هذه نقطة شائعة تسبب اختلافاً بين الحساب اليدوي وحساب النظام، فإذا كانت مطابقتكم تفترض القسمة على عدد أيام العمل، ستجدون فرقاً — والفرق هنا سببه طريقة الحساب، وليس خطأ بالضرورة.
+    </div>
+    <div class="example">
+      <b>مثال:</b> راتب أساسي 3,000 (بدون بدلات)<br>
+      معدّل اليوم = 3000 ÷ 30 = <b>100</b><br>
+      معدّل الساعة = 100 ÷ 8 = <b>12.5</b><br>
+      معدّل الدقيقة = 12.5 ÷ 60 ≈ <b>0.208</b>
+    </div>
+  </div>
+
+  <h2 id="leave">3. تأثير الإجازات على الراتب</h2>
+  <div class="card">
+    <p>ليست كل الإجازات متشابهة. النظام يفرّق بين أربعة أنواع:</p>
+    <table>
+      <tr><th>نوع الإجازة</th><th>التأثير على الراتب</th></tr>
+      <tr>
+        <td>إجازة مدفوعة (سنوية عادية مثلاً)</td>
+        <td><span class="tag green">بدون استقطاع</span> — الموظف يأخذ راتبه كاملاً عن تلك الأيام</td>
+      </tr>
+      <tr>
+        <td>إجازة مرضية</td>
+        <td><span class="tag orange">استقطاع متدرّج</span> — حسب عدد الأيام (مثال: أول 3 أيام بدون استقطاع، ثم نسبة تزيد تدريجياً)</td>
+      </tr>
+      <tr>
+        <td>إجازة غير مدفوعة (يوم كامل)</td>
+        <td><span class="tag red">استقطاع كامل</span> = عدد الأيام × معدّل اليوم</td>
+      </tr>
+      <tr>
+        <td>إجازة بالساعة (مدفوعة)</td>
+        <td><span class="tag green">بدون استقطاع</span></td>
+      </tr>
+      <tr>
+        <td>إجازة بالساعة (غير مدفوعة)</td>
+        <td><span class="tag red">استقطاع</span> = عدد الدقائق × معدّل الدقيقة</td>
+      </tr>
+    </table>
+    <div class="example">
+      <b>مثال:</b> موظف أخذ يومين إجازة غير مدفوعة، ومعدّل يومه = 100<br>
+      الاستقطاع = 2 × 100 = <b>200</b> تُخصم من راتبه
+    </div>
+  </div>
+
+  <h2 id="absence">4. تأثير الغياب</h2>
+  <div class="card">
+    <p>الغياب هو عدم وجود تسجيل حضور <u>ولا</u> إجازة معتمدة في يوم عمل رسمي. وله حالتان:</p>
+    <table>
+      <tr><th>الحالة</th><th>التأثير</th></tr>
+      <tr>
+        <td>غياب مُبرَّر (مقدَّم له تبرير واعتمده المدير/الموارد البشرية)</td>
+        <td><span class="tag green">بدون استقطاع</span></td>
+      </tr>
+      <tr>
+        <td>غياب غير مُبرَّر</td>
+        <td><span class="tag red">استقطاع</span> = عدد أيام الغياب غير المبرر × معدّل اليوم</td>
+      </tr>
+    </table>
+    <div class="note">عند المطابقة: إذا وجدتم يوم غياب بدون استقطاع، تحققوا أولاً هل له تبرير معتمد في النظام — هذا يُفسّر عدم الاستقطاع.</div>
+  </div>
+
+  <h2 id="late">5. التأخير والانصراف المبكر</h2>
+  <div class="card">
+    <p>تُحسب من بيانات الحضور الفعلية (وقت الدخول والخروج المسجَّل):</p>
+    <ul>
+      <li>يوجد عادة "سماحية" يومية بالدقائق (مثلاً 15 دقيقة) قبل أن يبدأ الاستقطاع.</li>
+      <li>بعد تجاوز السماحية، يُستقطع حسب السياسة المعتمدة: إما دقيقة بدقيقة، أو حسب "شرائح" (مثال: تأخير من 15-30 دقيقة = استقطاع نصف ساعة، تأخير أكثر من ساعة = استقطاع ساعتين).</li>
+      <li>إذا عمل الموظف وقتاً إضافياً في نفس اليوم لتعويض تأخيره، قد يُخصم هذا التعويض من مجموع دقائق التأخير قبل حساب الاستقطاع.</li>
+    </ul>
+  </div>
+
+  <h2 id="extra">6. الإضافات للراتب</h2>
+  <div class="card">
+    <table>
+      <tr><th>البند</th><th>كيف يُحسب</th></tr>
+      <tr><td>البدلات (سكن، طبيعة عمل، شهادة...)</td><td>مبلغ ثابت محدد لكل موظف، يُضاف دائماً</td></tr>
+      <tr><td>الوقت الإضافي (أيام عمل عادية)</td><td>دقائق العمل الإضافي × معدّل الدقيقة × 1.5</td></tr>
+      <tr><td>الوقت الإضافي (عطل/أعياد)</td><td>دقائق العمل الإضافي × معدّل الدقيقة × 2 (أو حسب السياسة)</td></tr>
+      <tr><td>مكافآت مادية معتمدة</td><td>تُضاف كاملة كما هي</td></tr>
+      <tr><td>عمولات مبيعات مؤكَّدة</td><td>تُضاف كاملة كما هي</td></tr>
+      <tr><td>بدل مهمات عمل (داخلية/خارجية)</td><td>عدد أيام المهمة × بدل اليوم المحدد لهذا النوع</td></tr>
+    </table>
+  </div>
+
+  <h2 id="deduct">7. استقطاعات أخرى</h2>
+  <div class="card">
+    <table>
+      <tr><th>البند</th><th>كيف يُحسب</th></tr>
+      <tr><td>عقوبة مادية معتمدة</td><td>عدد أيام العقوبة × معدّل اليوم</td></tr>
+      <tr><td>سلفة على الراتب</td><td>قيمة القسط الشهري المحدد للسلفة (أو الباقي إن كان أقل)</td></tr>
+      <tr><td>استقطاع يدوي آخر</td><td>مبلغ يُدخله الموارد البشرية مباشرة لحالة خاصة</td></tr>
+    </table>
+  </div>
+
+  <h2 id="final">8. المعادلة النهائية الكاملة</h2>
+  <div class="final-box">
+    <p style="margin-top:0;">هذا هو الترتيب الكامل لحساب الراتب الصافي:</p>
+    <div class="formula">الراتب الإجمالي =
+    (الراتب الأساسي + البدلات) × نسبة التناسب  [إذا التحق الموظف بمنتصف الشهر]
+  + الوقت الإضافي
+  + بدل المهمات
+
+الراتب الصافي =
+    الراتب الإجمالي
+  + المكافآت
+  + العمولات
+  − استقطاع التأخير
+  − استقطاع الانصراف المبكر
+  − استقطاع تجاوز وقت الاستراحة
+  − استقطاع الغياب غير المبرر
+  − استقطاع الإجازة غير المدفوعة (يومية + بالساعة)
+  − استقطاع الإجازة المرضية المتدرّج
+  − العقوبات المادية
+  − قسط السلفة
+  − استقطاعات يدوية أخرى</div>
+    <p style="margin-bottom:0;">والنتيجة هي الراتب الصافي الذي يستلمه الموظف فعلياً.</p>
+  </div>
+
+  <h2 id="check">9. كيف تتأكد إن الراتب صحيح؟</h2>
+  <div class="card">
+    <p>عند مراجعة راتب موظف معيّن لشهر معيّن، اسألوا بالترتيب:</p>
+    <ol>
+      <li>هل الراتب الأساسي والبدلات المسجَّلة بملفه صحيحة؟</li>
+      <li>هل كل إجازاته بالشهر مصنَّفة بشكل صحيح (مدفوعة / غير مدفوعة / مرضية)؟</li>
+      <li>هل أيام غيابه (إن وجدت) فيها تبرير معتمد أم لا؟</li>
+      <li>هل تأخيره المسجَّل يتجاوز السماحية المسموحة؟</li>
+      <li>هل لديه سلفة نشطة أو عقوبة بهذا الشهر؟</li>
+      <li>تذكروا أن معدّل اليوم دائماً = الراتب ÷ 30 (وليس ÷ عدد أيام العمل) — هذا غالباً سبب أي فرق يظهر بالحساب اليدوي.</li>
+    </ol>
+    <div class="note">
+      إذا أردتم التحقق من راتب موظف معيّن مقابل البيانات الفعلية المخزّنة على السيرفر (إجازاته، غيابه، تأخيره لذلك الشهر بالتفصيل)، يمكن جلب هذه البيانات مباشرة من قاعدة البيانات والمقارنة رقماً برقم مع ما ظهر في كشف الراتب.
+    </div>
+  </div>
+
+</div>
+
+<footer>تم إعداد هذا الشرح لتوضيح آلية الحساب البرمجية الفعلية المطبَّقة في النظام.</footer>
+
+</body>
+</html>

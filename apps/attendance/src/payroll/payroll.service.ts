@@ -259,11 +259,13 @@ export class PayrollService {
     }
     // دقائق التأخير/الخروج المبكر غير المبررة التي انتهى رصيدها ولم تُولَّد لها طلبات إجازة تلقائية
     // تُضاف مباشرة للخصم التلقائي لتظهر في عمودَي V (الإجازة التلقائية) وW (القيمة)
-    const attendancePendingMinutes = records.reduce(
-      (sum, r) => sum + (r.earlyLeavePendingDeductionMinutes ?? 0) + (r.tardinessPendingDeductionMinutes ?? 0),
-      0,
-    );
-    autoLeaveOverLimitMinutes += attendancePendingMinutes;
+    if (salaryLinked) {
+      const attendancePendingMinutes = records.reduce(
+        (sum, r) => sum + (r.earlyLeavePendingDeductionMinutes ?? 0) + (r.tardinessPendingDeductionMinutes ?? 0),
+        0,
+      );
+      autoLeaveOverLimitMinutes += attendancePendingMinutes;
+    }
 
     // المجموع الإجمالي للإجازة الساعية (للعرض)
     const hourlyLeaveMinutes = paidHourlyLeaveMinutes + unpaidHourlyLeaveMinutes + tardinessOffsetMinutesPayroll;
@@ -514,7 +516,7 @@ export class PayrollService {
 
     // D: مبالغ الإجازات — الإجازة الساعية المدفوعة وتعويض التأخير لا يُحسمان
     const unpaidLeaveAmount = unpaidLeaveDays * dailyRate;
-    const hourlyLeaveAmount = (unpaidHourlyLeaveMinutes + autoLeaveOverLimitMinutes) * minuteRate;
+    const hourlyLeaveAmount = salaryLinked ? (unpaidHourlyLeaveMinutes + autoLeaveOverLimitMinutes) * minuteRate : 0;
     const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
 
     const totalCompensationMinutes = records.reduce((sum, r) => sum + (r.lateCompensatedMinutes ?? 0), 0);
@@ -595,6 +597,12 @@ export class PayrollService {
       }
     }
 
+    if (!salaryLinked) {
+      lateDeductionMinutes = 0;
+      lateDeductionDaysFromTiers = 0;
+      earlyLeaveDeductionMinutes = 0;
+      earlyLeaveDeductionDaysFromTiers = 0;
+    }
     const earlyLeaveDeductionAmount = (earlyLeaveDeductionMinutes * minuteRate) + (earlyLeaveDeductionDaysFromTiers * dailyRate);
     const deductionAmount = lateDeductionAmount + earlyLeaveDeductionAmount + (breakDeductionMinutes * minuteRate);
     const absenceDeductionAmount = absenceDeductionDaysCalc * dailyRate;
@@ -1389,7 +1397,7 @@ export class PayrollService {
       '$ الراتب الصافي', '$ تقريب', 'ملاحظات',
     ];
 
-    const rows = payrolls.map(p => {
+    const rows = payrolls.filter(p => (p as any).salaryLinked !== false).map(p => {
       const emp = empMap.get(p.employeeId);
       const allowances = p.allowancesBreakdown ? JSON.parse(p.allowancesBreakdown as string) : {};
       const bd = p.deductionBreakdown as any;
