@@ -183,6 +183,8 @@ export class PayrollService {
     let unpaidHourlyLeaveMinutes = 0;
     // تعويض تأخير تلقائي من الرصيد (لا تُحسم — مدفوعة)
     let tardinessOffsetMinutesPayroll = 0;
+    // دقائق الإجازة التلقائية التي تجاوزت الحد الشهري (تُحسم وتظهر في W)
+    let autoLeaveOverLimitMinutes = 0;
     let totalUnpaidDailyDays = 0;
 
     // تتبع الساعات المستخدمة لكل نوع إجازة ساعية لحساب الزيادة عن الحد الشهري ديناميكياً
@@ -231,7 +233,7 @@ export class PayrollService {
         const freeMinutes = minutes - overLimitMinutes;
         if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') {
           tardinessOffsetMinutesPayroll += freeMinutes;   // ضمن الحد — بدون حسم
-          unpaidHourlyLeaveMinutes += overLimitMinutes;   // تجاوز الحد — يُحسم
+          autoLeaveOverLimitMinutes += overLimitMinutes;  // تجاوز الحد — يُحسم ويظهر في W
         } else if (leave.isPaid) {
           paidHourlyLeaveMinutes += freeMinutes;
           unpaidHourlyLeaveMinutes += overLimitMinutes;
@@ -504,7 +506,7 @@ export class PayrollService {
 
     // D: مبالغ الإجازات — الإجازة الساعية المدفوعة وتعويض التأخير لا يُحسمان
     const unpaidLeaveAmount = unpaidLeaveDays * dailyRate;
-    const hourlyLeaveAmount = unpaidHourlyLeaveMinutes * minuteRate;
+    const hourlyLeaveAmount = (unpaidHourlyLeaveMinutes + autoLeaveOverLimitMinutes) * minuteRate;
     const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
 
     const totalCompensationMinutes = records.reduce((sum, r) => sum + (r.lateCompensatedMinutes ?? 0), 0);
@@ -889,6 +891,8 @@ export class PayrollService {
           paidMinutes: paidHourlyLeaveMinutes,
           unpaidMinutes: unpaidHourlyLeaveMinutes,
           tardinessOffsetMinutes: tardinessOffsetMinutesPayroll,
+          autoOverLimitMinutes: autoLeaveOverLimitMinutes,
+          autoOverLimitAmount: parseFloat((autoLeaveOverLimitMinutes * minuteRate).toFixed(2)),
           deductionAmount: parseFloat(hourlyLeaveAmount.toFixed(2)),
         },
         sickLeave: {
@@ -1419,7 +1423,7 @@ export class PayrollService {
         Number((p as any).totalLateMinutesEffective ?? 0),
         Number((p as any).totalEarlyLeaveMinutes ?? 0),
         parseFloat(((Number((p as any).tardinessOffsetMinutes ?? 0) + Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0)) / 60).toFixed(2)),
-        parseFloat(((Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0)) * Number((p as any).minuteRate ?? 0)).toFixed(2)),
+        Number(bd?.hourlyLeave?.autoOverLimitAmount ?? 0),
         parseFloat(((Number((p as any).paidHourlyLeaveMinutes ?? 0) + Number((p as any).unpaidHourlyLeaveMinutes ?? 0)) / 60).toFixed(2)),
         parseFloat((Number((p as any).unpaidHourlyLeaveMinutes ?? 0) * Number((p as any).minuteRate ?? 0)).toFixed(2)),
         Number((p as any).absentUnjustified ?? 0),
