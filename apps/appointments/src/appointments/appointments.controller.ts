@@ -5,7 +5,7 @@ import { AppointmentsService } from './appointments.service';
 import {
   CreateAppointmentDto, UpdateAppointmentDto, UpdateStatusDto,
   RescheduleDto, ListAppointmentsQueryDto, CalendarQueryDto, SlotsQueryDto,
-  PractitionerPatientsQueryDto,
+  PractitionerPatientsQueryDto, MyAppointmentsQueryDto,
 } from './dto/appointment.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -52,6 +52,12 @@ export class AppointmentsController {
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
   getSlots(@Param('id') id: string, @Query() query: SlotsQueryDto) {
     return this.service.getAvailableSlots(id, query);
+  }
+
+  @Get('my-appointments')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
+  getMyAppointments(@Query() query: MyAppointmentsQueryDto, @User() user: any) {
+    return this.service.findMyAppointments(user.userId, query);
   }
 
   @Get(':id')

@@ -26,9 +26,10 @@ export class AppointmentsService implements OnModuleInit {
     ).catch(() => {});
   }
 
-  private async notifyPractitioner(appt: { id: string; practitionerId: string; physiotherapistId?: string | null; patientId: string; startTime: Date }, titleAr: string, messageAr: string) {
+  private async notifyPractitioner(appt: { id: string; practitionerId: string; physiotherapistId?: string | null; therapistIds?: string[]; patientId: string; startTime: Date }, titleAr: string, messageAr: string) {
     const targets = new Set<string>([appt.practitionerId]);
     if (appt.physiotherapistId) targets.add(appt.physiotherapistId);
+    for (const tid of appt.therapistIds ?? []) targets.add(tid);
     const payload = { appointmentId: appt.id, patientId: appt.patientId };
     for (const userId of targets) {
       await this.insertNotif(userId, payload, titleAr, messageAr);
@@ -188,6 +189,7 @@ export class AppointmentsService implements OnModuleInit {
         practitionerId:    dto.practitionerId,
         practitionerRole:  dto.practitionerRole,
         physiotherapistId: dto.physiotherapistId ?? null,
+        therapistIds:      dto.therapistIds ?? [],
         appointmentType:   dto.appointmentType as any,
         startTime,
         endTime,
@@ -335,6 +337,31 @@ export class AppointmentsService implements OnModuleInit {
     return slots;
   }
 
+  async findMyAppointments(userId: string, query: { status?: string; date?: string; page?: number; limit?: number }) {
+    const { page = 1, limit = 50, status, date } = query;
+    const skip = (page - 1) * limit;
+    const where: any = {
+      OR: [
+        { practitionerId: userId },
+        { physiotherapistId: userId },
+        { therapistIds: { has: userId } },
+      ],
+    };
+    if (status) where.status = status;
+    if (date) {
+      const d = new Date(date);
+      const next = new Date(d);
+      next.setDate(next.getDate() + 1);
+      where.startTime = { gte: d, lt: next };
+    }
+    const [raw, total] = await Promise.all([
+      this.prisma.appointment.findMany({ where, skip, take: limit, orderBy: { startTime: 'asc' } }),
+      this.prisma.appointment.count({ where }),
+    ]);
+    const items = await this.attachPatientNames(raw);
+    return { items, total, page, limit };
+  }
+
   async findOne(id: string) {
     const a = await this.prisma.appointment.findUnique({ where: { id } });
     if (!a) throw new NotFoundException('Appointment not found');
@@ -343,12 +370,11 @@ export class AppointmentsService implements OnModuleInit {
   }
 
   async update(id: string, dto: UpdateAppointmentDto, userId: string) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
     const data: any = {};
     if (dto.startTime && dto.endTime) {
       const startTime = new Date(dto.startTime);
       const endTime = new Date(dto.endTime);
-      const existing = await this.findOne(id);
       const conflict = await this.checkConflict(existing.practitionerId, startTime, endTime, id);
       if (conflict) throw new BadRequestException('Conflicting appointment exists');
       if (existing.caseType) {
@@ -365,6 +391,19 @@ export class AppointmentsService implements OnModuleInit {
     if (dto.notes !== undefined) data.notes = dto.notes;
     if (dto.appointmentType) data.appointmentType = dto.appointmentType as any;
     if (dto.physiotherapistId !== undefined) data.physiotherapistId = dto.physiotherapistId;
+    if (dto.therapistIds !== undefined) {
+      data.therapistIds = dto.therapistIds;
+      const prevIds: string[] = (existing as any).therapistIds ?? [];
+      const newIds = dto.therapistIds.filter(t => !prevIds.includes(t));
+      if (newIds.length > 0) {
+        const apptTime = existing.startTime;
+        const dateStr = apptTime.toLocaleDateString('ar-SA');
+        const timeStr = apptTime.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+        for (const tid of newIds) {
+          await this.insertNotif(tid, { appointmentId: id }, 'تعيين موعد', `تم تعيينك معالجاً في موعد بتاريخ ${dateStr} الساعة ${timeStr}`);
+        }
+      }
+    }
     return this.prisma.appointment.update({ where: { id }, data });
   }
 

@@ -54,6 +54,7 @@ model Appointment {
   practitionerId      String
   practitionerRole    String
   physiotherapistId   String?
+  therapistIds        String[]
 
   appointmentType  AppointmentType
   startTime        DateTime

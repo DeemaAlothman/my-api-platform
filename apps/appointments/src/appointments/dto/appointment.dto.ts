@@ -1,5 +1,5 @@
 import {
-  IsString, IsOptional, IsEnum, IsDateString, IsInt, Min, IsNumber,
+  IsString, IsOptional, IsEnum, IsDateString, IsInt, Min, IsNumber, IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -53,6 +53,9 @@ export class CreateAppointmentDto {
   @IsOptional() @IsInt() @Min(1) @Type(() => Number)
   durationMinutes?: number;
 
+  @IsOptional() @IsArray() @IsString({ each: true })
+  therapistIds?: string[];
+
   @IsOptional() @IsString()
   notes?: string;
 }
@@ -72,6 +75,9 @@ export class UpdateAppointmentDto {
 
   @IsOptional() @IsString()
   physiotherapistId?: string;
+
+  @IsOptional() @IsArray() @IsString({ each: true })
+  therapistIds?: string[];
 }
 
 export class UpdateStatusDto {
@@ -135,4 +141,18 @@ export class SlotsQueryDto {
 export class PractitionerPatientsQueryDto {
   @IsOptional() @IsString()
   practitionerId?: string;
+}
+
+export class MyAppointmentsQueryDto {
+  @IsOptional() @IsString()
+  status?: string;
+
+  @IsOptional() @IsString()
+  date?: string;
+
+  @IsOptional() @IsInt() @Min(1) @Type(() => Number)
+  page?: number = 1;
+
+  @IsOptional() @IsInt() @Min(1) @Type(() => Number)
+  limit?: number = 50;
 }
