@@ -11,8 +11,25 @@ export class SurgeryDto {
   @IsOptional() @IsString() date?: string;
 }
 
-// ─── الشكوى المرضية ───────────────────────────────────────────────────────────
+// ─── الشكوى المرضية (نموذج الطبيب + الاستقبال) ───────────────────────────────
 export class ComplaintDto {
+  // نموذج الطبيب
+  @IsOptional() @IsString()  mainComplaint?: string;
+  @IsOptional() @IsString()  startDate?: string;
+  @IsOptional() @IsString()  possibleCause?: string;
+  @IsOptional() @IsString()  previousDoctor?: string;
+  @IsOptional() @IsString()  previousTreatment?: string;
+  @IsOptional() @IsString()  symptomsBetterTime?: string;
+  @IsOptional() @IsString()  symptomsWorseTime?: string;
+  // painType: INTERMITTENT | CONSTANT | WITH_CERTAIN_MOTIONS
+  @IsOptional() @IsString()  painType?: string;
+  // painLevel: MILD | MODERATE | SEVERE | EXCRUCIATING
+  @IsOptional() @IsString()  painLevel?: string;
+  // painTrend: BETTER | WORSE | SAME
+  @IsOptional() @IsString()  painTrend?: string;
+  @IsOptional() @IsBoolean() @Type(() => Boolean) hadInjuryBefore?: boolean;
+
+  // حقول الاستقبال
   @IsOptional() @IsString()  problemDescription?: string;
   @IsOptional() @IsString()  historyOfSymptoms?: string;
   @IsOptional() @IsArray()   @IsString({ each: true }) affectedSide?: string[];

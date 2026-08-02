@@ -19,7 +19,20 @@ model PodiatryReception {
   occupation String?
   activities String?
 
-  // الشكوى الرئيسية
+  // الشكوى الرئيسية (نموذج الطبيب)
+  mainComplaint      String?  @db.Text
+  startDate          String?
+  possibleCause      String?  @db.Text
+  previousDoctor     String?  @db.Text
+  previousTreatment  String?  @db.Text
+  symptomsBetterTime String?
+  symptomsWorseTime  String?
+  painType           String?  // INTERMITTENT | CONSTANT | WITH_CERTAIN_MOTIONS
+  painLevel          String?  // MILD | MODERATE | SEVERE | EXCRUCIATING
+  painTrend          String?  // BETTER | WORSE | SAME
+  hadInjuryBefore    Boolean?
+
+  // الشكوى التفصيلية
   problemDescription String?  @db.Text
   historyOfSymptoms  String?  @db.Text
   affectedSide       String[]

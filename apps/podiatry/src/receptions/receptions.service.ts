@@ -110,14 +110,18 @@ export class ReceptionsService {
   async upsertComplaint(id: string, dto: ComplaintDto) {
     await this.findOne(id);
     const data: any = {};
-    if (dto.problemDescription !== undefined) data.problemDescription = dto.problemDescription;
-    if (dto.historyOfSymptoms  !== undefined) data.historyOfSymptoms  = dto.historyOfSymptoms;
-    if (dto.affectedSide       !== undefined) data.affectedSide       = dto.affectedSide;
-    if (dto.footSymptoms       !== undefined) data.footSymptoms       = dto.footSymptoms;
-    if (dto.visitTypes         !== undefined) data.visitTypes         = dto.visitTypes;
-    if (dto.vasScore           !== undefined) data.vasScore           = dto.vasScore;
-    if (dto.occupation         !== undefined) data.occupation         = dto.occupation;
-    if (dto.activities         !== undefined) data.activities         = dto.activities;
+    const fields: (keyof ComplaintDto)[] = [
+      'mainComplaint', 'startDate', 'possibleCause',
+      'previousDoctor', 'previousTreatment',
+      'symptomsBetterTime', 'symptomsWorseTime',
+      'painType', 'painLevel', 'painTrend', 'hadInjuryBefore',
+      'problemDescription', 'historyOfSymptoms',
+      'affectedSide', 'footSymptoms', 'visitTypes',
+      'vasScore', 'occupation', 'activities',
+    ];
+    for (const field of fields) {
+      if (dto[field] !== undefined) data[field] = dto[field];
+    }
     return this.prisma.podiatryReception.update({ where: { id }, data });
   }
 
