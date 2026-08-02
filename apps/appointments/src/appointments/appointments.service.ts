@@ -47,7 +47,7 @@ export class AppointmentsService implements OnModuleInit {
       },
     });
     for (const appt of appointments) {
-      const timeStr = appt.startTime.toLocaleTimeString('ar-SA', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' });
+      const timeStr = appt.startTime.toLocaleTimeString('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' });
       await this.notifyPractitioner(
         appt as any,
         'تذكير بموعد قادم',
@@ -200,8 +200,8 @@ export class AppointmentsService implements OnModuleInit {
     });
 
     const tz = { timeZone: 'Asia/Riyadh' };
-    const dateStr = startTime.toLocaleDateString('ar-SA', tz);
-    const timeStr = startTime.toLocaleTimeString('ar-SA', { ...tz, hour: '2-digit', minute: '2-digit' });
+    const dateStr = startTime.toLocaleDateString('en-GB', tz);
+    const timeStr = startTime.toLocaleTimeString('en-GB', { ...tz, hour: '2-digit', minute: '2-digit' });
     const msg = `تم حجز موعد جديد بتاريخ ${dateStr} الساعة ${timeStr}`;
 
     if (dto.appointmentType === 'EXAMINATION') {
@@ -399,8 +399,8 @@ export class AppointmentsService implements OnModuleInit {
       if (newIds.length > 0) {
         const apptTime = existing.startTime;
         const tz = { timeZone: 'Asia/Riyadh' };
-        const dateStr = apptTime.toLocaleDateString('ar-SA', tz);
-        const timeStr = apptTime.toLocaleTimeString('ar-SA', { ...tz, hour: '2-digit', minute: '2-digit' });
+        const dateStr = apptTime.toLocaleDateString('en-GB', tz);
+        const timeStr = apptTime.toLocaleTimeString('en-GB', { ...tz, hour: '2-digit', minute: '2-digit' });
         for (const tid of newIds) {
           await this.insertNotif(tid, { appointmentId: id }, 'تعيين موعد', `تم تعيينك معالجاً في موعد بتاريخ ${dateStr} الساعة ${timeStr}`);
         }
