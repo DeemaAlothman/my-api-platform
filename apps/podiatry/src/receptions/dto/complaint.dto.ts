@@ -4,6 +4,12 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+// ─── إجراء تصويري ─────────────────────────────────────────────────────────────
+export class ImagingProcedureDto {
+  @IsOptional() @IsString() imageUrl?: string;
+  @IsOptional() @IsString() description?: string;
+}
+
 // ─── جراحة واحدة ─────────────────────────────────────────────────────────────
 export class SurgeryDto {
   @IsOptional() @IsString() surgeryName?: string;
@@ -28,7 +34,6 @@ export class ComplaintDto {
   // painTrend: BETTER | WORSE | SAME
   @IsOptional() @IsString()  painTrend?: string;
   @IsOptional() @IsBoolean() @Type(() => Boolean) hadInjuryBefore?: boolean;
-  @IsOptional() @IsString()  diagnosis?: string;
 
   // حقول الاستقبال
   @IsOptional() @IsString()  problemDescription?: string;
@@ -78,8 +83,12 @@ export class MedicalHistoryDto {
   @IsOptional() @IsString()  radiographyOther?: string;
   @IsOptional() @IsString()  radiographyResults?: string;
 
-  // التصوير الإجرائي
-  @IsOptional() @IsString()  imagingProcedures?: string;
+  // التشخيص
+  @IsOptional() @IsString()  diagnosis?: string;
+
+  // التصوير الإجرائي — مصفوفة { imageUrl, description }
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ImagingProcedureDto)
+  imagingProcedures?: ImagingProcedureDto[];
 
   // التحليلات
   @IsOptional() @IsBoolean() @Type(() => Boolean) hasNewAnalysis?: boolean;

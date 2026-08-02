@@ -74,8 +74,8 @@ model PodiatryReception {
   radiographyOther   String?
   radiographyResults String?  @db.Text
 
-  // التصوير الإجرائي
-  imagingProcedures String? @db.Text
+  // التصوير الإجرائي — مصفوفة { imageUrl, description }
+  imagingProcedures Json @default("[]")
 
   // التحليلات
   hasNewAnalysis  Boolean?
