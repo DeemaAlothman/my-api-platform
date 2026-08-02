@@ -31,6 +31,7 @@ model PodiatryReception {
   painLevel          String?  // MILD | MODERATE | SEVERE | EXCRUCIATING
   painTrend          String?  // BETTER | WORSE | SAME
   hadInjuryBefore    Boolean?
+  diagnosis          String?  @db.Text
 
   // الشكوى التفصيلية
   problemDescription String?  @db.Text
@@ -73,11 +74,16 @@ model PodiatryReception {
   radiographyOther   String?
   radiographyResults String?  @db.Text
 
+  // التصوير الإجرائي
+  imagingProcedures String? @db.Text
+
   // التحليلات
   hasNewAnalysis  Boolean?
   newAnalysisDate String?
+  newAnalysisNotes String? @db.Text
   hasOldAnalysis  Boolean?
   oldAnalysisDate String?
+  oldAnalysisNotes String? @db.Text
 
   // قياس كثافة العظام والمستشفى
   boneDensityScan      Boolean?

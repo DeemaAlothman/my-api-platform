@@ -28,6 +28,7 @@ export class ComplaintDto {
   // painTrend: BETTER | WORSE | SAME
   @IsOptional() @IsString()  painTrend?: string;
   @IsOptional() @IsBoolean() @Type(() => Boolean) hadInjuryBefore?: boolean;
+  @IsOptional() @IsString()  diagnosis?: string;
 
   // حقول الاستقبال
   @IsOptional() @IsString()  problemDescription?: string;
@@ -77,11 +78,16 @@ export class MedicalHistoryDto {
   @IsOptional() @IsString()  radiographyOther?: string;
   @IsOptional() @IsString()  radiographyResults?: string;
 
+  // التصوير الإجرائي
+  @IsOptional() @IsString()  imagingProcedures?: string;
+
   // التحليلات
   @IsOptional() @IsBoolean() @Type(() => Boolean) hasNewAnalysis?: boolean;
   @IsOptional() @IsString()  newAnalysisDate?: string;
+  @IsOptional() @IsString()  newAnalysisNotes?: string;
   @IsOptional() @IsBoolean() @Type(() => Boolean) hasOldAnalysis?: boolean;
   @IsOptional() @IsString()  oldAnalysisDate?: string;
+  @IsOptional() @IsString()  oldAnalysisNotes?: string;
 
   // كثافة العظام والاستشفاء
   @IsOptional() @IsBoolean() @Type(() => Boolean) boneDensityScan?: boolean;
