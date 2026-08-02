@@ -124,10 +124,24 @@ export class ReceptionsService {
   async upsertMedicalHistory(id: string, dto: MedicalHistoryDto) {
     await this.findOne(id);
     const data: any = {};
-    if (dto.medicalHistory      !== undefined) data.medicalHistory      = dto.medicalHistory;
-    if (dto.medicalHistoryOther !== undefined) data.medicalHistoryOther = dto.medicalHistoryOther;
-    if (dto.height              !== undefined) data.height              = dto.height;
-    if (dto.weight              !== undefined) data.weight              = dto.weight;
+    const fields: (keyof MedicalHistoryDto)[] = [
+      'height', 'weight',
+      'currentMedications', 'previousDiagnoses',
+      'herbalPreparations', 'herbalPreparationsDetails',
+      'otherHealthProblems', 'doctorRestrictions',
+      'smoker', 'everSmoked', 'smokingFrequency',
+      'hasPacemaker', 'isPregnant', 'allergyToAdhesives',
+      'surgeries',
+      'hadPhysicalTherapy', 'hasOtherTreatments',
+      'radiographyTypes', 'radiographyOther', 'radiographyResults',
+      'hasNewAnalysis', 'newAnalysisDate',
+      'hasOldAnalysis', 'oldAnalysisDate',
+      'boneDensityScan', 'hospitalizedPastYear',
+      'medicalHistory', 'medicalHistoryOther',
+    ];
+    for (const field of fields) {
+      if (dto[field] !== undefined) data[field] = dto[field];
+    }
     return this.prisma.podiatryReception.update({ where: { id }, data });
   }
 }

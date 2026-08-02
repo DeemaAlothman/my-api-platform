@@ -1,63 +1,82 @@
-import { IsString, IsOptional, IsArray, IsInt, Min, Max, IsNumber } from 'class-validator';
+import {
+  IsString, IsOptional, IsArray, IsInt, Min, Max,
+  IsNumber, IsBoolean, ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class ComplaintDto {
-  @IsOptional()
-  @IsString()
-  problemDescription?: string;
-
-  @IsOptional()
-  @IsString()
-  historyOfSymptoms?: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  affectedSide?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  footSymptoms?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  visitTypes?: string[];
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(10)
-  @Type(() => Number)
-  vasScore?: number;
-
-  @IsOptional()
-  @IsString()
-  occupation?: string;
-
-  @IsOptional()
-  @IsString()
-  activities?: string;
+// ─── جراحة واحدة ─────────────────────────────────────────────────────────────
+export class SurgeryDto {
+  @IsOptional() @IsString() surgeryName?: string;
+  @IsOptional() @IsString() type?: string;
+  @IsOptional() @IsString() date?: string;
 }
 
+// ─── الشكوى المرضية ───────────────────────────────────────────────────────────
+export class ComplaintDto {
+  @IsOptional() @IsString()  problemDescription?: string;
+  @IsOptional() @IsString()  historyOfSymptoms?: string;
+  @IsOptional() @IsArray()   @IsString({ each: true }) affectedSide?: string[];
+  @IsOptional() @IsArray()   @IsString({ each: true }) footSymptoms?: string[];
+  @IsOptional() @IsArray()   @IsString({ each: true }) visitTypes?: string[];
+  @IsOptional() @IsInt() @Min(1) @Max(10) @Type(() => Number) vasScore?: number;
+  @IsOptional() @IsString()  occupation?: string;
+  @IsOptional() @IsString()  activities?: string;
+}
+
+// ─── التاريخ الطبي الكامل ─────────────────────────────────────────────────────
 export class MedicalHistoryDto {
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  medicalHistory?: string[];
+  // الطول والوزن
+  @IsOptional() @IsNumber() @Type(() => Number) height?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) weight?: number;
 
-  @IsOptional()
-  @IsString()
-  medicalHistoryOther?: string;
+  // الأدوية والتشخيصات
+  @IsOptional() @IsString()  currentMedications?: string;
+  @IsOptional() @IsString()  previousDiagnoses?: string;
+  @IsOptional() @IsBoolean() @Type(() => Boolean) herbalPreparations?: boolean;
+  @IsOptional() @IsString()  herbalPreparationsDetails?: string;
+  @IsOptional() @IsString()  otherHealthProblems?: string;
+  @IsOptional() @IsString()  doctorRestrictions?: string;
 
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  height?: number;
+  // التدخين
+  @IsOptional() @IsBoolean() @Type(() => Boolean) smoker?: boolean;
+  @IsOptional() @IsBoolean() @Type(() => Boolean) everSmoked?: boolean;
+  @IsOptional() @IsString()  smokingFrequency?: string;
 
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  weight?: number;
+  // مؤشرات صحية
+  @IsOptional() @IsBoolean() @Type(() => Boolean) hasPacemaker?: boolean;
+  @IsOptional() @IsBoolean() @Type(() => Boolean) isPregnant?: boolean;
+  @IsOptional() @IsBoolean() @Type(() => Boolean) allergyToAdhesives?: boolean;
+
+  // العمليات الجراحية [ { surgeryName, type, date } ] — حتى 5
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => SurgeryDto)
+  surgeries?: SurgeryDto[];
+
+  // العلاج الفيزيائي
+  @IsOptional() @IsBoolean() @Type(() => Boolean) hadPhysicalTherapy?: boolean;
+  @IsOptional() @IsBoolean() @Type(() => Boolean) hasOtherTreatments?: boolean;
+
+  // التصوير الشعاعي — القيم: MRI | X_RAY | CT | MYELOGRAM | OTHER
+  @IsOptional() @IsArray() @IsString({ each: true }) radiographyTypes?: string[];
+  @IsOptional() @IsString()  radiographyOther?: string;
+  @IsOptional() @IsString()  radiographyResults?: string;
+
+  // التحليلات
+  @IsOptional() @IsBoolean() @Type(() => Boolean) hasNewAnalysis?: boolean;
+  @IsOptional() @IsString()  newAnalysisDate?: string;
+  @IsOptional() @IsBoolean() @Type(() => Boolean) hasOldAnalysis?: boolean;
+  @IsOptional() @IsString()  oldAnalysisDate?: string;
+
+  // كثافة العظام والاستشفاء
+  @IsOptional() @IsBoolean() @Type(() => Boolean) boneDensityScan?: boolean;
+  @IsOptional() @IsBoolean() @Type(() => Boolean) hospitalizedPastYear?: boolean;
+
+  // قائمة الأمراض (متعدد الاختيار)
+  // LIVER_PROBLEMS | PNEUMONIA | URINARY_INFECTION | DIABETES | HEMOPHILIA |
+  // LUNG_ISSUES | STROKE | KIDNEY_PROBLEMS | ANEMIA | ASTHMA |
+  // CHEMICAL_DEPENDENCY | EPILEPSY | HIGH_LOW_BP | HEART_PROBLEMS | DEPRESSION |
+  // BONE_INFECTION | ARTERIOSCLEROSIS | TUBERCULOSIS | MUSCULOSKELETAL |
+  // JOINT_BONE_INFECTION | EYE_INFECTION | CIRCULATION_PROBLEMS | ARTHRITIS |
+  // CANCER | BLOOD_CLOTS | ANGINA | STD | MULTIPLE_SCLEROSIS | AIDS_HIV | OTHER
+  @IsOptional() @IsArray() @IsString({ each: true }) medicalHistory?: string[];
+  @IsOptional() @IsString() medicalHistoryOther?: string;
 }

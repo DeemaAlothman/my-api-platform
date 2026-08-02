@@ -30,7 +30,47 @@ model PodiatryReception {
   // نوع الزيارة - متعدد
   visitTypes String[]
 
-  // التاريخ المرضي - متعدد
+  // الأدوية والتشخيصات
+  currentMedications        String?  @db.Text
+  previousDiagnoses         String?  @db.Text
+  herbalPreparations        Boolean?
+  herbalPreparationsDetails String?  @db.Text
+  otherHealthProblems       String?  @db.Text
+  doctorRestrictions        String?  @db.Text
+
+  // التدخين
+  smoker           Boolean?
+  everSmoked       Boolean?
+  smokingFrequency String?
+
+  // مؤشرات صحية
+  hasPacemaker      Boolean?
+  isPregnant        Boolean?
+  allergyToAdhesives Boolean?
+
+  // العمليات الجراحية [ { surgeryName, type, date } ]
+  surgeries Json @default("[]")
+
+  // العلاج الفيزيائي
+  hadPhysicalTherapy Boolean?
+  hasOtherTreatments Boolean?
+
+  // التصوير الشعاعي
+  radiographyTypes   String[]
+  radiographyOther   String?
+  radiographyResults String?  @db.Text
+
+  // التحليلات
+  hasNewAnalysis  Boolean?
+  newAnalysisDate String?
+  hasOldAnalysis  Boolean?
+  oldAnalysisDate String?
+
+  // قياس كثافة العظام والمستشفى
+  boneDensityScan      Boolean?
+  hospitalizedPastYear Boolean?
+
+  // التاريخ المرضي - قائمة الأمراض
   medicalHistory      String[]
   medicalHistoryOther String?
 
