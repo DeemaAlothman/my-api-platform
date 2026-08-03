@@ -1332,10 +1332,12 @@ export class LeaveRequestsService {
              WHEN attendance_records."clockInTime" IS NOT NULL THEN 'PARTIAL_LEAVE'
              ELSE 'ON_LEAVE'
            END,
-           "leaveStartTime"     = EXCLUDED."leaveStartTime",
-           "leaveEndTime"       = EXCLUDED."leaveEndTime",
-           "hourlyLeaveMinutes" = EXCLUDED."hourlyLeaveMinutes",
-           "updatedAt"          = NOW()`,
+           "leaveStartTime"                    = EXCLUDED."leaveStartTime",
+           "leaveEndTime"                      = EXCLUDED."leaveEndTime",
+           "hourlyLeaveMinutes"                = EXCLUDED."hourlyLeaveMinutes",
+           "tardinessPendingDeductionMinutes"  = 0,
+           "earlyLeavePendingDeductionMinutes" = 0,
+           "updatedAt"                         = NOW()`,
         request.employeeId, dateStr, hourlyLeaveMinutes, leaveStartTs, leaveEndTs,
       );
     } catch (err) {
