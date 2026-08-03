@@ -190,6 +190,51 @@ export class MailService {
     });
   }
 
+  async sendInternal(dto: {
+    senderId: string;
+    recipientUserIds: string[];
+    subject: string;
+    body: string;
+    data?: Record<string, any>;
+  }) {
+    const unique = [...new Set(dto.recipientUserIds.filter(id => id && id !== dto.senderId))];
+    if (unique.length === 0) return null;
+
+    const message = await (this.prisma as any).mailMessage.create({
+      data: {
+        senderId: dto.senderId,
+        subject: dto.subject,
+        body: dto.body,
+        isDraft: false,
+        recipients: {
+          createMany: {
+            data: unique.map(userId => ({
+              recipientId: userId,
+              type: RecipientType.TO,
+              folder: MailFolder.INBOX,
+            })),
+          },
+        },
+      },
+    });
+
+    setImmediate(() => {
+      for (const userId of unique) {
+        internalPost(`${USERS_URL}/api/v1/notifications/internal`, {
+          userId,
+          type: 'GENERAL',
+          titleAr: 'رسالة داخلية جديدة',
+          titleEn: 'New Internal Message',
+          messageAr: `لديك رسالة جديدة بعنوان: ${dto.subject}`,
+          messageEn: `You have a new message: ${dto.subject}`,
+          data: { messageId: message.id, ...(dto.data ?? {}) },
+        });
+      }
+    });
+
+    return message;
+  }
+
   async saveDraft(senderId: string, dto: SaveDraftDto) {
     const resolved = dto.recipients ? await resolveEmployeeIdsToUserIds(dto.recipients) : [];
     const deduped = resolved.length ? this.dedupRecipients(resolved, senderId) : [];

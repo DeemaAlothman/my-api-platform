@@ -211,6 +211,18 @@ export class AppointmentsService implements OnModuleInit {
       await this.notifyPractitioner(appt as any, 'موعد جديد', msg);
     }
 
+    // رسالة داخلية للممارس وكل المعالجين
+    const mailRecipients = [...new Set([
+      dto.practitionerId,
+      ...(dto.physiotherapistId ? [dto.physiotherapistId] : []),
+      ...(dto.therapistIds ?? []),
+    ])];
+    fetch(`${process.env.MAIL_SERVICE_URL || 'http://mail:4005'}/api/v1/mail/internal/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN || '' },
+      body: JSON.stringify({ senderId: userId, recipientUserIds: mailRecipients, subject: 'موعد جديد', body: msg, data: { appointmentId: appt.id } }),
+    }).catch(() => {});
+
     return appt;
   }
 

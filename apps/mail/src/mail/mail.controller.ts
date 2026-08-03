@@ -7,6 +7,8 @@ import {
   Body,
   Param,
   Query,
+  Headers,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -28,6 +30,17 @@ import { User } from '@shared/auth';
 @Controller('mail')
 export class MailController {
   constructor(private readonly mailService: MailService) {}
+
+  @Post('internal/send')
+  async sendInternal(
+    @Headers('x-internal-token') token: string,
+    @Body() dto: { senderId: string; recipientUserIds: string[]; subject: string; body: string; data?: Record<string, any> },
+  ) {
+    if (!token || token !== (process.env.INTERNAL_SERVICE_TOKEN ?? '')) {
+      throw new UnauthorizedException('Invalid internal token');
+    }
+    return this.mailService.sendInternal(dto);
+  }
 
   @Post('send')
   @Permission('mail:send')
