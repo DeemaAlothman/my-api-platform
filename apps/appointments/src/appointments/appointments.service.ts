@@ -128,17 +128,31 @@ export class AppointmentsService implements OnModuleInit {
     }
   }
 
-  private async checkConflict(practitionerId: string, startTime: Date, endTime: Date, excludeId?: string) {
-    const where: any = {
-      practitionerId,
+  private async checkConflict(
+    practitionerId: string,
+    startTime: Date,
+    endTime: Date,
+    excludeId?: string,
+    therapistIds?: string[],
+  ) {
+    const timeWhere: any = {
       status: { notIn: ['CANCELLED', 'NO_SHOW'] },
       AND: [
         { startTime: { lt: endTime } },
         { endTime: { gt: startTime } },
       ],
     };
-    if (excludeId) where.id = { not: excludeId };
-    return this.prisma.appointment.findFirst({ where });
+    if (excludeId) timeWhere.id = { not: excludeId };
+
+    if (therapistIds && therapistIds.length > 0) {
+      return this.prisma.appointment.findFirst({
+        where: { ...timeWhere, therapistIds: { hasSome: therapistIds } },
+      });
+    }
+
+    return this.prisma.appointment.findFirst({
+      where: { ...timeWhere, practitionerId },
+    });
   }
 
   // فحص تعارض المريض بين الأقسام: نفس المريض، وقت متداخل، قسم مختلف
@@ -170,7 +184,7 @@ export class AppointmentsService implements OnModuleInit {
 
     if (endTime <= startTime) throw new BadRequestException('endTime must be after startTime');
 
-    const conflict = await this.checkConflict(dto.practitionerId, startTime, endTime);
+    const conflict = await this.checkConflict(dto.practitionerId, startTime, endTime, undefined, dto.therapistIds);
     if (conflict) throw new BadRequestException('Practitioner has a conflicting appointment at this time');
 
     if (dto.caseType) {
@@ -390,7 +404,7 @@ export class AppointmentsService implements OnModuleInit {
     if (dto.startTime && dto.endTime) {
       const startTime = new Date(dto.startTime);
       const endTime = new Date(dto.endTime);
-      const conflict = await this.checkConflict(existing.practitionerId, startTime, endTime, id);
+      const conflict = await this.checkConflict(existing.practitionerId, startTime, endTime, id, dto.therapistIds ?? (existing as any).therapistIds);
       if (conflict) throw new BadRequestException('Conflicting appointment exists');
       if (existing.caseType) {
         const crossConflict = await this.checkPatientCrossServiceConflict(existing.patientId, existing.caseType as string, startTime, endTime, id);
@@ -443,7 +457,7 @@ export class AppointmentsService implements OnModuleInit {
     const appt = await this.findOne(id);
     const startTime = new Date(dto.startTime);
     const endTime = new Date(dto.endTime);
-    const conflict = await this.checkConflict(appt.practitionerId, startTime, endTime, id);
+    const conflict = await this.checkConflict(appt.practitionerId, startTime, endTime, id, (appt as any).therapistIds);
     if (conflict) throw new BadRequestException('Conflicting appointment exists');
     if (appt.caseType) {
       const crossConflict = await this.checkPatientCrossServiceConflict(appt.patientId, appt.caseType as string, startTime, endTime, id);
