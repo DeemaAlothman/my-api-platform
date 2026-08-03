@@ -91,7 +91,7 @@ async function bootstrap() {
   expressApp.use('/uploads/patients', proxyPatientUpload);
 
   // مرفقات الإجازات → leave service
-  const proxyLeaveUpload = makeUploadProxy(leaveUrl, '/uploads');
+  const proxyLeaveUpload = makeUploadProxy(leaveUrl, '/uploads/leave');
   expressApp.use('/uploads/leave', proxyLeaveUpload);
 
   // ملفات الموظفين والعامة → users service
