@@ -84,17 +84,12 @@ async function bootstrap() {
 
   const patientsUrl = process.env.PATIENTS_SERVICE_URL || 'http://patients:4010';
   const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
-  const leaveUrl = process.env.LEAVE_SERVICE_URL || 'http://leave:4003';
 
   // ملفات المرضى → patients service (يجب أن يكون قبل /uploads العام)
   const proxyPatientUpload = makeUploadProxy(patientsUrl, '/uploads');
   expressApp.use('/uploads/patients', proxyPatientUpload);
 
-  // مرفقات الإجازات → leave service
-  const proxyLeaveUpload = makeUploadProxy(leaveUrl, '/uploads/leave');
-  expressApp.use('/uploads/leave', proxyLeaveUpload);
-
-  // ملفات الموظفين والعامة → users service
+  // ملفات الموظفين والعامة (بما فيها مرفقات الإجازات) → users service
   const proxyUpload = makeUploadProxy(usersUrl, '/uploads');
   expressApp.use('/uploads', proxyUpload);
   expressApp.use('/api/v1/uploads', proxyUpload);
