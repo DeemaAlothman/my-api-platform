@@ -240,16 +240,20 @@ export class AppointmentsService implements OnModuleInit {
     return appt;
   }
 
-  private async attachPatientNames<T extends { patientId: string }>(items: T[]): Promise<(T & { patientName: string })[]> {
-    if (items.length === 0) return items.map(i => ({ ...i, patientName: '' }));
+  private async attachPatientNames<T extends { patientId: string }>(items: T[]): Promise<(T & { patientName: string; patientNumber: string })[]> {
+    if (items.length === 0) return items.map(i => ({ ...i, patientName: '', patientNumber: '' }));
     const ids = [...new Set(items.map(i => i.patientId))];
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string }>>(
-      `SELECT id, "firstName", "lastName" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
+    const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; patientNumber: string }>>(
+      `SELECT id, "firstName", "lastName", "patientNumber" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
       ...ids,
     );
-    const map = new Map(patients.map(p => [p.id, `${p.firstName} ${p.lastName}`]));
-    return items.map(i => ({ ...i, patientName: map.get(i.patientId) ?? '' }));
+    const map = new Map(patients.map(p => [p.id, { name: `${p.firstName} ${p.lastName}`, number: p.patientNumber }]));
+    return items.map(i => ({
+      ...i,
+      patientName: map.get(i.patientId)?.name ?? '',
+      patientNumber: map.get(i.patientId)?.number ?? '',
+    }));
   }
 
   async findAll(query: ListAppointmentsQueryDto) {
