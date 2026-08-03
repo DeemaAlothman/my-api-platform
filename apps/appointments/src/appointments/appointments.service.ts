@@ -155,10 +155,9 @@ export class AppointmentsService implements OnModuleInit {
     });
   }
 
-  // فحص تعارض المريض بين الأقسام: نفس المريض، وقت متداخل، قسم مختلف
-  private async checkPatientCrossServiceConflict(
+  // فحص تعارض المريض: نفس المريض لا يمكن أن يكون في موعدين متزامنين
+  private async checkPatientConflict(
     patientId: string,
-    caseType: string,
     startTime: Date,
     endTime: Date,
     excludeId?: string,
@@ -166,7 +165,6 @@ export class AppointmentsService implements OnModuleInit {
     const where: any = {
       patientId,
       status: { notIn: ['CANCELLED', 'NO_SHOW'] },
-      caseType: { not: caseType },
       AND: [
         { startTime: { lt: endTime } },
         { endTime: { gt: startTime } },
@@ -187,10 +185,8 @@ export class AppointmentsService implements OnModuleInit {
     const conflict = await this.checkConflict(dto.practitionerId, startTime, endTime, undefined, dto.therapistIds);
     if (conflict) throw new BadRequestException('Practitioner has a conflicting appointment at this time');
 
-    if (dto.caseType) {
-      const crossConflict = await this.checkPatientCrossServiceConflict(dto.patientId, dto.caseType, startTime, endTime);
-      if (crossConflict) throw new BadRequestException('المريض لديه موعد في قسم آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين في قسمين مختلفين');
-    }
+    const patientConflict = await this.checkPatientConflict(dto.patientId, startTime, endTime);
+    if (patientConflict) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
 
     const onLeave = await this.checkLeaveOverlap(dto.practitionerId, startTime, endTime);
     if (onLeave) throw new BadRequestException('Practitioner is on approved leave during this time');
@@ -410,10 +406,8 @@ export class AppointmentsService implements OnModuleInit {
       const endTime = new Date(dto.endTime);
       const conflict = await this.checkConflict(existing.practitionerId, startTime, endTime, id, dto.therapistIds ?? (existing as any).therapistIds);
       if (conflict) throw new BadRequestException('Conflicting appointment exists');
-      if (existing.caseType) {
-        const crossConflict = await this.checkPatientCrossServiceConflict(existing.patientId, existing.caseType as string, startTime, endTime, id);
-        if (crossConflict) throw new BadRequestException('المريض لديه موعد في قسم آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين في قسمين مختلفين');
-      }
+      const patientConflict2 = await this.checkPatientConflict(existing.patientId, startTime, endTime, id);
+      if (patientConflict2) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
       data.startTime = startTime;
       data.endTime = endTime;
     } else if (dto.startTime) {
@@ -463,10 +457,8 @@ export class AppointmentsService implements OnModuleInit {
     const endTime = new Date(dto.endTime);
     const conflict = await this.checkConflict(appt.practitionerId, startTime, endTime, id, (appt as any).therapistIds);
     if (conflict) throw new BadRequestException('Conflicting appointment exists');
-    if (appt.caseType) {
-      const crossConflict = await this.checkPatientCrossServiceConflict(appt.patientId, appt.caseType as string, startTime, endTime, id);
-      if (crossConflict) throw new BadRequestException('المريض لديه موعد في قسم آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين في قسمين مختلفين');
-    }
+    const patientConflict3 = await this.checkPatientConflict(appt.patientId, startTime, endTime, id);
+    if (patientConflict3) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
     return this.prisma.appointment.update({
       where: { id },
       data: { startTime, endTime, status: 'RESCHEDULED' as any, notes: dto.notes },
