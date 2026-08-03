@@ -52,7 +52,8 @@ model Appointment {
   caseType         CaseType?
 
   practitionerId      String
-  practitionerRole    String
+  practitionerRole    String?
+  departmentId        String?
   physiotherapistId   String?
   therapistIds        String[]
 

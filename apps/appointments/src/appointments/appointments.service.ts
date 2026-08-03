@@ -187,7 +187,8 @@ export class AppointmentsService implements OnModuleInit {
         caseId:            dto.caseId,
         caseType:          dto.caseType as any,
         practitionerId:    dto.practitionerId,
-        practitionerRole:  dto.practitionerRole,
+        practitionerRole:  dto.practitionerRole ?? null,
+        departmentId:      dto.departmentId ?? null,
         physiotherapistId: dto.physiotherapistId ?? null,
         therapistIds:      dto.therapistIds ?? [],
         appointmentType:   dto.appointmentType as any,
@@ -226,11 +227,12 @@ export class AppointmentsService implements OnModuleInit {
   }
 
   async findAll(query: ListAppointmentsQueryDto) {
-    const { page = 1, limit = 50, patientId, practitionerId, status, date } = query;
+    const { page = 1, limit = 50, patientId, practitionerId, departmentId, status, date } = query;
     const skip = (page - 1) * limit;
     const where: any = {};
     if (patientId) where.patientId = patientId;
     if (practitionerId) where.practitionerId = practitionerId;
+    if (departmentId) where.departmentId = departmentId;
     if (status) where.status = status;
     if (date) {
       const d = new Date(date);
@@ -391,6 +393,7 @@ export class AppointmentsService implements OnModuleInit {
     }
     if (dto.notes !== undefined) data.notes = dto.notes;
     if (dto.appointmentType) data.appointmentType = dto.appointmentType as any;
+    if (dto.departmentId !== undefined) data.departmentId = dto.departmentId;
     if (dto.physiotherapistId !== undefined) data.physiotherapistId = dto.physiotherapistId;
     if (dto.therapistIds !== undefined) {
       data.therapistIds = dto.therapistIds;

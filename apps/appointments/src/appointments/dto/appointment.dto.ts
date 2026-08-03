@@ -35,8 +35,11 @@ export class CreateAppointmentDto {
   @IsString()
   practitionerId: string;
 
-  @IsEnum(PractitionerRoleEnum)
-  practitionerRole: string;
+  @IsOptional() @IsEnum(PractitionerRoleEnum)
+  practitionerRole?: string;
+
+  @IsOptional() @IsString()
+  departmentId?: string;
 
   @IsOptional() @IsString()
   physiotherapistId?: string;
@@ -74,6 +77,9 @@ export class UpdateAppointmentDto {
   appointmentType?: string;
 
   @IsOptional() @IsString()
+  departmentId?: string;
+
+  @IsOptional() @IsString()
   physiotherapistId?: string;
 
   @IsOptional() @IsArray() @IsString({ each: true })
@@ -105,6 +111,9 @@ export class ListAppointmentsQueryDto {
 
   @IsOptional() @IsString()
   practitionerId?: string;
+
+  @IsOptional() @IsString()
+  departmentId?: string;
 
   @IsOptional() @IsString()
   status?: string;
