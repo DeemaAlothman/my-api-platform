@@ -1,0 +1,1 @@
+ALTER TYPE clinic_patients."DocumentType" ADD VALUE IF NOT EXISTS 'IMAGING_PROCEDURE';
