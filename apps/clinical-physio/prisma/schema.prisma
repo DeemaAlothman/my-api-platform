@@ -220,6 +220,7 @@ model PhysioCase {
   posturalAssessment  PosturalAssessment?
   treatmentPlan       PhysioTreatmentPlan?
   sessions            PhysioSession[]
+  followUps           PhysioFollowUp[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -450,6 +451,34 @@ model PhysioSession {
   appointmentId           String?
 
   @@map("physio_sessions")
+  @@schema("clinic_physio")
+  @@index([caseId])
+  @@index([sessionDate])
+}
+
+// ── Follow-ups ────────────────────────────────────────────────────────────
+
+model PhysioFollowUp {
+  id      String     @id @default(uuid())
+  caseId  String
+  case    PhysioCase @relation(fields: [caseId], references: [id])
+
+  followUpNumber  Int?
+  sessionDate     DateTime
+  sessionTime     String?
+  modalities      TherapyModality[]
+  notes           String? @db.Text
+
+  supervisorOpinion String? @db.Text
+  doctorDecision    String? @db.Text
+
+  physiotherapistId       String?
+  painLevel               Int?
+  romMeasurements         Json?
+  attendanceConfirmed     Boolean @default(false)
+  appointmentId           String?
+
+  @@map("physio_follow_ups")
   @@schema("clinic_physio")
   @@index([caseId])
   @@index([sessionDate])

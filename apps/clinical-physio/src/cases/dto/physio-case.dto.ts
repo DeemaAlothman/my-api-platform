@@ -747,6 +747,41 @@ export class UpdateSessionDto {
   doctorDecision?: string; // قرار الطبيب (بدون توقيع)
 }
 
+// متابعة (Follow-up) — نفس حقول الجلسة العلاجية
+export class PhysioFollowUpDto {
+  @IsDateString()
+  sessionDate: string;
+
+  @IsOptional() @IsString()
+  sessionTime?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  @IsOptional() @IsString()
+  supervisorOpinion?: string;
+
+  @IsOptional() @IsString()
+  doctorDecision?: string;
+}
+
+export class UpdateFollowUpDto {
+  @IsOptional() @IsDateString()
+  sessionDate?: string;
+
+  @IsOptional() @IsString()
+  sessionTime?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+
+  @IsOptional() @IsString()
+  supervisorOpinion?: string;
+
+  @IsOptional() @IsString()
+  doctorDecision?: string;
+}
+
 // الملخص النهائي بعد انتهاء كل الجلسات
 export class FinalSummaryDto {
   @IsOptional() @IsString()

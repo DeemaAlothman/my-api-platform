@@ -8,6 +8,7 @@ import {
   ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, DoctorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto, FinalSummaryDto,
+  PhysioFollowUpDto, UpdateFollowUpDto,
 } from './dto/physio-case.dto';
 
 // B11: خريطة الانتقالات المسموحة لحالة الملف
@@ -709,6 +710,63 @@ export class CasesService {
     const session = await this.prisma.physioSession.findFirst({ where: { id: sessionId, caseId } });
     if (!session) throw new NotFoundException('Session not found');
     return this.prisma.physioSession.delete({ where: { id: sessionId } });
+  }
+
+  // ── Follow-ups ────────────────────────────────────────────────────────────
+
+  async addFollowUp(caseId: string, dto: PhysioFollowUpDto) {
+    const physioCase = await this.findCaseOrThrow(caseId);
+    return this.prisma.$transaction(async (tx) => {
+      const last = await tx.physioFollowUp.findFirst({
+        where: { caseId },
+        orderBy: { followUpNumber: 'desc' },
+        select: { followUpNumber: true },
+      });
+      const followUpNumber = (last?.followUpNumber ?? 0) + 1;
+      return tx.physioFollowUp.create({
+        data: {
+          caseId,
+          followUpNumber,
+          sessionDate: new Date(dto.sessionDate),
+          sessionTime: dto.sessionTime,
+          notes: dto.notes,
+          supervisorOpinion: dto.supervisorOpinion,
+          doctorDecision: dto.doctorDecision,
+          physiotherapistId: physioCase.physiotherapistId ?? null,
+        },
+      });
+    });
+  }
+
+  async getFollowUps(caseId: string) {
+    await this.findCaseOrThrow(caseId);
+    return this.prisma.physioFollowUp.findMany({
+      where: { caseId },
+      orderBy: { followUpNumber: 'asc' },
+    });
+  }
+
+  async updateFollowUp(caseId: string, followUpId: string, dto: UpdateFollowUpDto) {
+    await this.findCaseOrThrow(caseId);
+    const followUp = await this.prisma.physioFollowUp.findFirst({ where: { id: followUpId, caseId } });
+    if (!followUp) throw new NotFoundException('Follow-up not found');
+    return this.prisma.physioFollowUp.update({
+      where: { id: followUpId },
+      data: {
+        ...(dto.sessionDate !== undefined ? { sessionDate: new Date(dto.sessionDate) } : {}),
+        ...(dto.sessionTime !== undefined ? { sessionTime: dto.sessionTime } : {}),
+        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+        ...(dto.supervisorOpinion !== undefined ? { supervisorOpinion: dto.supervisorOpinion } : {}),
+        ...(dto.doctorDecision !== undefined ? { doctorDecision: dto.doctorDecision } : {}),
+      },
+    });
+  }
+
+  async deleteFollowUp(caseId: string, followUpId: string) {
+    await this.findCaseOrThrow(caseId);
+    const followUp = await this.prisma.physioFollowUp.findFirst({ where: { id: followUpId, caseId } });
+    if (!followUp) throw new NotFoundException('Follow-up not found');
+    return this.prisma.physioFollowUp.delete({ where: { id: followUpId } });
   }
 
   // ── Timeline ──────────────────────────────────────────────────────────────

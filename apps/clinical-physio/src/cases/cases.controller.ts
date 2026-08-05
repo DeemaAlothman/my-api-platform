@@ -10,6 +10,7 @@ import {
   ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, DoctorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto, FinalSummaryDto,
+  PhysioFollowUpDto, UpdateFollowUpDto,
 } from './dto/physio-case.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -212,6 +213,32 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PHYSIO.SESSIONS_CREATE)
   deleteSession(@Param('id') id: string, @Param('sessionId') sessionId: string) {
     return this.service.deleteSession(id, sessionId);
+  }
+
+  // ── Follow-ups ────────────────────────────────────────────────────────────
+
+  @Post(':id/follow-ups')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.SESSIONS_CREATE)
+  addFollowUp(@Param('id') id: string, @Body() dto: PhysioFollowUpDto) {
+    return this.service.addFollowUp(id, dto);
+  }
+
+  @Get(':id/follow-ups')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_VIEW)
+  getFollowUps(@Param('id') id: string) {
+    return this.service.getFollowUps(id);
+  }
+
+  @Put(':id/follow-ups/:followUpId')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.SESSIONS_CREATE)
+  updateFollowUp(@Param('id') id: string, @Param('followUpId') followUpId: string, @Body() dto: UpdateFollowUpDto) {
+    return this.service.updateFollowUp(id, followUpId, dto);
+  }
+
+  @Delete(':id/follow-ups/:followUpId')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.SESSIONS_CREATE)
+  deleteFollowUp(@Param('id') id: string, @Param('followUpId') followUpId: string) {
+    return this.service.deleteFollowUp(id, followUpId);
   }
 
   // ── الملخص النهائي (Final Summary) ──────────────────────────────────────────
