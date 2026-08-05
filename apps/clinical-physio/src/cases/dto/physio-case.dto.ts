@@ -36,10 +36,14 @@ export enum PhysioStatus {
 }
 // حالة خطة العلاج: نشط / غير نشط
 export enum PlanStatus { ACTIVE = 'ACTIVE', INACTIVE = 'INACTIVE' }
+export enum CaseType { PHYSIO = 'PHYSIO', DOCTOR_EXAM = 'DOCTOR_EXAM' }
 
 export class CreatePhysioCaseDto {
   @IsString()
   patientId: string;
+
+  @IsOptional() @IsEnum(CaseType)
+  caseType?: CaseType;
 
   @IsString()
   majorComplaint: string;
@@ -189,6 +193,9 @@ export class ListPhysioCasesQueryDto {
 
   @IsOptional() @IsEnum(PhysioStatus)
   status?: PhysioStatus;
+
+  @IsOptional() @IsEnum(CaseType)
+  caseType?: CaseType;
 
   @IsOptional() @IsString()
   physiotherapistId?: string;

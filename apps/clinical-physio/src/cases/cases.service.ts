@@ -8,13 +8,20 @@ import {
   ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, DoctorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto, FinalSummaryDto,
-  PhysioFollowUpDto, UpdateFollowUpDto,
+  PhysioFollowUpDto, UpdateFollowUpDto, CaseType,
 } from './dto/physio-case.dto';
 
 // B11: خريطة الانتقالات المسموحة لحالة الملف
 // الترتيب: استقبال → شكوى → خريطة الألم → التاريخ الطبي → أهداف العلاج →
 // خطة العلاج (Assessment) → خطة العلاج (Treatment) → التقييم → الجلسات العلاجية →
 // رأي رئيس القسم → مكتمل. (أُلغي التوقيع/DOCTOR_SIGN نهائياً.)
+const DOCTOR_EXAM_TRANSITIONS: Record<string, string[]> = {
+  INTAKE:    ['COMPLAINT', 'CANCELLED'],
+  COMPLAINT: ['COMPLETED', 'CANCELLED'],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
 const STATUS_TRANSITIONS: Record<string, string[]> = {
   INTAKE:              ['COMPLAINT', 'CANCELLED'],
   COMPLAINT:           ['PAIN_MAP', 'CANCELLED'],
@@ -103,21 +110,25 @@ export class CasesService {
     await this.assertPatientExists(dto.patientId);
 
     // B15: توليد caseNumber آمن داخل transaction مع advisory lock يمنع التكرار عند التزامن
+    const caseTypeValue = dto.caseType ?? CaseType.PHYSIO;
+    const prefix = caseTypeValue === CaseType.DOCTOR_EXAM ? 'DE' : 'PT';
+
     return this.prisma.$transaction(async (tx) => {
       const year = new Date().getFullYear();
       await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1)', year);
 
       const last = await tx.physioCase.findFirst({
-        where: { caseNumber: { startsWith: `PT-${year}-` } },
+        where: { caseNumber: { startsWith: `${prefix}-${year}-` } },
         orderBy: { caseNumber: 'desc' },
         select: { caseNumber: true },
       });
       const lastSeq = last ? parseInt(last.caseNumber.split('-')[2], 10) : 0;
-      const caseNumber = `PT-${year}-${String(lastSeq + 1).padStart(4, '0')}`;
+      const caseNumber = `${prefix}-${year}-${String(lastSeq + 1).padStart(4, '0')}`;
 
       return tx.physioCase.create({
         data: {
           caseNumber,
+          caseType: caseTypeValue as any,
           patientId: dto.patientId,
           majorComplaint: dto.majorComplaint,
           symptoms: dto.symptoms,
@@ -153,11 +164,12 @@ export class CasesService {
   }
 
   async findAll(query: ListPhysioCasesQueryDto) {
-    const { page = 1, limit = 20, patientId, status, physiotherapistId } = query;
+    const { page = 1, limit = 20, patientId, status, caseType, physiotherapistId } = query;
     const skip = (page - 1) * limit;
     const where: any = { deletedAt: null };
     if (patientId) where.patientId = patientId;
     if (status) where.status = status;
+    if (caseType) where.caseType = caseType;
     if (physiotherapistId) where.physiotherapistId = physiotherapistId;
 
     const [items, total] = await Promise.all([
@@ -230,7 +242,10 @@ export class CasesService {
     const to = dto.status as string;
 
     // B11: تحقق أن الانتقال مسموح ضمن آلة الحالات
-    const allowed = STATUS_TRANSITIONS[from] ?? [];
+    const transitionMap = (current as any).caseType === 'DOCTOR_EXAM'
+      ? DOCTOR_EXAM_TRANSITIONS
+      : STATUS_TRANSITIONS;
+    const allowed = transitionMap[from] ?? [];
     if (!allowed.includes(to)) {
       throw new BadRequestException({
         code: 'INVALID_TRANSITION',
@@ -710,6 +725,141 @@ export class CasesService {
     const session = await this.prisma.physioSession.findFirst({ where: { id: sessionId, caseId } });
     if (!session) throw new NotFoundException('Session not found');
     return this.prisma.physioSession.delete({ where: { id: sessionId } });
+  }
+
+  // ── Convert Doctor Exam → Physio ─────────────────────────────────────────
+
+  async convertToPhysio(examCaseId: string, userId: string) {
+    const examCase = await this.findCaseOrThrow(examCaseId);
+    if ((examCase as any).caseType !== 'DOCTOR_EXAM') {
+      throw new BadRequestException('الحالة ليست معاينة طبيب');
+    }
+
+    // جلب خريطة الألم والتاريخ الطبي من حالة المعاينة
+    const [painMap, medHistory] = await Promise.all([
+      this.prisma.painMap.findUnique({ where: { caseId: examCaseId } }),
+      this.prisma.medicalHistory.findUnique({ where: { caseId: examCaseId } }),
+    ]);
+
+    return this.prisma.$transaction(async (tx) => {
+      const year = new Date().getFullYear();
+      await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock($1)', year + 1000);
+
+      const last = await tx.physioCase.findFirst({
+        where: { caseNumber: { startsWith: `PT-${year}-` } },
+        orderBy: { caseNumber: 'desc' },
+        select: { caseNumber: true },
+      });
+      const lastSeq = last ? parseInt(last.caseNumber.split('-')[2], 10) : 0;
+      const caseNumber = `PT-${year}-${String(lastSeq + 1).padStart(4, '0')}`;
+
+      // إنشاء حالة physio جديدة بنفس بيانات المعاينة
+      const newCase = await tx.physioCase.create({
+        data: {
+          caseNumber,
+          caseType: 'PHYSIO' as any,
+          patientId: examCase.patientId,
+          majorComplaint: examCase.majorComplaint,
+          symptoms: examCase.symptoms,
+          currentJob: examCase.currentJob ?? undefined,
+          lifeType: examCase.lifeType ?? undefined,
+          complaintStartDate: examCase.complaintStartDate ?? undefined,
+          possibleCause: examCase.possibleCause ?? undefined,
+          previousDoctorSeen: examCase.previousDoctorSeen ?? undefined,
+          previousTreatment: examCase.previousTreatment ?? undefined,
+          hadPreviousPT: examCase.hadPreviousPT,
+          hadPreviousInjury: examCase.hadPreviousInjury ?? undefined,
+          complaintType: examCase.complaintType ?? undefined,
+          painLocation: examCase.painLocation ?? undefined,
+          complaintDuration: examCase.complaintDuration ?? undefined,
+          complaintNotes: examCase.complaintNotes ?? undefined,
+          hasChronicDiseases: examCase.hasChronicDiseases,
+          visitedSpecialist: examCase.visitedSpecialist,
+          hadSurgery: examCase.hadSurgery,
+          painLevel: examCase.painLevel ?? undefined,
+          painDuration: examCase.painDuration ?? undefined,
+          painProgression: examCase.painProgression ?? undefined,
+          bestTimeOfDay: examCase.bestTimeOfDay ?? undefined,
+          worstTimeOfDay: examCase.worstTimeOfDay ?? undefined,
+          painTypes: examCase.painTypes as any,
+          aggravatingFactors: examCase.aggravatingFactors as any,
+          alleviatingFactors: examCase.alleviatingFactors as any,
+          customPainTypes: examCase.customPainTypes as any,
+          createdBy: userId,
+        },
+      });
+
+      // نسخ خريطة الألم إن وُجدت
+      if (painMap) {
+        await tx.painMap.create({
+          data: {
+            caseId: newCase.id,
+            regions: painMap.regions as any,
+            notes: painMap.notes ?? undefined,
+          },
+        });
+      }
+
+      // نسخ التاريخ الطبي إن وُجد (بدون العمليات الجراحية للتبسيط)
+      if (medHistory) {
+        await tx.medicalHistory.create({
+          data: {
+            caseId: newCase.id,
+            smokes: medHistory.smokes,
+            hasSmokedBefore: medHistory.hasSmokedBefore,
+            smokingFrequency: medHistory.smokingFrequency ?? undefined,
+            hasPacemaker: medHistory.hasPacemaker,
+            pacemakerDetail: medHistory.pacemakerDetail ?? undefined,
+            allergies: medHistory.allergies ?? undefined,
+            adhesiveAllergy: medHistory.adhesiveAllergy,
+            adhesiveAllergyDetail: medHistory.adhesiveAllergyDetail ?? undefined,
+            currentMedications: medHistory.currentMedications ?? undefined,
+            prescriptionDrugs: medHistory.prescriptionDrugs,
+            herbalSupplements: medHistory.herbalSupplements,
+            supplementsList: medHistory.supplementsList ?? undefined,
+            isPregnant: medHistory.isPregnant,
+            maritalStatus: medHistory.maritalStatus ?? undefined,
+            lastMenstrualPeriod: medHistory.lastMenstrualPeriod ?? undefined,
+            previousDiagnoses: medHistory.previousDiagnoses ?? undefined,
+            chronicConditions: medHistory.chronicConditions as any,
+            otherConditions: medHistory.otherConditions ?? undefined,
+            hasOtherHealthProblems: medHistory.hasOtherHealthProblems,
+            hasDoctorRestrictions: medHistory.hasDoctorRestrictions,
+            doctorRestrictions: medHistory.doctorRestrictions ?? undefined,
+            hadSurgeries: medHistory.hadSurgeries,
+            surgeriesDetail: medHistory.surgeriesDetail ?? undefined,
+            hadPTSameProblem: medHistory.hadPTSameProblem,
+            ptSameProblemDetail: medHistory.ptSameProblemDetail ?? undefined,
+            receivingOtherTreatment: medHistory.receivingOtherTreatment,
+            otherTreatmentDetail: medHistory.otherTreatmentDetail ?? undefined,
+            testsHad: medHistory.testsHad as any,
+            testsOther: medHistory.testsOther ?? undefined,
+            testResults: medHistory.testResults ?? undefined,
+            newAnalysis: medHistory.newAnalysis ?? undefined,
+            newAnalysisDate: medHistory.newAnalysisDate ?? undefined,
+            oldAnalysis: medHistory.oldAnalysis ?? undefined,
+            oldAnalysisDate: medHistory.oldAnalysisDate ?? undefined,
+            boneDensityTest: medHistory.boneDensityTest,
+            boneDensityDetail: medHistory.boneDensityDetail ?? undefined,
+            hospitalizedLastYear: medHistory.hospitalizedLastYear,
+            hospitalizedDetail: medHistory.hospitalizedDetail ?? undefined,
+            diagnosis: medHistory.diagnosis ?? undefined,
+            imagingProcedures: medHistory.imagingProcedures ?? undefined,
+          },
+        });
+      }
+
+      // تحديث حالة المعاينة إلى COMPLETED وربطها بالحالة الجديدة
+      await tx.physioCase.update({
+        where: { id: examCaseId },
+        data: {
+          status: 'COMPLETED' as any,
+          finalNotes: `تم التحويل إلى حالة علاج فيزيائي: ${newCase.caseNumber}`,
+        },
+      });
+
+      return { convertedCaseId: newCase.id, caseNumber: newCase.caseNumber };
+    });
   }
 
   // ── Follow-ups ────────────────────────────────────────────────────────────

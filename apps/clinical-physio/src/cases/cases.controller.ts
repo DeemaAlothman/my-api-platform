@@ -215,6 +215,14 @@ export class CasesController {
     return this.service.deleteSession(id, sessionId);
   }
 
+  // ── Convert Doctor Exam → Physio ─────────────────────────────────────────
+
+  @Post(':id/convert-to-physio')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_CREATE)
+  convertToPhysio(@Param('id') id: string, @User() user: any) {
+    return this.service.convertToPhysio(id, user.userId);
+  }
+
   // ── Follow-ups ────────────────────────────────────────────────────────────
 
   @Post(':id/follow-ups')

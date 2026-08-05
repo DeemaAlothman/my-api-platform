@@ -146,6 +146,12 @@ enum PlanStatus {
   @@schema("clinic_physio")
 }
 
+enum CaseType {
+  PHYSIO
+  DOCTOR_EXAM
+  @@schema("clinic_physio")
+}
+
 // ── Main Case ─────────────────────────────────────────────────────────────
 
 model PhysioCase {
@@ -200,6 +206,7 @@ model PhysioCase {
   alleviatingOther    String?
 
   status              PhysioStatus @default(INTAKE)
+  caseType            CaseType     @default(PHYSIO)
 
   physiotherapistId   String?   // الأخصائي الأساسي (للتوافق/الفلترة — = أول عنصر من القائمة)
   physiotherapistIds  String[]  // أخصائيو العلاج الفيزيائي (اختيار متعدد)
