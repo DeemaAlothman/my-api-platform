@@ -14,6 +14,8 @@ export class AppointmentsService implements OnModuleInit {
   onModuleInit() {
     // فحص كل 15 دقيقة للمواعيد القادمة خلال ساعة
     setInterval(() => this.sendReminderNotifications().catch(() => {}), 15 * 60 * 1000);
+    // فحص كل 15 دقيقة للمواعيد التي انتهت منذ 30-45 دقيقة ولم تُحدَّث
+    setInterval(() => this.sendPostAppointmentReminders().catch(() => {}), 15 * 60 * 1000);
   }
 
   // ── Notifications ───────────────────────────────────────────────────────────
@@ -57,6 +59,25 @@ export class AppointmentsService implements OnModuleInit {
         where: { id: appt.id },
         data: { reminderSentAt: new Date() },
       });
+    }
+  }
+
+  private async sendPostAppointmentReminders() {
+    const now = new Date();
+    const ago30 = new Date(now.getTime() - 30 * 60 * 1000);
+    const ago45 = new Date(now.getTime() - 45 * 60 * 1000);
+    const appointments = await this.prisma.appointment.findMany({
+      where: {
+        status: { in: ['SCHEDULED', 'CONFIRMED'] as any[] },
+        endTime: { gte: ago45, lte: ago30 },
+      },
+    });
+    for (const appt of appointments) {
+      await this.notifyPractitioner(
+        appt as any,
+        'تحديث حالة الموعد مطلوب',
+        `انتهى الموعد مع المريض — يرجى تحديث الحالة (مكتمل أو لم يحضر)`,
+      );
     }
   }
 
