@@ -109,8 +109,15 @@ export class CasesService {
     // B12: تأكد من وجود المريض قبل إنشاء الحالة
     await this.assertPatientExists(dto.patientId);
 
+    // إنشاء حالة PHYSIO مباشرة ممنوع — يجب المرور عبر معاينة طبيب ثم convert-to-physio
+    if (!dto.caseType || dto.caseType === CaseType.PHYSIO) {
+      throw new BadRequestException(
+        'لإنشاء حالة علاج فيزيائي يجب البدء بمعاينة طبيب ثم اختيار التحويل',
+      );
+    }
+
     // B15: توليد caseNumber آمن داخل transaction مع advisory lock يمنع التكرار عند التزامن
-    const caseTypeValue = dto.caseType ?? CaseType.PHYSIO;
+    const caseTypeValue = dto.caseType;
     const prefix = caseTypeValue === CaseType.DOCTOR_EXAM ? 'DE' : 'PT';
 
     return this.prisma.$transaction(async (tx) => {
