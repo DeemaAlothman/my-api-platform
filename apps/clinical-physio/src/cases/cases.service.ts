@@ -773,10 +773,12 @@ export class CasesService {
       const caseNumber = `PT-${year}-${String(lastSeq + 1).padStart(4, '0')}`;
 
       // إنشاء حالة physio جديدة بنفس بيانات المعاينة
+      // status = MEDICAL_HISTORY لأن الشكوى + الألم + التاريخ الطبي انتقلوا معها
       const newCase = await tx.physioCase.create({
         data: {
           caseNumber,
           caseType: 'PHYSIO' as any,
+          status: 'MEDICAL_HISTORY' as any,
           patientId: examCase.patientId,
           majorComplaint: examCase.majorComplaint,
           symptoms: examCase.symptoms,
