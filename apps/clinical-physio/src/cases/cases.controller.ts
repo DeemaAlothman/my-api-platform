@@ -55,8 +55,8 @@ export class CasesController {
 
   @Get('by-patient/:patientId')
   @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_VIEW)
-  findByPatient(@Param('patientId') patientId: string) {
-    return this.service.findByPatient(patientId);
+  findByPatient(@Param('patientId') patientId: string, @Query('caseType') caseType?: string) {
+    return this.service.findByPatient(patientId, caseType);
   }
 
   // قائمة أنواع الألم المرجعية (النوع + الاسم + اللون) — لخريطة الألم

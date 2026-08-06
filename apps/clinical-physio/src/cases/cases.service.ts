@@ -176,7 +176,8 @@ export class CasesService {
     const where: any = { deletedAt: null };
     if (patientId) where.patientId = patientId;
     if (status) where.status = status;
-    if (caseType) where.caseType = caseType;
+    // افتراضياً يُظهر حالات العلاج الفيزيائي فقط — المعاينات تحتاج caseType=DOCTOR_EXAM صريح
+    where.caseType = caseType ?? 'PHYSIO';
     if (physiotherapistId) where.physiotherapistId = physiotherapistId;
 
     const [items, total] = await Promise.all([
@@ -274,9 +275,9 @@ export class CasesService {
     });
   }
 
-  async findByPatient(patientId: string) {
+  async findByPatient(patientId: string, caseType?: string) {
     const items = await this.prisma.physioCase.findMany({
-      where: { patientId, deletedAt: null },
+      where: { patientId, deletedAt: null, caseType: (caseType ?? 'PHYSIO') as any },
       orderBy: { createdAt: 'desc' },
       include: {
         treatmentPlan: { select: { status: true } },
