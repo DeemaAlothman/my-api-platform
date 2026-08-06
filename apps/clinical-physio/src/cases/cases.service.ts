@@ -742,6 +742,17 @@ export class CasesService {
       throw new BadRequestException('الحالة ليست معاينة طبيب');
     }
 
+    // idempotent: لو سبق التحويل، نرجع الحالة الموجودة مباشرة
+    if ((examCase as any).convertedToCaseId) {
+      const existing = await this.prisma.physioCase.findFirst({
+        where: { id: (examCase as any).convertedToCaseId },
+        select: { id: true, caseNumber: true },
+      });
+      if (existing) {
+        return { convertedCaseId: existing.id, caseNumber: existing.caseNumber };
+      }
+    }
+
     // جلب خريطة الألم والتاريخ الطبي من حالة المعاينة
     const [painMap, medHistory] = await Promise.all([
       this.prisma.painMap.findUnique({ where: { caseId: examCaseId } }),
@@ -856,11 +867,12 @@ export class CasesService {
         });
       }
 
-      // تحديث حالة المعاينة إلى COMPLETED وربطها بالحالة الجديدة
+      // تحديث حالة المعاينة: COMPLETED + تخزين ID الحالة المُنشأة (idempotency)
       await tx.physioCase.update({
         where: { id: examCaseId },
         data: {
           status: 'COMPLETED' as any,
+          convertedToCaseId: newCase.id,
           finalNotes: `تم التحويل إلى حالة علاج فيزيائي: ${newCase.caseNumber}`,
         },
       });
