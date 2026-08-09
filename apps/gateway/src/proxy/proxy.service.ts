@@ -173,13 +173,22 @@ export class ProxyService {
               });
             },
           );
+          proxyReq.on('timeout', () => {
+            proxyReq.destroy(new Error('Upload proxy timeout'));
+          });
           proxyReq.on('error', (err: any) => {
             console.error(`Multipart proxy error for ${serviceName}:`, err.message);
-            res.status(503).json({
-              success: false,
-              error: { code: 'SERVICE_UNAVAILABLE', message: err.message, details: [] },
-            });
+            if (!res.headersSent) {
+              res.status(503).json({
+                success: false,
+                error: { code: 'SERVICE_UNAVAILABLE', message: err.message, details: [] },
+              });
+            }
             resolve();
+          });
+          req.on('error', (err: any) => {
+            console.error(`Client stream error for ${serviceName}:`, err.message);
+            proxyReq.destroy(err);
           });
           req.pipe(proxyReq);
         });
