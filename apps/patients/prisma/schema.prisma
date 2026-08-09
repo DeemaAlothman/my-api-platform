@@ -53,11 +53,12 @@ enum FinancialStatus {
 }
 
 enum ReferralSource {
-  SELF
-  RELATIVES
   SOCIAL_MEDIA
-  MEDICAL_REFERRAL
-  OTHER
+  DOCTOR
+  HOSPITAL
+  ASSOCIATION
+  FRIEND
+  STAFF
 }
 
 enum DocumentType {
@@ -139,7 +140,8 @@ model Patient {
 
   // Referral
   referralSource  ReferralSource?
-  referralDetails String?
+  referralDetails String?   // اسم الطبيب / المشفى / الجمعية
+  referralStaffId String?   // ID الموظف عند اختيار كادر العمل
 
   // Soft delete
   deletedAt DateTime?

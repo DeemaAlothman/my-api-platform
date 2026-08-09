@@ -7,7 +7,14 @@ export enum EducationLevel { ILLITERATE = 'ILLITERATE', PRIMARY = 'PRIMARY', SEC
 export enum MaritalStatus { SINGLE = 'SINGLE', MARRIED = 'MARRIED', DIVORCED = 'DIVORCED', WIDOWED = 'WIDOWED' }
 export enum LivingCondition { WITH_FAMILY = 'WITH_FAMILY', INDEPENDENT = 'INDEPENDENT', SHELTER_CAMP = 'SHELTER_CAMP', OTHER = 'OTHER' }
 export enum FinancialStatus { LOW = 'LOW', MODERATE = 'MODERATE', GOOD = 'GOOD', NOT_WORKING = 'NOT_WORKING', RETIRED = 'RETIRED' }
-export enum ReferralSource { SELF = 'SELF', RELATIVES = 'RELATIVES', SOCIAL_MEDIA = 'SOCIAL_MEDIA', MEDICAL_REFERRAL = 'MEDICAL_REFERRAL', OTHER = 'OTHER' }
+export enum ReferralSource {
+  SOCIAL_MEDIA = 'SOCIAL_MEDIA',
+  DOCTOR = 'DOCTOR',
+  HOSPITAL = 'HOSPITAL',
+  ASSOCIATION = 'ASSOCIATION',
+  FRIEND = 'FRIEND',
+  STAFF = 'STAFF',
+}
 export enum ConsentDecision { REFUSED = 'REFUSED', FUNDER_ONLY = 'FUNDER_ONLY', FUNDER_AND_SOCIAL = 'FUNDER_AND_SOCIAL' }
 
 export class CreatePatientDto {
@@ -38,7 +45,8 @@ export class CreatePatientDto {
   @IsOptional() @IsString() receivesAid?: string; // اسم الجهة/المساعدة (نص)
 
   @IsOptional() @IsEnum(ReferralSource) referralSource?: ReferralSource;
-  @IsOptional() @IsString() referralDetails?: string;
+  @IsOptional() @IsString() referralDetails?: string;   // اسم الطبيب/المشفى/الجمعية
+  @IsOptional() @IsString() referralStaffId?: string;   // ID الموظف عند اختيار STAFF
 
   // موافقة التوثيق — اختيارية عند إنشاء المريض
   @IsOptional() @IsEnum(ConsentDecision) consentDecision?: ConsentDecision;
