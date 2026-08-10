@@ -238,7 +238,11 @@ VALUES
   ('b444bc7f-5be0-4610-b55d-902e899e5cdf', 'employees:manager-notes:write', 'كتابة ملاحظات المديرين', 'Write/update manager notes on employee', 'employees', '2026-04-28 11:01:30.686', '2026-04-28 11:01:30.686'),
   ('eb32da69-d781-4fff-8c8c-82d5881c1b36', 'employees:probation-report:read', 'تقرير اقتراب انتهاء التجربة', 'View probation ending soon report', 'employees', '2026-04-28 11:01:30.686', '2026-04-28 11:01:30.686'),
   ('eb05b498-3e6e-4331-8127-4b50c25ed6bb', 'employees:contract-report:read', 'تقرير اقتراب انتهاء العقد', 'View contract ending soon report', 'employees', '2026-04-28 11:01:30.686', '2026-04-28 11:01:30.686'),
-  ('22238915-7467-49db-9075-3d1b4feffee5', 'requests:hiring:complete', 'إتمام طلب التوظيف', 'Upload hiring contract PDF to complete', 'requests', '2026-04-28 11:01:30.686', '2026-04-28 11:01:30.686')
+  ('22238915-7467-49db-9075-3d1b4feffee5', 'requests:hiring:complete', 'إتمام طلب التوظيف', 'Upload hiring contract PDF to complete', 'requests', '2026-04-28 11:01:30.686', '2026-04-28 11:01:30.686'),
+  ('f1e2d3c4-b5a6-7890-abcd-ef1234560001', 'clinic.referrals.view', 'عرض مصادر الإحالة', 'View referral sources and visits', 'referrals', '2026-08-10 00:00:00.000', '2026-08-10 00:00:00.000'),
+  ('f1e2d3c4-b5a6-7890-abcd-ef1234560002', 'clinic.referrals.manage', 'إدارة مصادر الإحالة', 'Create, update and delete referral sources', 'referrals', '2026-08-10 00:00:00.000', '2026-08-10 00:00:00.000'),
+  ('f1e2d3c4-b5a6-7890-abcd-ef1234560003', 'clinic.referrals.visits.add', 'تسجيل زيارات الإحالة', 'Register and edit visits to referral sources', 'referrals', '2026-08-10 00:00:00.000', '2026-08-10 00:00:00.000'),
+  ('f1e2d3c4-b5a6-7890-abcd-ef1234560004', 'clinic.referrals.stats.view', 'عرض إحصائيات الإحالة', 'View referral statistics and patient counts', 'referrals', '2026-08-10 00:00:00.000', '2026-08-10 00:00:00.000')
 ON CONFLICT DO NOTHING;
   `);
 

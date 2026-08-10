@@ -297,6 +297,12 @@ export const PERMISSIONS = {
     VIEW_CLINICAL: 'clinic.reports.view_clinical',
     VIEW_DONOR:    'clinic.reports.view_donor',
   },
+  CLINIC_REFERRALS: {
+    VIEW:       'clinic.referrals.view',       // عرض المصادر والزيارات
+    MANAGE:     'clinic.referrals.manage',     // إضافة/تعديل/حذف المصادر
+    VISITS_ADD: 'clinic.referrals.visits.add', // تسجيل زيارة
+    STATS_VIEW: 'clinic.referrals.stats.view', // عرض الإحصائيات
+  },
 } as const;
 
 // ── Type Helpers ──────────────────────────────────────────────────────────────
