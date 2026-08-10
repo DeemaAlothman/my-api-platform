@@ -78,19 +78,50 @@ export class SourcesService {
 
   // ── Stats ─────────────────────────────────────────────────────────
 
-  async getPatientCount(sourceId: string): Promise<{ sourceId: string; patientCount: number }> {
+  async getPatientCount(sourceId: string) {
     await this.findOne(sourceId);
-    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>`
-      SELECT COUNT(*) as count
-      FROM clinic_patients.patients
-      WHERE "referralSourceId" = ${sourceId}
-        AND "deletedAt" IS NULL
-    `;
-    return { sourceId, patientCount: Number(rows[0].count) };
+
+    const [totalRows, realRows] = await Promise.all([
+      this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count
+        FROM clinic_patients.patients
+        WHERE "referralSourceId" = ${sourceId}
+          AND "deletedAt" IS NULL
+      `,
+      this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT p.id) as count
+        FROM clinic_patients.patients p
+        WHERE p."referralSourceId" = ${sourceId}
+          AND p."deletedAt" IS NULL
+          AND (
+            EXISTS (
+              SELECT 1 FROM clinic_physio.physio_cases pc
+              WHERE pc."patientId" = p.id
+                AND pc."deletedAt" IS NULL
+                AND pc."caseType" = 'PHYSIO'
+            )
+            OR EXISTS (
+              SELECT 1 FROM clinic_prosthetics.prosthetics_cases prc
+              WHERE prc."patientId" = p.id
+                AND prc."deletedAt" IS NULL
+            )
+            OR EXISTS (
+              SELECT 1 FROM clinic_podiatry.podiatry_receptions por
+              WHERE por."patientId" = p.id
+            )
+          )
+      `,
+    ]);
+
+    return {
+      sourceId,
+      patientCount:     Number(totalRows[0].count),
+      realPatientCount: Number(realRows[0].count),
+    };
   }
 
   async getStats() {
-    const [byType, topSources, patientCounts] = await Promise.all([
+    const [byType, topSources, totalCounts, realCounts] = await Promise.all([
       this.prisma.referralSource.groupBy({
         by: ['type'],
         where: { deletedAt: null },
@@ -102,6 +133,7 @@ export class SourcesService {
         orderBy: { visits: { _count: 'desc' } },
         take: 10,
       }),
+      // إجمالي المرضى لكل مصدر
       this.prisma.$queryRaw<{ referralSourceId: string; count: bigint }[]>`
         SELECT "referralSourceId", COUNT(*) as count
         FROM clinic_patients.patients
@@ -109,18 +141,43 @@ export class SourcesService {
           AND "deletedAt" IS NULL
         GROUP BY "referralSourceId"
       `,
+      // المرضى الفعليين (دخلوا خدمة حقيقية)
+      this.prisma.$queryRaw<{ referralSourceId: string; count: bigint }[]>`
+        SELECT p."referralSourceId", COUNT(DISTINCT p.id) as count
+        FROM clinic_patients.patients p
+        WHERE p."referralSourceId" IS NOT NULL
+          AND p."deletedAt" IS NULL
+          AND (
+            EXISTS (
+              SELECT 1 FROM clinic_physio.physio_cases pc
+              WHERE pc."patientId" = p.id
+                AND pc."deletedAt" IS NULL
+                AND pc."caseType" = 'PHYSIO'
+            )
+            OR EXISTS (
+              SELECT 1 FROM clinic_prosthetics.prosthetics_cases prc
+              WHERE prc."patientId" = p.id
+                AND prc."deletedAt" IS NULL
+            )
+            OR EXISTS (
+              SELECT 1 FROM clinic_podiatry.podiatry_receptions por
+              WHERE por."patientId" = p.id
+            )
+          )
+        GROUP BY p."referralSourceId"
+      `,
     ]);
 
-    const patientCountMap = new Map(
-      patientCounts.map(r => [r.referralSourceId, Number(r.count)])
-    );
+    const totalMap = new Map(totalCounts.map(r => [r.referralSourceId, Number(r.count)]));
+    const realMap  = new Map(realCounts.map(r  => [r.referralSourceId, Number(r.count)]));
 
-    const topSourcesWithPatients = topSources.map(s => ({
+    const topSourcesWithCounts = topSources.map(s => ({
       ...s,
-      patientCount: patientCountMap.get(s.id) ?? 0,
+      patientCount:     totalMap.get(s.id) ?? 0,
+      realPatientCount: realMap.get(s.id)  ?? 0,
     }));
 
-    return { byType, topSources: topSourcesWithPatients };
+    return { byType, topSources: topSourcesWithCounts };
   }
 
   // ── Visits ────────────────────────────────────────────────────────
