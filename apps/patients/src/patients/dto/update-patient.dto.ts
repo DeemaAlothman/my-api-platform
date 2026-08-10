@@ -33,6 +33,7 @@ export class UpdatePatientDto {
   @IsOptional() @IsEnum(ReferralSource) referralSource?: ReferralSource;
   @IsOptional() @IsString() referralDetails?: string;
   @IsOptional() @IsString() referralStaffId?: string;
+  @IsOptional() @IsString() referralSourceId?: string;
 
   @IsOptional() @IsString() documentConsent?: string;
   @IsOptional() @IsBoolean() mediaConsent?: boolean;

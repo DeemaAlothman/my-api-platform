@@ -47,6 +47,7 @@ export class CreatePatientDto {
   @IsOptional() @IsEnum(ReferralSource) referralSource?: ReferralSource;
   @IsOptional() @IsString() referralDetails?: string;   // اسم الطبيب/المشفى/الجمعية
   @IsOptional() @IsString() referralStaffId?: string;   // ID الموظف عند اختيار STAFF
+  @IsOptional() @IsString() referralSourceId?: string;  // ID من جدول referral_sources
 
   // موافقة التوثيق — اختيارية عند إنشاء المريض
   @IsOptional() @IsEnum(ConsentDecision) consentDecision?: ConsentDecision;

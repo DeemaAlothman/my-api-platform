@@ -139,9 +139,10 @@ model Patient {
   mediaConsent    Boolean?
 
   // Referral
-  referralSource  ReferralSource?
-  referralDetails String?   // اسم الطبيب / المشفى / الجمعية
-  referralStaffId String?   // ID الموظف عند اختيار كادر العمل
+  referralSource   ReferralSource?
+  referralDetails  String?   // اسم الطبيب / المشفى / الجمعية
+  referralStaffId  String?   // ID الموظف عند اختيار كادر العمل
+  referralSourceId String?   // ID المصدر من جدول referral_sources
 
   // Soft delete
   deletedAt DateTime?
