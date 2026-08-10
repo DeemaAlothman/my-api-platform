@@ -78,8 +78,19 @@ export class SourcesService {
 
   // ── Stats ─────────────────────────────────────────────────────────
 
+  async getPatientCount(sourceId: string): Promise<{ sourceId: string; patientCount: number }> {
+    await this.findOne(sourceId);
+    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) as count
+      FROM clinic_patients.patients
+      WHERE "referralSourceId" = ${sourceId}
+        AND "deletedAt" IS NULL
+    `;
+    return { sourceId, patientCount: Number(rows[0].count) };
+  }
+
   async getStats() {
-    const [byType, topSources] = await Promise.all([
+    const [byType, topSources, patientCounts] = await Promise.all([
       this.prisma.referralSource.groupBy({
         by: ['type'],
         where: { deletedAt: null },
@@ -91,9 +102,25 @@ export class SourcesService {
         orderBy: { visits: { _count: 'desc' } },
         take: 10,
       }),
+      this.prisma.$queryRaw<{ referralSourceId: string; count: bigint }[]>`
+        SELECT "referralSourceId", COUNT(*) as count
+        FROM clinic_patients.patients
+        WHERE "referralSourceId" IS NOT NULL
+          AND "deletedAt" IS NULL
+        GROUP BY "referralSourceId"
+      `,
     ]);
 
-    return { byType, topSources };
+    const patientCountMap = new Map(
+      patientCounts.map(r => [r.referralSourceId, Number(r.count)])
+    );
+
+    const topSourcesWithPatients = topSources.map(s => ({
+      ...s,
+      patientCount: patientCountMap.get(s.id) ?? 0,
+    }));
+
+    return { byType, topSources: topSourcesWithPatients };
   }
 
   // ── Visits ────────────────────────────────────────────────────────

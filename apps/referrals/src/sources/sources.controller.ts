@@ -36,6 +36,11 @@ export class SourcesController {
     return this.service.getStats();
   }
 
+  @Get(':id/patient-count')
+  getPatientCount(@Param('id') id: string) {
+    return this.service.getPatientCount(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
