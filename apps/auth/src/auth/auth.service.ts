@@ -390,6 +390,7 @@ export class AuthService {
       'probation:ceo-review', 'probation:acknowledge',
       'clinic.podiatry.reception.view', 'clinic.podiatry.reception.create', 'clinic.podiatry.reception.edit',
       'clinic.podiatry.session.create', 'clinic.podiatry.session.edit', 'clinic.podiatry.session.archive',
+      'clinic.referrals.view', 'clinic.referrals.manage', 'clinic.referrals.visits.add', 'clinic.referrals.stats.view',
     ];
   }
 
