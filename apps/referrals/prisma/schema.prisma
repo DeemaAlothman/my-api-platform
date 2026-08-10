@@ -58,6 +58,10 @@ model ReferralSource {
   // Visit schedule
   visitDays String?
 
+  // الموقع الجغرافي
+  latitude  Float?
+  longitude Float?
+
   notes String? @db.Text
 
   visits ReferralVisit[]

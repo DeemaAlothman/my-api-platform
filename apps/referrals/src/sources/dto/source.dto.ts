@@ -1,5 +1,5 @@
 import {
-  IsString, IsEnum, IsOptional, IsInt, IsArray, IsDateString, Min, Max,
+  IsString, IsEnum, IsOptional, IsInt, IsArray, IsDateString, IsNumber, Min, Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -35,6 +35,8 @@ export class CreateSourceDto {
 
   @IsOptional() @IsArray() @IsString({ each: true }) interests?: string[];
   @IsOptional() @IsString() visitDays?: string;
+  @IsOptional() @Type(() => Number) @IsNumber() latitude?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() longitude?: number;
   @IsOptional() @IsString() notes?: string;
 }
 
@@ -54,6 +56,8 @@ export class UpdateSourceDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5) patientDensityRating?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) interests?: string[];
   @IsOptional() @IsString() visitDays?: string;
+  @IsOptional() @Type(() => Number) @IsNumber() latitude?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() longitude?: number;
   @IsOptional() @IsString() notes?: string;
 }
 
