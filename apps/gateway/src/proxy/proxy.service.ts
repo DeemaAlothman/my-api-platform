@@ -91,6 +91,11 @@ export class ProxyService {
       url: process.env.PODIATRY_SERVICE_URL || 'http://localhost:4015',
       prefix: '/podiatry',
     });
+
+    this.services.set('referrals', {
+      url: process.env.REFERRALS_SERVICE_URL || 'http://localhost:4016',
+      prefix: '/referrals',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

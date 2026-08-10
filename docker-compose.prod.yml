@@ -297,6 +297,22 @@ services:
     networks:
       - app-network
 
+  referrals:
+    build:
+      context: .
+      dockerfile: apps/referrals/Dockerfile
+    container_name: myapiplatform-referrals
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=referrals
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -319,6 +335,7 @@ services:
       APPOINTMENTS_SERVICE_URL: http://appointments:4013
       INVENTORY_SERVICE_URL: http://clinic-inventory:4014
       PODIATRY_SERVICE_URL: http://podiatry:4015
+      REFERRALS_SERVICE_URL: http://referrals:4016
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012,http://159.198.37.52:3012,http://159.198.37.52:3000
@@ -356,6 +373,8 @@ services:
       clinic-inventory:
         condition: service_started
       podiatry:
+        condition: service_started
+      referrals:
         condition: service_started
     networks:
       - app-network

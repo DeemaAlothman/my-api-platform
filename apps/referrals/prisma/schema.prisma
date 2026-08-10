@@ -1,0 +1,95 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["referrals"]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+// ── Enums ───────────────────────────────────────────────────────────
+
+enum SourceType {
+  DOCTOR
+  HOSPITAL
+  ASSOCIATION
+
+  @@schema("referrals")
+}
+
+enum VisitType {
+  INTRODUCTORY
+  FOLLOW_UP
+
+  @@schema("referrals")
+}
+
+// ── Models ──────────────────────────────────────────────────────────
+
+model ReferralSource {
+  id   String     @id @default(uuid())
+  type SourceType
+
+  // Identity
+  name      String
+  specialty String?
+
+  // Location
+  city      String?
+  region    String?
+  street    String?
+  landmark  String?
+  floor     String?
+  address   String?
+
+  // Contact
+  clinicPhone String?
+  mobile      String?
+
+  // Ratings (1-5)
+  clinicRating        Int?
+  patientDensityRating Int?
+
+  // Interests / specialties served (e.g. ["أطراف", "فيزيائي"])
+  interests String[] @default([])
+
+  // Visit schedule
+  visitDays String?
+
+  notes String? @db.Text
+
+  visits ReferralVisit[]
+
+  // Soft delete
+  deletedAt DateTime?
+
+  // Audit
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String
+
+  @@map("referral_sources")
+  @@schema("referrals")
+}
+
+model ReferralVisit {
+  id       String         @id @default(uuid())
+  sourceId String
+  source   ReferralSource @relation(fields: [sourceId], references: [id])
+
+  visitType     VisitType
+  visitDate     DateTime
+  topics        String?   @db.Text
+  nextVisitDate DateTime?
+  visitedBy     String
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("referral_visits")
+  @@schema("referrals")
+}

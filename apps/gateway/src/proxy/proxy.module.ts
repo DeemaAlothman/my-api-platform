@@ -61,6 +61,7 @@ import {
   AppointmentsProxyController,
   InventoryProxyController,
   PodiatryProxyController,
+  ReferralsProxyController,
 } from './proxy.controller';
 
 @Module({
@@ -125,6 +126,7 @@ import {
     AppointmentsProxyController,
     InventoryProxyController,
     PodiatryProxyController,
+    ReferralsProxyController,
   ],
   providers: [ProxyService],
 })
