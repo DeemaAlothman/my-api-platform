@@ -566,7 +566,14 @@ export class LeaveRequestsService {
       id,
     );
 
-    if (!hasSubstitute) {
+    if (hasSubstitute) {
+      const empRows = await this.prisma.$queryRawUnsafe<Array<{ fullName: string }>>(
+        `SELECT "fullName" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      );
+      const requesterName = empRows[0]?.fullName ?? 'الموظف';
+      await this.notifySubstituteOfRequest(request.substituteId!, requesterName, id);
+    } else {
       if (dmIsHR) {
         await this.notifyHROfLeave(id, (request as any).leaveType?.nameAr ?? 'إجازة');
       } else {
@@ -609,6 +616,9 @@ export class LeaveRequestsService {
     await this.addHistory(id, 'SUBSTITUTE_APPROVED', 'PENDING_SUBSTITUTE', 'PENDING_MANAGER', substituteEmployeeId,
       notes ?? 'Substitute approved the request',
     );
+
+    const leaveType = await this.prisma.leaveType.findUnique({ where: { id: request.leaveTypeId } });
+    await this.notifyManagerOfLeave(request.employeeId, id, leaveType?.nameAr ?? 'إجازة');
 
     return this.prisma.leaveRequest.findUnique({ where: { id }, include: { leaveType: true } });
   }
@@ -1004,6 +1014,20 @@ export class LeaveRequestsService {
            `An approved leave (${leaveTypeName}) has been cancelled by the employee`,
            JSON.stringify({ leaveRequestId }));
       }
+    } catch { /* silent */ }
+  }
+
+  private async notifySubstituteOfRequest(substituteEmployeeId: string, requesterName: string, leaveRequestId: string) {
+    try {
+      await this.notifyLeaveEmployee(
+        substituteEmployeeId,
+        'LEAVE_REQUEST_SUBSTITUTE',
+        'طلب موافقتك كبديل',
+        'Substitute Approval Required',
+        `${requesterName} طلب منك الموافقة على إجازته كموظف بديل`,
+        `${requesterName} has requested your approval as a substitute employee`,
+        leaveRequestId,
+      );
     } catch { /* silent */ }
   }
 
