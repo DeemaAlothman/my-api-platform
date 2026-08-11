@@ -51,12 +51,12 @@ export class AttendanceJustificationsService {
 
   private async notifyDirectManager(employeeId: string, titleAr: string, titleEn: string, messageAr: string, messageEn: string, justificationId: string) {
     try {
-      const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+      const rows = (await this.prisma.$queryRawUnsafe(
         `SELECT e2."userId" FROM users.employees e
          JOIN users.employees e2 ON e2.id = e."managerId"
          WHERE e.id = $1 AND e."deletedAt" IS NULL LIMIT 1`,
         employeeId,
-      );
+      )) as Array<{ userId: string | null }>;
       if (rows[0]?.userId) {
         await this.notifyUser(rows[0].userId, titleAr, titleEn, messageAr, messageEn, justificationId);
       }
@@ -65,13 +65,13 @@ export class AttendanceJustificationsService {
 
   private async notifyHRTeam(titleAr: string, titleEn: string, messageAr: string, messageEn: string, justificationId: string) {
     try {
-      const hrUsers = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      const hrUsers = (await this.prisma.$queryRawUnsafe(
         `SELECT DISTINCT u.id as "userId" FROM users.users u
          JOIN users.user_roles ur ON ur."userId" = u.id
          JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
          JOIN users.permissions p ON p.id = rp."permissionId"
          WHERE p.name = 'attendance.justifications.hr-review' AND u."deletedAt" IS NULL`,
-      );
+      )) as Array<{ userId: string }>;
       for (const hr of hrUsers) {
         await this.notifyUser(hr.userId, titleAr, titleEn, messageAr, messageEn, justificationId);
       }
@@ -80,10 +80,10 @@ export class AttendanceJustificationsService {
 
   private async notifyEmployee(employeeId: string, titleAr: string, titleEn: string, messageAr: string, messageEn: string, justificationId: string) {
     try {
-      const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+      const rows = (await this.prisma.$queryRawUnsafe(
         `SELECT "userId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
         employeeId,
-      );
+      )) as Array<{ userId: string | null }>;
       if (rows[0]?.userId) {
         await this.notifyUser(rows[0].userId, titleAr, titleEn, messageAr, messageEn, justificationId);
       }
