@@ -34,6 +34,64 @@ export class AttendanceJustificationsService {
     }]));
   }
 
+  // ── Notification helpers ──────────────────────────────────────────
+
+  private async notifyUser(
+    userId: string, titleAr: string, titleEn: string,
+    messageAr: string, messageEn: string, justificationId: string,
+  ) {
+    try {
+      await this.prisma.$queryRawUnsafe(`
+        INSERT INTO users.notifications
+          (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "isRead", "createdAt")
+        VALUES (gen_random_uuid(), $1, 'ATTENDANCE_JUSTIFICATION', $2, $3, $4, $5, $6::jsonb, false, NOW())
+      `, userId, titleAr, titleEn, messageAr, messageEn, JSON.stringify({ justificationId }));
+    } catch { /* silent */ }
+  }
+
+  private async notifyDirectManager(employeeId: string, titleAr: string, titleEn: string, messageAr: string, messageEn: string, justificationId: string) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+        `SELECT e2."userId" FROM users.employees e
+         JOIN users.employees e2 ON e2.id = e."managerId"
+         WHERE e.id = $1 AND e."deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      );
+      if (rows[0]?.userId) {
+        await this.notifyUser(rows[0].userId, titleAr, titleEn, messageAr, messageEn, justificationId);
+      }
+    } catch { /* silent */ }
+  }
+
+  private async notifyHRTeam(titleAr: string, titleEn: string, messageAr: string, messageEn: string, justificationId: string) {
+    try {
+      const hrUsers = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT DISTINCT u.id as "userId" FROM users.users u
+         JOIN users.user_roles ur ON ur."userId" = u.id
+         JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+         JOIN users.permissions p ON p.id = rp."permissionId"
+         WHERE p.name = 'attendance.justifications.hr-review' AND u."deletedAt" IS NULL`,
+      );
+      for (const hr of hrUsers) {
+        await this.notifyUser(hr.userId, titleAr, titleEn, messageAr, messageEn, justificationId);
+      }
+    } catch { /* silent */ }
+  }
+
+  private async notifyEmployee(employeeId: string, titleAr: string, titleEn: string, messageAr: string, messageEn: string, justificationId: string) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+        `SELECT "userId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      );
+      if (rows[0]?.userId) {
+        await this.notifyUser(rows[0].userId, titleAr, titleEn, messageAr, messageEn, justificationId);
+      }
+    } catch { /* silent */ }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+
   async submit(employeeId: string, dto: CreateAttendanceJustificationDto) {
     // التحقق من وجود التنبيه
     const alert = await this.prisma.attendanceAlert.findUnique({
@@ -98,6 +156,15 @@ export class AttendanceJustificationsService {
     });
 
     const employeeMap = await this.getEmployeeNames([justification.employeeId]);
+
+    await this.notifyDirectManager(
+      employeeId,
+      'تبرير غياب بانتظار مراجعتك', 'Attendance Justification Awaiting Your Review',
+      'قدّم أحد موظفيك تبريراً لتنبيه حضور يحتاج مراجعتك',
+      'One of your employees submitted an attendance justification awaiting your review',
+      justification.id,
+    );
+
     return { ...justification, statusLabelAr: this.getStatusLabelAr(justification.status), employee: employeeMap.get(justification.employeeId) || null };
   }
 
@@ -248,6 +315,12 @@ export class AttendanceJustificationsService {
           managerNotesAr: dto.notesAr,
         },
       });
+      await this.notifyHRTeam(
+        'تبرير غياب بانتظار مراجعة HR', 'Attendance Justification Awaiting HR Review',
+        'وافق المدير المباشر على تبرير حضور ويحتاج قراراً نهائياً من الموارد البشرية',
+        'The direct manager approved an attendance justification awaiting HR final decision',
+        id,
+      );
       return this.findOne(id);
     } else {
       // المدير رفض → ينتهي الطلب بالرفض وتُطبَّق الخصومات
@@ -262,6 +335,13 @@ export class AttendanceJustificationsService {
         },
       });
       await this.applyDeduction(id, justification.alertId);
+      await this.notifyEmployee(
+        justification.employeeId,
+        'تم رفض تبريرك', 'Justification Rejected',
+        'تم رفض تبرير الحضور الخاص بك من قِبل المدير المباشر وسيُطبَّق الخصم',
+        'Your attendance justification was rejected by your manager and a deduction will be applied',
+        id,
+      );
       return this.findOne(id);
     }
   }
@@ -290,6 +370,13 @@ export class AttendanceJustificationsService {
         },
       });
       await this.restoreTardinessOffset(justification);
+      await this.notifyEmployee(
+        justification.employeeId,
+        'تمت الموافقة على تبريرك', 'Justification Approved',
+        'تمت الموافقة على تبرير الحضور الخاص بك من قِبل الموارد البشرية',
+        'Your attendance justification has been approved by HR',
+        id,
+      );
       return this.findOne(id);
     } else {
       // HR رفضت → تطبيق الخصم أولاً ثم تحديث التبرير
@@ -304,6 +391,13 @@ export class AttendanceJustificationsService {
         },
       });
       await this.applyDeduction(id, justification.alertId);
+      await this.notifyEmployee(
+        justification.employeeId,
+        'تم رفض تبريرك', 'Justification Rejected',
+        'تم رفض تبرير الحضور الخاص بك من قِبل الموارد البشرية وسيُطبَّق الخصم',
+        'Your attendance justification was rejected by HR and a deduction will be applied',
+        id,
+      );
       return this.findOne(id);
     }
   }
