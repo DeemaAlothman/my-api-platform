@@ -593,7 +593,7 @@ export class LeaveRequestsService {
   }
 
   async substituteApprove(id: string, substituteEmployeeId: string, notes?: string) {
-    const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    const request = await this.prisma.leaveRequest.findUnique({ where: { id }, include: { leaveType: true } });
     if (!request) throw new NotFoundException('Leave request not found');
     if (request.status !== 'PENDING_SUBSTITUTE') {
       throw new BadRequestException('Request is not awaiting substitute approval');
@@ -602,23 +602,32 @@ export class LeaveRequestsService {
       throw new ForbiddenException('You are not the designated substitute for this request');
     }
 
+    const requiresApproval = (request as any).leaveType?.requiresApproval ?? true;
+    const dmIsHR = requiresApproval ? await this.isEmployeeDMAlsoHR(request.employeeId) : false;
+    const newStatus = dmIsHR ? 'PENDING_HR' : 'PENDING_MANAGER';
+
     await this.prisma.leaveRequest.update({
       where: { id },
       data: {
-        status: 'PENDING_MANAGER' as any,
-        managerStatus: 'PENDING',
+        status: newStatus as any,
+        managerStatus: dmIsHR ? 'APPROVED' : 'PENDING',
+        hrStatus: dmIsHR ? 'PENDING' : undefined,
         substituteStatus: 'APPROVED',
         substituteApprovedAt: new Date(),
         substituteNotes: notes,
       },
     });
 
-    await this.addHistory(id, 'SUBSTITUTE_APPROVED', 'PENDING_SUBSTITUTE', 'PENDING_MANAGER', substituteEmployeeId,
+    await this.addHistory(id, 'SUBSTITUTE_APPROVED', 'PENDING_SUBSTITUTE', newStatus, substituteEmployeeId,
       notes ?? 'Substitute approved the request',
     );
 
-    const leaveType = await this.prisma.leaveType.findUnique({ where: { id: request.leaveTypeId } });
-    await this.notifyManagerOfLeave(request.employeeId, id, leaveType?.nameAr ?? 'إجازة');
+    const leaveTypeName = (request as any).leaveType?.nameAr ?? 'إجازة';
+    if (dmIsHR) {
+      await this.notifyHROfLeave(id, leaveTypeName);
+    } else {
+      await this.notifyManagerOfLeave(request.employeeId, id, leaveTypeName);
+    }
 
     return this.prisma.leaveRequest.findUnique({ where: { id }, include: { leaveType: true } });
   }
