@@ -3,7 +3,7 @@ import {
   Body, Param, Query, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard, User } from '@shared/auth';
+import { JwtAuthGuard, UserId } from '@shared/auth';
 import { PermissionsGuard, Permission } from '@shared';
 import { SourcesService } from './sources.service';
 import {
@@ -23,7 +23,7 @@ export class SourcesController {
 
   @Post()
   @Permission('clinic.referrals.manage')
-  create(@Body() dto: CreateSourceDto, @User('sub') userId: string) {
+  create(@Body() dto: CreateSourceDto, @UserId() userId: string) {
     return this.service.create(dto, userId);
   }
 
@@ -70,7 +70,7 @@ export class SourcesController {
   addVisit(
     @Param('id') sourceId: string,
     @Body() dto: CreateVisitDto,
-    @User('sub') userId: string,
+    @UserId() userId: string,
   ) {
     return this.service.addVisit(sourceId, dto, userId);
   }
