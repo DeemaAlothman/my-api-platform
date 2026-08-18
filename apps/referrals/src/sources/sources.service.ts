@@ -199,10 +199,29 @@ export class SourcesService {
 
   async getVisits(sourceId: string) {
     await this.findOne(sourceId);
-    return this.prisma.referralVisit.findMany({
+    const visits = await this.prisma.referralVisit.findMany({
       where: { sourceId },
       orderBy: { visitDate: 'desc' },
     });
+
+    const userIds = [...new Set(visits.map(v => v.visitedBy).filter(Boolean))];
+    let userMap: Record<string, string> = {};
+
+    if (userIds.length > 0) {
+      const placeholders = userIds.map((_, i) => `$${i + 1}`).join(',');
+      const rows = (await this.prisma.$queryRawUnsafe(
+        `SELECT id, "firstName", "lastName" FROM users.users WHERE id IN (${placeholders})`,
+        ...userIds,
+      )) as Array<{ id: string; firstName: string | null; lastName: string | null }>;
+      userMap = Object.fromEntries(
+        rows.map(r => [r.id, [r.firstName, r.lastName].filter(Boolean).join(' ')]),
+      );
+    }
+
+    return visits.map(v => ({
+      ...v,
+      visitedByName: v.visitedBy ? (userMap[v.visitedBy] ?? null) : null,
+    }));
   }
 
   async updateVisit(sourceId: string, visitId: string, dto: UpdateVisitDto) {
