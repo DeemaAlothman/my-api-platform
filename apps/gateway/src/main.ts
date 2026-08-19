@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import helmet from 'helmet';
+import * as compression from 'compression';
 import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 
@@ -38,6 +39,8 @@ async function bootstrap() {
     bodyParser: false, // نتحكم نحن بالـ body parser
     logger: createLogger('gateway'),
   });
+
+  app.use(compression());
 
   const expressApp = app.getHttpAdapter().getInstance();
 
