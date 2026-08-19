@@ -210,12 +210,10 @@ export class SourcesService {
     if (userIds.length > 0) {
       const placeholders = userIds.map((_, i) => `$${i + 1}`).join(',');
       const rows = (await this.prisma.$queryRawUnsafe(
-        `SELECT id, "firstName", "lastName" FROM users.users WHERE id IN (${placeholders})`,
+        `SELECT id, "fullName" FROM users.users WHERE id IN (${placeholders})`,
         ...userIds,
-      )) as Array<{ id: string; firstName: string | null; lastName: string | null }>;
-      userMap = Object.fromEntries(
-        rows.map(r => [r.id, [r.firstName, r.lastName].filter(Boolean).join(' ')]),
-      );
+      )) as Array<{ id: string; fullName: string | null }>;
+      userMap = Object.fromEntries(rows.map(r => [r.id, r.fullName ?? '']));
     }
 
     return visits.map(v => ({
