@@ -78,6 +78,16 @@ model ReferralSource {
   @@schema("referrals")
 }
 
+model ReferralSpecialty {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isCustom  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("referral_specialties")
+  @@schema("referrals")
+}
+
 model ReferralVisit {
   id       String         @id @default(uuid())
   sourceId String

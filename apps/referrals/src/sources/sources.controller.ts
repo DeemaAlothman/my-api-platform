@@ -9,6 +9,7 @@ import { SourcesService } from './sources.service';
 import {
   CreateSourceDto, UpdateSourceDto,
   CreateVisitDto, UpdateVisitDto,
+  CreateSpecialtyDto,
   ListSourcesQueryDto,
 } from './dto/source.dto';
 
@@ -18,6 +19,20 @@ import {
 @Controller('referrals/sources')
 export class SourcesController {
   constructor(private readonly service: SourcesService) {}
+
+  // ── Specialties ───────────────────────────────────────────────────
+
+  @Get('specialties')
+  @Permission('clinic.referrals.view')
+  getSpecialties() {
+    return this.service.getSpecialties();
+  }
+
+  @Post('specialties')
+  @Permission('clinic.referrals.manage')
+  addSpecialty(@Body() dto: CreateSpecialtyDto) {
+    return this.service.addSpecialty(dto);
+  }
 
   // ── Sources ───────────────────────────────────────────────────────
 

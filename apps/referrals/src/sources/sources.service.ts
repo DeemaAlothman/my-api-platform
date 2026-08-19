@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateSourceDto, UpdateSourceDto,
   CreateVisitDto, UpdateVisitDto,
+  CreateSpecialtyDto,
   ListSourcesQueryDto,
 } from './dto/source.dto';
 
@@ -12,9 +13,24 @@ export class SourcesService {
 
   // ── Sources ───────────────────────────────────────────────────────
 
+  // ── Specialties ───────────────────────────────────────────────────
+
+  async getSpecialties() {
+    return this.prisma.referralSpecialty.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  async addSpecialty(dto: CreateSpecialtyDto) {
+    const name = dto.name.trim();
+    const existing = await this.prisma.referralSpecialty.findUnique({ where: { name } });
+    if (existing) throw new ConflictException('التخصص موجود مسبقاً');
+    return this.prisma.referralSpecialty.create({ data: { name, isCustom: true } });
+  }
+
+  // ── Sources ───────────────────────────────────────────────────────
+
   async create(dto: CreateSourceDto, userId: string) {
     return this.prisma.referralSource.create({
-      data: { ...dto, createdBy: userId },
+      data: { ...dto, city: dto.city ?? 'حلب', createdBy: userId },
     });
   }
 

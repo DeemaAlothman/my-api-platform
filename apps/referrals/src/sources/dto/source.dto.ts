@@ -77,6 +77,10 @@ export class UpdateVisitDto {
   @IsOptional() @IsString() notes?: string;
 }
 
+export class CreateSpecialtyDto {
+  @IsString() name: string;
+}
+
 export class ListSourcesQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() page?: number;
   @IsOptional() @Type(() => Number) @IsInt() limit?: number;
