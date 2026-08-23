@@ -40,7 +40,7 @@ export class DoctorDecisionsService {
        JOIN users.employees e ON e."userId" = u.id
        JOIN users.job_titles jt ON jt.id = e."jobTitleId"
        WHERE jt.code = $1
-         AND u.status = 'ACTIVE'
+         AND e."employmentStatus" = 'ACTIVE'
          AND e."deletedAt" IS NULL`,
       DOCTOR_JOB_CODE,
     );
