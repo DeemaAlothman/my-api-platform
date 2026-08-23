@@ -153,6 +153,9 @@ model PodiatrySession {
   clinicianName      String?
   clinicianSignature String? @db.Text
 
+  installedAt DateTime?
+  installedBy String?
+
   archivedAt DateTime?
   archivedBy String?
 

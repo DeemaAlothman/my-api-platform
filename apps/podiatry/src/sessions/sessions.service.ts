@@ -97,6 +97,14 @@ export class SessionsService {
     });
   }
 
+  async install(receptionId: string, sessionId: string, userId: string) {
+    await this.findOne(receptionId, sessionId);
+    return this.prisma.podiatrySession.update({
+      where: { id: sessionId },
+      data: { installedAt: new Date(), installedBy: userId },
+    });
+  }
+
   async archive(receptionId: string, sessionId: string, userId: string) {
     await this.findOne(receptionId, sessionId);
     return this.prisma.podiatrySession.update({

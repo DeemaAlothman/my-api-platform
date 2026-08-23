@@ -38,6 +38,12 @@ export class SessionsController {
     return this.service.update(receptionId, sessionId, dto);
   }
 
+  @Permission(PERMISSIONS.CLINIC_PODIATRY.SESSION_CREATE)
+  @Post(':sessionId/install')
+  install(@Param('receptionId') receptionId: string, @Param('sessionId') sessionId: string, @User() user: any) {
+    return this.service.install(receptionId, sessionId, user.userId);
+  }
+
   @Permission(PERMISSIONS.CLINIC_PODIATRY.SESSION_ARCHIVE)
   @Post(':sessionId/archive')
   archive(@Param('receptionId') receptionId: string, @Param('sessionId') sessionId: string, @User() user: any) {
