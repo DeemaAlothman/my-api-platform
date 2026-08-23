@@ -449,6 +449,7 @@ model LowerLimbAssessment {
   painIntensity        Int?
   painTypes            PainType[]
   painTypeOtherDetail  String?
+  phantomSensationPresent Boolean?
   phantomPainPresent   Boolean @default(false)
   phantomPainIntensity Int?
   neuromaPalpable      Boolean?

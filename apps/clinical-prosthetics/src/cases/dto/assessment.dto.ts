@@ -134,6 +134,11 @@ export class LowerLimbAssessmentDto {
   @IsOptional() @IsString()
   painTypeOtherDetail?: string;
 
+  // إحساس وهمي: موجود أو غير موجود
+  @IsOptional() @IsBoolean()
+  phantomSensationPresent?: boolean;
+
+  // ألم وهمي — يُعبّى فقط إذا phantomSensationPresent = true
   @IsOptional() @IsBoolean()
   phantomPainPresent?: boolean;
 
