@@ -14,11 +14,14 @@ const ALLOWED_MIME = (process.env.ALLOWED_ATTACHMENT_MIME || [
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.oasis.opendocument.text',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.oasis.opendocument.presentation',
   'text/csv', 'text/plain',
   'application/octet-stream',
 ].join(',')).split(',');
 
-const OFFICE_EXTENSIONS = /\.(xlsx?|csv|ods|docx?|odt|txt|pdf)$/i;
+const OFFICE_EXTENSIONS = /\.(xlsx?|csv|ods|docx?|odt|txt|pdf|pptx?|odp)$/i;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
 
 @Injectable()
