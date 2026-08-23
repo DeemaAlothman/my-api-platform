@@ -57,7 +57,8 @@ model ReferralSource {
   interests String[] @default([])
 
   // Visit schedule
-  visitDays String?
+  visitDays  String?
+  visitTimes String?
 
   // الموقع الجغرافي
   latitude  Float?
