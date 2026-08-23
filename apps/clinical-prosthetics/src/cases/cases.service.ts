@@ -401,7 +401,6 @@ export class CasesService {
         painIntensity: dto.painIntensity,
         painTypes: (dto.painTypes ?? []) as any,
         painTypeOtherDetail: dto.painTypeOtherDetail,
-        phantomSensationPresent: dto.phantomSensationPresent,
         phantomPainPresent: dto.phantomPainPresent ?? false,
         phantomPainIntensity: dto.phantomPainIntensity,
         residualLimbPalpable: dto.residualLimbPalpable,
