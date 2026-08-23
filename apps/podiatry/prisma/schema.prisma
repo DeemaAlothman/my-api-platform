@@ -168,7 +168,7 @@ model PodiatrySession {
 
 model PodiatryReview {
   id          String    @id @default(uuid())
-  receptionId String    @unique
+  receptionId String
   notes       String?   @db.Text
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
