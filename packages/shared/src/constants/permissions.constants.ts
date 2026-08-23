@@ -283,9 +283,10 @@ export const PERMISSIONS = {
     SESSION_ARCHIVE:  'clinic.podiatry.session.archive',
   },
   CLINIC_APPOINTMENTS: {
-    VIEW:          'clinic.appointments.view',
-    CREATE:        'clinic.appointments.create',
-    CANCEL:        'clinic.appointments.cancel',
+    VIEW:             'clinic.appointments.view',
+    VIEW_OWN:         'clinic.appointments.view_own',
+    CREATE:           'clinic.appointments.create',
+    CANCEL:           'clinic.appointments.cancel',
     VIEW_ALL_PATIENTS: 'clinic.appointments.view-all-patients',
   },
   CLINIC_INVENTORY: {

@@ -55,7 +55,7 @@ export class AppointmentsController {
   }
 
   @Get('my-appointments')
-  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW_OWN, PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
   getMyAppointments(@Query() query: MyAppointmentsQueryDto, @User() user: any) {
     return this.service.findMyAppointments(user.userId, query);
   }
