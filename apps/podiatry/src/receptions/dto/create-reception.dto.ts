@@ -44,7 +44,27 @@ export class CreateReceptionDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  footSymptomsRight?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  footSymptomsLeft?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   visitTypes?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  visitTypesRight?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  visitTypesLeft?: string[];
 
   @IsOptional()
   @IsArray()

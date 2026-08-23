@@ -39,10 +39,14 @@ model PodiatryReception {
   affectedSide       String[]
 
   // أعراض القدم - متعدد
-  footSymptoms String[]
+  footSymptoms      String[]
+  footSymptomsRight String[]
+  footSymptomsLeft  String[]
 
   // نوع الزيارة - متعدد
-  visitTypes String[]
+  visitTypes      String[]
+  visitTypesRight String[]
+  visitTypesLeft  String[]
 
   // الأدوية والتشخيصات
   currentMedications        String?  @db.Text
