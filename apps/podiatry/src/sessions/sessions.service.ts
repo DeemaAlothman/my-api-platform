@@ -7,30 +7,46 @@ import { UpdateSessionDto } from './dto/update-session.dto';
 export class SessionsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private buildAssessmentData(dto: CreateSessionDto) {
+    return {
+      ...(dto.subjectiveHistory !== undefined && { subjectiveHistory: dto.subjectiveHistory }),
+      ...(dto.visualInspection  !== undefined && { visualInspection:  dto.visualInspection }),
+      ...(dto.palpation         !== undefined && { palpation:         dto.palpation }),
+      ...(dto.rangeOfMotion     !== undefined && { rangeOfMotion:     dto.rangeOfMotion }),
+      ...(dto.dynamicAnalysis   !== undefined && { dynamicAnalysis:   dto.dynamicAnalysis }),
+      ...(dto.shoeWearPattern   !== undefined && { shoeWearPattern:   dto.shoeWearPattern }),
+      ...(dto.footMeasurements  !== undefined && { footMeasurements:  dto.footMeasurements }),
+      ...(dto.insoleType        !== undefined && { insoleType:        dto.insoleType }),
+      ...(dto.notes             !== undefined && { notes:             dto.notes }),
+      ...(dto.clinicianName     !== undefined && { clinicianName:     dto.clinicianName }),
+      ...(dto.clinicianSignature !== undefined && { clinicianSignature: dto.clinicianSignature }),
+      ...(dto.doctorDecision    !== undefined && { doctorDecision:    dto.doctorDecision }),
+    };
+  }
+
   async create(receptionId: string, dto: CreateSessionDto, userId: string) {
     const reception = await this.prisma.podiatryReception.findUnique({ where: { id: receptionId } });
     if (!reception) throw new NotFoundException('Reception not found');
 
+    // جلسة واحدة بس لكل استقبال – upsert
+    const existing = await this.prisma.podiatrySession.findFirst({
+      where: { receptionId, archivedAt: null },
+    });
+
+    if (existing) {
+      return this.prisma.podiatrySession.update({
+        where: { id: existing.id },
+        data: this.buildAssessmentData(dto),
+      });
+    }
+
     return this.prisma.podiatrySession.create({
       data: {
         receptionId,
-        patientId:          reception.patientId,
-        clinicalPlan:       dto.clinicalPlan ?? [],
-        rightFlatFoot:      dto.rightFlatFoot ?? false,
-        rightHighArch:      dto.rightHighArch ?? false,
-        rightPronation:     dto.rightPronation ?? false,
-        rightSupination:    dto.rightSupination ?? false,
-        rightPressureNotes: dto.rightPressureNotes ?? null,
-        rightAsymmetry:     dto.rightAsymmetry ?? null,
-        leftFlatFoot:       dto.leftFlatFoot ?? false,
-        leftHighArch:       dto.leftHighArch ?? false,
-        leftPronation:      dto.leftPronation ?? false,
-        leftSupination:     dto.leftSupination ?? false,
-        leftPressureNotes:  dto.leftPressureNotes ?? null,
-        leftAsymmetry:      dto.leftAsymmetry ?? null,
-        clinicianName:      dto.clinicianName ?? null,
-        clinicianSignature: dto.clinicianSignature ?? null,
-        createdBy:          userId,
+        patientId:   reception.patientId,
+        clinicalPlan: [],
+        createdBy:   userId,
+        ...this.buildAssessmentData(dto),
       },
     });
   }
@@ -56,23 +72,7 @@ export class SessionsService {
     await this.findOne(receptionId, sessionId);
     return this.prisma.podiatrySession.update({
       where: { id: sessionId },
-      data: {
-        ...(dto.clinicalPlan       !== undefined && { clinicalPlan: dto.clinicalPlan }),
-        ...(dto.rightFlatFoot      !== undefined && { rightFlatFoot: dto.rightFlatFoot }),
-        ...(dto.rightHighArch      !== undefined && { rightHighArch: dto.rightHighArch }),
-        ...(dto.rightPronation     !== undefined && { rightPronation: dto.rightPronation }),
-        ...(dto.rightSupination    !== undefined && { rightSupination: dto.rightSupination }),
-        ...(dto.rightPressureNotes !== undefined && { rightPressureNotes: dto.rightPressureNotes }),
-        ...(dto.rightAsymmetry     !== undefined && { rightAsymmetry: dto.rightAsymmetry }),
-        ...(dto.leftFlatFoot       !== undefined && { leftFlatFoot: dto.leftFlatFoot }),
-        ...(dto.leftHighArch       !== undefined && { leftHighArch: dto.leftHighArch }),
-        ...(dto.leftPronation      !== undefined && { leftPronation: dto.leftPronation }),
-        ...(dto.leftSupination     !== undefined && { leftSupination: dto.leftSupination }),
-        ...(dto.leftPressureNotes  !== undefined && { leftPressureNotes: dto.leftPressureNotes }),
-        ...(dto.leftAsymmetry      !== undefined && { leftAsymmetry: dto.leftAsymmetry }),
-        ...(dto.clinicianName      !== undefined && { clinicianName: dto.clinicianName }),
-        ...(dto.clinicianSignature !== undefined && { clinicianSignature: dto.clinicianSignature }),
-      },
+      data: this.buildAssessmentData(dto),
     });
   }
 

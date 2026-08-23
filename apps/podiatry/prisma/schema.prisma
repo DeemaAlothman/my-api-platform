@@ -131,6 +131,18 @@ model PodiatrySession {
   leftPressureNotes String?
   leftAsymmetry     String?
 
+  // استمارة تقييم القدم والكاحل (JSONB sections)
+  subjectiveHistory Json?
+  visualInspection  Json?
+  palpation         Json?
+  rangeOfMotion     Json?
+  dynamicAnalysis   Json?
+  shoeWearPattern   Json?
+  footMeasurements  Json?
+  insoleType        String[]
+  doctorDecision    String?  @db.Text
+  notes             String?  @db.Text
+
   // التوقيع
   clinicianName      String?
   clinicianSignature String? @db.Text
