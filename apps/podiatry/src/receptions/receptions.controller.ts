@@ -1,8 +1,7 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { ReceptionsService } from './receptions.service';
 import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
-import { ComplaintDto, MedicalHistoryDto } from './dto/complaint.dto';
 import { JwtAuthGuard, User } from '@shared/auth';
 import { PermissionsGuard, Permission, PERMISSIONS } from '@shared';
 
@@ -41,31 +40,4 @@ export class ReceptionsController {
     return this.service.remove(id);
   }
 
-  // ── الشكوى المرضية ────────────────────────────────────────────────────────
-
-  @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_EDIT)
-  @Post(':id/complaint')
-  upsertComplaint(@Param('id') id: string, @Body() dto: ComplaintDto) {
-    return this.service.upsertComplaint(id, dto);
-  }
-
-  @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_EDIT)
-  @Put(':id/complaint')
-  updateComplaint(@Param('id') id: string, @Body() dto: ComplaintDto) {
-    return this.service.upsertComplaint(id, dto);
-  }
-
-  // ── التاريخ الطبي ─────────────────────────────────────────────────────────
-
-  @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_EDIT)
-  @Post(':id/medical-history')
-  upsertMedicalHistory(@Param('id') id: string, @Body() dto: MedicalHistoryDto) {
-    return this.service.upsertMedicalHistory(id, dto);
-  }
-
-  @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_EDIT)
-  @Put(':id/medical-history')
-  updateMedicalHistory(@Param('id') id: string, @Body() dto: MedicalHistoryDto) {
-    return this.service.upsertMedicalHistory(id, dto);
-  }
 }
