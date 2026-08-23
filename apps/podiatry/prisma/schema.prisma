@@ -105,7 +105,7 @@ model PodiatryReception {
   createdBy String
 
   sessions       PodiatrySession[]
-  review         PodiatryReview?
+  reviews        PodiatryReview[]
   doctorDecision PodiatryDoctorDecision?
 
   @@map("podiatry_receptions")
