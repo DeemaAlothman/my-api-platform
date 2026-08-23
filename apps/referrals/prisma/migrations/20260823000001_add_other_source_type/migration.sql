@@ -1,0 +1,1 @@
+ALTER TYPE referrals."SourceType" ADD VALUE IF NOT EXISTS 'OTHER';

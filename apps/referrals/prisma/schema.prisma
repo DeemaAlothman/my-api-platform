@@ -15,6 +15,7 @@ enum SourceType {
   DOCTOR
   HOSPITAL
   ASSOCIATION
+  OTHER
 
   @@schema("referrals")
 }

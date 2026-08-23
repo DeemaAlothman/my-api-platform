@@ -7,6 +7,7 @@ export enum SourceType {
   DOCTOR      = 'DOCTOR',
   HOSPITAL    = 'HOSPITAL',
   ASSOCIATION = 'ASSOCIATION',
+  OTHER       = 'OTHER',
 }
 
 export enum VisitType {
