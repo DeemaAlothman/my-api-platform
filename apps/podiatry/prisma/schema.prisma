@@ -100,7 +100,9 @@ model PodiatryReception {
   updatedAt DateTime @updatedAt
   createdBy String
 
-  sessions PodiatrySession[]
+  sessions       PodiatrySession[]
+  review         PodiatryReview?
+  doctorDecision PodiatryDoctorDecision?
 
   @@map("podiatry_receptions")
   @@schema("clinic_podiatry")
@@ -157,5 +159,35 @@ model PodiatrySession {
   reception PodiatryReception @relation(fields: [receptionId], references: [id])
 
   @@map("podiatry_sessions")
+  @@schema("clinic_podiatry")
+}
+
+model PodiatryReview {
+  id          String    @id @default(uuid())
+  receptionId String    @unique
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String
+  updatedBy   String?
+
+  reception PodiatryReception @relation(fields: [receptionId], references: [id])
+
+  @@map("podiatry_reviews")
+  @@schema("clinic_podiatry")
+}
+
+model PodiatryDoctorDecision {
+  id          String    @id @default(uuid())
+  receptionId String    @unique
+  decision    String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String
+  updatedBy   String?
+
+  reception PodiatryReception @relation(fields: [receptionId], references: [id])
+
+  @@map("podiatry_doctor_decisions")
   @@schema("clinic_podiatry")
 }

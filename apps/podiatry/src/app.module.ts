@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from './prisma/prisma.service';
 import { ReceptionsModule } from './receptions/receptions.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { DoctorDecisionsModule } from './doctor-decisions/doctor-decisions.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 
 @Module({
@@ -15,6 +17,8 @@ import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
     }),
     ReceptionsModule,
     SessionsModule,
+    ReviewsModule,
+    DoctorDecisionsModule,
   ],
   providers: [
     PrismaService,
