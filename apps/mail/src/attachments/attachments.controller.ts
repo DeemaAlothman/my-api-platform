@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { AttachmentsService } from './attachments.service';
 import { JwtAuthGuard } from '@shared/auth';
+import { User } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
 
@@ -22,6 +23,29 @@ const MAX_MB = parseInt(process.env.MAX_ATTACHMENT_SIZE_MB || '50', 10);
 @Controller('mail/attachments')
 export class AttachmentsController {
   constructor(private readonly attachmentsService: AttachmentsService) {}
+
+  // رفع مرفق يتيم (بدون messageId) — يُربط لاحقاً عند الإرسال عبر attachmentIds
+  @Post()
+  @Permission('mail:send')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: (_req, _file, cb) => {
+        fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+        cb(null, UPLOAD_DIR);
+      },
+      filename: (_req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`);
+      },
+    }),
+    limits: { fileSize: MAX_MB * 1024 * 1024 },
+  }))
+  uploadOrphan(
+    @User() user: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.attachmentsService.uploadOrphan(user.userId, file);
+  }
 
   @Post(':messageId')
   @Permission('mail:send')

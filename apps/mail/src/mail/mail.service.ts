@@ -108,13 +108,14 @@ export class MailService {
       body: dto.body,
       parentMessageId: dto.parentMessageId,
       importance: dto.importance,
+      attachmentIds: dto.attachmentIds,
     });
   }
 
   private async sendWithUserIds(
     senderId: string,
     allRecipients: Array<{ userId: string; type: RecipientType }>,
-    dto: { subject: string; body: string; parentMessageId?: string; importance?: string },
+    dto: { subject: string; body: string; parentMessageId?: string; importance?: string; attachmentIds?: string[] },
   ) {
     // Append sender signature
     const senderInfo = await internalPost(
@@ -169,6 +170,18 @@ export class MailService {
           readAt: new Date(),
         },
       }).catch(() => {});
+
+      // ربط المرفقات اليتيمة المرفوعة مسبقاً (uploadedBy=senderId, messageId=null)
+      if (dto.attachmentIds?.length) {
+        await (tx as any).mailAttachment.updateMany({
+          where: {
+            id: { in: dto.attachmentIds },
+            uploadedBy: senderId,
+            messageId: null,
+          },
+          data: { messageId: message.id },
+        });
+      }
 
       // إشعار جميع المستلمين TO + CC + BCC (fire-and-forget)
       const notifyIds = deduped.map((r) => r.userId);

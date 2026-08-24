@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -25,9 +25,26 @@ const OFFICE_EXTENSIONS = /\.(xlsx?|csv|ods|docx?|odt|txt|pdf|pptx?|odp)$/i;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
 
 @Injectable()
-export class AttachmentsService {
+export class AttachmentsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {
     if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+
+  onModuleInit() {
+    setInterval(() => this.cleanupOrphans(), 60 * 60 * 1000);
+  }
+
+  async cleanupOrphans(): Promise<number> {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const orphans = await (this.prisma as any).mailAttachment.findMany({
+      where: { messageId: null, createdAt: { lt: cutoff } },
+      select: { id: true, fileUrl: true },
+    });
+    for (const orphan of orphans) {
+      try { fs.unlinkSync(orphan.fileUrl); } catch {}
+      await (this.prisma as any).mailAttachment.delete({ where: { id: orphan.id } }).catch(() => {});
+    }
+    return orphans.length;
   }
 
   // legacy: memory storage (kept for compatibility)
@@ -48,6 +65,29 @@ export class AttachmentsService {
     fs.writeFileSync(diskPath, file.buffer);
     return (this.prisma as any).mailAttachment.create({
       data: { messageId, fileUrl: diskPath, fileName: file.originalname, fileSize: file.size, mimeType: file.mimetype },
+    });
+  }
+
+  // رفع مرفق بدون ربطه برسالة — يُربط لاحقاً عند الإرسال عبر attachmentIds
+  async uploadOrphan(userId: string, file: Express.Multer.File) {
+    if (!file || !file.path) {
+      throw new BadRequestException({ code: 'EMPTY_FILE', message: 'File is empty or was not received', details: [] });
+    }
+    const mimeAllowed = ALLOWED_MIME.includes(file.mimetype);
+    const excelByExtension = OFFICE_EXTENSIONS.test(file.originalname);
+    if (!mimeAllowed && !excelByExtension) {
+      fs.unlinkSync(file.path);
+      throw new BadRequestException({ code: 'ATTACHMENT_INVALID_TYPE', message: 'File type not allowed', details: [{ allowed: ALLOWED_MIME, received: file.mimetype }] });
+    }
+    return (this.prisma as any).mailAttachment.create({
+      data: {
+        messageId: null,
+        uploadedBy: userId,
+        fileUrl: file.path,
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      },
     });
   }
 

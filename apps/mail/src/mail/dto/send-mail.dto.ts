@@ -50,4 +50,10 @@ export class SendMailDto {
   @IsOptional()
   @IsString()
   importance?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'IDs of pre-uploaded orphan attachments to link to this message' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  attachmentIds?: string[];
 }

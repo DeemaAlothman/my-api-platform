@@ -73,18 +73,21 @@ model MailArchiveFolder {
 }
 
 model MailAttachment {
-  id        String      @id @default(uuid())
-  messageId String
-  fileUrl   String
-  fileName  String
-  fileSize  Int
-  mimeType  String
+  id         String       @id @default(uuid())
+  messageId  String?
+  uploadedBy String?
 
-  message   MailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  fileUrl    String
+  fileName   String
+  fileSize   Int
+  mimeType   String
 
-  createdAt DateTime    @default(now())
+  message    MailMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime     @default(now())
 
   @@index([messageId])
+  @@index([uploadedBy])
   @@map("mail_attachments")
 }
 
