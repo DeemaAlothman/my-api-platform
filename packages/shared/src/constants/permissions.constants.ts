@@ -201,6 +201,13 @@ export const PERMISSIONS = {
     DELETE: 'biometric.mappings.delete',
   },
 
+  // ── Onboarding ─────────────────────────────────────────────────────
+  ONBOARDING: {
+    MANAGE:      'onboarding.manage',
+    VIEW:        'onboarding.view',
+    UPDATE_TASK: 'onboarding.update_task',
+  },
+
   // ── Jobs ───────────────────────────────────────────────────────────────
   JOB_APPLICATIONS: {
     READ:        'job-applications:read',

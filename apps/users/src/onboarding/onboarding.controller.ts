@@ -9,10 +9,11 @@ import { OnboardingService } from './onboarding.service';
 import { CreateTemplateDto } from './dto/create-template.dto';
 import { CreateWorkflowDto } from './dto/create-workflow.dto';
 import { UpdateWorkflowTaskDto } from './dto/update-task.dto';
+import { PermissionsGuard, Permission } from '@shared';
 
 @ApiTags('Onboarding')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @Controller('onboarding')
 export class OnboardingController {
   constructor(private readonly service: OnboardingService) {}
@@ -20,12 +21,14 @@ export class OnboardingController {
   // ─── Templates ────────────────────────────────────────────────────────────
 
   @Post('templates')
+  @Permission('onboarding.manage')
   @ApiOperation({ summary: 'Create onboarding/offboarding template' })
   createTemplate(@Body() dto: CreateTemplateDto) {
     return this.service.createTemplate(dto);
   }
 
   @Get('templates')
+  @Permission('onboarding.view')
   @ApiOperation({ summary: 'List templates' })
   @ApiQuery({ name: 'type', enum: WorkflowType, required: false })
   findAllTemplates(@Query('type') type?: WorkflowType) {
@@ -33,12 +36,14 @@ export class OnboardingController {
   }
 
   @Get('templates/:id')
+  @Permission('onboarding.view')
   @ApiOperation({ summary: 'Get template by id' })
   findOneTemplate(@Param('id') id: string) {
     return this.service.findOneTemplate(id);
   }
 
   @Delete('templates/:id')
+  @Permission('onboarding.manage')
   @ApiOperation({ summary: 'Delete template (soft)' })
   deleteTemplate(@Param('id') id: string) {
     return this.service.deleteTemplate(id);
@@ -47,12 +52,14 @@ export class OnboardingController {
   // ─── Workflows ────────────────────────────────────────────────────────────
 
   @Post('workflows')
+  @Permission('onboarding.manage')
   @ApiOperation({ summary: 'Start onboarding/offboarding workflow for employee' })
   createWorkflow(@Body() dto: CreateWorkflowDto) {
     return this.service.createWorkflow(dto);
   }
 
   @Get('workflows')
+  @Permission('onboarding.view')
   @ApiOperation({ summary: 'List workflows' })
   @ApiQuery({ name: 'employeeId', required: false })
   @ApiQuery({ name: 'status', enum: WorkflowStatus, required: false })
@@ -66,12 +73,14 @@ export class OnboardingController {
   }
 
   @Get('workflows/:id')
+  @Permission('onboarding.view')
   @ApiOperation({ summary: 'Get workflow with tasks' })
   findOneWorkflow(@Param('id') id: string) {
     return this.service.findOneWorkflow(id);
   }
 
   @Patch('workflows/:workflowId/tasks/:taskId')
+  @Permission('onboarding.update_task')
   @ApiOperation({ summary: 'Update task status' })
   updateTask(
     @Param('workflowId') workflowId: string,
@@ -82,6 +91,7 @@ export class OnboardingController {
   }
 
   @Patch('workflows/:id/cancel')
+  @Permission('onboarding.manage')
   @ApiOperation({ summary: 'Cancel workflow' })
   cancelWorkflow(@Param('id') id: string) {
     return this.service.cancelWorkflow(id);
