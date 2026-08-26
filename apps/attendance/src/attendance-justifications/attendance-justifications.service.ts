@@ -540,6 +540,16 @@ export class AttendanceJustificationsService {
         offsetId,
       );
 
+      // صفّر tardinessOffsetMinutes على سجل الحضور — التبرير معتمد، لا خصم من الرصيد
+      if (justification.attendanceRecordId) {
+        await this.prisma.$queryRawUnsafe(
+          `UPDATE attendance.attendance_records
+           SET "tardinessOffsetMinutes" = 0, "updatedAt" = NOW()
+           WHERE id = $1`,
+          justification.attendanceRecordId,
+        );
+      }
+
       // استعادة usedHours
       await this.prisma.$queryRawUnsafe(
         `UPDATE leaves.leave_balances
