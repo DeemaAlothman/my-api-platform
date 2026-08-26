@@ -93,6 +93,29 @@ export class LeaveRequestsService {
   }
 
   // التحقق أن المستخدم هو المدير المباشر للموظف صاحب الطلب
+  // حل تنبيهات ANOMALY_NO_STAMP لأيام الإجازة المعتمدة بأثر رجعي
+  private async resolveAnomalyAlertsForLeave(employeeId: string, startDate: Date, endDate: Date): Promise<void> {
+    try {
+      await this.prisma.$queryRawUnsafe(
+        `UPDATE attendance.attendance_alerts
+         SET status = 'RESOLVED',
+             "resolutionNotes" = 'تم الحل تلقائياً: إجازة معتمدة تغطي هذا اليوم',
+             "resolvedAt" = NOW(),
+             "updatedAt" = NOW()
+         WHERE "employeeId" = $1
+           AND date >= $2::date
+           AND date <= $3::date
+           AND "alertType" = 'ANOMALY_NO_STAMP'
+           AND status IN ('OPEN', 'ACKNOWLEDGED')`,
+        employeeId,
+        startDate,
+        endDate,
+      );
+    } catch (err) {
+      console.error('[resolveAnomalyAlertsForLeave] failed:', (err as any)?.message);
+    }
+  }
+
   private async assertIsEmployeeManager(approverUserId: string, employeeId: string): Promise<void> {
     const rows = await this.prisma.$queryRaw<Array<{ managerId: string | null; approverId: string | null }>>`
       SELECT e."managerId",
@@ -724,6 +747,7 @@ export class LeaveRequestsService {
           (request as any).isHalfDay, (request as any).halfDayPeriod,
         );
       }
+      await this.resolveAnomalyAlertsForLeave(request.employeeId, request.startDate, request.endDate);
     }
 
     return updated;
@@ -831,6 +855,8 @@ export class LeaveRequestsService {
         (request as any).isHalfDay, (request as any).halfDayPeriod,
       );
     }
+
+    await this.resolveAnomalyAlertsForLeave(request.employeeId, request.startDate, request.endDate);
 
     return updated;
   }
