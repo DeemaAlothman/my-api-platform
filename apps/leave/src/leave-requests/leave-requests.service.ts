@@ -93,9 +93,10 @@ export class LeaveRequestsService {
   }
 
   // التحقق أن المستخدم هو المدير المباشر للموظف صاحب الطلب
-  // حل تنبيهات ANOMALY_NO_STAMP لأيام الإجازة المعتمدة بأثر رجعي
+  // حل تنبيهات ANOMALY_NO_STAMP وإغلاق التبريرات المعلّقة لأيام الإجازة المعتمدة بأثر رجعي
   private async resolveAnomalyAlertsForLeave(employeeId: string, startDate: Date, endDate: Date): Promise<void> {
     try {
+      // 1) حل التنبيهات
       await this.prisma.$queryRawUnsafe(
         `UPDATE attendance.attendance_alerts
          SET status = 'RESOLVED',
@@ -107,6 +108,25 @@ export class LeaveRequestsService {
            AND date <= $3::date
            AND "alertType" = 'ANOMALY_NO_STAMP'
            AND status IN ('OPEN', 'ACKNOWLEDGED')`,
+        employeeId,
+        startDate,
+        endDate,
+      );
+
+      // 2) إغلاق أي تبريرات معلّقة مرتبطة بتلك التنبيهات (الإجازة تغطيها — لا حاجة لموافقة HR)
+      await this.prisma.$queryRawUnsafe(
+        `UPDATE attendance.attendance_justifications aj
+         SET status = 'HR_APPROVED',
+             "hrNotes" = 'أُغلق تلقائياً: الإجازة المعتمدة تغطي هذا اليوم',
+             "hrReviewedAt" = NOW(),
+             "updatedAt" = NOW()
+         FROM attendance.attendance_alerts aa
+         WHERE aj."alertId" = aa.id
+           AND aa."employeeId" = $1
+           AND aa.date >= $2::date
+           AND aa.date <= $3::date
+           AND aa."alertType" = 'ANOMALY_NO_STAMP'
+           AND aj.status IN ('PENDING_MANAGER', 'MANAGER_APPROVED', 'PENDING_HR')`,
         employeeId,
         startDate,
         endDate,
