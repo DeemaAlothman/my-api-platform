@@ -370,6 +370,7 @@ export class AttendanceJustificationsService {
         },
       });
       await this.restoreTardinessOffset(justification);
+      await this.restoreEarlyLeaveOffset(justification);
       await this.notifyEmployee(
         justification.employeeId,
         'تمت الموافقة على تبريرك', 'Justification Approved',
@@ -582,6 +583,96 @@ export class AttendanceJustificationsService {
     } catch (err) {
       // استعادة الرصيد اختيارية — لا توقف عملية الاعتماد
       console.error(`[restoreTardinessOffset] failed: ${(err as any)?.message}`);
+    }
+  }
+
+  /**
+   * عند اعتماد تبرير الخروج المبكر: ابحث عن EARLY_LEAVE_AUTO للتاريخ نفسه وأعِد الرصيد
+   */
+  private async restoreEarlyLeaveOffset(justification: any): Promise<void> {
+    try {
+      if (!justification.attendanceRecordId) return;
+      if (justification.alert?.alertType !== 'EARLY_LEAVE') return;
+
+      const recRow = (await this.prisma.$queryRawUnsafe(
+        `SELECT date, "employeeId" FROM attendance.attendance_records WHERE id = $1 LIMIT 1`,
+        justification.attendanceRecordId,
+      )) as Array<{ date: Date; employeeId: string }>;
+
+      if (!recRow[0]) return;
+
+      const dateStr = recRow[0].date.toISOString().split('T')[0];
+      const employeeId = recRow[0].employeeId;
+
+      const autoLeaves = (await this.prisma.$queryRawUnsafe(
+        `SELECT id, "durationHours", "leaveTypeId"
+         FROM leaves.leave_requests
+         WHERE "employeeId" = $1
+           AND "isHourlyLeave" = true
+           AND source = 'EARLY_LEAVE_AUTO'
+           AND status = 'APPROVED'
+           AND "startDate"::date = $2::date
+           AND "deletedAt" IS NULL`,
+        employeeId, dateStr,
+      )) as Array<{ id: string; durationHours: number; leaveTypeId: string }>;
+
+      // تصفير earlyLeaveMinutes وتحديث الحالة دائماً حين يُعتمد التبرير
+      await this.prisma.$queryRawUnsafe(
+        `UPDATE attendance.attendance_records
+         SET "earlyLeaveMinutes" = 0,
+             status = CASE
+               WHEN "lateMinutes" = 0 AND COALESCE("hourlyLeaveMinutes", 0) = 0 THEN 'PRESENT'
+               ELSE 'PARTIAL_LEAVE'
+             END,
+             "updatedAt" = NOW()
+         WHERE id = $1`,
+        justification.attendanceRecordId,
+      );
+
+      if (!autoLeaves.length) return;
+
+      const year = new Date(dateStr).getFullYear();
+      const leaveTypeId = autoLeaves[0].leaveTypeId;
+      const totalDurationHours = autoLeaves.reduce((sum, r) => sum + Number(r.durationHours), 0);
+
+      // إلغاء جميع EARLY_LEAVE_AUTO للتاريخ
+      await this.prisma.$queryRawUnsafe(
+        `UPDATE leaves.leave_requests
+         SET status = 'CANCELLED', "cancelReason" = 'تم اعتماد تبرير الخروج المبكر', "cancelledAt" = NOW(), "updatedAt" = NOW()
+         WHERE id = ANY($1::text[])`,
+        autoLeaves.map(r => r.id),
+      );
+
+      // استعادة usedHours
+      await this.prisma.$queryRawUnsafe(
+        `UPDATE leaves.leave_balances
+         SET "usedHours" = GREATEST(0, "usedHours" - $1), "updatedAt" = NOW()
+         WHERE "employeeId" = $2 AND "leaveTypeId" = $3 AND year = $4`,
+        totalDurationHours, employeeId, leaveTypeId, year,
+      );
+
+      const userRow = (await this.prisma.$queryRawUnsafe(
+        `SELECT "userId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        employeeId,
+      )) as Array<{ userId: string | null }>;
+
+      const userId = userRow[0]?.userId;
+      if (userId) {
+        const minutesRestored = Math.round(totalDurationHours * 60);
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'TARDINESS_OFFSET_RESTORED',
+              'استعادة رصيد الإجازة الساعية', 'Hourly Leave Balance Restored',
+              $2, $3, false, NOW())`,
+          userId,
+          `تمت إعادة ${minutesRestored} دقيقة لرصيدك بعد اعتماد تبرير الخروج المبكر بتاريخ ${dateStr}`,
+          `${minutesRestored} min restored to your balance after early leave justification approved on ${dateStr}`,
+        );
+      }
+    } catch (err) {
+      console.error(`[restoreEarlyLeaveOffset] failed: ${(err as any)?.message}`);
     }
   }
 
