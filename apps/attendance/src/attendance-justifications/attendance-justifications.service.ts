@@ -616,10 +616,11 @@ export class AttendanceJustificationsService {
         employeeId, dateStr,
       )) as Array<{ id: string; durationHours: number; leaveTypeId: string }>;
 
-      // تصفير earlyLeaveMinutes وتحديث الحالة دائماً حين يُعتمد التبرير
+      // تصفير earlyLeaveMinutes وearlyLeavePendingDeductionMinutes وتحديث الحالة دائماً حين يُعتمد التبرير
       await this.prisma.$queryRawUnsafe(
         `UPDATE attendance.attendance_records
          SET "earlyLeaveMinutes" = 0,
+             "earlyLeavePendingDeductionMinutes" = 0,
              status = CASE
                WHEN "lateMinutes" = 0 AND COALESCE("hourlyLeaveMinutes", 0) = 0 THEN 'PRESENT'
                ELSE 'PARTIAL_LEAVE'
