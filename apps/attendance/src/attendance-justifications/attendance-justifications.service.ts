@@ -514,7 +514,7 @@ export class AttendanceJustificationsService {
       const dateStr = recRow[0].date.toISOString().split('T')[0];
       const employeeId = recRow[0].employeeId;
 
-      const autoOffset = (await this.prisma.$queryRawUnsafe(
+      const autoOffsets = (await this.prisma.$queryRawUnsafe(
         `SELECT id, "durationHours", "leaveTypeId"
          FROM leaves.leave_requests
          WHERE "employeeId" = $1
@@ -522,22 +522,22 @@ export class AttendanceJustificationsService {
            AND COALESCE(source, 'EMPLOYEE_REQUEST') = 'TARDINESS_AUTO'
            AND status = 'APPROVED'
            AND "startDate"::date = $2::date
-           AND "deletedAt" IS NULL
-         LIMIT 1`,
+           AND "deletedAt" IS NULL`,
         employeeId, dateStr,
       )) as Array<{ id: string; durationHours: number; leaveTypeId: string }>;
 
-      if (!autoOffset[0]) return;
+      if (!autoOffsets.length) return;
 
-      const { id: offsetId, durationHours, leaveTypeId } = autoOffset[0];
       const year = new Date(dateStr).getFullYear();
+      const leaveTypeId = autoOffsets[0].leaveTypeId;
+      const totalDurationHours = autoOffsets.reduce((sum, r) => sum + Number(r.durationHours), 0);
 
-      // إلغاء leave_request التلقائي
+      // إلغاء جميع سجلات TARDINESS_AUTO للتاريخ (لا LIMIT 1 لتفادي تكرار السجلات)
       await this.prisma.$queryRawUnsafe(
         `UPDATE leaves.leave_requests
          SET status = 'CANCELLED', "cancelReason" = 'تم اعتماد تبرير التأخير', "cancelledAt" = NOW(), "updatedAt" = NOW()
-         WHERE id = $1`,
-        offsetId,
+         WHERE id = ANY($1::text[])`,
+        autoOffsets.map(r => r.id),
       );
 
       // صفّر tardinessOffsetMinutes على سجل الحضور — التبرير معتمد، لا خصم من الرصيد
@@ -550,12 +550,12 @@ export class AttendanceJustificationsService {
         );
       }
 
-      // استعادة usedHours
+      // استعادة usedHours لكل السجلات الملغاة
       await this.prisma.$queryRawUnsafe(
         `UPDATE leaves.leave_balances
          SET "usedHours" = GREATEST(0, "usedHours" - $1), "updatedAt" = NOW()
          WHERE "employeeId" = $2 AND "leaveTypeId" = $3 AND year = $4`,
-        durationHours, employeeId, leaveTypeId, year,
+        totalDurationHours, employeeId, leaveTypeId, year,
       );
 
       // إشعار للموظف
@@ -566,7 +566,7 @@ export class AttendanceJustificationsService {
 
       const userId = userRow[0]?.userId;
       if (userId) {
-        const minutesRestored = Math.round(durationHours * 60);
+        const minutesRestored = Math.round(totalDurationHours * 60);
         await this.prisma.$queryRawUnsafe(
           `INSERT INTO users.notifications
              (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "createdAt")
