@@ -1414,7 +1414,6 @@ export class LeaveRequestsService {
            "leaveStartTime"                    = EXCLUDED."leaveStartTime",
            "leaveEndTime"                      = EXCLUDED."leaveEndTime",
            "hourlyLeaveMinutes"                = EXCLUDED."hourlyLeaveMinutes",
-           "tardinessPendingDeductionMinutes"  = 0,
            "earlyLeavePendingDeductionMinutes" = 0,
            "updatedAt"                         = NOW()`,
         request.employeeId, dateStr, hourlyLeaveMinutes, leaveStartTs, leaveEndTs,
