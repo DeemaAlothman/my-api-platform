@@ -186,6 +186,10 @@ export class PayrollService {
     // دقائق الإجازة التلقائية التي تجاوزت الحد الشهري (تُحسم وتظهر في W)
     let autoLeaveOverLimitMinutes = 0;
     let totalUnpaidDailyDays = 0;
+    // الدقائق المجانية من TARDINESS_AUTO فقط (لحساب الفجوة غير المحسومة لاحقاً)
+    let tardinessAutoFreeMinutes = 0;
+    // دقائق TARDINESS_AUTO التي تجاوزت الحد (موجودة أصلاً في autoLeaveOverLimitMinutes)
+    let tardinessAutoOverLimitMinutes = 0;
 
     // تتبع الساعات المستخدمة لكل نوع إجازة ساعية لحساب الزيادة عن الحد الشهري ديناميكياً
     const hourlyUsedByType = new Map<string, number>();
@@ -234,6 +238,10 @@ export class PayrollService {
         if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') {
           tardinessOffsetMinutesPayroll += freeMinutes;   // ضمن الحد — بدون حسم
           autoLeaveOverLimitMinutes += overLimitMinutes;  // تجاوز الحد — يُحسم ويظهر في W
+          if (leave.source === 'TARDINESS_AUTO') {
+            tardinessAutoFreeMinutes += freeMinutes;
+            tardinessAutoOverLimitMinutes += overLimitMinutes;
+          }
         } else if (leave.isPaid) {
           paidHourlyLeaveMinutes += freeMinutes;
           unpaidHourlyLeaveMinutes += overLimitMinutes;
@@ -243,7 +251,7 @@ export class PayrollService {
         continue;
       }
       if (leave.typeCode === 'SICK') {
-        sickLeaveDays += leave.totalDays;
+        sickLeaveDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
         continue;
       }
       if (leave.typeCode === 'UNPAID_DAILY') {
@@ -516,6 +524,17 @@ export class PayrollService {
 
     // D: مبالغ الإجازات — الإجازة الساعية المدفوعة وتعويض التأخير لا يُحسمان
     const unpaidLeaveAmount = unpaidLeaveDays * dailyRate;
+    // إضافة دقائق التأخير التي انتهى رصيدها ولم يُنشأ لها TARDINESS_AUTO كامل ولم تُسجَّل pending
+    if (salaryLinked) {
+      const tardinessPendingFromRecords = records.reduce((sum, r) => sum + (r.tardinessPendingDeductionMinutes ?? 0), 0);
+      const unaccountedTardiness = Math.max(0,
+        totalLateMinutes - justifiedLateMinutes
+        - tardinessAutoFreeMinutes        // مغطى بالرصيد (مجاني)
+        - tardinessAutoOverLimitMinutes   // موجود أصلاً في autoLeaveOverLimitMinutes
+        - tardinessPendingFromRecords,    // مسجّل pending في سجلات الحضور
+      );
+      autoLeaveOverLimitMinutes += unaccountedTardiness;
+    }
     const hourlyLeaveAmount = salaryLinked ? (unpaidHourlyLeaveMinutes + autoLeaveOverLimitMinutes) * minuteRate : 0;
     const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
 
