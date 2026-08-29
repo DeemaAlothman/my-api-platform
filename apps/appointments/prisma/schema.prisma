@@ -47,7 +47,8 @@ enum ReminderChannel {
 
 model Appointment {
   id               String   @id @default(uuid())
-  patientId        String
+  patientId        String?
+  patientName      String?
   caseId           String?
   caseType         CaseType?
 

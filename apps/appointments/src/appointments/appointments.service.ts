@@ -206,15 +206,18 @@ export class AppointmentsService implements OnModuleInit {
     const conflict = await this.checkConflict(dto.practitionerId, startTime, endTime, undefined, dto.therapistIds);
     if (conflict) throw new BadRequestException('Practitioner has a conflicting appointment at this time');
 
-    const patientConflict = await this.checkPatientConflict(dto.patientId, startTime, endTime);
-    if (patientConflict) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
+    if (dto.patientId) {
+      const patientConflict = await this.checkPatientConflict(dto.patientId, startTime, endTime);
+      if (patientConflict) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
+    }
 
     const onLeave = await this.checkLeaveOverlap(dto.practitionerId, startTime, endTime);
     if (onLeave) throw new BadRequestException('Practitioner is on approved leave during this time');
 
     const appt = await this.prisma.appointment.create({
       data: {
-        patientId:         dto.patientId,
+        patientId:         dto.patientId ?? null,
+        patientName:       dto.patientId ? null : (dto.patientName ?? null),
         caseId:            dto.caseId,
         caseType:          dto.caseType as any,
         practitionerId:    dto.practitionerId,
@@ -257,19 +260,22 @@ export class AppointmentsService implements OnModuleInit {
     return appt;
   }
 
-  private async attachPatientNames<T extends { patientId: string }>(items: T[]): Promise<(T & { patientName: string; patientNumber: string })[]> {
-    if (items.length === 0) return items.map(i => ({ ...i, patientName: '', patientNumber: '' }));
-    const ids = [...new Set(items.map(i => i.patientId))];
-    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-    const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; patientNumber: string }>>(
-      `SELECT id, "firstName", "lastName", "patientNumber" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
-      ...ids,
-    );
-    const map = new Map(patients.map(p => [p.id, { name: `${p.firstName} ${p.lastName}`, number: p.patientNumber }]));
+  private async attachPatientNames<T extends { patientId: string | null; patientName?: string | null }>(items: T[]): Promise<(T & { patientName: string; patientNumber: string })[]> {
+    if (items.length === 0) return items.map(i => ({ ...i, patientName: i.patientName ?? '', patientNumber: '' }));
+    const ids = [...new Set(items.map(i => i.patientId).filter((id): id is string => !!id))];
+    const map = new Map<string, { name: string; number: string }>();
+    if (ids.length > 0) {
+      const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+      const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; patientNumber: string }>>(
+        `SELECT id, "firstName", "lastName", "patientNumber" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
+        ...ids,
+      );
+      for (const p of patients) map.set(p.id, { name: `${p.firstName} ${p.lastName}`, number: p.patientNumber });
+    }
     return items.map(i => ({
       ...i,
-      patientName: map.get(i.patientId)?.name ?? '',
-      patientNumber: map.get(i.patientId)?.number ?? '',
+      patientName: i.patientId ? (map.get(i.patientId)?.name ?? '') : (i.patientName ?? ''),
+      patientNumber: i.patientId ? (map.get(i.patientId)?.number ?? '') : '',
     }));
   }
 
@@ -323,7 +329,7 @@ export class AppointmentsService implements OnModuleInit {
       select: { patientId: true },
       distinct: ['patientId'],
     });
-    return rows.map(r => r.patientId);
+    return rows.map(r => r.patientId).filter(Boolean);
   }
 
   private async getWorkHours(practitionerId: string, dateStr: string): Promise<{ start: number; end: number; isWorkDay: boolean }> {
@@ -427,8 +433,10 @@ export class AppointmentsService implements OnModuleInit {
       const endTime = new Date(dto.endTime);
       const conflict = await this.checkConflict(existing.practitionerId, startTime, endTime, id, dto.therapistIds ?? (existing as any).therapistIds);
       if (conflict) throw new BadRequestException('Conflicting appointment exists');
-      const patientConflict2 = await this.checkPatientConflict(existing.patientId, startTime, endTime, id);
-      if (patientConflict2) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
+      if (existing.patientId) {
+        const patientConflict2 = await this.checkPatientConflict(existing.patientId, startTime, endTime, id);
+        if (patientConflict2) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
+      }
       data.startTime = startTime;
       data.endTime = endTime;
     } else if (dto.startTime) {
@@ -478,8 +486,10 @@ export class AppointmentsService implements OnModuleInit {
     const endTime = new Date(dto.endTime);
     const conflict = await this.checkConflict(appt.practitionerId, startTime, endTime, id, (appt as any).therapistIds);
     if (conflict) throw new BadRequestException('Conflicting appointment exists');
-    const patientConflict3 = await this.checkPatientConflict(appt.patientId, startTime, endTime, id);
-    if (patientConflict3) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
+    if (appt.patientId) {
+      const patientConflict3 = await this.checkPatientConflict(appt.patientId, startTime, endTime, id);
+      if (patientConflict3) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
+    }
     return this.prisma.appointment.update({
       where: { id },
       data: { startTime, endTime, status: 'RESCHEDULED' as any, notes: dto.notes },

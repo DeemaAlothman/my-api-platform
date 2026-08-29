@@ -1,5 +1,6 @@
 import {
   IsString, IsOptional, IsEnum, IsDateString, IsInt, Min, IsNumber, IsArray,
+  IsNotEmpty, ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -23,8 +24,12 @@ export enum CaseTypeEnum          { PROSTHETICS='PROSTHETICS', PHYSIO='PHYSIO', 
 export enum AppointmentStatusEnum { SCHEDULED='SCHEDULED', CONFIRMED='CONFIRMED', COMPLETED='COMPLETED', CANCELLED='CANCELLED', NO_SHOW='NO_SHOW', RESCHEDULED='RESCHEDULED' }
 
 export class CreateAppointmentDto {
-  @IsString()
-  patientId: string;
+  @IsOptional() @IsString()
+  patientId?: string;
+
+  @ValidateIf(o => !o.patientId)
+  @IsString() @IsNotEmpty()
+  patientName?: string;
 
   @IsOptional() @IsString()
   caseId?: string;
