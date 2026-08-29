@@ -126,9 +126,18 @@ export class CasesService {
 
   private async generateCaseNumber(): Promise<string> {
     const year = new Date().getFullYear();
-    const count = await this.prisma.prostheticsCase.count();
-    const num = String(count + 1).padStart(4, '0');
-    return `PR-${year}-${num}`;
+    const prefix = `PR-${year}-`;
+    const last = await this.prisma.prostheticsCase.findFirst({
+      where: { caseNumber: { startsWith: prefix } },
+      orderBy: { caseNumber: 'desc' },
+      select: { caseNumber: true },
+    });
+    let num = 1;
+    if (last) {
+      const lastNum = parseInt(last.caseNumber.replace(prefix, ''), 10);
+      if (!isNaN(lastNum)) num = lastNum + 1;
+    }
+    return `${prefix}${String(num).padStart(4, '0')}`;
   }
 
   private async findCaseOrThrow(id: string) {
