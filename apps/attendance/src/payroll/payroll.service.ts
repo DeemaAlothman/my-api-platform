@@ -1364,7 +1364,7 @@ export class PayrollService {
       '$ الراتب الصافي', '$ تقريب', 'ملاحظات',
     ];
 
-    const rows = payrolls.filter(p => (p as any).salaryLinked !== false).map(p => {
+    const rows = payrolls.map(p => {
       const emp = empMap.get(p.employeeId);
       const allowances = p.allowancesBreakdown ? JSON.parse(p.allowancesBreakdown as string) : {};
       const bd = p.deductionBreakdown as any;
