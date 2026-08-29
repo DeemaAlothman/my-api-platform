@@ -1249,7 +1249,8 @@ export class PayrollService {
     let leaveTypeRows: Array<{ employeeId: string; typeName: string; isPaid: boolean; days: number }> = [];
     if (empIds.length > 0) {
       leaveTypeRows = await this.prisma.$queryRawUnsafe(`
-        SELECT lr."employeeId", lt."nameAr" as "typeName", lt."isPaid", SUM(lr."totalDays")::float as days
+        SELECT lr."employeeId", lt."nameAr" as "typeName", lt."isPaid",
+               SUM(GREATEST((LEAST(lr."endDate"::date, $3::date) - GREATEST(lr."startDate"::date, $2::date) + 1)::float, 0)) as days
         FROM leaves.leave_requests lr
         JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
         WHERE lr."employeeId" = ANY($1::text[])
