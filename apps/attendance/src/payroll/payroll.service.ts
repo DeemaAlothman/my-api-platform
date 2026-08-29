@@ -190,6 +190,8 @@ export class PayrollService {
     let tardinessAutoFreeMinutes = 0;
     // دقائق TARDINESS_AUTO التي تجاوزت الحد (موجودة أصلاً في autoLeaveOverLimitMinutes)
     let tardinessAutoOverLimitMinutes = 0;
+    // دقائق EARLY_LEAVE_AUTO التي تجاوزت الحد (موجودة أصلاً في autoLeaveOverLimitMinutes)
+    let earlyLeaveAutoOverLimitMinutes = 0;
 
     // تتبع الساعات المستخدمة لكل نوع إجازة ساعية لحساب الزيادة عن الحد الشهري ديناميكياً
     const hourlyUsedByType = new Map<string, number>();
@@ -241,6 +243,8 @@ export class PayrollService {
           if (leave.source === 'TARDINESS_AUTO') {
             tardinessAutoFreeMinutes += freeMinutes;
             tardinessAutoOverLimitMinutes += overLimitMinutes;
+          } else {
+            earlyLeaveAutoOverLimitMinutes += overLimitMinutes;
           }
         } else if (leave.isPaid) {
           paidHourlyLeaveMinutes += freeMinutes;
@@ -534,6 +538,17 @@ export class PayrollService {
         - tardinessPendingFromRecords,    // مسجّل pending في سجلات الحضور
       );
       autoLeaveOverLimitMinutes += unaccountedTardiness;
+    }
+    // إضافة دقائق الخروج المبكر غير المحسومة (سببها: تعديل السجل لاحقاً فصفّر earlyLeavePendingDeductionMinutes)
+    if (salaryLinked) {
+      const totalCompensatedEarlyLeave = records.reduce((sum, r) => sum + (r.earlyLeaveCompensatedMinutes ?? 0), 0);
+      const earlyLeavePendingFromRecords = records.reduce((sum, r) => sum + (r.earlyLeavePendingDeductionMinutes ?? 0), 0);
+      const unaccountedEarlyLeave = Math.max(0,
+        totalEarlyLeaveMinutes - totalCompensatedEarlyLeave
+        - earlyLeaveAutoOverLimitMinutes   // موجود أصلاً في autoLeaveOverLimitMinutes
+        - earlyLeavePendingFromRecords,    // مسجّل pending في سجلات الحضور (ضمن attendancePendingMinutes)
+      );
+      autoLeaveOverLimitMinutes += unaccountedEarlyLeave;
     }
     const hourlyLeaveAmount = salaryLinked ? (unpaidHourlyLeaveMinutes + autoLeaveOverLimitMinutes) * minuteRate : 0;
     const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
