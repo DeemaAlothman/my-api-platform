@@ -81,6 +81,12 @@ export class CasesController {
     return this.service.findByPatient(patientId);
   }
 
+  @Get('by-practitioner')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  findByPractitioner(@Query('practitionerId') practitionerId: string) {
+    return this.service.findByPractitioner(practitionerId);
+  }
+
   @Get(':id')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
   findOne(@Param('id') id: string, @User() user: any) {

@@ -383,6 +383,28 @@ export class CasesService {
     return items.map((i) => ({ ...i, patient: nameMap[patientId] ?? null }));
   }
 
+  async findByPractitioner(practitionerId: string) {
+    const items = await this.prisma.prostheticsCase.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          { prosthetistId: practitionerId },
+          { physiotherapistId: practitionerId },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        committeeReview: { select: { finalDecision: true } },
+        delivery: { select: { deliveryDate: true } },
+      },
+    });
+    const nameMap = await this.resolvePatientNames(items.map((i) => i.patientId));
+    return items.map((i) => ({
+      ...i,
+      patient: i.patientId ? (nameMap[i.patientId] ?? null) : null,
+    }));
+  }
+
   // نقطة داخلية (خدمة-لخدمة): حذف ناعم لكل حالات الأطراف الصناعية لمريض محذوف
   async deleteByPatientInternal(patientId: string) {
     const result = await this.prisma.prostheticsCase.updateMany({
