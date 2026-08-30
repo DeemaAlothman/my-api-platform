@@ -778,6 +778,19 @@ export class DailyClosureService implements OnModuleInit {
           const totalUncompensated = uncompensatedLate + uncompensatedEarly;
           if (totalUncompensated <= 0) continue;
 
+          // إذا كان للسجل تبرير HR_APPROVED، تُطرح دقائقه قبل استهلاك الرصيد
+          // هذا يمنع إنشاء TARDINESS_AUTO لتأخير تمت الموافقة على تبريره
+          const justifRows = (await this.prisma.$queryRawUnsafe(
+            `SELECT COALESCE(SUM(CASE WHEN "deductionMinutes" IS NULL THEN $2::int ELSE "deductionMinutes" END), 0)::int AS justified_minutes
+             FROM attendance.attendance_justifications
+             WHERE "attendanceRecordId" = $1 AND status = 'HR_APPROVED'`,
+            record.id, record.lateMinutes,
+          )) as Array<{ justified_minutes: number }>;
+          const justifiedByApproval = Math.min(justifRows[0]?.justified_minutes ?? 0, uncompensatedLate);
+          const effectiveLate = Math.max(0, uncompensatedLate - justifiedByApproval);
+          const effectiveTotalUncompensated = effectiveLate + uncompensatedEarly;
+          if (effectiveTotalUncompensated <= 0) continue;
+
           const usedRows = (await this.prisma.$queryRawUnsafe(
             `SELECT COALESCE(SUM("durationHours" * 60), 0)::int AS used
              FROM leaves.leave_requests
@@ -795,8 +808,8 @@ export class DailyClosureService implements OnModuleInit {
           const remainingBalance = Math.max(0, maxMonthlyMinutes - usedMinutes);
 
           // التأخير يُستهلك من الرصيد أولاً، ثم الانصراف المبكر بما تبقى
-          const toConsume = Math.min(totalUncompensated, remainingBalance);
-          const consumedLate = Math.min(uncompensatedLate, toConsume);
+          const toConsume = Math.min(effectiveTotalUncompensated, remainingBalance);
+          const consumedLate = Math.min(effectiveLate, toConsume);
           const consumedEarly = toConsume - consumedLate;
 
           if (toConsume > 0) {
@@ -871,7 +884,7 @@ export class DailyClosureService implements OnModuleInit {
             }
           }
 
-          const pendingLateDeduction = uncompensatedLate - consumedLate;
+          const pendingLateDeduction = effectiveLate - consumedLate;
           const pendingEarlyDeduction = uncompensatedEarly - consumedEarly;
           if (pendingLateDeduction > 0 || pendingEarlyDeduction > 0) {
             await this.prisma.$queryRawUnsafe(
