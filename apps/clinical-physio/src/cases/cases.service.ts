@@ -737,7 +737,21 @@ export class CasesService {
 
   // ── Convert Doctor Exam → Physio ─────────────────────────────────────────
 
-  async convertToPhysio(examCaseId: string, userId: string) {
+  private async sendNotifToEmployee(employeeId: string, titleAr: string, messageAr: string, data: object) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT "userId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    ).catch(() => [] as Array<{ userId: string }>);
+    const targetUserId = rows[0]?.userId;
+    if (!targetUserId) return;
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+       VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+      targetUserId, titleAr, messageAr, JSON.stringify(data),
+    ).catch(() => {});
+  }
+
+  async convertToPhysio(examCaseId: string, userId: string, physiotherapistId?: string) {
     const examCase = await this.findCaseOrThrow(examCaseId);
     if ((examCase as any).caseType !== 'DOCTOR_EXAM') {
       throw new BadRequestException('الحالة ليست معاينة طبيب');
@@ -807,6 +821,10 @@ export class CasesService {
           alleviatingFactors: examCase.alleviatingFactors as any,
           customPainTypes: examCase.customPainTypes as any,
           createdBy: userId,
+          ...(physiotherapistId ? {
+            physiotherapistId,
+            physiotherapistIds: [physiotherapistId],
+          } : {}),
         },
       });
 
@@ -881,6 +899,16 @@ export class CasesService {
       });
 
       return { convertedCaseId: newCase.id, caseNumber: newCase.caseNumber };
+    }).then(async (result) => {
+      if (physiotherapistId) {
+        await this.sendNotifToEmployee(
+          physiotherapistId,
+          'تم تحويل حالة إليك',
+          `تم تحويل حالة علاج فيزيائي جديدة إليك — رقم الحالة: ${result.caseNumber}`,
+          { type: 'PHYSIO_CASE_ASSIGNED', caseId: result.convertedCaseId, caseNumber: result.caseNumber },
+        );
+      }
+      return result;
     });
   }
 

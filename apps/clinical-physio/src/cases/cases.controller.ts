@@ -219,8 +219,8 @@ export class CasesController {
 
   @Post(':id/convert-to-physio')
   @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_CREATE)
-  convertToPhysio(@Param('id') id: string, @User() user: any) {
-    return this.service.convertToPhysio(id, user.userId);
+  convertToPhysio(@Param('id') id: string, @Body() body: { physiotherapistId?: string }, @User() user: any) {
+    return this.service.convertToPhysio(id, user.userId, body?.physiotherapistId);
   }
 
   // ── Follow-ups ────────────────────────────────────────────────────────────
