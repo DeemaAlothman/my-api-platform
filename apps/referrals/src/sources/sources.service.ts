@@ -148,7 +148,7 @@ export class SourcesService {
   }
 
   async getStats() {
-    const [byType, topSources, totalCounts, realCounts] = await Promise.all([
+    const [byType, topSources, totalCounts, realCounts, totalVisitsRow] = await Promise.all([
       this.prisma.referralSource.groupBy({
         by: ['type'],
         where: { deletedAt: null },
@@ -193,6 +193,7 @@ export class SourcesService {
           )
         GROUP BY p."referralSourceId"
       `,
+      this.prisma.referralVisit.count(),
     ]);
 
     const totalMap = new Map(totalCounts.map(r => [r.referralSourceId, Number(r.count)]));
@@ -204,7 +205,7 @@ export class SourcesService {
       realPatientCount: realMap.get(s.id)  ?? 0,
     }));
 
-    return { byType, topSources: topSourcesWithCounts };
+    return { byType, topSources: topSourcesWithCounts, totalVisits: totalVisitsRow };
   }
 
   // ── Visits ────────────────────────────────────────────────────────
