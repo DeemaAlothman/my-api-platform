@@ -528,17 +528,7 @@ export class PayrollService {
 
     // D: مبالغ الإجازات — الإجازة الساعية المدفوعة وتعويض التأخير لا يُحسمان
     const unpaidLeaveAmount = unpaidLeaveDays * dailyRate;
-    // إضافة دقائق التأخير التي انتهى رصيدها ولم يُنشأ لها TARDINESS_AUTO كامل ولم تُسجَّل pending
-    if (salaryLinked) {
-      const tardinessPendingFromRecords = records.reduce((sum, r) => sum + (r.tardinessPendingDeductionMinutes ?? 0), 0);
-      const unaccountedTardiness = Math.max(0,
-        totalLateMinutes - justifiedLateMinutes
-        - tardinessAutoFreeMinutes        // مغطى بالرصيد (مجاني)
-        - tardinessAutoOverLimitMinutes   // موجود أصلاً في autoLeaveOverLimitMinutes
-        - tardinessPendingFromRecords,    // مسجّل pending في سجلات الحضور
-      );
-      autoLeaveOverLimitMinutes += unaccountedTardiness;
-    }
+
     // إضافة دقائق الخروج المبكر غير المحسومة (سببها: تعديل السجل لاحقاً فصفّر earlyLeavePendingDeductionMinutes)
     if (salaryLinked) {
       const totalCompensatedEarlyLeave = records.reduce((sum, r) => sum + (r.earlyLeaveCompensatedMinutes ?? 0), 0);
