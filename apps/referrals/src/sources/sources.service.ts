@@ -29,6 +29,17 @@ export class SourcesService {
   // ── Sources ───────────────────────────────────────────────────────
 
   async create(dto: CreateSourceDto, userId: string) {
+    if (dto.clinicPhone) {
+      const duplicate = await this.prisma.referralSource.findFirst({
+        where: {
+          deletedAt: null,
+          name: { equals: dto.name.trim(), mode: 'insensitive' },
+          clinicPhone: dto.clinicPhone.trim(),
+        },
+        select: { id: true },
+      });
+      if (duplicate) throw new ConflictException('يوجد مصدر إحالة بنفس الاسم ورقم الهاتف مسبقاً');
+    }
     return this.prisma.referralSource.create({
       data: { ...dto, city: dto.city ?? 'حلب', createdBy: userId },
     });
