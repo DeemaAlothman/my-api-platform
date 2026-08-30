@@ -199,9 +199,11 @@ export class AppointmentsService implements OnModuleInit {
 
   async create(dto: CreateAppointmentDto, userId: string) {
     const startTime = new Date(dto.startTime);
-    const endTime = new Date(dto.endTime);
+    const endTime = dto.isOpenEnded
+      ? new Date(startTime.getTime() + 15 * 60 * 1000)
+      : new Date(dto.endTime!);
 
-    if (endTime <= startTime) throw new BadRequestException('endTime must be after startTime');
+    if (!dto.isOpenEnded && endTime <= startTime) throw new BadRequestException('endTime must be after startTime');
 
     const conflict = await this.checkConflict(dto.practitionerId, startTime, endTime, undefined, dto.therapistIds);
     if (conflict) throw new BadRequestException('Practitioner has a conflicting appointment at this time');
@@ -228,6 +230,7 @@ export class AppointmentsService implements OnModuleInit {
         appointmentType:   dto.appointmentType as any,
         startTime,
         endTime,
+        isOpenEnded:       dto.isOpenEnded ?? false,
         durationMinutes:   dto.durationMinutes ?? 60,
         notes:             dto.notes,
         createdBy:         userId,

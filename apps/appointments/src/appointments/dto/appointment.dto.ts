@@ -1,6 +1,6 @@
 import {
   IsString, IsOptional, IsEnum, IsDateString, IsInt, Min, IsNumber, IsArray,
-  IsNotEmpty, ValidateIf,
+  IsNotEmpty, ValidateIf, IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -55,8 +55,12 @@ export class CreateAppointmentDto {
   @IsDateString()
   startTime: string;
 
+  @IsOptional() @IsBoolean()
+  isOpenEnded?: boolean;
+
+  @ValidateIf(o => !o.isOpenEnded)
   @IsDateString()
-  endTime: string;
+  endTime?: string;
 
   @IsOptional() @IsInt() @Min(1) @Type(() => Number)
   durationMinutes?: number;

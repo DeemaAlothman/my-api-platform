@@ -62,6 +62,7 @@ model Appointment {
   startTime        DateTime
   endTime          DateTime
   durationMinutes  Int      @default(60)
+  isOpenEnded      Boolean  @default(false)
 
   status           AppointmentStatus @default(SCHEDULED)
 
