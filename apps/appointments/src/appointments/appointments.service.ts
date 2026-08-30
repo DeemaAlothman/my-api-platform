@@ -7,6 +7,21 @@ import {
   RescheduleDto, ListAppointmentsQueryDto, CalendarQueryDto, SlotsQueryDto,
 } from './dto/appointment.dto';
 
+// أنواع المواعيد المسموح بها لكل قسم
+const DEPT_ALLOWED_TYPES: Record<string, string[]> = {
+  '5ca66156-0a88-423f-adc9-aa915901c160': [ // قسم الأطراف الصناعية وطب الأقدام
+    'COMPANY_EXAMINATION', 'REFERRAL_EXAMINATION', 'TRIAL_DELIVERY', 'FINAL_DELIVERY',
+    'REVIEW', 'IMPRESSION_TAKING', 'MEASUREMENT_TAKING', 'WHEELCHAIR_DELIVERY',
+    'WARRANTY_DELIVERY', 'COSMETIC_DELIVERY', 'ANALYSIS', 'INSTALLATION',
+  ],
+  'dd6fe59f-6b38-44b7-8e13-4df9f6a69701': [ // الإدارة الطبية (المعاينات العظمية)
+    'ORTHOPEDIC_EXAMINATION', 'FOOT_ANALYSIS_EXAMINATION', 'LIMB_PATIENT_EXAMINATION',
+  ],
+  '8893e27d-3581-42b6-8111-0fb743ca2403': [ // قسم العلاج الفيزيائي
+    'SESSION', 'ASSESSMENT', 'FOLLOW_UP',
+  ],
+};
+
 @Injectable()
 export class AppointmentsService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
@@ -198,6 +213,13 @@ export class AppointmentsService implements OnModuleInit {
   // ── CRUD ────────────────────────────────────────────────────────────────────
 
   async create(dto: CreateAppointmentDto, userId: string) {
+    if (dto.departmentId) {
+      const allowedTypes = DEPT_ALLOWED_TYPES[dto.departmentId];
+      if (allowedTypes && !allowedTypes.includes(dto.appointmentType)) {
+        throw new BadRequestException(`نوع الموعد غير مسموح به لهذا القسم. الأنواع المتاحة: ${allowedTypes.join(', ')}`);
+      }
+    }
+
     const startTime = new Date(dto.startTime);
     const endTime = dto.isOpenEnded
       ? new Date(startTime.getTime() + 15 * 60 * 1000)

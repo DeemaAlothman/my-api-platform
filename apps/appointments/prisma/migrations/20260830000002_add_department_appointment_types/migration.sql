@@ -1,0 +1,15 @@
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'COMPANY_EXAMINATION';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'REFERRAL_EXAMINATION';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'TRIAL_DELIVERY';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'FINAL_DELIVERY';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'REVIEW';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'IMPRESSION_TAKING';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'MEASUREMENT_TAKING';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'WHEELCHAIR_DELIVERY';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'WARRANTY_DELIVERY';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'COSMETIC_DELIVERY';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'ANALYSIS';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'INSTALLATION';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'ORTHOPEDIC_EXAMINATION';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'FOOT_ANALYSIS_EXAMINATION';
+ALTER TYPE "clinic_appointments"."AppointmentType" ADD VALUE IF NOT EXISTS 'LIMB_PATIENT_EXAMINATION';
