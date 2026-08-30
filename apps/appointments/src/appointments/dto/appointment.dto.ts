@@ -107,8 +107,12 @@ export class RescheduleDto {
   @IsDateString()
   startTime: string;
 
+  @IsOptional() @IsBoolean()
+  isOpenEnded?: boolean;
+
+  @ValidateIf(o => !o.isOpenEnded)
   @IsDateString()
-  endTime: string;
+  endTime?: string;
 
   @IsOptional() @IsString()
   notes?: string;

@@ -486,7 +486,9 @@ export class AppointmentsService implements OnModuleInit {
   async reschedule(id: string, dto: RescheduleDto) {
     const appt = await this.findOne(id);
     const startTime = new Date(dto.startTime);
-    const endTime = new Date(dto.endTime);
+    const endTime = dto.isOpenEnded
+      ? new Date(startTime.getTime() + 15 * 60 * 1000)
+      : new Date(dto.endTime!);
     const conflict = await this.checkConflict(appt.practitionerId, startTime, endTime, id, (appt as any).therapistIds);
     if (conflict) throw new BadRequestException('Conflicting appointment exists');
     if (appt.patientId) {
@@ -495,7 +497,7 @@ export class AppointmentsService implements OnModuleInit {
     }
     return this.prisma.appointment.update({
       where: { id },
-      data: { startTime, endTime, status: 'RESCHEDULED' as any, notes: dto.notes },
+      data: { startTime, endTime, isOpenEnded: dto.isOpenEnded ?? false, status: 'RESCHEDULED' as any, notes: dto.notes },
     });
   }
 
