@@ -312,8 +312,14 @@ export class CasesService {
       }
     }
 
+    // فريق عمل متعدد الأعضاء: الحالات القديمة لم تُحفظ فيها المصفوفة بعد — نشتقها من الحقل المفرد عند الحاجة
+    const prosthetistIds       = c.prosthetistIds.length       ? c.prosthetistIds       : (c.prosthetistId       ? [c.prosthetistId]       : []);
+    const physiotherapistIds   = c.physiotherapistIds.length   ? c.physiotherapistIds   : (c.physiotherapistId   ? [c.physiotherapistId]   : []);
+    const supervisingDoctorIds = c.supervisingDoctorIds.length ? c.supervisingDoctorIds : (c.supervisingDoctorId ? [c.supervisingDoctorId] : []);
+
     return {
       ...c,
+      prosthetistIds, physiotherapistIds, supervisingDoctorIds,
       patient: nameMap[c.patientId] ?? null,
       prosthetist: c.prosthetistId ? (empMap[c.prosthetistId] ?? null) : null,
       physiotherapist: c.physiotherapistId ? (empMap[c.physiotherapistId] ?? null) : null,
@@ -334,6 +340,32 @@ export class CasesService {
   async update(id: string, dto: UpdateCaseDto) {
     await this.findCaseOrThrow(id);
     await this.autoAdvanceStatus(id, 'ASSESSMENT');
+
+    // فريق عمل متعدد الأعضاء: المصفوفة (إذا أُرسلت) هي مصدر الحقيقة وتُملي الحقل المفرد بأول عنصر.
+    // العملاء القدامى يرسلون الحقل المفرد فقط — نُبقي المصفوفة متزامنة معه.
+    const teamData: any = {};
+    if (dto.prosthetistIds !== undefined) {
+      teamData.prosthetistIds = dto.prosthetistIds;
+      teamData.prosthetistId = dto.prosthetistIds[0] ?? null;
+    } else if (dto.prosthetistId !== undefined) {
+      teamData.prosthetistId = dto.prosthetistId;
+      teamData.prosthetistIds = dto.prosthetistId ? [dto.prosthetistId] : [];
+    }
+    if (dto.physiotherapistIds !== undefined) {
+      teamData.physiotherapistIds = dto.physiotherapistIds;
+      teamData.physiotherapistId = dto.physiotherapistIds[0] ?? null;
+    } else if (dto.physiotherapistId !== undefined) {
+      teamData.physiotherapistId = dto.physiotherapistId;
+      teamData.physiotherapistIds = dto.physiotherapistId ? [dto.physiotherapistId] : [];
+    }
+    if (dto.supervisingDoctorIds !== undefined) {
+      teamData.supervisingDoctorIds = dto.supervisingDoctorIds;
+      teamData.supervisingDoctorId = dto.supervisingDoctorIds[0] ?? null;
+    } else if (dto.supervisingDoctorId !== undefined) {
+      teamData.supervisingDoctorId = dto.supervisingDoctorId;
+      teamData.supervisingDoctorIds = dto.supervisingDoctorId ? [dto.supervisingDoctorId] : [];
+    }
+
     return this.prisma.prostheticsCase.update({
       where: { id },
       data: {
@@ -359,9 +391,7 @@ export class CasesService {
         currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
         previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
         previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
-        prosthetistId: dto.prosthetistId,
-        physiotherapistId: dto.physiotherapistId,
-        supervisingDoctorId: dto.supervisingDoctorId,
+        ...teamData,
         workshopSupervisorId: dto.workshopSupervisorId,
         prosthesisType: dto.prosthesisType as any,
         prosthesisCompleted: dto.prosthesisCompleted,

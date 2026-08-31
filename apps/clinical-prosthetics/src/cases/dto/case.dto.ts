@@ -203,6 +203,16 @@ export class UpdateCaseDto {
   @IsOptional() @IsString()
   workshopSupervisorId?: string;
 
+  // فريق عمل متعدد الأعضاء — إذا أُرسلت، تُستبدل بها القيمة المفردة المقابلة (أول عنصر). [] = إلغاء التعيين
+  @IsOptional() @Transform(toArray) @IsArray() @IsString({ each: true })
+  prosthetistIds?: string[];
+
+  @IsOptional() @Transform(toArray) @IsArray() @IsString({ each: true })
+  physiotherapistIds?: string[];
+
+  @IsOptional() @Transform(toArray) @IsArray() @IsString({ each: true })
+  supervisingDoctorIds?: string[];
+
   @IsOptional() @IsEnum(ProsthesisTypeEnum)
   prosthesisType?: string;
 

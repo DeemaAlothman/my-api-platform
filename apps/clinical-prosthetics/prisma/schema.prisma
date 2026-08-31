@@ -317,6 +317,11 @@ model ProstheticsCase {
   supervisingDoctorId  String?
   workshopSupervisorId String?
 
+  // فريق عمل متعدد الأعضاء لكل دور — الحقول المفردة أعلاه تبقى متزامنة مع أول عنصر لكل مصفوفة
+  prosthetistIds       String[] @default([])
+  physiotherapistIds   String[] @default([])
+  supervisingDoctorIds String[] @default([])
+
   prosthesisType         ProsthesisType?
   prosthesisSuitable     Boolean?
   proposedProsthesisType String?
