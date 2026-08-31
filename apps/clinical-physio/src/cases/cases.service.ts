@@ -905,7 +905,12 @@ export class CasesService {
           physiotherapistId,
           'تم تحويل حالة إليك',
           `تم تحويل حالة علاج فيزيائي جديدة إليك — رقم الحالة: ${result.caseNumber}`,
-          { type: 'PHYSIO_CASE_ASSIGNED', caseId: result.convertedCaseId, caseNumber: result.caseNumber },
+          {
+            type: 'PHYSIO_CASE_ASSIGNED',
+            caseId: result.convertedCaseId,
+            caseNumber: result.caseNumber,
+            link: `/clinic/physio/${result.convertedCaseId}`,
+          },
         );
       }
       return result;
