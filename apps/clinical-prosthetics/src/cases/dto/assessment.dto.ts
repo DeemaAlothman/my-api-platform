@@ -2,9 +2,9 @@ import { IsString, IsOptional, IsBoolean, IsInt, IsArray, IsEnum, IsObject, Min,
 import { Type } from 'class-transformer';
 
 export class UpperLimbAssessmentDto {
-  // الجانب المُقيَّم — مطلوب دائماً. بحالة ثنائي الأطراف، يُستدعى الـ endpoint مرتين (LEFT ثم RIGHT)
-  @IsEnum(['LEFT', 'RIGHT'])
-  side: string;
+  // الجانب المُقيَّم — مطلوب في POST، اختياري في PATCH (يُؤخذ من URL)
+  @IsOptional() @IsEnum(['LEFT', 'RIGHT'])
+  side?: string;
 
   @IsOptional() @IsString()
   residualLimbLength?: string;
@@ -101,9 +101,9 @@ export class UpperLimbAssessmentDto {
 }
 
 export class LowerLimbAssessmentDto {
-  // الجانب المُقيَّم — مطلوب دائماً. بحالة ثنائي الأطراف، يُستدعى الـ endpoint مرتين (LEFT ثم RIGHT)
-  @IsEnum(['LEFT', 'RIGHT'])
-  side: string;
+  // الجانب المُقيَّم — مطلوب في POST، اختياري في PATCH (يُؤخذ من URL)
+  @IsOptional() @IsEnum(['LEFT', 'RIGHT'])
+  side?: string;
 
   @IsOptional() @IsString()
   residualLimbLength?: string;
