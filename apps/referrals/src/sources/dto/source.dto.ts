@@ -33,6 +33,7 @@ export class CreateSourceDto {
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5) clinicRating?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5) patientDensityRating?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5) doctorRating?: number;
 
   @IsOptional() @IsArray() @IsString({ each: true }) interests?: string[];
   @IsOptional() @IsString() visitDays?: string;
@@ -56,6 +57,7 @@ export class UpdateSourceDto {
   @IsOptional() @IsString() mobile?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5) clinicRating?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5) patientDensityRating?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5) doctorRating?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) interests?: string[];
   @IsOptional() @IsString() visitDays?: string;
   @IsOptional() @IsString() visitTimes?: string;

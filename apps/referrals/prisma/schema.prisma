@@ -52,6 +52,7 @@ model ReferralSource {
   // Ratings (1-5)
   clinicRating        Int?
   patientDensityRating Int?
+  doctorRating        Int?
 
   // Interests / specialties served (e.g. ["أطراف", "فيزيائي"])
   interests String[] @default([])
