@@ -502,6 +502,106 @@ export class CasesService {
     });
   }
 
+  async patchUpperAssessment(caseId: string, side: string, dto: Omit<UpperLimbAssessmentDto, 'side'>) {
+    await this.findCaseOrThrow(caseId);
+    const existing = await this.prisma.upperLimbAssessment.findFirst({
+      where: { caseId, side: side as any },
+      orderBy: { examinedAt: 'desc' },
+      select: { id: true },
+    });
+    const data: any = {
+      residualLimbLength:      dto.residualLimbLength,
+      residualLimbShape:       dto.residualLimbShape,
+      residualLimbPhotoUrl:    dto.residualLimbPhotoUrl,
+      painPresent:             dto.painPresent,
+      painArea:                dto.painArea,
+      painIntensity:           dto.painIntensity,
+      painTypes:               dto.painTypes as any,
+      painTypeOtherDetail:     dto.painTypeOtherDetail,
+      phantomPainPresent:      dto.phantomPainPresent,
+      phantomPainIntensity:    dto.phantomPainIntensity,
+      residualLimbPalpable:    dto.residualLimbPalpable,
+      neuromaPalpable:         dto.neuromaPalpable,
+      skinAppearance:          dto.skinAppearance as any,
+      skinNotes:               dto.skinNotes,
+      skinColor:               dto.skinColor as any,
+      skinTemperature:         dto.skinTemperature as any,
+      scarCondition:           dto.scarCondition as any,
+      hasSkinGrafts:           dto.hasSkinGrafts,
+      graftArea:               dto.graftArea,
+      hasOtherAffectedLimbs:   dto.hasOtherAffectedLimbs,
+      canBalanceOneSide:       dto.canBalanceOneSide,
+      usesCompressionBandage:  dto.usesCompressionBandage,
+      jointsRangeOfMotion:     dto.jointsRangeOfMotion as any,
+      activityLevel:           dto.activityLevel as any,
+      romData:                 dto.romData,
+      muscleMotionNotes:       dto.muscleMotionNotes,
+      examinerProsthetistIds:  dto.examinerProsthetistIds,
+      examinerPhysioIds:       dto.examinerPhysioIds,
+      examinerSupervisorIds:   dto.examinerSupervisorIds,
+    };
+    // حذف الحقول undefined حتى لا تكتب null فوق قيم موجودة
+    Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
+    if (existing) {
+      return this.prisma.upperLimbAssessment.update({ where: { id: existing.id }, data });
+    }
+    await this.autoAdvanceStatus(caseId, 'FITTING');
+    return this.prisma.upperLimbAssessment.create({ data: { caseId, side: side as any, ...data } });
+  }
+
+  async patchLowerAssessment(caseId: string, side: string, dto: Omit<LowerLimbAssessmentDto, 'side'>) {
+    await this.findCaseOrThrow(caseId);
+    const existing = await this.prisma.lowerLimbAssessment.findFirst({
+      where: { caseId, side: side as any },
+      orderBy: { examinedAt: 'desc' },
+      select: { id: true },
+    });
+    const data: any = {
+      residualLimbLength:       dto.residualLimbLength,
+      residualLimbShape:        dto.residualLimbShape,
+      residualLimbPhotoUrl:     dto.residualLimbPhotoUrl,
+      amputationLevelNote:      dto.amputationLevelNote,
+      painPresent:              dto.painPresent,
+      painArea:                 dto.painArea,
+      painIntensity:            dto.painIntensity,
+      painTypes:                dto.painTypes as any,
+      painTypeOtherDetail:      dto.painTypeOtherDetail,
+      phantomSensationPresent:  dto.phantomSensationPresent,
+      phantomPainPresent:       dto.phantomPainPresent,
+      phantomPainIntensity:     dto.phantomPainIntensity,
+      neuromaPalpable:          dto.neuromaPalpable,
+      loadTolerance:            dto.loadTolerance as any,
+      weightBearingLevel:       dto.weightBearingLevel as any,
+      notes:                    dto.notes,
+      skinAppearance:           dto.skinAppearance as any,
+      skinColor:                dto.skinColor as any,
+      skinTemperature:          dto.skinTemperature as any,
+      scarCondition:            dto.scarCondition as any,
+      hasSkinGrafts:            dto.hasSkinGrafts,
+      graftArea:                dto.graftArea,
+      otherLimbCondition:       dto.otherLimbCondition,
+      usesAssistiveDevices:     dto.usesAssistiveDevices,
+      assistiveDeviceTypes:     dto.assistiveDeviceTypes,
+      canClimbStairs:           dto.canClimbStairs,
+      canBalanceOneSide:        dto.canBalanceOneSide,
+      jointsRangeOfMotion:      dto.jointsRangeOfMotion as any,
+      activityLevel:            dto.activityLevel as any,
+      romData:                  dto.romData,
+      muscleMotionNotes:        dto.muscleMotionNotes,
+      examinerProsthetistIds:   dto.examinerProsthetistIds,
+      examinerPhysioIds:        dto.examinerPhysioIds,
+      examinerSupervisorIds:    dto.examinerSupervisorIds,
+    };
+    Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
+    if (existing) {
+      return this.prisma.lowerLimbAssessment.update({ where: { id: existing.id }, data });
+    }
+    await this.autoAdvanceStatus(caseId, 'FITTING');
+    return this.prisma.lowerLimbAssessment.create({ data: { caseId, side: side as any, ...data } });
+  }
+
   async upsertTranshumeralAssessment(caseId: string, dto: TranshumeralAssessmentDto) {
     await this.findCaseOrThrow(caseId);
     await this.autoAdvanceStatus(caseId, 'FITTING');

@@ -113,10 +113,22 @@ export class CasesController {
     return this.service.upsertUpperAssessment(id, dto);
   }
 
+  @Patch(':id/assessment-upper/:side')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.ASSESSMENT_CREATE)
+  patchUpperAssessment(@Param('id') id: string, @Param('side') side: string, @Body() dto: UpperLimbAssessmentDto) {
+    return this.service.patchUpperAssessment(id, side, dto);
+  }
+
   @Post(':id/assessment-lower')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.ASSESSMENT_CREATE)
   upsertLowerAssessment(@Param('id') id: string, @Body() dto: LowerLimbAssessmentDto) {
     return this.service.upsertLowerAssessment(id, dto);
+  }
+
+  @Patch(':id/assessment-lower/:side')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.ASSESSMENT_CREATE)
+  patchLowerAssessment(@Param('id') id: string, @Param('side') side: string, @Body() dto: LowerLimbAssessmentDto) {
+    return this.service.patchLowerAssessment(id, side, dto);
   }
 
   @Post(':id/assessment-ankle-disarticulation')
