@@ -716,10 +716,11 @@ export class EmployeesService {
       throw new NotFoundException({ code: 'RESOURCE_NOT_FOUND', message: 'Employee not found', details: [{ id }] });
     }
 
-    const [events, rewardsPenalties, advances] = await Promise.all([
+    const [events, rewardsPenalties, advances, commissions] = await Promise.all([
       this.prisma.employeeHistoryEvent.findMany({ where: { employeeId: id }, orderBy: { effectiveDate: 'desc' } }),
       this.prisma.employeeRewardPenalty.findMany({ where: { employeeId: id }, orderBy: { effectiveDate: 'desc' } }),
       this.prisma.salaryAdvance.findMany({ where: { employeeId: id, deletedAt: null }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.salesCommission.findMany({ where: { employeeId: id, deletedAt: null }, orderBy: [{ year: 'desc' }, { month: 'desc' }] }),
     ]);
 
     // طلبات الموظف (إجازات + طلبات عامة) — قراءة عبر السكيمات؛ فشل أيٍّ منها لا يكسر الإضبارة
@@ -806,6 +807,19 @@ export class EmployeesService {
         reason: r.reason,
         id: r.id,
         createdAt: r.createdAt,
+      })),
+      ...commissions.map((c) => ({
+        category: 'COMMISSION',
+        type: 'COMMISSION',
+        date: new Date(c.year, c.month - 1, 1),
+        year: c.year,
+        month: c.month,
+        amount: c.amount,
+        description: c.description,
+        salesReference: c.salesReference,
+        status: c.status,
+        id: c.id,
+        createdAt: c.createdAt,
       })),
     ].sort((x, y) => new Date(y.date as any).getTime() - new Date(x.date as any).getTime());
 
