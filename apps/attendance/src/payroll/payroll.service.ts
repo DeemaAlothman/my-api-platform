@@ -194,7 +194,9 @@ export class PayrollService {
     let earlyLeaveAutoOverLimitMinutes = 0;
 
     // تتبع الساعات المستخدمة لكل نوع إجازة ساعية لحساب الزيادة عن الحد الشهري ديناميكياً
-    const hourlyUsedByType = new Map<string, number>();
+    // hourlyUsedByType: للإجازات اليدوية فقط — autoHourlyUsedByType: للإجازات التلقائية (تأخير/خروج مبكر)
+    const hourlyUsedByType     = new Map<string, number>();
+    const autoHourlyUsedByType = new Map<string, number>();
 
     // عدد أيام الإجازة التي تقع فعلاً داخل فترة الراتب (لإصلاح إجازات تمتد عبر شهرين)
     const calcOverlapDays = (ls: Date, le: Date): number => {
@@ -224,7 +226,10 @@ export class PayrollService {
         const maxHoursPerMonth = leave.maxHoursPerMonth ?? null;
         let overLimitMinutes = 0;
         if (leave.isPaid && maxHoursPerMonth !== null && maxHoursPerMonth > 0) {
-          const usedHours = hourlyUsedByType.get(leave.typeCode) ?? 0;
+          // الإجازات التلقائية (تأخير/خروج مبكر) تُتابَع في رصيد منفصل لئلا تستهلك من حصة الإجازات اليدوية
+          const isAutoLeave = leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO';
+          const trackingMap = isAutoLeave ? autoHourlyUsedByType : hourlyUsedByType;
+          const usedHours = trackingMap.get(leave.typeCode) ?? 0;
           const maxMinutes = maxHoursPerMonth * 60;
           const usedMinutes = usedHours * 60;
           if (usedMinutes >= maxMinutes) {
@@ -232,7 +237,7 @@ export class PayrollService {
           } else if (usedMinutes + minutes > maxMinutes) {
             overLimitMinutes = (usedMinutes + minutes) - maxMinutes;
           }
-          hourlyUsedByType.set(leave.typeCode, usedHours + (leave.durationHours || 0));
+          trackingMap.set(leave.typeCode, usedHours + (leave.durationHours || 0));
         } else if (!leave.isPaid) {
           overLimitMinutes = minutes;
         }
