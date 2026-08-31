@@ -364,9 +364,14 @@ export class PayrollService {
           attendanceRecordId: { in: lateRecordIds },
           status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] },
         },
-        select: { deductionMinutes: true },
+        select: { deductionMinutes: true, attendanceRecordId: true },
       });
-      justifiedLateMinutes = lateJustifications.reduce((sum, j) => sum + (j.deductionMinutes ?? 0), 0);
+      // deductionMinutes=NULL يعني مبرر كلياً → نستخدم كامل دقائق تأخير ذلك اليوم
+      const lateMinutesMap = new Map(records.filter(r => r.lateMinutes > 0).map(r => [r.id, r.lateMinutes]));
+      justifiedLateMinutes = lateJustifications.reduce((sum, j) => {
+        const fullLate = lateMinutesMap.get(j.attendanceRecordId) ?? 0;
+        return sum + (j.deductionMinutes ?? fullLate);
+      }, 0);
     }
 
     for (const r of records) {
