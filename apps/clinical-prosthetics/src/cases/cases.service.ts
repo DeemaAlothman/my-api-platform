@@ -23,6 +23,13 @@ import {
 const PATIENTS_URL = process.env.PATIENTS_SERVICE_URL || 'http://patients:4010';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 
+// حقول قسم "العضلات وحركة المفاصل" — أي حقل غير هدول يُحسب على أنه قسم "الطرف"
+const UPPER_MUSCLE_KEYS = ['romData', 'canBalanceOneSide'];
+const LOWER_MUSCLE_KEYS = [
+  'romData', 'muscleMotionNotes',
+  'usesAssistiveDevices', 'assistiveDeviceTypes', 'canClimbStairs', 'canBalanceOneSide',
+];
+
 @Injectable()
 export class CasesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -544,8 +551,8 @@ export class CasesService {
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
 
     // طابع زمني لكل قسم بشكل مستقل
-    const hasLimbFields = Object.keys(data).some(k => !['romData', 'muscleMotionNotes'].includes(k));
-    const hasRomFields  = dto.romData !== undefined || dto.muscleMotionNotes !== undefined;
+    const hasLimbFields = Object.keys(data).some(k => !UPPER_MUSCLE_KEYS.includes(k));
+    const hasRomFields  = UPPER_MUSCLE_KEYS.some(k => (dto as any)[k] !== undefined);
     if (hasLimbFields) data.limbSavedAt = new Date();
     if (hasRomFields)  data.romSavedAt  = new Date();
 
@@ -601,8 +608,8 @@ export class CasesService {
     };
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
 
-    const hasLimbFields = Object.keys(data).some(k => !['romData', 'muscleMotionNotes'].includes(k));
-    const hasRomFields  = dto.romData !== undefined || dto.muscleMotionNotes !== undefined;
+    const hasLimbFields = Object.keys(data).some(k => !LOWER_MUSCLE_KEYS.includes(k));
+    const hasRomFields  = LOWER_MUSCLE_KEYS.some(k => (dto as any)[k] !== undefined);
     if (hasLimbFields) data.limbSavedAt = new Date();
     if (hasRomFields)  data.romSavedAt  = new Date();
 
