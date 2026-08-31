@@ -427,6 +427,9 @@ model UpperLimbAssessment {
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
 
+  limbSavedAt DateTime?
+  romSavedAt  DateTime?
+
   @@index([caseId, side])
   @@map("upper_limb_assessments")
   @@schema("clinic_prosthetics")
@@ -485,6 +488,9 @@ model LowerLimbAssessment {
   examinerPhysioIds      String[]
   examinerSupervisorIds  String[]
   examinedAt             DateTime @default(now())
+
+  limbSavedAt DateTime?
+  romSavedAt  DateTime?
 
   @@index([caseId, side])
   @@map("lower_limb_assessments")

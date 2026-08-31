@@ -543,6 +543,12 @@ export class CasesService {
     // حذف الحقول undefined حتى لا تكتب null فوق قيم موجودة
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
 
+    // طابع زمني لكل قسم بشكل مستقل
+    const hasLimbFields = Object.keys(data).some(k => !['romData', 'muscleMotionNotes'].includes(k));
+    const hasRomFields  = dto.romData !== undefined || dto.muscleMotionNotes !== undefined;
+    if (hasLimbFields) data.limbSavedAt = new Date();
+    if (hasRomFields)  data.romSavedAt  = new Date();
+
     if (existing) {
       return this.prisma.upperLimbAssessment.update({ where: { id: existing.id }, data });
     }
@@ -594,6 +600,11 @@ export class CasesService {
       examinerSupervisorIds:    dto.examinerSupervisorIds,
     };
     Object.keys(data).forEach(k => data[k] === undefined && delete data[k]);
+
+    const hasLimbFields = Object.keys(data).some(k => !['romData', 'muscleMotionNotes'].includes(k));
+    const hasRomFields  = dto.romData !== undefined || dto.muscleMotionNotes !== undefined;
+    if (hasLimbFields) data.limbSavedAt = new Date();
+    if (hasRomFields)  data.romSavedAt  = new Date();
 
     if (existing) {
       return this.prisma.lowerLimbAssessment.update({ where: { id: existing.id }, data });
