@@ -466,9 +466,8 @@ export class PayrollService {
       basicSalary: string | null;
       salaryCurrency: string | null;
       hireDate: Date | null;
-      commissions: Array<{ amount: number; description: string }> | null;
     }>>`
-      SELECT "basicSalary", "salaryCurrency", "hireDate", "commissions"
+      SELECT "basicSalary", "salaryCurrency", "hireDate"
       FROM users.employees
       WHERE id = ${employeeId} AND "deletedAt" IS NULL
     `;
@@ -670,12 +669,8 @@ export class PayrollService {
     const internalMissionAmount = internalMissionDays * internalRate;
     const externalMissionAmount = externalMissionDays * externalRate;
 
-    // G: عمولات المبيعات المعتمدة + العمولات الثابتة على سجل الموظف
-    const employeeCommissions = empFinancial[0]?.commissions ?? [];
-    const fixedSalesCommission = Array.isArray(employeeCommissions)
-      ? employeeCommissions.reduce((sum: number, c: any) => sum + (Number(c?.amount) || 0), 0)
-      : 0;
-    let commissionAmount = fixedSalesCommission;
+    // G: عمولات المبيعات المعتمدة لهذا الشهر بالذات (لا عمولات ثابتة متكررة)
+    let commissionAmount = 0;
     try {
       const commissions = await this.prisma.$queryRawUnsafe(`
         SELECT COALESCE(SUM(amount::numeric), 0) as total
