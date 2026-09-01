@@ -29,6 +29,14 @@ export class PayrollCronService implements OnModuleInit {
   private scheduleNextRun() {
     const next = this.getNextRunDate();
     const delayMs = next.getTime() - Date.now();
+    // setTimeout يستخدم 32-bit integer → أقصى قيمة ~24.8 يوم (2,147,483,647 ms)
+    // إذا كان الموعد أبعد، نعيد الجدولة بعد 6 ساعات ونتحقق مجدداً
+    const MAX_SAFE_TIMEOUT = 6 * 60 * 60 * 1000;
+
+    if (delayMs > MAX_SAFE_TIMEOUT) {
+      setTimeout(() => this.scheduleNextRun(), MAX_SAFE_TIMEOUT);
+      return;
+    }
 
     this.logger.log(
       `Payroll auto-generate scheduled in ${Math.round(delayMs / 60000)} minutes (at ${next.toISOString()})`,
@@ -36,7 +44,7 @@ export class PayrollCronService implements OnModuleInit {
 
     setTimeout(async () => {
       const year = next.getUTCFullYear();
-      const month = next.getUTCMonth() + 1; // الشهر المراد توليد رواتبه
+      const month = next.getUTCMonth() + 1;
 
       this.logger.log(`Auto-generating payroll for ${year}/${month}`);
       try {

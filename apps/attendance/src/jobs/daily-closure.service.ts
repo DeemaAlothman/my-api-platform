@@ -21,6 +21,13 @@ export class DailyClosureService implements OnModuleInit {
       next.setUTCDate(next.getUTCDate() + 1);
     }
     const delayMs = next.getTime() - now.getTime();
+    const MAX_SAFE_TIMEOUT = 6 * 60 * 60 * 1000;
+
+    if (delayMs > MAX_SAFE_TIMEOUT) {
+      setTimeout(() => this.scheduleNextTardinessReminder(), MAX_SAFE_TIMEOUT);
+      return;
+    }
+
     this.logger.log(`Tardiness reminder scheduled in ${Math.round(delayMs / 60000)} minutes (at ${next.toISOString()})`);
 
     setTimeout(async () => {
@@ -82,6 +89,14 @@ export class DailyClosureService implements OnModuleInit {
       next.setUTCDate(next.getUTCDate() + 1);
     }
     const delayMs = next.getTime() - now.getTime();
+    // setTimeout يستخدم 32-bit integer → نحدّ الانتظار بـ 6 ساعات لتجنب الفيضان
+    const MAX_SAFE_TIMEOUT = 6 * 60 * 60 * 1000;
+
+    if (delayMs > MAX_SAFE_TIMEOUT) {
+      setTimeout(() => this.scheduleNextRun(), MAX_SAFE_TIMEOUT);
+      return;
+    }
+
     this.logger.log(`Daily closure scheduled in ${Math.round(delayMs / 60000)} minutes (at ${next.toISOString()})`);
 
     setTimeout(async () => {
