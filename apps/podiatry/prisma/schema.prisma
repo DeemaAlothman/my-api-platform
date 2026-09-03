@@ -100,6 +100,9 @@ model PodiatryReception {
   // شدة الألم
   vasScore Int?
 
+  // المعالجون المسؤولون عن الحالة (employeeId) — يُرسل إشعار لكل معالج يُضاف حديثاً
+  practitionerIds String[] @default([])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   createdBy String

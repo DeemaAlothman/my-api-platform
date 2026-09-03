@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } f
 import { ReceptionsService } from './receptions.service';
 import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
+import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
 import { JwtAuthGuard, User } from '@shared/auth';
 import { PermissionsGuard, Permission, PERMISSIONS } from '@shared';
 
@@ -23,9 +24,23 @@ export class ReceptionsController {
   }
 
   @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_VIEW)
+  @Get('my-patients')
+  async findMyPatients(@User() user: any) {
+    const practitionerId = await this.service.resolveEmployeeIdByUserId(user.userId);
+    if (!practitionerId) return [];
+    return this.service.findMyPatients(practitionerId);
+  }
+
+  @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_VIEW)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
+  }
+
+  @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_EDIT)
+  @Patch(':id/practitioners')
+  assignPractitioners(@Param('id') id: string, @Body() dto: AssignPractitionersDto) {
+    return this.service.assignPractitioners(id, dto);
   }
 
   @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_EDIT)

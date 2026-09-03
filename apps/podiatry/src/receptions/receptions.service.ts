@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
 import { ComplaintDto, MedicalHistoryDto } from './dto/complaint.dto';
+import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
 
 const PATIENTS_URL   = process.env.PATIENTS_SERVICE_URL   || 'http://patients:4010';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
@@ -113,6 +114,60 @@ export class ReceptionsService {
   async remove(id: string) {
     await this.findOne(id);
     return this.prisma.podiatryReception.delete({ where: { id } });
+  }
+
+  // ── فريق المعالجين ────────────────────────────────────────────────────────
+
+  async resolveEmployeeIdByUserId(userId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM users.employees WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      userId,
+    ).catch(() => []);
+    return rows[0]?.id ?? null;
+  }
+
+  private async notifyNewPractitioners(receptionId: string, patientId: string, employeeIds: string[]) {
+    if (employeeIds.length === 0) return;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; userId: string | null }>>(
+      `SELECT id, "userId" FROM users.employees WHERE id = ANY($1) AND "deletedAt" IS NULL`,
+      employeeIds,
+    ).catch(() => []);
+    const payload = { receptionId, patientId };
+    for (const row of rows) {
+      if (!row.userId) continue;
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+         VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+        row.userId,
+        'تم تكليفك بحالة جديدة',
+        'تم تعيينك كمعالج مسؤول عن حالة مريض بطب الأقدام',
+        JSON.stringify(payload),
+      ).catch(() => {});
+    }
+  }
+
+  async assignPractitioners(id: string, dto: AssignPractitionersDto) {
+    const reception = await this.findOne(id);
+    const before = new Set(reception.practitionerIds);
+    const newlyAdded = dto.practitionerIds.filter((pid) => !before.has(pid));
+
+    const updated = await this.prisma.podiatryReception.update({
+      where: { id },
+      data: { practitionerIds: dto.practitionerIds },
+    });
+
+    await this.notifyNewPractitioners(id, updated.patientId, newlyAdded);
+    return updated;
+  }
+
+  async findMyPatients(practitionerId: string) {
+    const receptions = await this.prisma.podiatryReception.findMany({
+      where: { practitionerIds: { has: practitionerId } },
+      orderBy: { createdAt: 'desc' },
+      include: { sessions: { orderBy: { sessionDate: 'asc' } } },
+    });
+    const patientMap = await this.resolvePatients(receptions.map((r) => r.patientId));
+    return receptions.map((r) => ({ ...r, patient: patientMap[r.patientId] ?? null }));
   }
 
   async upsertComplaint(id: string, dto: ComplaintDto) {
