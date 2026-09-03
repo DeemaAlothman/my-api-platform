@@ -115,6 +115,23 @@ export class RequestsService {
       }
     }
 
+    // منع تكرار نفس الطلب خلال 5 دقائق (نقر مزدوج أو إعادة إرسال بسبب انقطاع الشبكة)
+    const recentDuplicate = await this.prisma.request.findFirst({
+      where: {
+        employeeId,
+        type: dto.type as any,
+        deletedAt: null,
+        createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
+      },
+    });
+    if (recentDuplicate) {
+      throw new BadRequestException({
+        code: 'DUPLICATE_REQUEST',
+        message: 'تم تقديم طلب من نفس النوع قبل قليل — الرجاء الانتظار بضع دقائق قبل إعادة المحاولة',
+        details: [],
+      });
+    }
+
     // Retry up to 5 times to handle concurrent request number collisions
     for (let attempt = 0; attempt < 5; attempt++) {
       const requestNumber = await this.generateRequestNumber();

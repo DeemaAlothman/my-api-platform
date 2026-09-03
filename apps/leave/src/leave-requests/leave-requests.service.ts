@@ -354,6 +354,22 @@ export class LeaveRequestsService {
       throw new BadRequestException('الموظف غير موجود أو تم حذفه');
     }
 
+    // منع تكرار نفس الطلب خلال 5 دقائق (نقر مزدوج أو إعادة إرسال بسبب انقطاع الشبكة)
+    const recentDuplicate = await this.prisma.leaveRequest.findFirst({
+      where: {
+        employeeId,
+        leaveTypeId,
+        deletedAt: null,
+        createdAt: { gte: new Date(Date.now() - 5 * 60 * 1000) },
+      },
+    });
+    if (recentDuplicate) {
+      throw new BadRequestException({
+        code: 'DUPLICATE_REQUEST',
+        message: 'تم تقديم طلب إجازة من نفس النوع قبل قليل — الرجاء الانتظار بضع دقائق قبل إعادة المحاولة',
+      });
+    }
+
     // التحقق من نوع الإجازة
     const leaveType = await this.prisma.leaveType.findUnique({
       where: { id: leaveTypeId },
