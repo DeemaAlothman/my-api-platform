@@ -677,6 +677,26 @@ export class DailyClosureService implements OnModuleInit {
           `Employee was absent on ${dateStr}`,
           `الموظف غائب يوم ${dateStr}`,
         );
+
+        // إشعار للموظف نفسه
+        const empRows = (await this.prisma.$queryRawUnsafe(
+          `SELECT "userId" FROM users.employees WHERE id = $1 AND "userId" IS NOT NULL AND "deletedAt" IS NULL LIMIT 1`,
+          employeeId,
+        )) as Array<{ userId: string }>;
+
+        if (empRows[0]?.userId) {
+          await this.prisma.$queryRawUnsafe(
+            `INSERT INTO users.notifications
+               (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "data", "createdAt")
+             VALUES
+               (gen_random_uuid(), $1, 'ATTENDANCE_ALERT',
+                'تنبيه غياب', 'Absence Alert', $2, $3, false, $4::jsonb, NOW())`,
+            empRows[0].userId,
+            `تم تسجيلك غائباً يوم ${dateStr} — يمكنك تقديم تبرير خلال 7 أيام`,
+            `You were marked absent on ${dateStr} — you can submit a justification within 7 days`,
+            JSON.stringify({ alertType: 'ABSENT', date: dateStr }),
+          ).catch(() => {});
+        }
       }
 
       await this.auditLog(null, employeeId, dateStr, 'ABSENT_CREATED', 'DAILY_CLOSURE',
@@ -1748,7 +1768,7 @@ export class DailyClosureService implements OnModuleInit {
 
       // 7.4-c: لا بصمة + لا إجازة (موظف مجدول لكن لا حضور ولا بصمة في biometric)
       const scheduledEmployees = (await this.prisma.$queryRawUnsafe(
-        `SELECT es."employeeId"
+        `SELECT es."employeeId", e."userId"
          FROM attendance.employee_schedules es
          JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
          JOIN users.employees e ON e.id = es."employeeId"
@@ -1758,10 +1778,11 @@ export class DailyClosureService implements OnModuleInit {
            AND $1::date BETWEEN es."effectiveFrom"::date
                AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)`,
         dateStr,
-      )) as Array<{ employeeId: string }>;
+      )) as Array<{ employeeId: string; userId: string | null }>;
 
       if (scheduledEmployees.length > 0) {
         const empIds = scheduledEmployees.map(e => e.employeeId);
+        const userIdByEmployee = new Map(scheduledEmployees.map(e => [e.employeeId, e.userId]));
         const withStamps = (await this.prisma.$queryRawUnsafe(
           `SELECT DISTINCT "employeeId"
            FROM biometric.raw_attendance_logs
@@ -1800,6 +1821,21 @@ export class DailyClosureService implements OnModuleInit {
               `No biometric stamp and no approved leave on ${dateStr}`,
               `لا توجد بصمة بيومترية ولا إجازة معتمدة بتاريخ ${dateStr}`,
             ).catch(() => {});
+
+            const notifyUserId = userIdByEmployee.get(emp);
+            if (notifyUserId) {
+              await this.prisma.$queryRawUnsafe(
+                `INSERT INTO users.notifications
+                   (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "data", "createdAt")
+                 VALUES
+                   (gen_random_uuid(), $1, 'ATTENDANCE_ALERT',
+                    'تنبيه غياب بصمة', 'Missing Stamp Alert', $2, $3, false, $4::jsonb, NOW())`,
+                notifyUserId,
+                `لا توجد بصمة بيومترية ولا إجازة معتمدة بتاريخ ${dateStr} — يمكنك تقديم تبرير خلال 7 أيام`,
+                `No biometric stamp and no approved leave on ${dateStr} — you can submit a justification within 7 days`,
+                JSON.stringify({ alertType: 'ANOMALY_NO_STAMP', date: dateStr }),
+              ).catch(() => {});
+            }
           }
         }
       }
