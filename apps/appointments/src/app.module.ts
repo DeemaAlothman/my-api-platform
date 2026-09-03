@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from './prisma/prisma.service';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { WaitingListModule } from './waiting-list/waiting-list.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -15,6 +16,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
       signOptions: { expiresIn: '15m' },
     }),
     AppointmentsModule,
+    WaitingListModule,
   ],
   providers: [
     PrismaService,

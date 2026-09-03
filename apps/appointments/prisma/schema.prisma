@@ -60,6 +60,29 @@ enum ReminderChannel {
   @@schema("clinic_appointments")
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  @@schema("clinic_appointments")
+}
+
+enum ArrivalMethod {
+  SOCIAL_MEDIA
+  HOSPITAL
+  DOCTOR
+  ASSOCIATION
+  FRIEND
+  STAFF
+  @@schema("clinic_appointments")
+}
+
+enum WaitingListStatus {
+  WAITING
+  SCHEDULED
+  NOT_SCHEDULED
+  @@schema("clinic_appointments")
+}
+
 // ── Model ─────────────────────────────────────────────────────────────────
 
 model Appointment {
@@ -99,4 +122,29 @@ model Appointment {
   @@index([patientId])
   @@index([status])
   @@index([startTime])
+}
+
+model WaitingListEntry {
+  id               String   @id @default(uuid())
+
+  patientName      String
+  gender           Gender
+  age              Int?
+  registrationDate DateTime @default(now())
+  arrivalMethod    ArrivalMethod?
+  serviceType      String
+  contactNumber    String
+  priority         Int
+  notes            String? @db.Text
+
+  status           WaitingListStatus @default(WAITING)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdBy        String
+
+  @@map("waiting_list_entries")
+  @@schema("clinic_appointments")
+  @@index([status])
+  @@index([priority])
 }

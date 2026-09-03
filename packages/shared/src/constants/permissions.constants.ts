@@ -296,6 +296,12 @@ export const PERMISSIONS = {
     CANCEL:           'clinic.appointments.cancel',
     VIEW_ALL_PATIENTS: 'clinic.appointments.view-all-patients',
   },
+  CLINIC_WAITING_LIST: {
+    VIEW:   'clinic.waiting_list.view',
+    CREATE: 'clinic.waiting_list.create',
+    EDIT:   'clinic.waiting_list.edit',
+    DELETE: 'clinic.waiting_list.delete',
+  },
   CLINIC_INVENTORY: {
     VIEW:   'clinic.inventory.view',
     MANAGE: 'clinic.inventory.manage',
