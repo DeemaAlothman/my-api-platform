@@ -692,7 +692,10 @@ export class LeaveRequestsService {
   }
 
   async substituteReject(id: string, substituteEmployeeId: string, notes: string) {
-    const request = await this.prisma.leaveRequest.findUnique({ where: { id } });
+    const request = await this.prisma.leaveRequest.findUnique({
+      where: { id },
+      include: { leaveType: true },
+    });
     if (!request) throw new NotFoundException('Leave request not found');
     if (request.status !== 'PENDING_SUBSTITUTE') {
       throw new BadRequestException('Request is not awaiting substitute approval');
@@ -701,13 +704,18 @@ export class LeaveRequestsService {
       throw new ForbiddenException('You are not the designated substitute for this request');
     }
 
-    await this.prisma.leaveRequest.update({
-      where: { id },
-      data: {
-        status: 'REJECTED' as any,
-        substituteStatus: 'REJECTED',
-        substituteNotes: notes,
-      },
+    const year = new Date(request.startDate).getFullYear();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.leaveRequest.update({
+        where: { id },
+        data: {
+          status: 'REJECTED' as any,
+          substituteStatus: 'REJECTED',
+          substituteNotes: notes,
+        },
+      });
+      // تحرير الأيام المحجوزة (pendingDays) بما إنها ما وصلت حتى لمرحلة اعتماد المدير
+      await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx, (request as any).leaveType?.isUnlimited);
     });
 
     await this.addHistory(id, 'SUBSTITUTE_REJECTED', 'PENDING_SUBSTITUTE', 'REJECTED', substituteEmployeeId, notes);
@@ -1182,7 +1190,7 @@ export class LeaveRequestsService {
       const cancelIsUnlimited = (request as any).leaveType?.isUnlimited;
       if (oldStatus === 'APPROVED') {
         await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, -request.totalDays, 0, tx, cancelIsUnlimited);
-      } else if (oldStatus === 'PENDING_MANAGER' || oldStatus === 'PENDING_HR') {
+      } else if (oldStatus === 'PENDING_MANAGER' || oldStatus === 'PENDING_HR' || oldStatus === 'PENDING_SUBSTITUTE') {
         await this.updateLeaveBalance(request.employeeId, request.leaveTypeId, year, 0, -request.totalDays, tx, cancelIsUnlimited);
       }
       return result;
