@@ -15,8 +15,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
       secret: process.env.JWT_ACCESS_SECRET!,
       signOptions: { expiresIn: '15m' },
     }),
-    AppointmentsModule,
     WaitingListModule,
+    AppointmentsModule,
   ],
   providers: [
     PrismaService,
