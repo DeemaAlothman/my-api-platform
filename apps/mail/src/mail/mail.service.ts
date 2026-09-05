@@ -286,6 +286,7 @@ export class MailService {
   async forward(senderId: string, originalMessageId: string, dto: SendMailDto) {
     const original = await (this.prisma as any).mailMessage.findUnique({
       where: { id: originalMessageId, deletedAt: null },
+      include: { attachments: true },
     });
     if (!original) {
       throw new NotFoundException({ code: 'MAIL_NOT_FOUND', message: 'Original message not found', details: [] });
@@ -300,11 +301,28 @@ export class MailService {
       ? dto.body + separator + original.body
       : original.body;
 
+    // انسخ مرفقات الرسالة الأصلية كمرفقات يتيمة جديدة (لنفس الملف على القرص) لتُربط بالرسالة المُحوَّلة
+    const carriedAttachmentIds: string[] = [];
+    for (const att of original.attachments ?? []) {
+      const copy = await (this.prisma as any).mailAttachment.create({
+        data: {
+          messageId: null,
+          uploadedBy: senderId,
+          fileUrl: att.fileUrl,
+          fileName: att.fileName,
+          fileSize: att.fileSize,
+          mimeType: att.mimeType,
+        },
+      });
+      carriedAttachmentIds.push(copy.id);
+    }
+
     return this.send(senderId, {
       ...dto,
       subject: forwardSubject,
       body: forwardBody,
       parentMessageId: originalMessageId,
+      attachmentIds: [...(dto.attachmentIds ?? []), ...carriedAttachmentIds],
     });
   }
 
