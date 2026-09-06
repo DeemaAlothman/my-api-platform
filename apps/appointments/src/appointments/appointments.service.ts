@@ -285,22 +285,23 @@ export class AppointmentsService implements OnModuleInit {
     return appt;
   }
 
-  private async attachPatientNames<T extends { patientId: string | null; patientName?: string | null }>(items: T[]): Promise<(T & { patientName: string; patientNumber: string })[]> {
-    if (items.length === 0) return items.map(i => ({ ...i, patientName: i.patientName ?? '', patientNumber: '' }));
+  private async attachPatientNames<T extends { patientId: string | null; patientName?: string | null }>(items: T[]): Promise<(T & { patientName: string; patientNumber: string; phone: string })[]> {
+    if (items.length === 0) return items.map(i => ({ ...i, patientName: i.patientName ?? '', patientNumber: '', phone: '' }));
     const ids = [...new Set(items.map(i => i.patientId).filter((id): id is string => !!id))];
-    const map = new Map<string, { name: string; number: string }>();
+    const map = new Map<string, { name: string; number: string; phone: string }>();
     if (ids.length > 0) {
       const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-      const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; patientNumber: string }>>(
-        `SELECT id, "firstName", "lastName", "patientNumber" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
+      const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; patientNumber: string; phone: string }>>(
+        `SELECT id, "firstName", "lastName", "patientNumber", "phone" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
         ...ids,
       );
-      for (const p of patients) map.set(p.id, { name: `${p.firstName} ${p.lastName}`, number: p.patientNumber });
+      for (const p of patients) map.set(p.id, { name: `${p.firstName} ${p.lastName}`, number: p.patientNumber, phone: p.phone });
     }
     return items.map(i => ({
       ...i,
       patientName: i.patientId ? (map.get(i.patientId)?.name ?? '') : (i.patientName ?? ''),
       patientNumber: i.patientId ? (map.get(i.patientId)?.number ?? '') : '',
+      phone: i.patientId ? (map.get(i.patientId)?.phone ?? '') : '',
     }));
   }
 
