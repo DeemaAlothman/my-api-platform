@@ -1544,6 +1544,73 @@ export class LeaveRequestsService {
     return request;
   }
 
+  // مسار الموافقة (نفس شكل مرحلة "الطلبات الإدارية") — محسوب من حقول الطلب نفسها، بدون جدول إضافي
+  async getApprovalSteps(id: string) {
+    const request = await this.prisma.leaveRequest.findFirst({
+      where: { id, deletedAt: null },
+      include: { leaveType: true },
+    });
+    if (!request) throw new NotFoundException('Leave request not found');
+
+    const normalize = (s: string | null | undefined): string =>
+      !s ? 'PENDING' : s === 'PENDING_HR' ? 'PENDING' : s;
+
+    const steps: Array<Record<string, any>> = [];
+    let order = 1;
+
+    // خطوة البديل — موجودة فقط إذا حُدد بديل بالطلب
+    if (request.substituteId) {
+      steps.push({
+        id: `${request.id}-substitute`,
+        requestId: request.id,
+        stepOrder: order++,
+        approverRole: 'SUBSTITUTE',
+        status: normalize(request.substituteStatus),
+        reviewedBy: request.substituteId,
+        reviewedAt: request.substituteApprovedAt,
+        notes: request.substituteNotes,
+        createdAt: request.createdAt,
+      });
+    }
+
+    // نوع الإجازة لا يتطلب اعتماد → لا خطوات مدير/موارد بشرية
+    if (!request.leaveType.requiresApproval) {
+      return steps;
+    }
+
+    // إذا لم تُحدَّد خطوة المدير بعد (الطلب لسا عند البديل)، نتوقع هل ستُتخطى (المدير نفسه HR)
+    const managerStepSkipped = request.managerStatus === null
+      && await this.isEmployeeDMAlsoHR(request.employeeId);
+
+    if (!managerStepSkipped) {
+      steps.push({
+        id: `${request.id}-manager`,
+        requestId: request.id,
+        stepOrder: order++,
+        approverRole: 'DIRECT_MANAGER',
+        status: normalize(request.managerStatus),
+        reviewedBy: request.managerApprovedBy,
+        reviewedAt: request.managerApprovedAt,
+        notes: request.managerNotes,
+        createdAt: request.createdAt,
+      });
+    }
+
+    steps.push({
+      id: `${request.id}-hr`,
+      requestId: request.id,
+      stepOrder: order++,
+      approverRole: 'HR',
+      status: normalize(request.hrStatus),
+      reviewedBy: request.hrApprovedBy,
+      reviewedAt: request.hrApprovedAt,
+      notes: request.hrNotes,
+      createdAt: request.createdAt,
+    });
+
+    return steps;
+  }
+
   // قائمة طلبات الموظف
   async findByEmployee(employeeId: string, filters?: any) {
     const where: any = { employeeId, deletedAt: null };

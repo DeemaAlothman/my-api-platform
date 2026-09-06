@@ -208,6 +208,13 @@ export class LeaveRequestsController {
     return this.leaveRequestsService.findOne(id);
   }
 
+  // مسار الموافقة (خطوات الاعتماد) لطلب الإجازة
+  @Get(':id/approval-steps')
+  @Permission('leave_requests:read')
+  getApprovalSteps(@Param('id') id: string) {
+    return this.leaveRequestsService.getApprovalSteps(id);
+  }
+
   // حذف طلب (فقط DRAFT)
   @Delete(':id')
   @Permission('leave_requests:delete')
