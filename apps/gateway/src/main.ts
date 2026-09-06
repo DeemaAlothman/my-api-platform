@@ -89,6 +89,11 @@ async function bootstrap() {
   const patientsUrl = process.env.PATIENTS_SERVICE_URL || 'http://patients:4010';
   const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
 
+  // مرفقات البريد الداخلي — قبل الـ global prefix لأن الفرونت يستخدم /api/mail-file/ (بدون v1)
+  const mailUrl = process.env.MAIL_SERVICE_URL || 'http://mail:4009';
+  const proxyMailFile = makeUploadProxy(mailUrl, '/api/v1/mail-file');
+  expressApp.use('/api/mail-file', proxyMailFile);
+
   // ملفات المرضى → patients service (يجب أن يكون قبل /uploads العام)
   const proxyPatientUpload = makeUploadProxy(patientsUrl, '/uploads');
   expressApp.use('/uploads/patients', proxyPatientUpload);
