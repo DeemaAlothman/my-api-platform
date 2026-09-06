@@ -437,8 +437,8 @@ export class CasesController {
 
   @Post(':id/final-delivery')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
-  createFinalDelivery(@Param('id') id: string, @Body() dto: FinalDeliveryFormDto) {
-    return this.service.createFinalDelivery(id, dto);
+  createFinalDelivery(@Param('id') id: string, @Body() dto: FinalDeliveryFormDto, @User() user: any) {
+    return this.service.createFinalDelivery(id, dto, user.userId);
   }
 
   @Get(':id/final-delivery')
@@ -539,8 +539,8 @@ export class CasesController {
 
   @Post(':id/final-evaluation')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.DELIVERY_CREATE)
-  createFinalEval(@Param('id') id: string, @Body() dto: FinalEvaluationDto) {
-    return this.service.createFinalEvaluation(id, dto);
+  createFinalEval(@Param('id') id: string, @Body() dto: FinalEvaluationDto, @User() user: any) {
+    return this.service.createFinalEvaluation(id, dto, user.userId);
   }
 
   @Get(':id/final-evaluation')
