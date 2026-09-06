@@ -6,6 +6,7 @@ import { PRISMA_FOR_JWT } from '../tokens';
 interface JwtPayload {
   sub: string;
   username: string;
+  fullName?: string;
   permissions: string[];
   jti?: string;
   iat?: number;
@@ -39,6 +40,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       userId: payload.sub,
       username: payload.username,
+      fullName: payload.fullName || null,
       permissions: payload.permissions || [],
     };
   }

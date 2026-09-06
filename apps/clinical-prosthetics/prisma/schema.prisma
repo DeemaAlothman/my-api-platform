@@ -1029,6 +1029,7 @@ model FinalDeliveryForm {
   items             FinalDeliveryItem[]
 
   createdBy         String?
+  createdByName     String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -1223,6 +1224,7 @@ model FinalEvaluation {
   managerSignedAt       DateTime?
 
   createdBy             String?
+  createdByName         String?
 
   @@map("final_evaluations")
   @@schema("clinic_prosthetics")

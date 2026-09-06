@@ -1468,7 +1468,7 @@ export class CasesService {
 
   // ── التسليم النهائي (FINAL) — entity مستقلة ─────────────────────────────
 
-  async createFinalDelivery(caseId: string, dto: FinalDeliveryFormDto, userId?: string) {
+  async createFinalDelivery(caseId: string, dto: FinalDeliveryFormDto, userId?: string, userName?: string) {
     await this.findCaseOrThrow(caseId);
     await this.autoAdvanceStatus(caseId, 'FINAL_REVIEW');
     const existing = await this.prisma.finalDeliveryForm.findUnique({ where: { caseId } });
@@ -1483,6 +1483,7 @@ export class CasesService {
     const formData = {
       caseId,
       createdBy: userId,
+      createdByName: userName,
       inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : trialForm?.inspectionDate,
       prosthetistId:     dto.prosthetistId     ?? trialForm?.prosthetistId,
       physiotherapistId: dto.physiotherapistId ?? trialForm?.physiotherapistId,
@@ -1808,11 +1809,12 @@ export class CasesService {
 
   // ── Final Evaluation ──────────────────────────────────────────────────────
 
-  async createFinalEvaluation(caseId: string, dto: FinalEvaluationDto, userId?: string) {
+  async createFinalEvaluation(caseId: string, dto: FinalEvaluationDto, userId?: string, userName?: string) {
     await this.findCaseOrThrow(caseId);
     await this.autoAdvanceStatus(caseId, 'DELIVERED');
     const data: any = {
       createdBy: userId,
+      createdByName: userName,
       residualLimbCondition: dto.residualLimbCondition,
       suspensionSystemUsed: dto.suspensionSystemUsed,
       socksDelivered: dto.socksDelivered,

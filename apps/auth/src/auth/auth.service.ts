@@ -110,7 +110,7 @@ export class AuthService {
       });
     }
 
-    const accessToken = this.signAccessToken(user.id, user.username, finalPermissions);
+    const accessToken = this.signAccessToken(user.id, user.username, finalPermissions, user.fullName);
     const refreshToken = this.signRefreshToken(user.id);
 
     const expiresAt = new Date(Date.now() + this.refreshTtlDays * 24 * 60 * 60 * 1000);
@@ -312,12 +312,13 @@ export class AuthService {
     }
   }
 
-  private signAccessToken(userId: string, username: string, permissions?: string[]) {
+  private signAccessToken(userId: string, username: string, permissions?: string[], fullName?: string) {
     const jti = crypto.randomUUID();
     return jwt.sign(
       {
         sub: userId,
         username,
+        fullName: fullName || null,
         permissions: permissions || [],
         jti,
       },
