@@ -754,7 +754,7 @@ export class LeaveRequestsService {
           managerApprovedBy: managerId,
           managerApprovedAt: new Date(),
           managerNotes: dto.notes,
-          hrStatus: request.leaveType.requiresApproval && !dmIsHR ? 'PENDING_HR' : undefined,
+          hrStatus: !request.leaveType.requiresApproval ? undefined : dmIsHR ? 'APPROVED' : 'PENDING_HR',
         },
         include: { leaveType: true },
       });

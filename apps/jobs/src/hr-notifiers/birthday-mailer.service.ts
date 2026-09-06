@@ -49,6 +49,12 @@ export class BirthdayMailerService implements OnModuleInit {
     const allActive = await this.prisma.$queryRawUnsafe(`
       SELECT "userId" FROM users.employees
       WHERE "deletedAt" IS NULL AND "employmentStatus" = 'ACTIVE' AND "userId" IS NOT NULL
+        AND "userId" NOT IN (
+          SELECT DISTINCT ur."userId" FROM users.user_roles ur
+          INNER JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+          INNER JOIN users.permissions p ON p.id = rp."permissionId"
+          WHERE p.name = 'requests:ceo-approve'
+        )
     `) as any[];
 
     for (const emp of employees) {
