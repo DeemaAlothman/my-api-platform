@@ -21,7 +21,7 @@ import {
   CaseTreatmentProgramDto,
 } from './dto/treatment.dto';
 import {
-  FinalEvaluationDto, DirectorSignDto, DeliveryDto,
+  FinalEvaluationDto, PatchOpinionDto, DirectorSignDto, DeliveryDto,
   PatientSignDto, ManagerSignDto, FollowUpDto, GaitSignDto,
 } from './dto/delivery.dto';
 import { JwtAuthGuard } from '@shared/auth';
@@ -541,6 +541,12 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.DELIVERY_CREATE)
   createFinalEval(@Param('id') id: string, @Body() dto: FinalEvaluationDto, @User() user: any) {
     return this.service.createFinalEvaluation(id, dto, user.userId, user.fullName);
+  }
+
+  @Patch(':id/final-evaluation')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
+  patchFinalEval(@Param('id') id: string, @Body() dto: PatchOpinionDto, @User() user: any) {
+    return this.service.patchFinalEvaluation(id, dto, user.userId, user.fullName);
   }
 
   @Get(':id/final-evaluation')

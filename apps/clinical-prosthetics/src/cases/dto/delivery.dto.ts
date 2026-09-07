@@ -54,6 +54,26 @@ export class FinalEvaluationDto {
   medicalDirectorNotes?: string;
 }
 
+export class PatchOpinionDto {
+  @IsOptional() @IsString()
+  physioOpinion?: string;
+
+  @IsOptional() @IsString()
+  departmentHeadOpinion?: string;
+
+  @IsOptional() @IsString()
+  prosthetistOpinion?: string;
+
+  @IsOptional() @IsString()
+  prosthetistSupervisorOpinion?: string;
+
+  @IsOptional() @IsString()
+  committeeHeadOpinion?: string;
+
+  @IsOptional() @IsString()
+  expertOpinion?: string;
+}
+
 export class DirectorSignDto {
   @IsString()
   signatureBase64: string;

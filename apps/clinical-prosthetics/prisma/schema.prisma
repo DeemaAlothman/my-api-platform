@@ -1203,11 +1203,34 @@ model FinalEvaluation {
   supervisorId          String?
 
   physioOpinion                String? @db.Text
+  physioOpinionBy              String?
+  physioOpinionByName          String?
+  physioOpinionAt              DateTime?
+
   departmentHeadOpinion        String? @db.Text
+  departmentHeadOpinionBy      String?
+  departmentHeadOpinionByName  String?
+  departmentHeadOpinionAt      DateTime?
+
   prosthetistOpinion           String? @db.Text
-  prosthetistSupervisorOpinion String? @db.Text
+  prosthetistOpinionBy         String?
+  prosthetistOpinionByName     String?
+  prosthetistOpinionAt         DateTime?
+
+  prosthetistSupervisorOpinion        String? @db.Text
+  prosthetistSupervisorOpinionBy      String?
+  prosthetistSupervisorOpinionByName  String?
+  prosthetistSupervisorOpinionAt      DateTime?
+
   committeeHeadOpinion         String? @db.Text
+  committeeHeadOpinionBy       String?
+  committeeHeadOpinionByName   String?
+  committeeHeadOpinionAt       DateTime?
+
   expertOpinion                String? @db.Text
+  expertOpinionBy              String?
+  expertOpinionByName          String?
+  expertOpinionAt              DateTime?
 
   readyForDelivery      Boolean @default(false)
   needsFollowUp         Boolean @default(false)

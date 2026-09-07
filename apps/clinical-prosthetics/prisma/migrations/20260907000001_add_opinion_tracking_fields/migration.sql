@@ -1,0 +1,20 @@
+-- Add per-opinion tracking fields (By, ByName, At) to final_evaluations
+ALTER TABLE "clinic_prosthetics"."final_evaluations"
+  ADD COLUMN "physioOpinionBy"                    TEXT,
+  ADD COLUMN "physioOpinionByName"                TEXT,
+  ADD COLUMN "physioOpinionAt"                    TIMESTAMPTZ,
+  ADD COLUMN "departmentHeadOpinionBy"            TEXT,
+  ADD COLUMN "departmentHeadOpinionByName"        TEXT,
+  ADD COLUMN "departmentHeadOpinionAt"            TIMESTAMPTZ,
+  ADD COLUMN "prosthetistOpinionBy"               TEXT,
+  ADD COLUMN "prosthetistOpinionByName"           TEXT,
+  ADD COLUMN "prosthetistOpinionAt"               TIMESTAMPTZ,
+  ADD COLUMN "prosthetistSupervisorOpinionBy"     TEXT,
+  ADD COLUMN "prosthetistSupervisorOpinionByName" TEXT,
+  ADD COLUMN "prosthetistSupervisorOpinionAt"     TIMESTAMPTZ,
+  ADD COLUMN "committeeHeadOpinionBy"             TEXT,
+  ADD COLUMN "committeeHeadOpinionByName"         TEXT,
+  ADD COLUMN "committeeHeadOpinionAt"             TIMESTAMPTZ,
+  ADD COLUMN "expertOpinionBy"                    TEXT,
+  ADD COLUMN "expertOpinionByName"                TEXT,
+  ADD COLUMN "expertOpinionAt"                    TIMESTAMPTZ;

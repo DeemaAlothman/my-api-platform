@@ -1840,9 +1840,46 @@ export class CasesService {
     });
   }
 
+  async patchFinalEvaluation(caseId: string, dto: any, userId: string, userName: string | null) {
+    await this.findCaseOrThrow(caseId);
+    const existing = await this.prisma.finalEvaluation.findUnique({ where: { caseId } });
+    if (existing?.medicalDirectorSignedAt) {
+      throw new ConflictException({ code: 'EVALUATION_LOCKED', message: 'Final evaluation is locked after director sign' });
+    }
+    const now = new Date();
+    const data: any = {};
+    const opinions = [
+      ['physioOpinion',                'physioOpinionBy',                'physioOpinionByName',                'physioOpinionAt'],
+      ['departmentHeadOpinion',        'departmentHeadOpinionBy',        'departmentHeadOpinionByName',        'departmentHeadOpinionAt'],
+      ['prosthetistOpinion',           'prosthetistOpinionBy',           'prosthetistOpinionByName',           'prosthetistOpinionAt'],
+      ['prosthetistSupervisorOpinion', 'prosthetistSupervisorOpinionBy', 'prosthetistSupervisorOpinionByName', 'prosthetistSupervisorOpinionAt'],
+      ['committeeHeadOpinion',         'committeeHeadOpinionBy',         'committeeHeadOpinionByName',         'committeeHeadOpinionAt'],
+      ['expertOpinion',                'expertOpinionBy',                'expertOpinionByName',                'expertOpinionAt'],
+    ];
+    for (const [opinionKey, byKey, byNameKey, atKey] of opinions) {
+      if (dto[opinionKey] !== undefined) {
+        data[opinionKey]  = dto[opinionKey];
+        data[byKey]       = userId;
+        data[byNameKey]   = userName;
+        data[atKey]       = now;
+      }
+    }
+    if (Object.keys(data).length === 0) {
+      return existing ? { ...existing, isLocked: !!existing.medicalDirectorSignedAt } : null;
+    }
+    const result = await this.prisma.finalEvaluation.upsert({
+      where: { caseId },
+      create: { caseId, ...data },
+      update: data,
+    });
+    return { ...result, isLocked: !!result.medicalDirectorSignedAt };
+  }
+
   async getFinalEvaluation(caseId: string) {
     await this.findCaseOrThrow(caseId);
-    return this.prisma.finalEvaluation.findUnique({ where: { caseId } });
+    const record = await this.prisma.finalEvaluation.findUnique({ where: { caseId } });
+    if (!record) return null;
+    return { ...record, isLocked: !!record.medicalDirectorSignedAt };
   }
 
   async directorSign(caseId: string, dto: DirectorSignDto, userId: string, ip: string) {
@@ -1863,12 +1900,15 @@ export class CasesService {
       managerNotes: dto.managerNotes,
       patientFileComplete: dto.patientFileComplete,
     };
+    let result: any;
     if (!existing) {
-      return this.prisma.finalEvaluation.create({
+      result = await this.prisma.finalEvaluation.create({
         data: { caseId, supervisorId: userId, ...data },
       });
+    } else {
+      result = await this.prisma.finalEvaluation.update({ where: { caseId }, data });
     }
-    return this.prisma.finalEvaluation.update({ where: { caseId }, data });
+    return { ...result, isLocked: !!result.medicalDirectorSignedAt };
   }
 
   // ── Delivery ──────────────────────────────────────────────────────────────
