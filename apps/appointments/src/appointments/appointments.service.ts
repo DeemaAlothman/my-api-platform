@@ -491,6 +491,21 @@ export class AppointmentsService implements OnModuleInit {
     return this.prisma.appointment.update({ where: { id }, data });
   }
 
+  async linkPatient(id: string, patientId: string) {
+    await this.findOne(id);
+    const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; phone: string; whatsapp: string | null }>>(
+      `SELECT id, "firstName", "lastName", "phone", "whatsapp" FROM clinic_patients.patients WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      patientId,
+    );
+    if (patients.length === 0) throw new NotFoundException('Patient not found');
+    const p = patients[0];
+    const updated = await this.prisma.appointment.update({
+      where: { id },
+      data: { patientId, patientName: `${p.firstName} ${p.lastName}` } as any,
+    });
+    return { ...updated, patientNumber: '', phone: p.whatsapp || p.phone || '' };
+  }
+
   async cancel(id: string, reason?: string) {
     const appt = await this.findOne(id);
     const updated = await this.prisma.appointment.update({

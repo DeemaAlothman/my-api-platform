@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Body, Param, Query, UseGuards,
+  Controller, Get, Post, Put, Patch, Body, Param, Query, UseGuards,
 } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import {
@@ -88,5 +88,11 @@ export class AppointmentsController {
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.CREATE)
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto) {
     return this.service.updateStatus(id, dto);
+  }
+
+  @Patch(':id/link-patient')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.CREATE)
+  linkPatient(@Param('id') id: string, @Body('patientId') patientId: string) {
+    return this.service.linkPatient(id, patientId);
   }
 }
