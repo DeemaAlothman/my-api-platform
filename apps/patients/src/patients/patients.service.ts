@@ -108,13 +108,23 @@ export class PatientsService {
     const where: any = { deletedAt: null };
 
     if (query.search) {
-      where.OR = [
-        { firstName: { contains: query.search, mode: 'insensitive' } },
-        { lastName: { contains: query.search, mode: 'insensitive' } },
-        { phone: { contains: query.search } },
-        { patientNumber: { contains: query.search, mode: 'insensitive' } },
-        { idNumber: { contains: query.search } },
-      ];
+      const parts = query.search.trim().split(/\s+/);
+      if (parts.length > 1) {
+        where.AND = parts.map((part: string) => ({
+          OR: [
+            { firstName: { contains: part, mode: 'insensitive' } },
+            { lastName: { contains: part, mode: 'insensitive' } },
+          ],
+        }));
+      } else {
+        where.OR = [
+          { firstName: { contains: query.search, mode: 'insensitive' } },
+          { lastName: { contains: query.search, mode: 'insensitive' } },
+          { phone: { contains: query.search } },
+          { patientNumber: { contains: query.search, mode: 'insensitive' } },
+          { idNumber: { contains: query.search } },
+        ];
+      }
     }
     if (query.cityId) where.cityId = query.cityId;
     if (query.gender) where.gender = query.gender;

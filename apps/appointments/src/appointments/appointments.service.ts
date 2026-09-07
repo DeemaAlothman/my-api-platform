@@ -291,11 +291,11 @@ export class AppointmentsService implements OnModuleInit {
     const map = new Map<string, { name: string; number: string; phone: string }>();
     if (ids.length > 0) {
       const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-      const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; patientNumber: string; phone: string }>>(
-        `SELECT id, "firstName", "lastName", "patientNumber", "phone" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
+      const patients = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; patientNumber: string; phone: string; whatsapp: string | null }>>(
+        `SELECT id, "firstName", "lastName", "patientNumber", "phone", "whatsapp" FROM clinic_patients.patients WHERE id IN (${placeholders})`,
         ...ids,
       );
-      for (const p of patients) map.set(p.id, { name: `${p.firstName} ${p.lastName}`, number: p.patientNumber, phone: p.phone });
+      for (const p of patients) map.set(p.id, { name: `${p.firstName} ${p.lastName}`, number: p.patientNumber, phone: p.whatsapp || p.phone || '' });
     }
     return items.map(i => ({
       ...i,
