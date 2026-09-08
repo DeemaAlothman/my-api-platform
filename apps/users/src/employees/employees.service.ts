@@ -102,8 +102,6 @@ export class EmployeesService {
               },
             },
           },
-          attachments: true,
-          trainingCertificates: true,
           allowances: true,
         },
       }),
@@ -123,10 +121,10 @@ export class EmployeesService {
       : [];
     const configMap = new Map(configs.map(c => [c.employeeId, c]));
 
-    const itemsWithConfig = items.map(e => ({
-      ...e,
-      attendanceConfig: configMap.get(e.id) ?? null,
-    }));
+    const itemsWithConfig = items.map(e => {
+      const { profilePhoto: _, ...rest } = e as any;
+      return { ...rest, attendanceConfig: configMap.get(e.id) ?? null };
+    });
 
     return {
       items: includeManagerNotes ? itemsWithConfig : itemsWithConfig.map(e => this.stripManagerNotes(e)),
@@ -324,21 +322,14 @@ export class EmployeesService {
         lastNameAr: true,
         firstNameEn: true,
         lastNameEn: true,
-        email: true,
         employeeNumber: true,
         employmentStatus: true,
-        hireDate: true,
-        phone: true,
-        mobile: true,
-        profilePhoto: true,
+        departmentId: true,
         department: {
           select: {
             id: true,
             nameAr: true,
             nameEn: true,
-            parent: {
-              select: { id: true, nameAr: true, nameEn: true },
-            },
           },
         },
       },
