@@ -15,7 +15,7 @@ import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
-const MAX_MB = parseInt(process.env.MAX_ATTACHMENT_SIZE_MB || '50', 10);
+const MAX_MB = parseInt(process.env.MAX_ATTACHMENT_SIZE_MB || '200', 10);
 
 @ApiTags('mail-attachments')
 @ApiBearerAuth()

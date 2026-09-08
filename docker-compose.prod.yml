@@ -175,6 +175,8 @@ services:
       USERS_SERVICE_URL: http://users:4002
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       NODE_ENV: production
+      MAX_ATTACHMENT_SIZE_MB: 200
+      UPLOAD_TIMEOUT_MS: 600000
     volumes:
       - /var/data/mail_uploads:/app/uploads
     depends_on:
@@ -339,6 +341,7 @@ services:
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012,http://159.198.37.52:3012,http://159.198.37.52:3000
+      UPLOAD_TIMEOUT_MS: 600000
     ports:
       - "8000:8000"
     depends_on:

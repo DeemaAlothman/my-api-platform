@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const MAX_MB    = parseInt(process.env.MAX_ATTACHMENT_SIZE_MB || '50', 10);
+const MAX_MB    = parseInt(process.env.MAX_ATTACHMENT_SIZE_MB || '200', 10);
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 const ALLOWED_MIME = (process.env.ALLOWED_ATTACHMENT_MIME || [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
@@ -16,12 +16,15 @@ const ALLOWED_MIME = (process.env.ALLOWED_ATTACHMENT_MIME || [
   'application/vnd.oasis.opendocument.text',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.presentationml.template',
   'application/vnd.oasis.opendocument.presentation',
   'text/csv', 'text/plain',
+  'application/zip', 'application/x-zip-compressed',
+  'application/vnd.rar', 'application/x-rar-compressed',
   'application/octet-stream',
 ].join(',')).split(',');
 
-const OFFICE_EXTENSIONS = /\.(xlsx?|csv|ods|docx?|odt|txt|pdf|pptx?|odp)$/i;
+const OFFICE_EXTENSIONS = /\.(xlsx?|csv|ods|docx?|odt|txt|pdf|pptx?|potx|odp|zip|rar)$/i;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/app/uploads';
 
 @Injectable()
