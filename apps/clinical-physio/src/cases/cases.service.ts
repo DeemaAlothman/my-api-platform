@@ -198,31 +198,41 @@ export class CasesService {
 
   async findDoctorExamPending(page: number, limit: number, status?: string) {
     const skip = (page - 1) * limit;
-    const where: any = {
-      deletedAt: null,
-      convertedToCaseId: null,
-      OR: [
-        { caseType: 'DOCTOR_EXAM' as any },
-        { caseType: null, caseNumber: { startsWith: 'DE-' } },
-      ],
-    };
-    if (status) where.status = status;
+    const VALID_STATUSES = ['INTAKE', 'COMPLAINT', 'COMPLETED', 'CANCELLED'];
+    const safeStatus = status && VALID_STATUSES.includes(status) ? status : null;
+    const statusClause = safeStatus
+      ? `AND status = '${safeStatus}'::"clinic_physio"."PhysioStatus"`
+      : '';
 
-    const [items, total] = await Promise.all([
-      this.prisma.physioCase.findMany({
-        where, skip, take: limit,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true, caseNumber: true, caseType: true, status: true,
-          patientId: true, majorComplaint: true, createdAt: true,
-          physiotherapistId: true, supervisingDoctorId: true,
-        },
-      }),
-      this.prisma.physioCase.count({ where }),
+    const baseWhere = `
+      "deletedAt" IS NULL
+      AND "convertedToCaseId" IS NULL
+      AND (
+        "caseType" = 'DOCTOR_EXAM'::"clinic_physio"."CaseType"
+        OR ("caseType" IS NULL AND "caseNumber" LIKE 'DE-%')
+      )
+      ${statusClause}
+    `;
+
+    const [items, countRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<any[]>(`
+        SELECT id, "caseNumber", "caseType"::text, status::text, "patientId",
+               "majorComplaint", "createdAt", "physiotherapistId", "supervisingDoctorId"
+        FROM clinic_physio.physio_cases
+        WHERE ${baseWhere}
+        ORDER BY "createdAt" DESC
+        LIMIT ${limit} OFFSET ${skip}
+      `),
+      this.prisma.$queryRawUnsafe<[{ count: bigint }]>(`
+        SELECT COUNT(*)::int AS count
+        FROM clinic_physio.physio_cases
+        WHERE ${baseWhere}
+      `),
     ]);
 
-    const nameMap = await this.resolvePatientNames(items.map((i) => i.patientId));
-    const enriched = items.map((i) => ({ ...i, patient: nameMap[i.patientId] ?? null }));
+    const total = Number(countRows[0]?.count ?? 0);
+    const nameMap = await this.resolvePatientNames(items.map((i: any) => i.patientId));
+    const enriched = items.map((i: any) => ({ ...i, patient: nameMap[i.patientId] ?? null }));
     return { items: enriched, total, page, limit };
   }
 
