@@ -24,8 +24,8 @@ export class EmployeesService {
       deletedAt: null,
     };
 
-    if (query.status) {
-      where.employmentStatus = query.status;
+    if (query.employmentStatus) {
+      where.employmentStatus = query.employmentStatus;
     }
 
     if (query.departmentId) {

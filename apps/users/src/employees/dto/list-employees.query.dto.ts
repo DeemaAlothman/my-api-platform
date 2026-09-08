@@ -26,7 +26,7 @@ export class ListEmployeesQueryDto {
 
   @IsOptional()
   @IsEnum(EmploymentStatus)
-  status?: EmploymentStatus;
+  employmentStatus?: EmploymentStatus;
 
   @IsOptional()
   @IsUUID()
