@@ -507,11 +507,15 @@ export class AppointmentsService implements OnModuleInit {
   }
 
   async linkByName(patientId: string, firstName: string, lastName: string) {
-    const fullName = `${firstName} ${lastName}`;
-    await this.prisma.appointment.updateMany({
-      where: { patientId: null, patientName: { equals: fullName, mode: 'insensitive' } } as any,
-      data: { patientId, patientName: fullName } as any,
-    });
+    const fullName = `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim();
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE clinic_appointments.appointments
+       SET "patientId" = $1, "patientName" = $2
+       WHERE "patientId" IS NULL
+         AND REGEXP_REPLACE(LOWER(TRIM("patientName")), '\\s+', ' ', 'g') = REGEXP_REPLACE(LOWER($2), '\\s+', ' ', 'g')`,
+      patientId,
+      fullName,
+    );
   }
 
   async cancel(id: string, reason?: string) {
