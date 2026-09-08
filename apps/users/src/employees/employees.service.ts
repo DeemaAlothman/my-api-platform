@@ -211,7 +211,6 @@ export class EmployeesService {
         hireDate: true,
         phone: true,
         mobile: true,
-        profilePhoto: true,
         department: {
           select: {
             id: true,
@@ -349,7 +348,6 @@ export class EmployeesService {
         email: true,
         employeeNumber: true,
         employmentStatus: true,
-        profilePhoto: true,
         company: true,
         department: {
           select: {
