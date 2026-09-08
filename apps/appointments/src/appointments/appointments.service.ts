@@ -506,6 +506,14 @@ export class AppointmentsService implements OnModuleInit {
     return { ...updated, patientNumber: '', phone: p.whatsapp || p.phone || '' };
   }
 
+  async linkByName(patientId: string, firstName: string, lastName: string) {
+    const fullName = `${firstName} ${lastName}`;
+    await this.prisma.appointment.updateMany({
+      where: { patientId: null, patientName: { equals: fullName, mode: 'insensitive' } } as any,
+      data: { patientId, patientName: fullName } as any,
+    });
+  }
+
   async cancel(id: string, reason?: string) {
     const appt = await this.findOne(id);
     const updated = await this.prisma.appointment.update({

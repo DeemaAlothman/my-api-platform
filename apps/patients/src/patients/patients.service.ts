@@ -8,6 +8,7 @@ import { CreateConsentDto } from './dto/create-consent.dto';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 const PHYSIO_URL = process.env.PHYSIO_SERVICE_URL || 'http://clinical-physio:4012';
 const PROSTHETICS_URL = process.env.PROSTHETICS_SERVICE_URL || 'http://clinical-prosthetics:4011';
+const APPOINTMENTS_URL = process.env.APPOINTMENTS_SERVICE_URL || 'http://appointments:4013';
 
 @Injectable()
 export class PatientsService {
@@ -54,7 +55,7 @@ export class PatientsService {
 
     const { consentDecision, consentSignedByPatient, consentSignatureBase64, consentSignedAt, ...patientData } = dto;
 
-    return this.prisma.patient.create({
+    const patient = await this.prisma.patient.create({
       data: {
         ...patientData,
         patientNumber,
@@ -75,6 +76,15 @@ export class PatientsService {
       },
       include: { city: true, consents: true },
     });
+
+    // ربط تلقائي للمواعيد المفتوحة بنفس اسم المريض (fire-and-forget)
+    fetch(`${APPOINTMENTS_URL}/api/v1/appointments/internal/link-by-name`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+      body: JSON.stringify({ patientId: patient.id, firstName: dto.firstName, lastName: dto.lastName }),
+    }).catch(() => {});
+
+    return patient;
   }
 
   private async getPatientIdsByCaseType(caseType: string): Promise<string[]> {

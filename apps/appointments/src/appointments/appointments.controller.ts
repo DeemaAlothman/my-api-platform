@@ -12,6 +12,18 @@ import { PermissionsGuard } from '@shared/guards/permissions.guard';
 import { Permission } from '@shared/decorators/permission.decorator';
 import { PERMISSIONS } from '@shared/constants/permissions.constants';
 import { User } from '@shared/auth/decorators/current-user.decorator';
+import { InternalAuthGuard } from '@shared';
+
+@Controller('appointments/internal')
+export class AppointmentsInternalController {
+  constructor(private readonly service: AppointmentsService) {}
+
+  @Post('link-by-name')
+  @UseGuards(InternalAuthGuard)
+  linkByName(@Body() body: { patientId: string; firstName: string; lastName: string }) {
+    return this.service.linkByName(body.patientId, body.firstName, body.lastName);
+  }
+}
 
 @Controller('appointments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
