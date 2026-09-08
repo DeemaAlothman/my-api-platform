@@ -293,6 +293,7 @@ enum AllowanceType {
   WORK_NATURE
   RESPONSIBILITY
   RESIDENCE
+  ACTING_POSITION
 }
 
 enum EmploymentStatus {

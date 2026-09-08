@@ -1303,6 +1303,7 @@ export class PayrollService {
       WORK_NATURE: 'بدل طبيعة عمل',
       RESPONSIBILITY: 'بدل مسؤولية',
       RESIDENCE: 'بدل سكن',
+      ACTING_POSITION: 'بدل شغل منصب آخر',
     };
     const allAllowanceKeys = new Set<string>();
     for (const p of payrolls) {

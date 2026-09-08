@@ -47,6 +47,7 @@ export enum AllowanceType {
   WORK_NATURE = 'WORK_NATURE',
   RESPONSIBILITY = 'RESPONSIBILITY',
   RESIDENCE = 'RESIDENCE',
+  ACTING_POSITION = 'ACTING_POSITION',
 }
 
 export class EmployeeAllowanceDto {
