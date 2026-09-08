@@ -1328,12 +1328,15 @@ export class EmployeesService {
       updateData.employmentStatus = 'TERMINATED';
     } else if (data.result === 'CONFIRM_POSITION') {
       updateData.employmentStatus = 'ACTIVE';
+      updateData.probationPeriod = 'PERMANENT';
+    } else if (data.result === 'TRANSFER_POSITION' || data.result === 'SALARY_RAISE') {
+      updateData.probationPeriod = 'PERMANENT';
     }
 
     return this.prisma.employee.update({
       where: { id: data.employeeId },
       data: updateData,
-      select: { id: true, employmentStatus: true, probationResult: true, probationCompletedAt: true },
+      select: { id: true, employmentStatus: true, probationResult: true, probationCompletedAt: true, probationPeriod: true },
     });
   }
 
