@@ -196,6 +196,36 @@ export class CasesService {
     return { items: enriched, total, page, limit };
   }
 
+  async findDoctorExamPending(page: number, limit: number, status?: string) {
+    const skip = (page - 1) * limit;
+    const where: any = {
+      deletedAt: null,
+      convertedToCaseId: null,
+      OR: [
+        { caseType: 'DOCTOR_EXAM' as any },
+        { caseType: null, caseNumber: { startsWith: 'DE-' } },
+      ],
+    };
+    if (status) where.status = status;
+
+    const [items, total] = await Promise.all([
+      this.prisma.physioCase.findMany({
+        where, skip, take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, caseNumber: true, caseType: true, status: true,
+          patientId: true, majorComplaint: true, createdAt: true,
+          physiotherapistId: true, supervisingDoctorId: true,
+        },
+      }),
+      this.prisma.physioCase.count({ where }),
+    ]);
+
+    const nameMap = await this.resolvePatientNames(items.map((i) => i.patientId));
+    const enriched = items.map((i) => ({ ...i, patient: nameMap[i.patientId] ?? null }));
+    return { items: enriched, total, page, limit };
+  }
+
   async findOne(id: string) {
     const c = await this.prisma.physioCase.findFirst({
       where: { id, deletedAt: null },
