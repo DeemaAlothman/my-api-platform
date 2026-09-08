@@ -1057,9 +1057,9 @@ export class EmployeesService {
         AND e."probationResult" IS NULL
         AND e."probationPeriod" IN ('ONE_MONTH', 'TWO_MONTHS', 'THREE_MONTHS')
         AND (
-          (e."probationPeriod" = 'ONE_MONTH'    AND (e."hireDate" + INTERVAL '1 month')::date    BETWEEN CURRENT_DATE AND $1::date)
-          OR (e."probationPeriod" = 'TWO_MONTHS'   AND (e."hireDate" + INTERVAL '2 months')::date   BETWEEN CURRENT_DATE AND $1::date)
-          OR (e."probationPeriod" = 'THREE_MONTHS' AND (e."hireDate" + INTERVAL '3 months')::date BETWEEN CURRENT_DATE AND $1::date)
+          (e."probationPeriod" = 'ONE_MONTH'    AND (e."hireDate" + INTERVAL '1 month')::date    <= $1::date)
+          OR (e."probationPeriod" = 'TWO_MONTHS'   AND (e."hireDate" + INTERVAL '2 months')::date   <= $1::date)
+          OR (e."probationPeriod" = 'THREE_MONTHS' AND (e."hireDate" + INTERVAL '3 months')::date <= $1::date)
         )
       ORDER BY "daysRemaining" ASC
     `, targetStr) as any[];
