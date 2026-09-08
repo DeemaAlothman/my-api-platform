@@ -80,7 +80,7 @@ export class LeaveBalancesService {
     });
 
     const employeeMap = await this.getEmployeeNames([employeeId]);
-    const entitled = balance ? balance.totalDays + balance.carriedOverDays : 0;
+    const entitled = balance ? balance.totalDays : 0;
     const used = balance ? balance.usedDays : 0;
 
     return {
