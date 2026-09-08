@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsDateString, IsBoolean, IsArray, ValidateNested, IsEnum, IsInt, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export enum ProbationRecommendation {
   EXTEND_PROBATION = 'EXTEND_PROBATION',
@@ -44,6 +44,7 @@ export class WorkflowActionDto {
   recommendation?: ProbationRecommendation;
   @ApiPropertyOptional({ minimum: 1, maximum: 5, description: '1=غير مقبول، 2=مقبول، 3=جيد، 4=جيد جداً، 5=ممتاز' })
   @IsOptional()
+  @Transform(({ value }) => (value !== undefined && value !== null ? Number(value) : value))
   @IsInt() @Min(1) @Max(5)
   overallRating?: number;
   @ApiPropertyOptional({ type: [CriteriaScoreDto] })
