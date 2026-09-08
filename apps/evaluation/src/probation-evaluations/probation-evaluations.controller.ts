@@ -58,6 +58,16 @@ export class ProbationEvaluationsController {
     return this.service.submit(id, req.user?.userId ?? 'system', dto);
   }
 
+  @Post(':id/direct-manager-approve')
+  directManagerApprove(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.directManagerApprove(id, req.user?.userId ?? 'system', dto);
+  }
+
+  @Post(':id/direct-manager-reject')
+  directManagerReject(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
+    return this.service.directManagerReject(id, req.user?.userId ?? 'system', dto);
+  }
+
   @Permission('probation:senior-review')
   @Post(':id/senior-approve')
   seniorApprove(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {

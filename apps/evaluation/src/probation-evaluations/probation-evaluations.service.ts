@@ -148,25 +148,32 @@ export class ProbationEvaluationsService {
       }
     }
 
+    // إن كان المدير المباشر هو HR → تخطّ خطوة المدير المباشر مباشرةً للجدولة
+    const managerIsHr = await this.isEmployeeHr(evaluation.seniorManagerId);
+    const newStatus = managerIsHr ? 'PENDING_MEETING_SCHEDULE' : 'PENDING_DIRECT_MANAGER';
+
     await this.prisma.probationEvaluation.update({
       where: { id },
-      data: {
-        status: 'PENDING_SENIOR_MANAGER',
-        employeeNotes: dto.notes,
-      },
+      data: { status: newStatus as any, employeeNotes: dto.notes },
     });
 
     await this.recomputeScores(id);
 
-    // Notify senior manager (evaluatorId acts as direct manager in submit flow)
-    if (evaluation.seniorManagerId) {
+    if (managerIsHr) {
+      await this.notifyHr('PROBATION_REMINDER',
+        'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
+        'Probation Meeting Needs Scheduling',
+        'أكمل الموظف تقييمه الذاتي والمدير المباشر هو HR — يرجى تحديد موعد الاجتماع',
+        'Employee completed self-evaluation; direct manager is HR — please schedule the meeting',
+        { evaluationId: id });
+    } else if (evaluation.seniorManagerId) {
       const mgrUserId = await this.resolveEmployeeUserId(evaluation.seniorManagerId);
       if (mgrUserId) {
         await this.sendNotification(mgrUserId, 'EVALUATION_ASSIGNED',
           'بانتظار اعتمادك لتقييم فترة تجربة موظف',
           'Probation Evaluation Awaiting Your Review',
-          'يوجد تقييم فترة تجربة بانتظار مراجعتك واعتمادك',
-          'A probation evaluation is awaiting your review and approval',
+          'يوجد تقييم فترة تجربة بانتظار مراجعتك واعتمادك كمدير مباشر',
+          'A probation evaluation is awaiting your review and approval as direct manager',
           { evaluationId: id },
         );
       }
@@ -221,10 +228,89 @@ export class ProbationEvaluationsService {
 
     await this.prisma.probationEvaluation.update({
       where: { id },
-      data: { status: 'PENDING_SENIOR_MANAGER' },
+      data: { status: 'PENDING_DIRECT_MANAGER' as any },
     });
 
+    if (evaluation.seniorManagerId) {
+      const mgrUserId = await this.resolveEmployeeUserId(evaluation.seniorManagerId);
+      if (mgrUserId) {
+        await this.sendNotification(mgrUserId, 'EVALUATION_ASSIGNED',
+          'بانتظار اعتمادك لتقييم فترة تجربة موظف',
+          'Probation Evaluation Awaiting Your Review',
+          'يوجد تقييم فترة تجربة بانتظار مراجعتك واعتمادك كمدير مباشر',
+          'A probation evaluation is awaiting your review and approval as direct manager',
+          { evaluationId: id });
+      }
+    }
+
     await this.logHistory(id, 'SUBMIT', performedBy, dto.notes ?? 'تم إرسال التقييم للمدير المباشر');
+
+    return this.findOne(id);
+  }
+
+  async directManagerApprove(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if ((evaluation.status as string) !== 'PENDING_DIRECT_MANAGER') {
+      throw new BadRequestException('التقييم ليس في مرحلة مراجعة المدير المباشر');
+    }
+
+    if (dto.scores?.length) {
+      for (const s of dto.scores) {
+        await this.prisma.probationCriteriaScore.upsert({
+          where: { evaluationId_criteriaId: { evaluationId: id, criteriaId: s.criteriaId } },
+          update: { score: s.score },
+          create: { evaluationId: id, criteriaId: s.criteriaId, score: s.score },
+        });
+      }
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: {
+        status: 'PENDING_MEETING_SCHEDULE',
+        overallRating: dto.overallRating,
+        finalRecommendation: dto.recommendation as any,
+      },
+    });
+
+    await this.recomputeScores(id);
+
+    await this.notifyHr('PROBATION_REMINDER',
+      'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
+      'Probation Meeting Needs Scheduling',
+      'اعتمد المدير المباشر التقييم — يرجى تحديد موعد الاجتماع مع الموظف والمدير',
+      'The direct manager approved the evaluation — please schedule the meeting with employee and manager',
+      { evaluationId: id });
+
+    await this.logHistory(id, 'DIRECT_MANAGER_APPROVE', performedBy, dto.notes ?? 'اعتمد المدير المباشر التقييم — في انتظار جدولة الاجتماع');
+
+    return this.findOne(id);
+  }
+
+  async directManagerReject(id: string, performedBy: string, dto: WorkflowActionDto) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if ((evaluation.status as string) !== 'PENDING_DIRECT_MANAGER') {
+      throw new BadRequestException('التقييم ليس في مرحلة مراجعة المدير المباشر');
+    }
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: { status: 'REJECTED_BY_SENIOR' },
+    });
+
+    if (evaluation.evaluatorId) {
+      await this.sendNotification(evaluation.evaluatorId, 'EVALUATION_ASSIGNED',
+        'تم رفض تقييم فترة التجربة من المدير المباشر',
+        'Probation Evaluation Rejected by Direct Manager',
+        'رفض المدير المباشر تقييم فترة التجربة — يرجى المراجعة',
+        'The probation evaluation was rejected by the direct manager — please review',
+        { evaluationId: id },
+      );
+    }
+
+    await this.logHistory(id, 'DIRECT_MANAGER_REJECT', performedBy, dto.notes ?? 'رفض المدير المباشر التقييم');
 
     return this.findOne(id);
   }
@@ -313,51 +399,86 @@ export class ProbationEvaluationsService {
       throw new BadRequestException('التقييم ليس في مرحلة توثيق الموارد البشرية');
     }
 
-    // إذا كان المدير الأعلى هو نفسه المدير التنفيذي → نتخطّى خطوة CEO
-    const seniorIsCeo = await this.isEmployeeCeo(evaluation.seniorManagerId);
-
-    if (seniorIsCeo) {
+    if (dto.sendToCeo) {
+      // إرسال للمدير التنفيذي
       await this.prisma.probationEvaluation.update({
         where: { id },
-        data: { status: 'PENDING_MEETING_SCHEDULE', hrManagerId: performedBy, ceoId: evaluation.seniorManagerId },
+        data: { status: 'PENDING_CEO', hrManagerId: performedBy },
       });
 
-      await this.notifyHr('PROBATION_REMINDER',
-        'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
-        'Probation Meeting Needs Scheduling',
-        'تم توثيق التقييم — يرجى تحديد موعد اجتماع لمراجعته',
-        'The evaluation has been documented — please schedule the review meeting',
-        { evaluationId: id });
+      const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+        SELECT DISTINCT u.id FROM users.users u
+        INNER JOIN users.user_roles ur ON ur."userId" = u.id
+        INNER JOIN users.roles r ON r.id = ur."roleId"
+        WHERE r.name IN ('CEO', 'super_admin')
+          AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+      `);
+      for (const ceo of ceoRows) {
+        await this.sendNotification(ceo.id, 'EVALUATION_ASSIGNED',
+          'بانتظار اعتمادك النهائي لتقييم فترة تجربة',
+          'Probation Evaluation Awaiting Your Final Approval',
+          'تقييم فترة تجربة موظف بانتظار اعتمادك النهائي',
+          'A probation evaluation is awaiting your final approval',
+          { evaluationId: id });
+      }
 
-      await this.logHistory(id, 'HR_DOCUMENT', performedBy,
-        (dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية') +
-        ' — المدير الأعلى هو المدير التنفيذي، تم تخطّي خطوة الاعتماد التنفيذي');
+      await this.logHistory(id, 'HR_DOCUMENT', performedBy, dto.notes ?? 'تم توثيق التقييم وإرساله للمدير التنفيذي');
+    } else {
+      // إغلاق مباشر من HR (بدون CEO)
+      const completedAt = new Date();
+      await this.recomputeScores(id);
+      await this.prisma.probationEvaluation.update({
+        where: { id },
+        data: {
+          status: 'COMPLETED',
+          hrManagerId: performedBy,
+          decisionDocumentUrl: dto.decisionDocumentUrl ?? (evaluation as any).decisionDocumentUrl,
+          employeeAcknowledged: true,
+          employeeAcknowledgedAt: completedAt,
+        },
+      });
 
-      return this.findOne(id);
+      // إشعار الموظف
+      const empUserId = await this.resolveEmployeeUserId(evaluation.employeeId);
+      if (empUserId) {
+        await this.sendNotification(empUserId, 'EVALUATION_ASSIGNED',
+          'اكتمل تقييم فترة تجربتك',
+          'Your Probation Evaluation is Completed',
+          'تم الانتهاء من تقييم فترة تجربتك بشكل رسمي',
+          'Your probation evaluation has been officially completed',
+          { evaluationId: id });
+      }
+
+      // إشعار المدير التنفيذي بالنتيجة
+      const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+        SELECT DISTINCT u.id FROM users.users u
+        INNER JOIN users.user_roles ur ON ur."userId" = u.id
+        INNER JOIN users.roles r ON r.id = ur."roleId"
+        WHERE r.name IN ('CEO', 'super_admin')
+          AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+      `);
+      for (const ceo of ceoRows) {
+        await this.sendNotification(ceo.id, 'PROBATION_REMINDER',
+          'اكتمل تقييم فترة تجربة موظف',
+          'Probation Evaluation Completed',
+          'تم إغلاق تقييم فترة التجربة من قِبل الموارد البشرية',
+          'A probation evaluation has been closed by HR',
+          { evaluationId: id });
+      }
+
+      if (evaluation.finalRecommendation && evaluation.employeeId) {
+        const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
+        this.http.post(`${usersUrl}/api/v1/employees/internal/probation-result`, {
+          employeeId: evaluation.employeeId,
+          result: evaluation.finalRecommendation,
+          completedAt: completedAt.toISOString(),
+        }).subscribe({
+          error: (err) => console.error(`[ProbationEval] فشل تحديث سجل الموظف: ${err?.message}`),
+        });
+      }
+
+      await this.logHistory(id, 'HR_DOCUMENT_CLOSE', performedBy, dto.notes ?? 'أغلق HR التقييم مباشرة دون إرساله للمدير التنفيذي');
     }
-
-    await this.prisma.probationEvaluation.update({
-      where: { id },
-      data: { status: 'PENDING_CEO', hrManagerId: performedBy },
-    });
-
-    const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
-      SELECT DISTINCT u.id FROM users.users u
-      INNER JOIN users.user_roles ur ON ur."userId" = u.id
-      INNER JOIN users.roles r ON r.id = ur."roleId"
-      WHERE r.name IN ('CEO', 'super_admin')
-        AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
-    `);
-    for (const ceo of ceoRows) {
-      await this.sendNotification(ceo.id, 'EVALUATION_ASSIGNED',
-        'بانتظار اعتمادك النهائي لتقييم فترة تجربة',
-        'Probation Evaluation Awaiting Your Final Approval',
-        'تقييم فترة تجربة موظف بانتظار اعتمادك النهائي',
-        'A probation evaluation is awaiting your final approval',
-        { evaluationId: id });
-    }
-
-    await this.logHistory(id, 'HR_DOCUMENT', performedBy, dto.notes ?? 'تم توثيق التقييم من قِبل الموارد البشرية');
 
     return this.findOne(id);
   }
@@ -386,25 +507,77 @@ export class ProbationEvaluationsService {
       throw new BadRequestException('التقييم ليس في مرحلة قرار الرئيس التنفيذي');
     }
 
-    await this.prisma.probationEvaluation.update({
-      where: { id },
-      data: {
-        status: 'PENDING_MEETING_SCHEDULE',
-        ceoId: performedBy,
-        finalRecommendation: (dto.recommendation ?? evaluation.finalRecommendation) as any,
-        overallRating: dto.overallRating ?? evaluation.overallRating,
-      },
-    });
+    const newRecommendation = (dto.recommendation ?? evaluation.finalRecommendation) as any;
+    const newRating = dto.overallRating ?? evaluation.overallRating;
 
-    // إشعار HR بأنّ عليه تحديد موعد الاجتماع
-    await this.notifyHr('PROBATION_REMINDER',
-      'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
-      'Probation Meeting Needs Scheduling',
-      'صدر قرار التقييم — يرجى تحديد موعد اجتماع لمراجعته',
-      'The evaluation decision has been issued — please schedule the review meeting',
-      { evaluationId: id });
+    if (evaluation.meetingConfirmedAt) {
+      // المسار الجديد: الاجتماع تم مسبقاً → يُغلق التقييم مباشرة بعد قرار CEO
+      const completedAt = new Date();
+      await this.recomputeScores(id);
+      await this.prisma.probationEvaluation.update({
+        where: { id },
+        data: {
+          status: 'COMPLETED',
+          ceoId: performedBy,
+          finalRecommendation: newRecommendation,
+          overallRating: newRating,
+          employeeAcknowledged: true,
+          employeeAcknowledgedAt: completedAt,
+        },
+      });
 
-    await this.logHistory(id, 'CEO_DECIDE', performedBy, dto.notes ?? 'أصدر الرئيس التنفيذي قراره — في انتظار جدولة الاجتماع');
+      // إشعار الموظف
+      const empUserId = await this.resolveEmployeeUserId(evaluation.employeeId);
+      if (empUserId) {
+        await this.sendNotification(empUserId, 'EVALUATION_ASSIGNED',
+          'اكتمل تقييم فترة تجربتك',
+          'Your Probation Evaluation is Completed',
+          'اعتمد المدير التنفيذي تقييم فترة تجربتك — تم إغلاق التقييم بشكل رسمي',
+          'The CEO approved your probation evaluation — it has been officially completed',
+          { evaluationId: id });
+      }
+
+      // إشعار HR
+      await this.notifyHr('PROBATION_REMINDER',
+        'اكتمل تقييم فترة تجربة بعد اعتماد CEO',
+        'Probation Evaluation Completed After CEO Approval',
+        'اعتمد المدير التنفيذي التقييم وأُغلق بشكل نهائي',
+        'The CEO approved the evaluation and it has been finalized',
+        { evaluationId: id });
+
+      if (evaluation.finalRecommendation && evaluation.employeeId) {
+        const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
+        this.http.post(`${usersUrl}/api/v1/employees/internal/probation-result`, {
+          employeeId: evaluation.employeeId,
+          result: newRecommendation,
+          completedAt: completedAt.toISOString(),
+        }).subscribe({
+          error: (err) => console.error(`[ProbationEval] فشل تحديث سجل الموظف: ${err?.message}`),
+        });
+      }
+
+      await this.logHistory(id, 'CEO_DECIDE', performedBy, dto.notes ?? 'أصدر الرئيس التنفيذي قراره — تم إغلاق التقييم نهائياً');
+    } else {
+      // المسار القديم: الاجتماع لم يتم بعد → جدولة الاجتماع
+      await this.prisma.probationEvaluation.update({
+        where: { id },
+        data: {
+          status: 'PENDING_MEETING_SCHEDULE',
+          ceoId: performedBy,
+          finalRecommendation: newRecommendation,
+          overallRating: newRating,
+        },
+      });
+
+      await this.notifyHr('PROBATION_REMINDER',
+        'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
+        'Probation Meeting Needs Scheduling',
+        'صدر قرار التقييم — يرجى تحديد موعد اجتماع لمراجعته',
+        'The evaluation decision has been issued — please schedule the review meeting',
+        { evaluationId: id });
+
+      await this.logHistory(id, 'CEO_DECIDE', performedBy, dto.notes ?? 'أصدر الرئيس التنفيذي قراره — في انتظار جدولة الاجتماع');
+    }
 
     return this.findOne(id);
   }
@@ -458,18 +631,28 @@ export class ProbationEvaluationsService {
     const allConfirmed = byEmp && byMgr;
     if (allConfirmed) {
       updateData.meetingConfirmedAt = new Date();
+
+      // المسار الجديد (الاجتماع قبل HR/CEO): ceoId فارغ → انتقل لـ PENDING_HR
+      // المسار القديم (الاجتماع بعد CEO): ceoId موجود → أبلغ HR بالإغلاق
+      if (!evaluation.ceoId) {
+        updateData.status = 'PENDING_HR';
+        await this.notifyHr('PROBATION_REMINDER',
+          'تأكّد موعد الاجتماع — التقييم بانتظار توثيقك',
+          'Meeting Confirmed — Evaluation Awaiting Your Documentation',
+          'وافق الموظف والمدير المباشر على موعد الاجتماع — التقييم الآن بانتظار توثيق الموارد البشرية',
+          'Employee and direct manager confirmed the meeting — evaluation now awaits HR documentation',
+          { evaluationId: id });
+      } else {
+        await this.notifyHr('PROBATION_REMINDER',
+          'تأكّد موعد الاجتماع — يلزم إغلاق التقييم',
+          'Meeting Confirmed — Evaluation Needs Closing',
+          'وافق الموظف والمدير المباشر على موعد الاجتماع — يرجى إغلاق التقييم',
+          'Employee and direct manager confirmed the meeting — please close the evaluation',
+          { evaluationId: id });
+      }
     }
 
     await this.prisma.probationEvaluation.update({ where: { id }, data: updateData });
-
-    if (allConfirmed) {
-      await this.notifyHr('PROBATION_REMINDER',
-        'تأكّد موعد الاجتماع — يلزم إغلاق التقييم',
-        'Meeting Confirmed — Evaluation Needs Closing',
-        'وافق الموظف والمدير المباشر على موعد الاجتماع — يرجى إغلاق التقييم',
-        'Employee and direct manager confirmed the meeting — please close the evaluation',
-        { evaluationId: id });
-    }
 
     await this.logHistory(id, 'MEETING_CONFIRMED', performedBy, `تأكيد الاجتماع من قِبل: ${role}`);
     return this.findOne(id);
@@ -519,6 +702,32 @@ export class ProbationEvaluationsService {
     });
 
     await this.logHistory(id, 'EVALUATION_CLOSED', performedBy, 'أغلق HR التقييم بعد الاجتماع');
+
+    // إشعار الموظف والمدير التنفيذي بإغلاق التقييم
+    const empUserId = await this.resolveEmployeeUserId(evaluation.employeeId);
+    if (empUserId) {
+      await this.sendNotification(empUserId, 'EVALUATION_ASSIGNED',
+        'اكتمل تقييم فترة تجربتك',
+        'Your Probation Evaluation is Completed',
+        'تم إغلاق تقييم فترة تجربتك بشكل رسمي بعد الاجتماع',
+        'Your probation evaluation has been officially closed after the meeting',
+        { evaluationId: id });
+    }
+    const ceoRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+      SELECT DISTINCT u.id FROM users.users u
+      INNER JOIN users.user_roles ur ON ur."userId" = u.id
+      INNER JOIN users.roles r ON r.id = ur."roleId"
+      WHERE r.name IN ('CEO', 'super_admin')
+        AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+    `);
+    for (const ceo of ceoRows) {
+      await this.sendNotification(ceo.id, 'PROBATION_REMINDER',
+        'اكتمل تقييم فترة تجربة موظف',
+        'Probation Evaluation Completed',
+        'تم إغلاق تقييم فترة التجربة من قِبل الموارد البشرية',
+        'A probation evaluation has been closed by HR',
+        { evaluationId: id });
+    }
 
     if (evaluation.finalRecommendation && evaluation.employeeId) {
       const usersUrl = process.env.USERS_SERVICE_URL || 'http://users:4002';
@@ -595,9 +804,11 @@ export class ProbationEvaluationsService {
     ];
 
     if (employeeId) {
-      // كمدير مباشر: بانتظار اعتمادي
+      // كمدير مباشر: بانتظار اعتمادي (المسار الجديد)
+      orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_DIRECT_MANAGER' as any });
+      // كمدير مباشر: بانتظار اعتمادي (المسار القديم — backward compat)
       orConditions.push({ seniorManagerId: employeeId, status: 'PENDING_SENIOR_MANAGER' });
-      // كموظف: بانتظار إقراري
+      // كموظف: بانتظار إقراري (بيانات قديمة)
       orConditions.push({ employeeId, status: 'PENDING_EMPLOYEE_ACKNOWLEDGMENT' });
       // اجتماع: حُدّد موعده ولم يتأكّد كلياً بعد، وبانتظار موافقتي
       orConditions.push({ employeeId, status: 'PENDING_MEETING_SCHEDULE', meetingProposedAt: { not: null }, meetingConfirmedAt: null, meetingConfirmedByEmployee: false });
@@ -789,6 +1000,21 @@ export class ProbationEvaluationsService {
          JOIN users.roles r ON r.id = ur."roleId"
         WHERE e.id = $1 AND e."deletedAt" IS NULL
           AND r.name IN ('CEO', 'CEOO') AND r."deletedAt" IS NULL`,
+      employeeId,
+    );
+    return (rows[0]?.c ?? 0) > 0;
+  }
+
+  // هل هذا الموظف لديه دور HR؟ (لتخطّي خطوة المدير المباشر إن كان هو HR)
+  private async isEmployeeHr(employeeId: string | null): Promise<boolean> {
+    if (!employeeId) return false;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ c: number }>>(
+      `SELECT COUNT(*)::int AS c
+         FROM users.employees e
+         JOIN users.user_roles ur ON ur."userId" = e."userId"
+         JOIN users.roles r ON r.id = ur."roleId"
+        WHERE e.id = $1 AND e."deletedAt" IS NULL
+          AND r.name IN ('HR', 'HR_Specialist') AND r."deletedAt" IS NULL`,
       employeeId,
     );
     return (rows[0]?.c ?? 0) > 0;

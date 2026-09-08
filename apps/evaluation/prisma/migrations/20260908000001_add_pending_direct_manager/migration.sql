@@ -1,0 +1,2 @@
+-- AddValue: PENDING_DIRECT_MANAGER to ProbationStatus
+ALTER TYPE evaluation."ProbationStatus" ADD VALUE IF NOT EXISTS 'PENDING_DIRECT_MANAGER';

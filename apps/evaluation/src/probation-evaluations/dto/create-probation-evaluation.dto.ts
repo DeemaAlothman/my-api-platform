@@ -52,4 +52,9 @@ export class WorkflowActionDto {
   @ValidateNested({ each: true })
   @Type(() => CriteriaScoreDto)
   scores?: CriteriaScoreDto[];
+  @ApiPropertyOptional({ description: 'في hrDocument: true = أرسل للمدير التنفيذي / false أو غير موجود = أغلق مباشرة' })
+  @IsOptional()
+  @IsBoolean()
+  sendToCeo?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsString() decisionDocumentUrl?: string;
 }
