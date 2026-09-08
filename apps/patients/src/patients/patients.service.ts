@@ -77,6 +77,38 @@ export class PatientsService {
     });
   }
 
+  private async getPatientIdsByCaseType(caseType: string): Promise<string[]> {
+    if (caseType === 'physio') {
+      const r = await this.prisma.$queryRaw<{ patientId: string }[]>`
+        SELECT DISTINCT "patientId" FROM clinic_physio.physio_cases
+        WHERE "deletedAt" IS NULL AND "caseType" = 'PHYSIO'::"clinic_physio"."CaseType"
+      `;
+      return r.map(x => x.patientId);
+    }
+    if (caseType === 'doctor_exam') {
+      const r = await this.prisma.$queryRaw<{ patientId: string }[]>`
+        SELECT DISTINCT "patientId" FROM clinic_physio.physio_cases
+        WHERE "deletedAt" IS NULL
+          AND ("caseType" = 'DOCTOR_EXAM'::"clinic_physio"."CaseType"
+            OR ("caseType" IS NULL AND "caseNumber" LIKE 'DE-%'))
+      `;
+      return r.map(x => x.patientId);
+    }
+    if (caseType === 'prosthetics') {
+      const r = await this.prisma.$queryRaw<{ patientId: string }[]>`
+        SELECT DISTINCT "patientId" FROM clinic_prosthetics.prosthetics_cases WHERE "deletedAt" IS NULL
+      `;
+      return r.map(x => x.patientId);
+    }
+    if (caseType === 'podiatry') {
+      const r = await this.prisma.$queryRaw<{ patientId: string }[]>`
+        SELECT DISTINCT "patientId" FROM clinic_podiatry.podiatry_receptions
+      `;
+      return r.map(x => x.patientId);
+    }
+    throw new BadRequestException(`Unknown caseType: ${caseType}`);
+  }
+
   private async getPatientIdsByDepartment(department: string): Promise<string[]> {
     const rows: { patientId: string }[] = [];
 
@@ -135,9 +167,18 @@ export class PatientsService {
         ? { none: {} }
         : { some: { decision: query.consentDecision } };
     }
+    let filteredIds: string[] | null = null;
     if (query.department) {
-      const ids = await this.getPatientIdsByDepartment(query.department);
-      where.id = { in: ids };
+      filteredIds = await this.getPatientIdsByDepartment(query.department);
+    }
+    if (query.caseType) {
+      const ids = await this.getPatientIdsByCaseType(query.caseType);
+      filteredIds = filteredIds !== null
+        ? filteredIds.filter(id => ids.includes(id))
+        : ids;
+    }
+    if (filteredIds !== null) {
+      where.id = { in: filteredIds };
     }
 
     const [items, total] = await Promise.all([

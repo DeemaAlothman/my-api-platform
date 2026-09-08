@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsEnum, Min } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsEnum, IsIn, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Gender } from './create-patient.dto';
 
@@ -12,4 +12,5 @@ export class ListPatientsQueryDto {
   @IsOptional() @IsString() documentConsent?: string;
   @IsOptional() @IsString() consentDecision?: string;
   @IsOptional() @IsString() department?: string;
+  @IsOptional() @IsIn(['physio', 'prosthetics', 'podiatry', 'doctor_exam']) caseType?: string;
 }
