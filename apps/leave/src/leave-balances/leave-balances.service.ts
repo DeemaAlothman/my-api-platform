@@ -68,6 +68,31 @@ export class LeaveBalancesService {
     }));
   }
 
+  // ملخص الإجازة السنوية لموظف معين بسنة محددة: المستحق مقابل المأخوذ
+  async getAnnualSummary(employeeId: string, year?: number) {
+    const currentYear = year || new Date().getFullYear();
+
+    const annualType = await this.prisma.leaveType.findUnique({ where: { code: 'ANNUAL' } });
+    if (!annualType) throw new NotFoundException('نوع الإجازة السنوية غير معرَّف بالنظام');
+
+    const balance = await this.prisma.leaveBalance.findUnique({
+      where: { employeeId_leaveTypeId_year: { employeeId, leaveTypeId: annualType.id, year: currentYear } },
+    });
+
+    const employeeMap = await this.getEmployeeNames([employeeId]);
+    const entitled = balance ? balance.totalDays + balance.carriedOverDays : 0;
+    const used = balance ? balance.usedDays : 0;
+
+    return {
+      employeeId,
+      employee: employeeMap.get(employeeId) || null,
+      year: currentYear,
+      entitled,
+      used,
+      remaining: entitled - used - (balance?.pendingDays ?? 0),
+    };
+  }
+
   // الحصول على رصيد محدد
   async findOne(id: string) {
     const balance = await this.prisma.leaveBalance.findUnique({

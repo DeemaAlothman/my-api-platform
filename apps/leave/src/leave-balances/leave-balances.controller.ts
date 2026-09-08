@@ -46,6 +46,14 @@ export class LeaveBalancesController {
     return this.leaveBalancesService.findByEmployee(employeeId, yearNum);
   }
 
+  // ملخص الإجازة السنوية لموظف معين: المستحق مقابل المأخوذ بسنة محددة
+  @Get('employee/:employeeId/annual-summary')
+  @Permission('leave_balances:read_all')
+  getAnnualSummary(@Param('employeeId') employeeId: string, @Query('year') year?: string) {
+    const yearNum = year ? parseInt(year, 10) : undefined;
+    return this.leaveBalancesService.getAnnualSummary(employeeId, yearNum);
+  }
+
   // تفاصيل رصيد HOURLY_PAID الشهري — الطلبات مقابل التأخيرات
   @Get(':employeeId/hourly-monthly')
   @Permission('leave_balances:read_all')
