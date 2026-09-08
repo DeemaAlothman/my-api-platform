@@ -34,7 +34,6 @@ export class DashboardDataController {
       lastNameAr:     employee.lastNameAr,
       firstNameEn:    employee.firstNameEn,
       lastNameEn:     employee.lastNameEn,
-      profilePhoto:   employee.profilePhoto,
       department:     employee.department,
       jobTitle:       employee.jobTitle,
       employmentStatus: employee.employmentStatus,
@@ -60,7 +59,7 @@ export class DashboardDataController {
       const subordinates = employee
         ? await this.prisma.employee.findMany({
             where: { managerId: employee.id, deletedAt: null },
-            select: { id: true, firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true, profilePhoto: true, employmentStatus: true },
+            select: { id: true, firstNameAr: true, lastNameAr: true, firstNameEn: true, lastNameEn: true, employmentStatus: true },
           })
         : [];
 
