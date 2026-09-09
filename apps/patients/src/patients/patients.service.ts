@@ -38,15 +38,19 @@ export class PatientsService {
   }
 
   async create(dto: CreatePatientDto, userId: string) {
-    const existing = await this.prisma.patient.findFirst({
-      where: { idNumber: dto.idNumber, deletedAt: null },
-    });
-    if (existing) {
-      throw new ConflictException('مريض بهذا رقم الهوية موجود مسبقاً');
+    if (dto.idNumber) {
+      const existing = await this.prisma.patient.findFirst({
+        where: { idNumber: dto.idNumber, deletedAt: null },
+      });
+      if (existing) {
+        throw new ConflictException('مريض بهذا رقم الهوية موجود مسبقاً');
+      }
     }
 
-    const city = await this.prisma.city.findUnique({ where: { id: dto.cityId } });
-    if (!city) throw new BadRequestException('المدينة غير موجودة');
+    if (dto.cityId) {
+      const city = await this.prisma.city.findUnique({ where: { id: dto.cityId } });
+      if (!city) throw new BadRequestException('المدينة غير موجودة');
+    }
 
     const patientNumber = await this.generatePatientNumber();
     const bmi = dto.heightCm && dto.weightKg

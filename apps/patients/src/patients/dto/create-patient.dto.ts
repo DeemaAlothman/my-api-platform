@@ -21,11 +21,11 @@ export class CreatePatientDto {
   @IsString() firstName: string;
   @IsString() lastName: string;
   @IsEnum(IdType) idType: IdType;
-  @IsString() idNumber: string;
+  @IsOptional() @IsString() idNumber?: string;
   @IsDateString() dateOfBirth: string;
   @IsEnum(Gender) gender: Gender;
 
-  @Type(() => Number) @IsNumber() cityId: number;
+  @IsOptional() @Type(() => Number) @IsNumber() cityId?: number;
   @IsOptional() @IsString() addressDetails?: string;
   @IsOptional() @IsString() currentAddress?: string;
   @IsOptional() @IsString() neighborhood?: string;

@@ -105,7 +105,7 @@ model Patient {
   firstName  String
   lastName   String
   idType     IdType
-  idNumber   String  @unique
+  idNumber   String? @unique
 
   // Demographics
   dateOfBirth DateTime
@@ -113,8 +113,8 @@ model Patient {
   occupation  String?
 
   // Contact
-  cityId         Int
-  city           City    @relation(fields: [cityId], references: [id])
+  cityId         Int?
+  city           City?   @relation(fields: [cityId], references: [id])
   addressDetails String?
   currentAddress String?
   neighborhood   String?
