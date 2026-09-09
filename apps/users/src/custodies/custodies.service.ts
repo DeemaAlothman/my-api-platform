@@ -82,7 +82,7 @@ export class CustodiesService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          attachments: true,
+          attachments: { select: { id: true, fileName: true } },
           employee: {
             select: {
               id: true,
@@ -260,7 +260,7 @@ export class CustodiesService {
     return this.prisma.custody.findMany({
       where: { employeeId: rows[0].id, deletedAt: null },
       orderBy: { assignedDate: 'desc' },
-      include: { attachments: true },
+      include: { attachments: { select: { id: true, fileName: true } } },
     });
   }
 
