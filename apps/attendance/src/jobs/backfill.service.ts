@@ -246,7 +246,8 @@ export class BackfillService {
       const overtimeRaw = Math.floor((rec.clockOutTime.getTime() - scheduledEnd.getTime()) / 60000);
 
       lateMinutes = Math.max(0, lateRaw - (s.lateToleranceMin || 0));
-      earlyLeaveMinutes = Math.max(0, earlyRaw - (s.earlyLeaveToleranceMin || 0));
+      const earlyArrivalMinutes = Math.max(0, -lateRaw);
+      earlyLeaveMinutes = Math.max(0, earlyRaw - (s.earlyLeaveToleranceMin || 0) - earlyArrivalMinutes);
 
       if (s.allowOvertime && overtimeRaw > 0) {
         const maxMin = s.maxOvertimeHours ? s.maxOvertimeHours * 60 : Infinity;
