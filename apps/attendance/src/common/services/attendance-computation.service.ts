@@ -82,8 +82,12 @@ export class AttendanceComputationService {
       schedule.lateToleranceMin,
     );
 
+    const earlyArrivalMinutes = clockIn < shiftStart
+      ? Math.max(0, Math.floor((shiftStart.getTime() - clockIn.getTime()) / 60000))
+      : 0;
+
     const earlyLeaveMinutes = clockOut && clockOut < shiftEnd
-      ? Math.max(0, Math.floor((shiftEnd.getTime() - clockOut.getTime()) / 60000) - schedule.earlyLeaveToleranceMin)
+      ? Math.max(0, Math.floor((shiftEnd.getTime() - clockOut.getTime()) / 60000) - schedule.earlyLeaveToleranceMin - earlyArrivalMinutes)
       : 0;
 
     let status = 'PRESENT';
