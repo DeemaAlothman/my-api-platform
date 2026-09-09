@@ -25,6 +25,7 @@ enum AppointmentType {
   COMMITTEE
   EXAMINATION
   // قسم الأطراف الصناعية وطب الأقدام
+  REHABILITATION
   COMPANY_EXAMINATION
   REFERRAL_EXAMINATION
   TRIAL_DELIVERY

@@ -10,6 +10,7 @@ export enum AppointmentTypeEnum {
   SESSION      = 'SESSION',
   FOLLOW_UP    = 'FOLLOW_UP',
   COMMITTEE    = 'COMMITTEE',
+  REHABILITATION = 'REHABILITATION',
   EXAMINATION  = 'EXAMINATION',
   // قسم الأطراف الصناعية وطب الأقدام
   COMPANY_EXAMINATION    = 'COMPANY_EXAMINATION',
