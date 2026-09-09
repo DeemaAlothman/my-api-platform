@@ -90,6 +90,65 @@ export class AttendanceJustificationsService {
     } catch { /* silent */ }
   }
 
+  // عدّاد التبريرات المرفوضة نهائياً — عند وصوله لـ3 يُرسل تنبيه بريد داخلي للموظف وكل HR (مرة واحدة فقط)
+  private async recordRejectionAndMaybeAlert(employeeId: string) {
+    try {
+      const config = await this.prisma.employeeAttendanceConfig.upsert({
+        where: { employeeId },
+        create: { employeeId, rejectedJustificationsCount: 1 },
+        update: { rejectedJustificationsCount: { increment: 1 } },
+      });
+
+      if (config.rejectedJustificationsCount === 3 && !config.rejectionAlertSentAt) {
+        await this.sendRejectionThresholdMail(employeeId);
+        await this.prisma.employeeAttendanceConfig.update({
+          where: { employeeId },
+          data: { rejectionAlertSentAt: new Date() },
+        });
+      }
+    } catch { /* silent — غير حرج، لا يجب أن يكسر عملية الرفض نفسها */ }
+  }
+
+  private async sendRejectionThresholdMail(employeeId: string) {
+    const empRows = (await this.prisma.$queryRawUnsafe(
+      `SELECT "userId", CONCAT("firstNameAr", ' ', "lastNameAr") AS "fullName"
+       FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    )) as Array<{ userId: string | null; fullName: string }>;
+    const employeeUserId = empRows[0]?.userId;
+    const employeeName = empRows[0]?.fullName ?? 'الموظف';
+
+    const hrRows = (await this.prisma.$queryRawUnsafe(
+      `SELECT DISTINCT u.id as "userId" FROM users.users u
+       JOIN users.user_roles ur ON ur."userId" = u.id
+       JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+       JOIN users.permissions p ON p.id = rp."permissionId"
+       WHERE p.name = 'attendance.justifications.hr-review' AND u."deletedAt" IS NULL`,
+    )) as Array<{ userId: string }>;
+
+    const recipientUserIds = [...new Set([
+      ...(employeeUserId ? [employeeUserId] : []),
+      ...hrRows.map(r => r.userId),
+    ])];
+    if (recipientUserIds.length === 0) return;
+
+    const mailUrl = process.env.MAIL_SERVICE_URL || 'http://mail:4009';
+    const token = process.env.INTERNAL_SERVICE_TOKEN || '';
+    const SYSTEM_USER_ID = process.env.SYSTEM_USER_ID || '00000000-0000-0000-0000-000000000001';
+
+    await fetch(`${mailUrl}/api/v1/mail/internal/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-token': token },
+      body: JSON.stringify({
+        senderId: SYSTEM_USER_ID,
+        recipientUserIds,
+        subject: 'تنبيه: تراكم 3 تبريرات حضور مرفوضة',
+        body: `تنبيه آلي: تراكم 3 تبريرات حضور مرفوضة نهائياً للموظف ${employeeName}. يُرجى المراجعة.`,
+        data: { employeeId, type: 'JUSTIFICATION_REJECTION_THRESHOLD' },
+      }),
+    }).catch(() => {});
+  }
+
   // ─────────────────────────────────────────────────────────────────
 
   async submit(employeeId: string, dto: CreateAttendanceJustificationDto) {
@@ -342,6 +401,7 @@ export class AttendanceJustificationsService {
         'Your attendance justification was rejected by your manager and a deduction will be applied',
         id,
       );
+      await this.recordRejectionAndMaybeAlert(justification.employeeId);
       return this.findOne(id);
     }
   }
@@ -399,6 +459,7 @@ export class AttendanceJustificationsService {
         'Your attendance justification was rejected by HR and a deduction will be applied',
         id,
       );
+      await this.recordRejectionAndMaybeAlert(justification.employeeId);
       return this.findOne(id);
     }
   }

@@ -358,6 +358,10 @@ model EmployeeAttendanceConfig {
   allowedBreakMinutes  Int       @default(60)
   remoteWorkUntil      DateTime? @db.Date
 
+  // عدّاد تبريرات الحضور المرفوضة نهائياً (من المدير أو HR) — لتنبيه تراكم 3 تبريرات مرفوضة
+  rejectedJustificationsCount Int       @default(0)
+  rejectionAlertSentAt        DateTime?
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
