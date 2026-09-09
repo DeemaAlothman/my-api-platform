@@ -1,7 +1,7 @@
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class HrReviewDto {
-  @IsEnum(['APPROVE', 'REJECT'])
+  @IsEnum(['APPROVE', 'APPROVE_WITH_DEDUCTION', 'REJECT'])
   @IsNotEmpty()
   decision: string;
 

@@ -439,6 +439,29 @@ export class AttendanceJustificationsService {
         id,
       );
       return this.findOne(id);
+    } else if (dto.decision === 'APPROVE_WITH_DEDUCTION') {
+      // HR وافقت مع خصم: التبرير مقبول (لا يُحتسب رفضاً ولا يدخل بعدّاد التبريرات المرفوضة)،
+      // لكن لا يُرجَّع رصيد الإجازة الساعية التلقائي، ويُطبَّق خصم الوقت بنفس آلية applyDeduction
+      // المستخدمة بالرفض تماماً — لضمان تطابق حساب الرواتب بين الحالتين.
+      await this.prisma.attendanceJustification.update({
+        where: { id },
+        data: {
+          status: 'HR_APPROVED_WITH_DEDUCTION',
+          hrReviewedBy: hrId,
+          hrReviewedAt: new Date(),
+          hrNotes: dto.notes,
+          hrNotesAr: dto.notesAr,
+        },
+      });
+      await this.applyDeduction(id, justification.alertId);
+      await this.notifyEmployee(
+        justification.employeeId,
+        'تمت الموافقة على تبريرك مع تطبيق خصم', 'Justification Approved With Deduction',
+        'تمت الموافقة على تبرير الحضور الخاص بك من قِبل الموارد البشرية، مع تطبيق خصم على الوقت',
+        'Your attendance justification has been approved by HR, with a time deduction applied',
+        id,
+      );
+      return this.findOne(id);
     } else {
       // HR رفضت → تطبيق الخصم أولاً ثم تحديث التبرير
       await this.prisma.attendanceJustification.update({

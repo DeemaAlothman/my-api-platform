@@ -276,7 +276,7 @@ model AttendanceJustification {
   // حالة التبرير
   status             String    @default("PENDING_MANAGER")
   // PENDING_MANAGER | MANAGER_APPROVED | MANAGER_REJECTED
-  // PENDING_HR | HR_APPROVED | HR_REJECTED | AUTO_REJECTED
+  // PENDING_HR | HR_APPROVED | HR_APPROVED_WITH_DEDUCTION | HR_REJECTED | AUTO_REJECTED
 
   // مراجعة المدير
   managerReviewedBy  String?
