@@ -148,25 +148,14 @@ export class ProbationEvaluationsService {
       }
     }
 
-    // إن كان المدير المباشر هو HR → تخطّ خطوة المدير المباشر مباشرةً للجدولة
-    const managerIsHr = await this.isEmployeeHr(evaluation.seniorManagerId);
-    const newStatus = managerIsHr ? 'PENDING_MEETING_SCHEDULE' : 'PENDING_DIRECT_MANAGER';
-
     await this.prisma.probationEvaluation.update({
       where: { id },
-      data: { status: newStatus as any, employeeNotes: dto.notes },
+      data: { status: 'PENDING_DIRECT_MANAGER' as any, employeeNotes: dto.notes },
     });
 
     await this.recomputeScores(id);
 
-    if (managerIsHr) {
-      await this.notifyHr('PROBATION_REMINDER',
-        'يلزم تحديد موعد اجتماع تقييم فترة التجربة',
-        'Probation Meeting Needs Scheduling',
-        'أكمل الموظف تقييمه الذاتي والمدير المباشر هو HR — يرجى تحديد موعد الاجتماع',
-        'Employee completed self-evaluation; direct manager is HR — please schedule the meeting',
-        { evaluationId: id });
-    } else if (evaluation.seniorManagerId) {
+    if (evaluation.seniorManagerId) {
       const mgrUserId = await this.resolveEmployeeUserId(evaluation.seniorManagerId);
       if (mgrUserId) {
         await this.sendNotification(mgrUserId, 'EVALUATION_ASSIGNED',
