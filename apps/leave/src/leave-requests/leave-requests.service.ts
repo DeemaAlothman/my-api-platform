@@ -962,6 +962,8 @@ export class LeaveRequestsService {
     );
     const managerUserId = rows[0]?.userId;
     if (!managerUserId) return false;
+    // إذا كان المدير المباشر هو CEO → لا نتخطى خطوة المدير حتى لو عنده صلاحيات HR
+    if (await this.isUserCEO(managerUserId)) return false;
     return this.isManagerAlsoHR(managerUserId);
   }
 
