@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsDateString, IsBoolean, IsArray, ValidateNested, IsEnum, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsBoolean, IsArray, ValidateNested, IsEnum, IsInt, IsNumber, Min, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 
@@ -45,7 +45,7 @@ export class WorkflowActionDto {
   @ApiPropertyOptional({ minimum: 1, maximum: 5, description: '1=غير مقبول، 2=مقبول، 3=جيد، 4=جيد جداً، 5=ممتاز' })
   @IsOptional()
   @Transform(({ value }) => (value !== undefined && value !== null ? Number(value) : value))
-  @IsInt() @Min(1) @Max(5)
+  @IsNumber() @Min(1) @Max(5)
   overallRating?: number;
   @ApiPropertyOptional({ type: [CriteriaScoreDto] })
   @IsOptional()

@@ -323,7 +323,7 @@ model ProbationEvaluation {
   employeeAcknowledgedAt DateTime?
   employeeAcknowledged  Boolean             @default(false)
   employeeNotes         String?
-  overallRating         Int?
+  overallRating         Float?
 
   // حقول حساب الدرجات المرجّحة 70/30
   managerScorePercent   Float?
