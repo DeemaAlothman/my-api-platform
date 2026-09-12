@@ -8,7 +8,8 @@ type NotificationType =
   | 'PROGRAM_UPDATED'
   | 'PROGRAM_CANCELLED'
   | 'PROGRAM_REORDERED'
-  | 'APPOINTMENT_CREATED';
+  | 'APPOINTMENT_CREATED'
+  | 'NEW_CHAT_MESSAGE';
 
 @Injectable()
 export class NotificationsService {

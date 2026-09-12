@@ -13,6 +13,8 @@ import { ExercisesModule } from './exercises/exercises.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { MeModule } from './me/me.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ChatModule } from './chat/chat.module';
+import { RatingsModule } from './ratings/ratings.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     AssignmentsModule,
     MeModule,
     NotificationsModule,
+    ChatModule,
+    RatingsModule,
   ],
   providers: [
     PrismaService,

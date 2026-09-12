@@ -337,6 +337,17 @@ export class CasesService {
     return { deletedCount: result.count };
   }
 
+  // نقطة داخلية (خدمة-لخدمة): جلب المعالج المسؤول الحالي عن مريض (لخدمة patient-app — Chat)
+  async getResponsibleTherapistInternal(patientId: string) {
+    const activeCase = await this.prisma.physioCase.findFirst({
+      where: { patientId, deletedAt: null, caseType: 'PHYSIO' as any },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, physiotherapistId: true },
+    });
+    if (!activeCase || !activeCase.physiotherapistId) return { exists: false };
+    return { exists: true, caseId: activeCase.id, erpTherapistId: activeCase.physiotherapistId };
+  }
+
   // نقطة داخلية (خدمة-لخدمة): جلب جلسة علاج فيزيائي واحدة + هوية المريض والمعالج (لخدمة patient-app)
   async getSessionByIdInternal(sessionId: string) {
     const session = await this.prisma.physioSession.findUnique({

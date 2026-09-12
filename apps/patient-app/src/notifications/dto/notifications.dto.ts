@@ -8,7 +8,7 @@ export class RegisterDeviceDto {
 // حمولة النداء الداخلي (خدمة-لخدمة) لإرسال إشعار لمريض — تستخدمها appointments عند حجز موعد جديد
 export class InternalNotifyDto {
   @IsString() erpPatientId: string;
-  @IsEnum(['DAILY_REMINDER', 'PROGRAM_ASSIGNED', 'PROGRAM_UPDATED', 'PROGRAM_CANCELLED', 'PROGRAM_REORDERED', 'APPOINTMENT_CREATED'])
+  @IsEnum(['DAILY_REMINDER', 'PROGRAM_ASSIGNED', 'PROGRAM_UPDATED', 'PROGRAM_CANCELLED', 'PROGRAM_REORDERED', 'APPOINTMENT_CREATED', 'NEW_CHAT_MESSAGE'])
   type: string;
   @IsString() titleAr: string;
   @IsString() titleEn: string;

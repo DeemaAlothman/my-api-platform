@@ -89,4 +89,18 @@ export class ErpClientService {
       return { exists: false };
     }
   }
+
+  // المعالج المسؤول الحالي عن المريض — المريض لا يختار معالجه يدوياً (بند 11 بالتوصيف)
+  async getResponsibleTherapist(erpPatientId: string): Promise<{ exists: boolean; erpTherapistId?: string; caseId?: string }> {
+    try {
+      const res = await fetch(`${PHYSIO_URL}/api/v1/physio/cases/internal/patient/${erpPatientId}/responsible-therapist`, {
+        headers: { 'x-internal-token': INTERNAL_TOKEN },
+      });
+      if (!res.ok) return { exists: false };
+      const json: any = await res.json();
+      return (json?.data ?? json) as { exists: boolean; erpTherapistId?: string; caseId?: string };
+    } catch {
+      return { exists: false };
+    }
+  }
 }

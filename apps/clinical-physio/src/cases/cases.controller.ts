@@ -35,6 +35,12 @@ export class CasesInternalController {
   getSessionById(@Param('sessionId') sessionId: string) {
     return this.service.getSessionByIdInternal(sessionId);
   }
+
+  @Get('patient/:patientId/responsible-therapist')
+  @UseGuards(InternalAuthGuard)
+  getResponsibleTherapist(@Param('patientId') patientId: string) {
+    return this.service.getResponsibleTherapistInternal(patientId);
+  }
 }
 
 @Controller('physio/cases')

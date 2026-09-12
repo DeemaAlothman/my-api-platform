@@ -328,6 +328,7 @@ enum NotificationType {
   PROGRAM_CANCELLED
   PROGRAM_REORDERED
   APPOINTMENT_CREATED
+  NEW_CHAT_MESSAGE
 
   @@schema("patient_app")
 }
@@ -352,5 +353,66 @@ model NotificationLog {
 
   @@index([patientAccountId, sentAt])
   @@map("notification_logs")
+  @@schema("patient_app")
+}
+
+// ── Chat (Phase 3) ────────────────────────────────────────────────────────
+
+// محادثة بين مريض ومعالج مسؤول محدد — عند تغيّر المعالج المسؤول تُنشأ محادثة جديدة
+// وتبقى القديمة محفوظة كسجل (active=false)، حسب بند 11 بالتوصيف.
+model ChatConversation {
+  id             String   @id @default(uuid())
+  erpPatientId   String
+  erpTherapistId String
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  messages       ChatMessage[]
+
+  @@index([erpPatientId, active])
+  @@index([erpTherapistId, active])
+  @@map("chat_conversations")
+  @@schema("patient_app")
+}
+
+enum ChatSenderType {
+  PATIENT
+  THERAPIST
+
+  @@schema("patient_app")
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id])
+  senderType     ChatSenderType
+  senderId       String   // patientAccountId أو userId المعالج، حسب senderType
+  messageText    String   @db.Text
+  sentAt         DateTime @default(now())
+  readAt         DateTime?
+
+  @@index([conversationId, sentAt])
+  @@map("chat_messages")
+  @@schema("patient_app")
+}
+
+// ── Therapist Rating (Phase 3) ───────────────────────────────────────────
+
+// تقييم سري للمعالج بعد انتهاء جلسة — لا يظهر للمعالج، حصراً لرئيس قسم العلاج الفيزيائي (بند 12 بالتوصيف)
+model TherapistRating {
+  id             String   @id @default(uuid())
+  erpSessionId   String   @unique
+  erpPatientId   String
+  erpTherapistId String
+  patientAccountId String
+  score          Int
+  privateNote    String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([erpTherapistId])
+  @@index([erpPatientId])
+  @@map("therapist_ratings")
   @@schema("patient_app")
 }

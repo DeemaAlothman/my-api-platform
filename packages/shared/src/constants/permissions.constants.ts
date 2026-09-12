@@ -325,6 +325,8 @@ export const PERMISSIONS = {
     ASSIGNMENT_EDIT:    'clinic.patient_app.assignment.edit',     // تعديل تمرين مُسند
     ASSIGNMENT_CANCEL:  'clinic.patient_app.assignment.cancel',   // إلغاء تمرين مُسند
     EXECUTION_VIEW:     'clinic.patient_app.execution.view',      // عرض تنفيذ التمارين بالداشبورد
+    CHAT_USE:           'clinic.patient_app.chat.use',            // محادثة المريض (كمعالج مسؤول)
+    RATINGS_VIEW:       'clinic.patient_app.ratings.view',        // عرض تقييمات المعالجين السرية — حصراً رئيس قسم الفيزيو
   },
 } as const;
 
