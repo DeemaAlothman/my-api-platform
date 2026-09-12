@@ -8,7 +8,7 @@ export class CreateExerciseDto {
   @IsOptional() @IsString() descriptionAr?: string;
   @IsOptional() @IsString() descriptionEn?: string;
 
-  @IsUUID() bodyRegionId: string;
+  @IsString() bodyRegionId: string;
   @IsUUID() targetRegionId: string;
   @IsOptional() @IsUUID() subTargetRegionId?: string;
 
@@ -34,7 +34,7 @@ export class UpdateExerciseDto {
   @IsOptional() @IsString() descriptionAr?: string;
   @IsOptional() @IsString() descriptionEn?: string;
 
-  @IsOptional() @IsUUID() bodyRegionId?: string;
+  @IsOptional() @IsString() bodyRegionId?: string;
   @IsOptional() @IsUUID() targetRegionId?: string;
   @IsOptional() @IsUUID() subTargetRegionId?: string;
 
@@ -56,7 +56,7 @@ export class UpdateExerciseDto {
 }
 
 export class ListExercisesQueryDto {
-  @IsOptional() @IsUUID() bodyRegionId?: string;
+  @IsOptional() @IsString() bodyRegionId?: string;
   @IsOptional() @IsUUID() targetRegionId?: string;
   @IsOptional() @IsUUID() subTargetRegionId?: string;
   @IsOptional() @IsUUID() goalId?: string;

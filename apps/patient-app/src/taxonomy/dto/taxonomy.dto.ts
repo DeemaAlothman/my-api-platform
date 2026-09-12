@@ -13,7 +13,7 @@ export class UpdateBodyRegionDto {
 }
 
 export class CreateTargetRegionDto {
-  @IsUUID() bodyRegionId: string;
+  @IsString() bodyRegionId: string;
   @IsString() nameAr: string;
   @IsString() nameEn: string;
   @IsOptional() @IsInt() sortOrder?: number;
