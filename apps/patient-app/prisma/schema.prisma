@@ -41,6 +41,8 @@ model PatientAccount {
 
   executions      ExerciseExecution[]
   refreshTokens   PatientRefreshToken[]
+  deviceTokens    DeviceToken[]
+  notifications   NotificationLog[]
 
   @@index([erpPatientId])
   @@map("patient_accounts")
@@ -291,5 +293,64 @@ model SkipReason {
   executions ExerciseExecution[]
 
   @@map("skip_reasons")
+  @@schema("patient_app")
+}
+
+// ── Notifications (Phase 2) ──────────────────────────────────────────────
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+
+  @@schema("patient_app")
+}
+
+// توكن جهاز المريض لإرسال push notifications (بند 10 بالتوصيف)
+model DeviceToken {
+  id               String   @id @default(uuid())
+  patientAccountId String
+  patientAccount   PatientAccount @relation(fields: [patientAccountId], references: [id])
+  token            String   @unique
+  platform         DevicePlatform
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([patientAccountId])
+  @@map("device_tokens")
+  @@schema("patient_app")
+}
+
+enum NotificationType {
+  DAILY_REMINDER
+  PROGRAM_ASSIGNED
+  PROGRAM_UPDATED
+  PROGRAM_CANCELLED
+  PROGRAM_REORDERED
+  APPOINTMENT_CREATED
+
+  @@schema("patient_app")
+}
+
+// سجل الإشعارات — يظهر بقائمة إشعارات التطبيق دائماً؛ push الفعلي (FCM) منفصل ومؤجّل
+// لحين توفر مزوّد push (pushAttempted/pushDelivered يعكسان حالة محاولة الإرسال فقط)
+model NotificationLog {
+  id               String   @id @default(uuid())
+  patientAccountId String
+  patientAccount   PatientAccount @relation(fields: [patientAccountId], references: [id])
+  erpPatientId     String
+  type             NotificationType
+  titleAr          String
+  titleEn          String
+  bodyAr           String   @db.Text
+  bodyEn           String   @db.Text
+  payloadJson      Json?
+  pushAttempted    Boolean  @default(false)
+  pushDelivered    Boolean  @default(false)
+  sentAt           DateTime @default(now())
+  readAt           DateTime?
+
+  @@index([patientAccountId, sentAt])
+  @@map("notification_logs")
   @@schema("patient_app")
 }

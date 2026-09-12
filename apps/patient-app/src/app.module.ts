@@ -12,6 +12,7 @@ import { TaxonomyModule } from './taxonomy/taxonomy.module';
 import { ExercisesModule } from './exercises/exercises.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { MeModule } from './me/me.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { MeModule } from './me/me.module';
     ExercisesModule,
     AssignmentsModule,
     MeModule,
+    NotificationsModule,
   ],
   providers: [
     PrismaService,

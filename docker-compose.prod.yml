@@ -259,6 +259,7 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       LEAVE_SERVICE_URL: http://leave:4003
       ATTENDANCE_SERVICE_URL: http://attendance:4004
+      PATIENT_APP_SERVICE_URL: http://patient-app:4017
       NODE_ENV: production
     depends_on:
       postgres:
@@ -331,6 +332,7 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       PATIENTS_SERVICE_URL: http://patients:4010
       CLINICAL_PHYSIO_SERVICE_URL: http://clinical-physio:4012
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
       NODE_ENV: production
     depends_on:
       postgres:

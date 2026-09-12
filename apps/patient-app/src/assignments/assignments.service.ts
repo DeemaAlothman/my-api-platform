@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErpClientService } from '../integrations/erp-client.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateAssignmentDto, UpdateAssignmentDto, ReorderAssignmentsDto } from './dto/assignment.dto';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class AssignmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly erp: ErpClientService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private async mustLoadSession(erpSessionId: string) {
@@ -41,7 +43,7 @@ export class AssignmentsService {
       sortOrder = (last?.sortOrder ?? 0) + 1;
     }
 
-    return this.prisma.sessionExerciseAssignment.create({
+    const created = await this.prisma.sessionExerciseAssignment.create({
       data: {
         erpPatientId: session.patientId!,
         erpSessionId,
@@ -61,6 +63,19 @@ export class AssignmentsService {
       },
       include: { exercise: true },
     });
+
+    this.notifications
+      .notifyByErpPatientId(
+        session.patientId!,
+        'PROGRAM_ASSIGNED',
+        'تمرين جديد بالبرنامج',
+        'New exercise in your program',
+        `تمت إضافة تمرين "${created.exercise.nameAr}" إلى برنامجك.`,
+        `The exercise "${created.exercise.nameEn}" was added to your program.`,
+      )
+      .catch(() => {});
+
+    return created;
   }
 
   private async mustLoadAssignment(id: string) {
@@ -74,17 +89,44 @@ export class AssignmentsService {
     if (assignment.status === 'CANCELLED') {
       throw new BadRequestException({ code: 'ASSIGNMENT_CANCELLED', message: 'لا يمكن تعديل تمرين ملغي' });
     }
-    return this.prisma.sessionExerciseAssignment.update({ where: { id }, data: dto, include: { exercise: true } });
+    const updated = await this.prisma.sessionExerciseAssignment.update({ where: { id }, data: dto, include: { exercise: true } });
+
+    this.notifications
+      .notifyByErpPatientId(
+        updated.erpPatientId,
+        'PROGRAM_UPDATED',
+        'تم تعديل تمرين ببرنامجك',
+        'An exercise in your program was updated',
+        `تم تعديل إعدادات تمرين "${updated.exercise.nameAr}" ببرنامجك.`,
+        `The settings of "${updated.exercise.nameEn}" in your program were updated.`,
+      )
+      .catch(() => {});
+
+    return updated;
   }
 
   // إلغاء (وليس حذف) — يبقى ظاهراً للمريض بحالة ملغي حسب بند 6 بالتوصيف
   async cancel(id: string, reason: string | undefined, cancelledByUserId: string) {
     const assignment = await this.mustLoadAssignment(id);
     if (assignment.status === 'CANCELLED') return assignment;
-    return this.prisma.sessionExerciseAssignment.update({
+    const cancelled = await this.prisma.sessionExerciseAssignment.update({
       where: { id },
       data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledByUserId, cancellationReason: reason },
+      include: { exercise: true },
     });
+
+    this.notifications
+      .notifyByErpPatientId(
+        cancelled.erpPatientId,
+        'PROGRAM_CANCELLED',
+        'تم إلغاء تمرين ببرنامجك',
+        'An exercise in your program was cancelled',
+        `تم إلغاء تمرين "${cancelled.exercise.nameAr}" ببرنامجك.`,
+        `The exercise "${cancelled.exercise.nameEn}" in your program was cancelled.`,
+      )
+      .catch(() => {});
+
+    return cancelled;
   }
 
   async reorder(erpSessionId: string, dto: ReorderAssignmentsDto) {
@@ -102,7 +144,21 @@ export class AssignmentsService {
         this.prisma.sessionExerciseAssignment.update({ where: { id: item.id }, data: { sortOrder: item.sortOrder } }),
       ),
     );
-    // TODO (Phase 2): إرسال Notification للمريض بأن البرنامج تم تعديله (بند 7/10 بالتوصيف)
+
+    const anyAssignment = await this.prisma.sessionExerciseAssignment.findFirst({ where: { erpSessionId } });
+    if (anyAssignment) {
+      this.notifications
+        .notifyByErpPatientId(
+          anyAssignment.erpPatientId,
+          'PROGRAM_REORDERED',
+          'تم تعديل ترتيب برنامجك',
+          'Your program order was updated',
+          'تم إعادة ترتيب تمارين برنامجك العلاجي.',
+          'The order of exercises in your program was updated.',
+        )
+        .catch(() => {});
+    }
+
     return this.listBySession(erpSessionId);
   }
 

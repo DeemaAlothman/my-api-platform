@@ -282,6 +282,20 @@ export class AppointmentsService implements OnModuleInit {
       body: JSON.stringify({ senderId: userId, recipientUserIds: mailRecipients, subject: 'موعد جديد', body: msg, data: { appointmentId: appt.id } }),
     }).catch(() => {});
 
+    // إشعار تطبيق المريض بموعد جديد (بند 9/10-ج بتوصيف patient-app) — best-effort، لا يفشل إنشاء الموعد إن فشل
+    if (dto.patientId) {
+      fetch(`${process.env.PATIENT_APP_SERVICE_URL || 'http://patient-app:4017'}/api/v1/patient-app/internal/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN || '' },
+        body: JSON.stringify({
+          erpPatientId: dto.patientId,
+          type: 'APPOINTMENT_CREATED',
+          titleAr: 'موعد جديد', titleEn: 'New appointment',
+          bodyAr: msg, bodyEn: `A new appointment has been booked on ${dateStr} at ${timeStr}.`,
+        }),
+      }).catch(() => {});
+    }
+
     return appt;
   }
 
