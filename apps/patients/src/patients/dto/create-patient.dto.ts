@@ -33,6 +33,7 @@ export class CreatePatientDto {
   @IsOptional() @IsString() whatsapp?: string;
   @IsOptional() @IsEmail() email?: string;
 
+  @IsOptional() @IsString() nationality?: string;
   @IsOptional() @IsString() occupation?: string;
 
   @IsOptional() @Type(() => Number) @IsNumber() heightCm?: number;
