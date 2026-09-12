@@ -285,6 +285,23 @@ export class PatientsService {
     });
   }
 
+  // نقطة داخلية (خدمة-لخدمة): البحث عن مريض برقم الهاتف — تُستخدم لتسجيل حساب تطبيق المريض
+  async findByPhoneInternal(phone: string) {
+    if (!phone) return [];
+    return this.prisma.patient.findMany({
+      where: { phone, deletedAt: null },
+      select: {
+        id: true,
+        patientNumber: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        gender: true,
+      },
+      take: 5,
+    });
+  }
+
   async checkDuplicate(idNumber: string) {
     const patient = await this.prisma.patient.findFirst({
       where: { idNumber, deletedAt: null },

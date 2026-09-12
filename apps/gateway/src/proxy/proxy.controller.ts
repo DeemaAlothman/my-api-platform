@@ -903,3 +903,18 @@ export class ReferralsProxyController {
     await this.proxy.forward(req, res, 'referrals');
   }
 }
+
+@Controller('patient-app')
+export class PatientAppProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'patient-app');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'patient-app');
+  }
+}

@@ -337,6 +337,27 @@ export class CasesService {
     return { deletedCount: result.count };
   }
 
+  // نقطة داخلية (خدمة-لخدمة): جلب جلسة علاج فيزيائي واحدة + هوية المريض والمعالج (لخدمة patient-app)
+  async getSessionByIdInternal(sessionId: string) {
+    const session = await this.prisma.physioSession.findUnique({
+      where: { id: sessionId },
+      include: { case: { select: { patientId: true, physiotherapistId: true, status: true, deletedAt: true } } },
+    });
+    if (!session || session.case.deletedAt) return { exists: false };
+    return {
+      exists: true,
+      id: session.id,
+      caseId: session.caseId,
+      patientId: session.case.patientId,
+      physiotherapistId: session.physiotherapistId ?? session.case.physiotherapistId ?? null,
+      sessionNumber: session.sessionNumber,
+      sessionDate: session.sessionDate,
+      attendanceConfirmed: session.attendanceConfirmed,
+      appointmentId: session.appointmentId,
+      caseStatus: session.case.status,
+    };
+  }
+
   // ── الشكوى المرضية (Medical Complaint) ──────────────────────────────────────
 
   async upsertComplaint(caseId: string, dto: ComplaintDto) {

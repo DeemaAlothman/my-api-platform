@@ -1,0 +1,295 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["patient_app"]
+}
+
+// ── Patient Account ──────────────────────────────────────────────────────
+
+enum PatientAccountStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+
+  @@schema("patient_app")
+}
+
+enum PatientAccountSource {
+  APP
+  DASHBOARD
+
+  @@schema("patient_app")
+}
+
+// حساب دخول تطبيق المريض — مرتبط دائماً بمريض حقيقي في خدمة patients عبر erpPatientId
+model PatientAccount {
+  id              String   @id @default(uuid())
+  erpPatientId    String   @unique
+  username        String   @unique
+  passwordHash    String
+  status          PatientAccountStatus @default(ACTIVE)
+  createdSource   PatientAccountSource
+  createdByUserId String?
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  executions      ExerciseExecution[]
+  refreshTokens   PatientRefreshToken[]
+
+  @@index([erpPatientId])
+  @@map("patient_accounts")
+  @@schema("patient_app")
+}
+
+// توكنات الـrefresh الخاصة بالمريض — لدعم /auth/refresh و/auth/logout (rotate + revoke)
+model PatientRefreshToken {
+  id               String   @id @default(uuid())
+  patientAccountId String
+  patientAccount   PatientAccount @relation(fields: [patientAccountId], references: [id])
+  token            String   @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+
+  @@index([patientAccountId])
+  @@map("patient_refresh_tokens")
+  @@schema("patient_app")
+}
+
+// ── Exercise Taxonomy ─────────────────────────────────────────────────────
+
+model BodyRegion {
+  id        String   @id @default(uuid())
+  nameAr    String
+  nameEn    String
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  targetRegions TargetRegion[]
+  exercises     Exercise[]
+
+  @@map("body_regions")
+  @@schema("patient_app")
+}
+
+model TargetRegion {
+  id           String   @id @default(uuid())
+  bodyRegionId String
+  bodyRegion   BodyRegion @relation(fields: [bodyRegionId], references: [id])
+  nameAr       String
+  nameEn       String
+  sortOrder    Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subTargetRegions SubTargetRegion[]
+  exercises        Exercise[]
+
+  @@index([bodyRegionId])
+  @@map("target_regions")
+  @@schema("patient_app")
+}
+
+model SubTargetRegion {
+  id             String   @id @default(uuid())
+  targetRegionId String
+  targetRegion   TargetRegion @relation(fields: [targetRegionId], references: [id])
+  nameAr         String
+  nameEn         String
+  sortOrder      Int      @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  exercises Exercise[]
+
+  @@index([targetRegionId])
+  @@map("sub_target_regions")
+  @@schema("patient_app")
+}
+
+model ExerciseGoal {
+  id        String   @id @default(uuid())
+  nameAr    String
+  nameEn    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  exercises ExerciseGoalLink[]
+
+  @@map("exercise_goals")
+  @@schema("patient_app")
+}
+
+// ── Exercise ──────────────────────────────────────────────────────────────
+
+enum MediaType {
+  VIDEO
+  IMAGE
+  ANIMATION
+
+  @@schema("patient_app")
+}
+
+model Exercise {
+  id                  String   @id @default(uuid())
+  nameAr              String
+  nameEn              String
+  descriptionAr       String?  @db.Text
+  descriptionEn       String?  @db.Text
+
+  bodyRegionId        String
+  bodyRegion          BodyRegion @relation(fields: [bodyRegionId], references: [id])
+  targetRegionId      String
+  targetRegion        TargetRegion @relation(fields: [targetRegionId], references: [id])
+  subTargetRegionId   String?
+  subTargetRegion     SubTargetRegion? @relation(fields: [subTargetRegionId], references: [id])
+
+  mediaType           MediaType
+  mediaUrl             String?
+  thumbnailUrl         String?
+
+  executionMethodAr    String? @db.Text
+  executionMethodEn    String? @db.Text
+  warningsAr           String? @db.Text
+  warningsEn           String? @db.Text
+  commonMistakesAr     String? @db.Text
+  commonMistakesEn     String? @db.Text
+
+  defaultDurationSeconds Int?
+
+  active              Boolean  @default(true)
+  createdByUserId     String
+  updatedByUserId     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt            DateTime?
+
+  goals               ExerciseGoalLink[]
+  assignments         SessionExerciseAssignment[]
+
+  @@index([bodyRegionId])
+  @@index([targetRegionId])
+  @@map("exercises")
+  @@schema("patient_app")
+}
+
+model ExerciseGoalLink {
+  exerciseId String
+  exercise   Exercise @relation(fields: [exerciseId], references: [id])
+  goalId     String
+  goal       ExerciseGoal @relation(fields: [goalId], references: [id])
+
+  @@id([exerciseId, goalId])
+  @@map("exercise_goal_links")
+  @@schema("patient_app")
+}
+
+// ── Session Exercise Assignment ──────────────────────────────────────────
+
+enum AssignmentStatus {
+  ACTIVE
+  CANCELLED
+
+  @@schema("patient_app")
+}
+
+// ربط تمرين بجلسة علاج فيزيائي حقيقية (clinical-physio.PhysioSession.id عبر erpSessionId)
+model SessionExerciseAssignment {
+  id                  String   @id @default(uuid())
+  erpPatientId        String
+  erpSessionId        String
+  exerciseId          String
+  exercise            Exercise @relation(fields: [exerciseId], references: [id])
+
+  assignedByUserId    String
+  erpTherapistId      String?
+
+  sortOrder           Int
+  durationSeconds     Int
+  sets                Int?
+  reps                Int?
+  holdSeconds         Int?
+  restSeconds         Int?
+  frequencyTextAr     String?
+  frequencyTextEn     String?
+  customInstructionAr String? @db.Text
+  customInstructionEn String? @db.Text
+
+  status              AssignmentStatus @default(ACTIVE)
+  cancelledAt         DateTime?
+  cancelledByUserId   String?
+  cancellationReason  String? @db.Text
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  executions          ExerciseExecution[]
+
+  @@index([erpSessionId, sortOrder])
+  @@index([erpPatientId])
+  @@map("session_exercise_assignments")
+  @@schema("patient_app")
+}
+
+// ── Exercise Execution ───────────────────────────────────────────────────
+
+enum ExecutionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+
+  @@schema("patient_app")
+}
+
+model ExerciseExecution {
+  id               String   @id @default(uuid())
+  assignmentId     String
+  assignment       SessionExerciseAssignment @relation(fields: [assignmentId], references: [id])
+  patientAccountId String
+  patientAccount   PatientAccount @relation(fields: [patientAccountId], references: [id])
+
+  startedAt        DateTime?
+  completedAt      DateTime?
+  elapsedSeconds   Int @default(0)
+  status           ExecutionStatus @default(NOT_STARTED)
+
+  skipReasonId     String?
+  skipReason       SkipReason? @relation(fields: [skipReasonId], references: [id])
+  skipReasonText   String? @db.Text
+  completionNote   String? @db.Text
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([assignmentId])
+  @@index([patientAccountId])
+  @@map("exercise_executions")
+  @@schema("patient_app")
+}
+
+model SkipReason {
+  id        String   @id @default(uuid())
+  nameAr    String
+  nameEn    String
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  executions ExerciseExecution[]
+
+  @@map("skip_reasons")
+  @@schema("patient_app")
+}

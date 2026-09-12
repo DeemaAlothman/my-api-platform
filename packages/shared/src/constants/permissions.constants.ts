@@ -317,6 +317,15 @@ export const PERMISSIONS = {
     VISITS_ADD: 'clinic.referrals.visits.add', // تسجيل زيارة
     STATS_VIEW: 'clinic.referrals.stats.view', // عرض الإحصائيات
   },
+  CLINIC_PATIENT_APP: {
+    ACCOUNT_MANAGE:     'clinic.patient_app.account.manage',      // إنشاء/تعديل حساب تطبيق المريض
+    TAXONOMY_MANAGE:    'clinic.patient_app.taxonomy.manage',     // إدارة تصنيف التمارين
+    EXERCISE_LIBRARY_MANAGE: 'clinic.patient_app.exercise_library.manage', // إدارة مكتبة التمارين
+    ASSIGNMENT_CREATE:  'clinic.patient_app.assignment.create',   // إسناد تمرين لجلسة
+    ASSIGNMENT_EDIT:    'clinic.patient_app.assignment.edit',     // تعديل تمرين مُسند
+    ASSIGNMENT_CANCEL:  'clinic.patient_app.assignment.cancel',   // إلغاء تمرين مُسند
+    EXECUTION_VIEW:     'clinic.patient_app.execution.view',      // عرض تنفيذ التمارين بالداشبورد
+  },
 } as const;
 
 // ── Type Helpers ──────────────────────────────────────────────────────────────

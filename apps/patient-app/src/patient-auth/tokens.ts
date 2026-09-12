@@ -1,0 +1,2 @@
+export const PATIENT_ACCESS_TTL_SECONDS = parseInt(process.env.PATIENT_ACCESS_TOKEN_TTL_SECONDS || '900', 10);
+export const PATIENT_REFRESH_TTL_DAYS = parseInt(process.env.PATIENT_REFRESH_TOKEN_TTL_DAYS || '30', 10);

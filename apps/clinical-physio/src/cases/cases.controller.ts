@@ -29,6 +29,12 @@ export class CasesInternalController {
   deleteByPatient(@Param('patientId') patientId: string) {
     return this.service.deleteByPatientInternal(patientId);
   }
+
+  @Get('sessions/:sessionId')
+  @UseGuards(InternalAuthGuard)
+  getSessionById(@Param('sessionId') sessionId: string) {
+    return this.service.getSessionByIdInternal(sessionId);
+  }
 }
 
 @Controller('physio/cases')

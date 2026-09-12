@@ -317,6 +317,27 @@ services:
     networks:
       - app-network
 
+  patient-app:
+    build:
+      context: .
+      dockerfile: apps/patient-app/Dockerfile
+    container_name: myapiplatform-patient-app
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=patient_app
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      PATIENT_JWT_ACCESS_SECRET: ${PATIENT_JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      PATIENT_JWT_REFRESH_SECRET: ${PATIENT_JWT_REFRESH_SECRET:-change_this_secret_in_production}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+      PATIENTS_SERVICE_URL: http://patients:4010
+      CLINICAL_PHYSIO_SERVICE_URL: http://clinical-physio:4012
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -340,6 +361,7 @@ services:
       INVENTORY_SERVICE_URL: http://clinic-inventory:4014
       PODIATRY_SERVICE_URL: http://podiatry:4015
       REFERRALS_SERVICE_URL: http://referrals:4016
+      PATIENT_APP_SERVICE_URL: http://patient-app:4017
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012,http://159.198.37.52:3012,http://159.198.37.52:3000
@@ -380,6 +402,8 @@ services:
       podiatry:
         condition: service_started
       referrals:
+        condition: service_started
+      patient-app:
         condition: service_started
     networks:
       - app-network

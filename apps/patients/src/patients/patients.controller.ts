@@ -34,6 +34,12 @@ export class PatientsInternalController {
   findByIds(@Body() body: { patientIds: string[] }) {
     return this.service.findByIdsInternal(body?.patientIds ?? []);
   }
+
+  @Get('find-by-phone')
+  @UseGuards(InternalAuthGuard)
+  findByPhone(@Query('phone') phone: string) {
+    return this.service.findByPhoneInternal(phone);
+  }
 }
 
 @Controller('patients')
