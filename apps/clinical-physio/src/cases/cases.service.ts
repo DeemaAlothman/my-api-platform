@@ -337,6 +337,26 @@ export class CasesService {
     return { deletedCount: result.count };
   }
 
+  // نقطة داخلية (خدمة-لخدمة): كل جلسات مريض عبر حالاته الفيزيائية — لخدمة patient-app (بند 9/15 بالتوصيف)
+  async getPatientSessionsInternal(patientId: string) {
+    const cases = await this.prisma.physioCase.findMany({
+      where: { patientId, deletedAt: null, caseType: 'PHYSIO' as any },
+      select: { id: true, physiotherapistId: true },
+    });
+    if (cases.length === 0) return [];
+
+    const sessions = await this.prisma.physioSession.findMany({
+      where: { caseId: { in: cases.map((c) => c.id) } },
+      orderBy: { sessionDate: 'desc' },
+      select: {
+        id: true, caseId: true, sessionNumber: true, sessionDate: true,
+        attendanceConfirmed: true, physiotherapistId: true, appointmentId: true,
+      },
+    });
+    const therapistByCase = new Map(cases.map((c) => [c.id, c.physiotherapistId]));
+    return sessions.map((s) => ({ ...s, physiotherapistId: s.physiotherapistId ?? therapistByCase.get(s.caseId) ?? null }));
+  }
+
   // نقطة داخلية (خدمة-لخدمة): جلب المعالج المسؤول الحالي عن مريض (لخدمة patient-app — Chat)
   async getResponsibleTherapistInternal(patientId: string) {
     const activeCase = await this.prisma.physioCase.findFirst({

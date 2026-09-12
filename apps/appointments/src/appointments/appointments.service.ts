@@ -520,6 +520,19 @@ export class AppointmentsService implements OnModuleInit {
     return { ...updated, patientNumber: '', phone: p.whatsapp || p.phone || '' };
   }
 
+  // نقطة داخلية (خدمة-لخدمة): مواعيد مريض قادمة/حديثة — لخدمة patient-app (بند 9/15 بالتوصيف)
+  async getPatientAppointmentsInternal(patientId: string) {
+    return this.prisma.appointment.findMany({
+      where: { patientId, status: { notIn: ['CANCELLED'] } },
+      orderBy: { startTime: 'desc' },
+      take: 50,
+      select: {
+        id: true, appointmentType: true, startTime: true, endTime: true,
+        status: true, physiotherapistId: true, practitionerId: true, notes: true,
+      },
+    });
+  }
+
   async linkByName(patientId: string, firstName: string, lastName: string) {
     const fullName = `${firstName} ${lastName}`.replace(/\s+/g, ' ').trim();
     await this.prisma.$executeRawUnsafe(

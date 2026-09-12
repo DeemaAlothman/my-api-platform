@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExerciseDto, UpdateExerciseDto, ListExercisesQueryDto } from './dto/exercise.dto';
+import { join } from 'path';
+import { FILE_STORAGE_ROOT } from './exercise-media.config';
 
 @Injectable()
 export class ExercisesService {
@@ -64,5 +66,35 @@ export class ExercisesService {
         include: this.include(),
       });
     });
+  }
+
+  // رفع ملف الوسائط (فيديو/صورة) للتمرين — يُخزَّن على القرص خارج الحاوية (bind mount)، صفر خطر فقدان عند إعادة البناء
+  async uploadMedia(id: string, file: Express.Multer.File, userId: string) {
+    await this.findOne(id);
+    const mediaType = file.mimetype.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+    return this.prisma.exercise.update({
+      where: { id },
+      data: {
+        mediaType: mediaType as any,
+        mediaUrl: `/api/v1/patient-app/public/exercises/${id}/media`,
+        updatedByUserId: userId,
+      },
+      include: this.include(),
+    });
+  }
+
+  async getMediaFilePath(id: string): Promise<string> {
+    const dir = join(FILE_STORAGE_ROOT, 'exercises', id);
+    const { readdirSync } = await import('fs');
+    let files: string[] = [];
+    try {
+      files = readdirSync(dir);
+    } catch {
+      throw new NotFoundException('لا يوجد ملف وسائط لهذا التمرين');
+    }
+    if (files.length === 0) throw new NotFoundException('لا يوجد ملف وسائط لهذا التمرين');
+    // أحدث ملف (بحال تم استبدال الفيديو سابقاً)
+    files.sort();
+    return join(dir, files[files.length - 1]);
   }
 }

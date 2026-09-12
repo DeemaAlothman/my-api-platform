@@ -18,6 +18,10 @@ export class AssignmentsService {
     return session;
   }
 
+  async listErpSessions(erpPatientId: string) {
+    return this.erp.getPatientSessions(erpPatientId);
+  }
+
   async listBySession(erpSessionId: string) {
     await this.mustLoadSession(erpSessionId);
     return this.prisma.sessionExerciseAssignment.findMany({

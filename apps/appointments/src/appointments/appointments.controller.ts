@@ -23,6 +23,12 @@ export class AppointmentsInternalController {
   linkByName(@Body() body: { patientId: string; firstName: string; lastName: string }) {
     return this.service.linkByName(body.patientId, body.firstName, body.lastName);
   }
+
+  @Get('patient/:patientId')
+  @UseGuards(InternalAuthGuard)
+  getPatientAppointments(@Param('patientId') patientId: string) {
+    return this.service.getPatientAppointmentsInternal(patientId);
+  }
 }
 
 @Controller('appointments')

@@ -22,6 +22,11 @@ export class MeService {
     };
   }
 
+  // مواعيد المريض القادمة/الحديثة من ERP (بند 9/15 بالتوصيف)
+  async getAppointments(erpPatientId: string) {
+    return this.erp.getPatientAppointments(erpPatientId);
+  }
+
   async listSessionExercises(erpPatientId: string, erpSessionId: string, patientAccountId: string) {
     const session = await this.erp.getSession(erpSessionId);
     if (!session.exists || session.patientId !== erpPatientId) {

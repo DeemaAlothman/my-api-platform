@@ -17,6 +17,13 @@ const READ_PERMS = [
 export class AssignmentsController {
   constructor(private readonly service: AssignmentsService) {}
 
+  // جلسات المريض الفيزيائية من ERP — لاختيار الجلسة عند إسناد تمرين (بند 6/15 بالتوصيف)
+  @Get('patients/:erpPatientId/sessions')
+  @Permission(...READ_PERMS)
+  listErpSessions(@Param('erpPatientId') erpPatientId: string) {
+    return this.service.listErpSessions(erpPatientId);
+  }
+
   @Get('sessions/:erpSessionId/exercises')
   @Permission(...READ_PERMS)
   listBySession(@Param('erpSessionId') erpSessionId: string) {

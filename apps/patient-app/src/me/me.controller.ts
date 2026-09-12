@@ -14,6 +14,11 @@ export class MeController {
     return this.service.getProfile(patient.patientAccountId, patient.erpPatientId);
   }
 
+  @Get('appointments')
+  getAppointments(@CurrentPatient() patient: CurrentPatient) {
+    return this.service.getAppointments(patient.erpPatientId);
+  }
+
   @Get('sessions/:erpSessionId/exercises')
   listSessionExercises(@Param('erpSessionId') erpSessionId: string, @CurrentPatient() patient: CurrentPatient) {
     return this.service.listSessionExercises(patient.erpPatientId, erpSessionId, patient.patientAccountId);

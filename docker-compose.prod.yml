@@ -332,8 +332,11 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       PATIENTS_SERVICE_URL: http://patients:4010
       CLINICAL_PHYSIO_SERVICE_URL: http://clinical-physio:4012
+      APPOINTMENTS_SERVICE_URL: http://appointments:4013
       FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
       NODE_ENV: production
+    volumes:
+      - /var/data/patient_app_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
