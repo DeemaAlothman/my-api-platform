@@ -46,7 +46,7 @@ export class ExercisesController {
     return this.service.update(id, dto, user.userId);
   }
 
-  // رفع فيديو/صورة التمرين — يُخزَّن على قرص السيرفر خارج الحاوية (bind mount)، لا يُفقد أبداً عند إعادة بناء/تشغيل الخدمة
+  // رفع فيديو/صورة التمرين — يُرفع مباشرة لـBackblaze B2 (بدون حفظ مؤقت على قرص السيرفر)
   @Post(':id/media')
   @Permission(PERMISSIONS.CLINIC_PATIENT_APP.EXERCISE_LIBRARY_MANAGE)
   @UseInterceptors(FileInterceptor('file', exerciseMediaMulterOptions))
@@ -60,14 +60,24 @@ const MIME_BY_EXT: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
 };
 
-// بث ملف الوسائط (فيديو/صورة) — بدون حماية JWT عمداً، لأن التمارين محتوى تعليمي عام
-// (مو بيانات مريض حساسة) ولازم يكون قابل للتشغيل مباشرة بمشغل الفيديو بتطبيق الموبايل والداشبورد معاً
+// بث/توجيه ملف الوسائط (فيديو/صورة) — بدون حماية JWT عمداً، لأن التمارين محتوى تعليمي عام
+// (مو بيانات مريض حساسة) ولازم يكون قابل للتشغيل مباشرة بمشغل الفيديو بتطبيق الموبايل والداشبورد معاً.
+// ملاحظة توافق: هذا الـendpoint يبقى شغّالاً للـFrontend القديم، لكن الأفضل استخدام
+// exercise.mediaUrl مباشرة (رابط B2/CDN جاهز) لأي رفع جديد بدل المرور من هنا.
 @Controller('patient-app/public/exercises')
 export class ExerciseMediaController {
   constructor(private readonly service: ExercisesService) {}
 
   @Get(':id/media')
   async streamMedia(@Param('id') id: string, @Res() res: Response) {
+    const exercise = await this.service.findOne(id);
+
+    // ملف مخزّن على B2/CDN — إعادة توجيه بدل proxy عبر الـVPS (يوفّر bandwidth السيرفر تماماً كما طلب الملف)
+    if (exercise.mediaStorageKey && exercise.mediaUrl) {
+      return res.redirect(302, exercise.mediaUrl);
+    }
+
+    // توافق للخلف: ملف قديم مخزّن محلياً قبل الانتقال لـB2
     const filePath = await this.service.getMediaFilePath(id);
     if (!existsSync(filePath)) {
       throw new NotFoundException('الملف غير موجود على الخادم');

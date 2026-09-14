@@ -1,12 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
 import { CreateExerciseDto, UpdateExerciseDto, ListExercisesQueryDto } from './dto/exercise.dto';
-import { join } from 'path';
+import { join, extname } from 'path';
+import { randomUUID } from 'crypto';
 import { FILE_STORAGE_ROOT } from './exercise-media.config';
 
 @Injectable()
 export class ExercisesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   private include() {
     return {
@@ -68,21 +73,51 @@ export class ExercisesService {
     });
   }
 
-  // رفع ملف الوسائط (فيديو/صورة) للتمرين — يُخزَّن على القرص خارج الحاوية (bind mount)، صفر خطر فقدان عند إعادة البناء
+  // رفع ملف الوسائط (فيديو/صورة) للتمرين — يُخزَّن على Backblaze B2 (S3-compatible) عبر StorageService.
+  // ترتيب الخطوات مقصود: رفع أولاً → تحديث DB → حذف القديم فقط بعد نجاح كل شي (صفر خطر فقدان وسائط).
   async uploadMedia(id: string, file: Express.Multer.File, userId: string) {
-    await this.findOne(id);
+    const exercise = await this.findOne(id);
+
+    if (!this.storage.isConfigured()) {
+      throw new BadRequestException({ code: 'STORAGE_NOT_CONFIGURED', message: 'تخزين الوسائط غير مهيأ بعد على الخادم' });
+    }
+
     const mediaType = file.mimetype.startsWith('video/') ? 'VIDEO' : 'IMAGE';
-    return this.prisma.exercise.update({
-      where: { id },
-      data: {
-        mediaType: mediaType as any,
-        mediaUrl: `/api/v1/patient-app/public/exercises/${id}/media`,
-        updatedByUserId: userId,
-      },
-      include: this.include(),
+    const ext = extname(file.originalname) || (mediaType === 'VIDEO' ? '.mp4' : '.jpg');
+    const uploaded = await this.storage.uploadFile({
+      buffer: file.buffer,
+      fileName: `${randomUUID()}${ext}`,
+      contentType: file.mimetype,
+      folder: `patient-app/exercises/${id}/media`,
     });
+
+    let updated;
+    try {
+      updated = await this.prisma.exercise.update({
+        where: { id },
+        data: {
+          mediaType: mediaType as any,
+          mediaUrl: uploaded.url,
+          mediaStorageKey: uploaded.key,
+          updatedByUserId: userId,
+        },
+        include: this.include(),
+      });
+    } catch (e) {
+      // فشل تحديث قاعدة البيانات بعد نجاح الرفع → احذفي الملف يلي تو رفعناه لتجنّب ملفات يتيمة (rollback)
+      await this.storage.deleteFile(uploaded.key);
+      throw e;
+    }
+
+    // استبدال ملف سابق مخزّن بـB2 — يُحذف فقط بعد نجاح كل شي فوق
+    if (exercise.mediaStorageKey && exercise.mediaStorageKey !== uploaded.key) {
+      this.storage.deleteFile(exercise.mediaStorageKey).catch(() => {});
+    }
+
+    return updated;
   }
 
+  // توافق للخلف: ملفات مرفوعة قبل الانتقال لـB2 (مخزّنة محلياً، mediaStorageKey فاضي) تبقى تُخدَّم من القرص كما هي
   async getMediaFilePath(id: string): Promise<string> {
     const dir = join(FILE_STORAGE_ROOT, 'exercises', id);
     const { readdirSync } = await import('fs');
@@ -93,7 +128,6 @@ export class ExercisesService {
       throw new NotFoundException('لا يوجد ملف وسائط لهذا التمرين');
     }
     if (files.length === 0) throw new NotFoundException('لا يوجد ملف وسائط لهذا التمرين');
-    // أحدث ملف (بحال تم استبدال الفيديو سابقاً)
     files.sort();
     return join(dir, files[files.length - 1]);
   }

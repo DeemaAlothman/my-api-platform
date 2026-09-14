@@ -334,6 +334,12 @@ services:
       CLINICAL_PHYSIO_SERVICE_URL: http://clinical-physio:4012
       APPOINTMENTS_SERVICE_URL: http://appointments:4013
       FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      B2_ENDPOINT: ${B2_ENDPOINT:-}
+      B2_REGION: ${B2_REGION:-}
+      B2_BUCKET: ${B2_BUCKET:-}
+      B2_KEY_ID: ${B2_KEY_ID:-}
+      B2_APPLICATION_KEY: ${B2_APPLICATION_KEY:-}
+      B2_PUBLIC_BASE_URL: ${B2_PUBLIC_BASE_URL:-}
       NODE_ENV: production
     volumes:
       - /var/data/patient_app_uploads:/app/uploads

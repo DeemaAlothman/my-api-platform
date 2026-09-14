@@ -159,6 +159,7 @@ model Exercise {
 
   mediaType           MediaType
   mediaUrl             String?
+  mediaStorageKey      String? // مفتاح الكائن بمزوّد التخزين (Backblaze B2)؛ null = ملف قديم مخزّن محلياً قبل الانتقال
   thumbnailUrl         String?
 
   executionMethodAr    String? @db.Text
