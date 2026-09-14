@@ -1864,6 +1864,11 @@ export class CasesService {
         data[atKey]       = now;
       }
     }
+    // اعتماد المدير الطبي — حقول مستقلة عن آراء اللجنة أعلاه
+    if (dto.medicalDirectorNotes !== undefined) data.medicalDirectorNotes = dto.medicalDirectorNotes;
+    if (dto.readyForDelivery     !== undefined) data.readyForDelivery     = dto.readyForDelivery;
+    if (dto.needsFollowUp        !== undefined) data.needsFollowUp        = dto.needsFollowUp;
+    if (dto.followUpPlan         !== undefined) data.followUpPlan         = dto.followUpPlan;
     if (Object.keys(data).length === 0) {
       return existing ? { ...existing, isLocked: !!existing.medicalDirectorSignedAt } : null;
     }
