@@ -5,6 +5,7 @@ export interface AuditLogsQuery {
   from?: string;
   to?: string;
   resource?: string;
+  method?: string;
   page?: number;
   limit?: number;
 }
@@ -60,6 +61,10 @@ export class AuditLogsService {
     if (query.resource) {
       conditions.push(`resource = $${paramIdx++}`);
       params.push(query.resource);
+    }
+    if (query.method) {
+      conditions.push(`UPPER(method) = $${paramIdx++}`);
+      params.push(query.method.toUpperCase());
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

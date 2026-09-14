@@ -16,6 +16,7 @@ export class AuditLogsController {
   @ApiQuery({ name: 'from', required: false, description: 'تاريخ البداية ISO 8601' })
   @ApiQuery({ name: 'to', required: false, description: 'تاريخ النهاية ISO 8601' })
   @ApiQuery({ name: 'resource', required: false, description: 'المورد: employees, leave-requests...' })
+  @ApiQuery({ name: 'method', required: false, description: 'طريقة HTTP: GET, POST, PATCH, PUT, DELETE' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async getLogs(
@@ -23,6 +24,7 @@ export class AuditLogsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('resource') resource?: string,
+    @Query('method') method?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -31,6 +33,7 @@ export class AuditLogsController {
       from,
       to,
       resource,
+      method,
       page: page ? parseInt(page) : undefined,
       limit: limit ? parseInt(limit) : undefined,
     });
