@@ -104,16 +104,74 @@ export class AuditLogsService {
     )] as string[];
     const leaveTypeMap = await this.getLeaveTypeNames(leaveTypeIds).catch(() => ({} as Record<string, string>));
 
+    // حلّ اسم الشخص/السجل المستهدف بالعملية (resourceId → اسم مقروء) — فقط للموارد اللي مساراتها مسطّحة
+    // (يعني resourceId فيها هو المعرّف الحقيقي للسجل، مو جزء ثابت من المسار متل "cases")
+    const targetNameMap = await this.getTargetNames(rows).catch(() => ({} as Record<string, string>));
+
     return {
       data: rows.map((r) => ({
         ...r,
         fullNameAr: nameMap[r.userId ?? ''] ?? r.username ?? null,
-        description: this.buildDescription(r, nameMap[r.userId ?? '']) + this.detailsSuffix(r.metadata, leaveTypeMap),
+        targetName: (r.resourceId && targetNameMap[`${r.resource}:${r.resourceId}`]) || null,
+        description: this.buildDescription(r, nameMap[r.userId ?? ''], targetNameMap) + this.detailsSuffix(r.metadata, leaveTypeMap),
       })),
       total: parseInt((countRows as any)[0]?.total ?? '0'),
       page,
       limit,
     };
+  }
+
+  // موارد مسطّحة المسار (resourceId = المعرّف الحقيقي للسجل) وطريقة جلب اسمها المقروء
+  private readonly RESOLVABLE_RESOURCES: Record<string, { table: string; idCol: string; nameSql: string }> = {
+    users:        { table: 'users.users',              idCol: 'id', nameSql: `COALESCE(NULLIF(TRIM("fullName"), ''), username)` },
+    employees:    { table: 'users.employees',           idCol: 'id', nameSql: `TRIM("firstNameAr" || ' ' || "lastNameAr")` },
+    patients:     { table: 'clinic_patients.patients',  idCol: 'id', nameSql: `TRIM(COALESCE("firstName",'') || ' ' || COALESCE("lastName",''))` },
+    appointments: { table: 'clinic_appointments.appointments', idCol: 'id', nameSql: `"patientName"` },
+    departments:  { table: 'users.departments',         idCol: 'id', nameSql: `"nameAr"` },
+    roles:        { table: 'users.roles',               idCol: 'id', nameSql: `COALESCE("displayNameAr", name)` },
+  };
+
+  // يجلب أسماء مقروءة للسجلات المستهدفة بالعمليات (مين تم حذفه/تعديله بالضبط) — دفعة واحدة لكل صفحة
+  private async getTargetNames(
+    rows: Array<{ resource: string | null; resourceId: string | null }>,
+  ): Promise<Record<string, string>> {
+    const byResource: Record<string, Set<string>> = {};
+    for (const r of rows) {
+      if (!r.resource || !r.resourceId) continue;
+      const cfg = this.RESOLVABLE_RESOURCES[r.resource];
+      if (!cfg) continue;
+      (byResource[r.resource] ??= new Set()).add(r.resourceId);
+    }
+
+    const map: Record<string, string> = {};
+    await Promise.all(
+      Object.entries(byResource).map(async ([resource, ids]) => {
+        const cfg = this.RESOLVABLE_RESOURCES[resource];
+        try {
+          const idList = [...ids];
+          const found = await this.prisma.$queryRawUnsafe(
+            `SELECT "${cfg.idCol}"::text AS id, ${cfg.nameSql} AS name FROM ${cfg.table} WHERE "${cfg.idCol}"::text = ANY($1::text[])`,
+            idList,
+          ) as Array<{ id: string; name: string }>;
+          for (const row of found) {
+            if (row.name && row.name.trim()) map[`${resource}:${row.id}`] = row.name.trim();
+          }
+        } catch { /* مورد غير قابل للحل أو خطأ استعلام — يُتجاهل بأمان */ }
+      }),
+    );
+    return map;
+  }
+
+  // قائمة كل أنواع الموارد الموجودة فعلياً بالسجل — لتعبئة فلتر "المورد" بالواجهة بدل قائمة ثابتة ناقصة
+  async getDistinctResources(): Promise<Array<{ value: string; count: number }>> {
+    const rows = await this.prisma.$queryRawUnsafe(
+      `SELECT resource AS value, COUNT(*)::int AS count
+       FROM public.audit_logs
+       WHERE resource IS NOT NULL AND (path IS NULL OR path NOT ILIKE '%/internal%')
+       GROUP BY resource
+       ORDER BY resource ASC`,
+    ) as Array<{ value: string; count: number }>;
+    return rows;
   }
 
   // أسماء أنواع الإجازات العربية (عبر السكيمات) — فشل الاستعلام لا يكسر العرض
@@ -182,6 +240,7 @@ export class AuditLogsService {
   private buildDescription(
     row: { username?: string | null; method: string; resource?: string | null; path?: string | null; resourceId?: string | null },
     fullNameAr?: string,
+    targetNameMap: Record<string, string> = {},
   ): string {
     // الاسم: الاسم الكامل ← username العمود ← username من تفاصيل الطلب (لتسجيل الدخول) ← وإلا "النظام"
     const metaUsername = (row as any)?.metadata?.username;
@@ -195,7 +254,11 @@ export class AuditLogsService {
     if (path.includes('/auth/logout'))         return `${prefix} قام بتسجيل الخروج من النظام`;
     if (path.includes('/auth/refresh'))        return `${prefix} قام بتجديد جلسة الدخول`;
 
-    const rid = row.resourceId ? ` (${row.resourceId.substring(0, 8)}...)` : '';
+    // اسم مقروء للسجل المستهدف (مين تم حذفه/تعديله بالضبط) إن كان متاحاً، وإلا نعرض جزء من المعرّف كاحتياط
+    const resolvedTargetName = row.resourceId && row.resource ? targetNameMap[`${row.resource}:${row.resourceId}`] : null;
+    const rid = resolvedTargetName
+      ? ` (${resolvedTargetName})`
+      : row.resourceId ? ` (${row.resourceId.substring(0, 8)}...)` : '';
 
     if (path.includes('/mail/') && path.includes('/reply-all')) return `${prefix} قام بالرد على الكل في رسالة داخلية${rid}`;
     if (path.includes('/mail/') && path.includes('/reply'))     return `${prefix} قام بالرد على رسالة داخلية${rid}`;

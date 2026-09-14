@@ -11,6 +11,12 @@ import { JwtAuthGuard } from '@shared/auth';
 export class AuditLogsController {
   constructor(private readonly service: AuditLogsService) {}
 
+  @Get('resources')
+  @ApiOperation({ summary: 'قائمة كل أنواع الموارد الموجودة فعلياً في سجل العمليات (لتعبئة فلتر المورد)' })
+  async getResources() {
+    return this.service.getDistinctResources();
+  }
+
   @Get()
   @ApiOperation({ summary: 'سجل العمليات — المدير يرى سجلاته وموظفيه، الموظف يرى سجله فقط' })
   @ApiQuery({ name: 'from', required: false, description: 'تاريخ البداية ISO 8601' })
