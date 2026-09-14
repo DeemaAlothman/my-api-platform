@@ -849,13 +849,30 @@ export class CasesService {
       throw new BadRequestException('الحالة ليست معاينة طبيب');
     }
 
-    // idempotent: لو سبق التحويل، نرجع الحالة الموجودة مباشرة
+    // idempotent: لو سبق التحويل، نرجع الحالة الموجودة — وإذا انبعت معالج جديد، نستبدل به الإسناد الحالي
     if ((examCase as any).convertedToCaseId) {
       const existing = await this.prisma.physioCase.findFirst({
         where: { id: (examCase as any).convertedToCaseId },
         select: { id: true, caseNumber: true },
       });
       if (existing) {
+        if (physiotherapistId) {
+          await this.prisma.physioCase.update({
+            where: { id: existing.id },
+            data: { physiotherapistId, physiotherapistIds: [physiotherapistId] },
+          });
+          await this.sendNotifToEmployee(
+            physiotherapistId,
+            'تم تحويل حالة إليك',
+            `تم تحويل حالة علاج فيزيائي إليك — رقم الحالة: ${existing.caseNumber}`,
+            {
+              type: 'PHYSIO_CASE_ASSIGNED',
+              caseId: existing.id,
+              caseNumber: existing.caseNumber,
+              link: `/clinic/physio/${existing.id}`,
+            },
+          );
+        }
         return { convertedCaseId: existing.id, caseNumber: existing.caseNumber };
       }
     }

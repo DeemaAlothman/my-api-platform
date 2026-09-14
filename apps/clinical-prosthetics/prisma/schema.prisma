@@ -1249,6 +1249,9 @@ model FinalEvaluation {
   createdBy             String?
   createdByName         String?
 
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
   @@map("final_evaluations")
   @@schema("clinic_prosthetics")
 }
