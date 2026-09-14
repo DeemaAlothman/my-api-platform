@@ -1858,10 +1858,14 @@ export class CasesService {
     ];
     for (const [opinionKey, byKey, byNameKey, atKey] of opinions) {
       if (dto[opinionKey] !== undefined) {
-        data[opinionKey]  = dto[opinionKey];
-        data[byKey]       = userId;
-        data[byNameKey]   = userName;
-        data[atKey]       = now;
+        data[opinionKey] = dto[opinionKey];
+        // فقط إذا القيمة فعلاً تغيّرت عن المخزّن نسجّل مين كتبها ومتى —
+        // منعاً من تسجيل اسم آخر شخص حفظ أي حقل تاني فوق حقل ما تغيّر
+        if (dto[opinionKey] !== (existing as any)?.[opinionKey]) {
+          data[byKey]     = userId;
+          data[byNameKey] = userName;
+          data[atKey]     = now;
+        }
       }
     }
     // اعتماد المدير الطبي — حقول مستقلة عن آراء اللجنة أعلاه
