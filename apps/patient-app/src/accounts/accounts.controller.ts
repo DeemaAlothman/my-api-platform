@@ -1,16 +1,22 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
 import { Permission } from '@shared/decorators/permission.decorator';
 import { PERMISSIONS } from '@shared/constants/permissions.constants';
 import { User } from '@shared/auth/decorators/current-user.decorator';
 import { AccountsService } from './accounts.service';
-import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
+import { CreateAccountDto, UpdateAccountDto, ListAccountsQueryDto } from './dto/account.dto';
 
 @Controller('patient-app/accounts')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AccountsController {
   constructor(private readonly service: AccountsService) {}
+
+  @Get()
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.ACCOUNT_MANAGE)
+  findAll(@Query() query: ListAccountsQueryDto) {
+    return this.service.findAll(query);
+  }
 
   @Post()
   @Permission(PERMISSIONS.CLINIC_PATIENT_APP.ACCOUNT_MANAGE)

@@ -280,8 +280,38 @@ export class PatientsService {
         patientNumber: true,
         firstName: true,
         lastName: true,
+        phone: true,
         idNumber: true,
       },
+    });
+  }
+
+  // نقطة داخلية (خدمة-لخدمة): بحث نصي عن مرضى (اسم/هاتف/رقم مريض) — لدعم بحث عبر خدمات تانية (patient-app)
+  async searchInternal(q: string) {
+    const search = (q ?? '').trim();
+    if (!search) return [];
+    const parts = search.split(/\s+/);
+    const where: any = { deletedAt: null };
+    if (parts.length > 1) {
+      where.AND = parts.map((part: string) => ({
+        OR: [
+          { firstName: { contains: part, mode: 'insensitive' } },
+          { lastName: { contains: part, mode: 'insensitive' } },
+        ],
+      }));
+    } else {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search } },
+        { patientNumber: { contains: search, mode: 'insensitive' } },
+        { idNumber: { contains: search } },
+      ];
+    }
+    return this.prisma.patient.findMany({
+      where,
+      take: 100,
+      select: { id: true, patientNumber: true, firstName: true, lastName: true, phone: true, idNumber: true },
     });
   }
 

@@ -1,4 +1,5 @@
-import { IsEnum, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateAccountDto {
   @IsUUID() erpPatientId: string;
@@ -9,4 +10,11 @@ export class CreateAccountDto {
 export class UpdateAccountDto {
   @IsOptional() @IsEnum(['ACTIVE', 'INACTIVE', 'BLOCKED']) status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
   @IsOptional() @IsString() @MinLength(6) password?: string;
+}
+
+export class ListAccountsQueryDto {
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsEnum(['ACTIVE', 'INACTIVE', 'BLOCKED']) status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
 }

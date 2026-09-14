@@ -40,6 +40,12 @@ export class PatientsInternalController {
   findByPhone(@Query('phone') phone: string) {
     return this.service.findByPhoneInternal(phone);
   }
+
+  @Get('search')
+  @UseGuards(InternalAuthGuard)
+  search(@Query('q') q: string) {
+    return this.service.searchInternal(q);
+  }
 }
 
 @Controller('patients')

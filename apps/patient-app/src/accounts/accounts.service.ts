@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErpClientService } from '../integrations/erp-client.service';
-import { CreateAccountDto, UpdateAccountDto } from './dto/account.dto';
+import { CreateAccountDto, UpdateAccountDto, ListAccountsQueryDto } from './dto/account.dto';
 
 @Injectable()
 export class AccountsService {
@@ -37,6 +37,56 @@ export class AccountsService {
         status: 'ACTIVE',
       },
     });
+  }
+
+  // قائمة حسابات المريض مع بحث/فلترة/ترقيم — ويرجع بيانات المريض (اسم/هاتف/رقم) داخل كل عنصر
+  // لتفادي طلب منفصل لكل سطر بجدول الداشبورد (كما طلب فريق الفرونت إند)
+  async findAll(query: ListAccountsQueryDto) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(100, Math.max(1, query.limit || 20));
+    const skip = (page - 1) * limit;
+
+    const where: any = { deletedAt: null };
+    if (query.status) where.status = query.status;
+
+    if (query.search?.trim()) {
+      const matchedPatients = await this.erp.searchPatients(query.search.trim());
+      const matchedIds = matchedPatients.map((p) => p.id);
+      where.OR = [
+        { username: { contains: query.search.trim(), mode: 'insensitive' } },
+        ...(matchedIds.length ? [{ erpPatientId: { in: matchedIds } }] : []),
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.patientAccount.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limit }),
+      this.prisma.patientAccount.count({ where }),
+    ]);
+
+    const patientsMap = await this.erp.findPatientsByIds(items.map((i) => i.erpPatientId));
+
+    return {
+      items: items.map((i) => ({
+        id: i.id,
+        erpPatientId: i.erpPatientId,
+        username: i.username,
+        status: i.status,
+        createdAt: i.createdAt,
+        lastLoginAt: i.lastLoginAt,
+        patient: patientsMap[i.erpPatientId]
+          ? {
+              firstName: patientsMap[i.erpPatientId].firstName,
+              lastName: patientsMap[i.erpPatientId].lastName,
+              phone: patientsMap[i.erpPatientId].phone,
+              patientNumber: patientsMap[i.erpPatientId].patientNumber,
+            }
+          : null,
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
   }
 
   async findOne(id: string) {

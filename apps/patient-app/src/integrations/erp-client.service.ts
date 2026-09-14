@@ -99,6 +99,20 @@ export class ErpClientService {
     }
   }
 
+  // بحث نصي عن مرضى (اسم/هاتف/رقم مريض) — لدعم بحث قائمة حسابات التطبيق بالداشبورد
+  async searchPatients(q: string): Promise<ErpPatientSummary[]> {
+    try {
+      const res = await fetch(`${PATIENTS_URL}/api/v1/patients/internal/search?q=${encodeURIComponent(q)}`, {
+        headers: { 'x-internal-token': INTERNAL_TOKEN },
+      });
+      if (!res.ok) return [];
+      const json: any = await res.json();
+      return Array.isArray(json) ? json : (json?.data ?? []);
+    } catch {
+      return [];
+    }
+  }
+
   async getSession(erpSessionId: string): Promise<ErpPhysioSession> {
     try {
       const res = await fetch(`${PHYSIO_URL}/api/v1/physio/cases/internal/sessions/${erpSessionId}`, {
