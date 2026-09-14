@@ -72,6 +72,18 @@ export class PatchOpinionDto {
 
   @IsOptional() @IsString()
   expertOpinion?: string;
+
+  @IsOptional() @IsString()
+  medicalDirectorNotes?: string;
+
+  @IsOptional() @IsBoolean()
+  readyForDelivery?: boolean;
+
+  @IsOptional() @IsBoolean()
+  needsFollowUp?: boolean;
+
+  @IsOptional() @IsString()
+  followUpPlan?: string;
 }
 
 export class DirectorSignDto {
