@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients.query.dto';
 import { CreateConsentDto } from './dto/create-consent.dto';
+import { sendExcel } from '../common/utils/excel.util';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 const PHYSIO_URL = process.env.PHYSIO_SERVICE_URL || 'http://clinical-physio:4012';
@@ -207,6 +209,49 @@ export class PatientsService {
     ]);
 
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  }
+
+  // تصدير قائمة المرضى إلى Excel — كل المرضى إذا لم يُحدَّد مدى تاريخ، أو ضمن مدى تاريخ إنشاء (from/to) عند تحديده
+  async exportXlsx(range: { from?: string; to?: string }, res: Response) {
+    const where: any = { deletedAt: null };
+    if (range.from || range.to) {
+      where.createdAt = {};
+      if (range.from) where.createdAt.gte = new Date(range.from);
+      if (range.to) where.createdAt.lte = new Date(`${range.to}T23:59:59.999Z`);
+    }
+
+    const patients = await this.prisma.patient.findMany({
+      where,
+      include: { city: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const calcAge = (dob: Date): number => {
+      const now = new Date();
+      let age = now.getFullYear() - dob.getFullYear();
+      const beforeBirthdayThisYear =
+        now.getMonth() < dob.getMonth() ||
+        (now.getMonth() === dob.getMonth() && now.getDate() < dob.getDate());
+      if (beforeBirthdayThisYear) age--;
+      return age;
+    };
+
+    const rows = patients.map((p) => [
+      p.patientNumber,
+      `${p.firstName} ${p.lastName}`,
+      p.gender === 'MALE' ? 'ذكر' : 'أنثى',
+      calcAge(p.dateOfBirth),
+      p.phone,
+      p.city?.nameAr ?? '',
+      p.createdAt,
+    ]);
+
+    await sendExcel(
+      res,
+      'المرضى',
+      ['رقم المريض', 'الاسم', 'الجنس', 'العمر', 'الهاتف', 'المدينة', 'تاريخ الإنشاء'],
+      rows,
+    );
   }
 
   async findOne(id: string) {

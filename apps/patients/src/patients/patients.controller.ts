@@ -61,6 +61,17 @@ export class PatientsController {
     return this.service.checkDuplicate(idNumber);
   }
 
+  // تصدير قائمة المرضى إلى Excel — كل المرضى، أو ضمن مدى تاريخ إنشاء محدد (from/to اختياريان)
+  @Get('export-xlsx')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.VIEW)
+  exportXlsx(
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Res() res: Response,
+  ) {
+    return this.service.exportXlsx({ from, to }, res);
+  }
+
   @Get()
   @Permission(PERMISSIONS.CLINIC_PATIENTS.VIEW)
   findAll(@Query() query: ListPatientsQueryDto) {
