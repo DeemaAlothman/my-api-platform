@@ -346,7 +346,7 @@ export class PayrollService {
     // التبريرات لسجلات البصمة الوحيدة (دخول بدون خروج بعد يومين)
     const singlePunchRecordIds = records
       .filter(r => {
-        if (['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE'].includes(r.status)) return false;
+        if (['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION'].includes(r.status)) return false;
         if (!(r as any).clockInTime || (r as any).clockOutTime) return false;
         return Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000) >= 2;
       })
@@ -385,7 +385,7 @@ export class PayrollService {
         if (!justifiedIds.has(r.id)) absentUnjustified++;
         continue;
       }
-      if (['WEEKEND', 'HOLIDAY', 'ON_LEAVE'].includes(r.status)) continue;
+      if (['WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION'].includes(r.status)) continue;
 
       if ((r as any).clockInTime && !(r as any).clockOutTime) {
         const daysSince = Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000);

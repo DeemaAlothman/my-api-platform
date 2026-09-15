@@ -127,7 +127,7 @@ model AttendanceRecord {
   overtimeWorkdayMinutes Int @default(0)
   overtimeHolidayMinutes Int @default(0)
 
-  // Status: PRESENT, ABSENT, LATE, EARLY_LEAVE, HALF_DAY, ON_LEAVE, HOLIDAY, WEEKEND
+  // Status: PRESENT, ABSENT, LATE, EARLY_LEAVE, HALF_DAY, ON_LEAVE, ON_MISSION, HOLIDAY, WEEKEND
   status String @default("PRESENT")
 
   // Late/Early metrics (in minutes)

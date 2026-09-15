@@ -51,7 +51,7 @@ export class DailyClosureService implements OnModuleInit {
            AND ar."lateMinutes" > 0
            AND ar."lateCompensatedMinutes" = 0
            AND ar."clockOutTime" IS NULL
-           AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'HALF_DAY')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'HALF_DAY')
            AND e."userId" IS NOT NULL
            AND e."deletedAt" IS NULL`,
         dateStr,
@@ -179,6 +179,10 @@ export class DailyClosureService implements OnModuleInit {
     const approvedLeaves = await this.getApprovedLeavesForDate(workingEmployeeIds, dateStr);
     const leaveMap = new Map(approvedLeaves.map(l => [l.employeeId, l]));
 
+    // فحص مهمات العمل المعتمدة لهذا اليوم — لا يُعلَّم صاحبها غائباً
+    const approvedMissions = await this.getApprovedMissionsForDate(workingEmployeeIds, dateStr);
+    const missionSet = new Set(approvedMissions.map(m => m.employeeId));
+
     // إعادة الربط بالراتب تلقائياً للموظفين الذين انتهت فترة عملهم عن بعد
     await this.prisma.$queryRawUnsafe(
       `UPDATE attendance.employee_attendance_configs
@@ -220,6 +224,12 @@ export class DailyClosureService implements OnModuleInit {
         continue;
       }
 
+      // موظف عنده مهمة عمل معتمدة → ON_MISSION، ما يُعلَّم غائباً
+      if (missionSet.has(employeeId) && !record) {
+        await this.upsertMissionRecord(employeeId, dateStr);
+        continue;
+      }
+
       // غير مرتبط بالراتب (معفي من الحضور) → لا يُعلَّم غائباً ولا تُنشأ له سجلات حضور تلقائية
       if (!salaryLinked) {
         skipped++;
@@ -231,7 +241,7 @@ export class DailyClosureService implements OnModuleInit {
       if (!record) {
         await this.createAbsentRecord(employeeId, dateStr, salaryLinked, isDeviceOffline);
         absentCreated++;
-      } else if (['ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'ABSENT'].includes(record.status)) {
+      } else if (['ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'ABSENT'].includes(record.status)) {
         skipped++;
       } else if (record.clockInTime && !record.clockOutTime) {
         await this.createMissingClockOutAlert(employeeId, dateStr, salaryLinked, isDeviceOffline);
@@ -287,7 +297,7 @@ export class DailyClosureService implements OnModuleInit {
          JOIN users.employees e ON e.id = ar."employeeId"
          WHERE ar.date = $1::date
            AND ar."lateMinutes" > 0
-           AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            AND e."deletedAt" IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM attendance.attendance_alerts aa
@@ -347,7 +357,7 @@ export class DailyClosureService implements OnModuleInit {
          JOIN users.employees e ON e.id = ar."employeeId"
          WHERE ar.date = $1::date
            AND ar."earlyLeaveMinutes" > 0
-           AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            AND e."deletedAt" IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM attendance.attendance_alerts aa
@@ -408,7 +418,7 @@ export class DailyClosureService implements OnModuleInit {
          WHERE ar.date = $1::date
            AND ar."clockInTime" IS NULL
            AND ar."clockOutTime" IS NOT NULL
-           AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            AND e."deletedAt" IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM attendance.attendance_alerts aa
@@ -611,6 +621,58 @@ export class DailyClosureService implements OnModuleInit {
     }
   }
 
+  // موظفون بمهمة عمل معتمدة (requests.requests) تغطي هذا اليوم — لا يُعلَّمون غائبين
+  private async getApprovedMissionsForDate(
+    employeeIds: string[],
+    dateStr: string,
+  ): Promise<Array<{ employeeId: string }>> {
+    if (employeeIds.length === 0) return [];
+    try {
+      const rows = (await this.prisma.$queryRawUnsafe(
+        `SELECT DISTINCT COALESCE(r.details->>'targetEmployeeId', r."employeeId") AS "employeeId"
+         FROM requests.requests r
+         WHERE r.type = 'BUSINESS_MISSION'
+           AND r.status = 'APPROVED'
+           AND r."deletedAt" IS NULL
+           AND (r."employeeId" = ANY($1::text[]) OR (r.details->>'targetEmployeeId') = ANY($1::text[]))
+           AND (r.details->>'startDate')::date <= $2::date
+           AND (r.details->>'endDate')::date >= $2::date`,
+        employeeIds,
+        dateStr,
+      )) as Array<{ employeeId: string }>;
+      return rows;
+    } catch (err) {
+      this.logger.error(`Failed to fetch approved missions: ${(err as any)?.message}`);
+      return [];
+    }
+  }
+
+  private async upsertMissionRecord(employeeId: string, dateStr: string) {
+    try {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO attendance.attendance_records
+           (id, "employeeId", date, status, source, "isManualEntry",
+            "lateMinutes", "earlyLeaveMinutes", "deductionApplied",
+            "salaryLinked", "createdAt", "updatedAt")
+         VALUES
+           (gen_random_uuid(), $1, $2::date, 'ON_MISSION', 'SYSTEM', false,
+            0, 0, false, false, NOW(), NOW())
+         ON CONFLICT ("employeeId", date) DO UPDATE SET
+           status = CASE
+             WHEN attendance_records."clockInTime" IS NOT NULL THEN attendance_records.status
+             ELSE 'ON_MISSION'
+           END,
+           "updatedAt" = NOW()`,
+        employeeId, dateStr,
+      );
+
+      await this.auditLog(null, employeeId, dateStr, 'MISSION_APPLIED', 'DAILY_CLOSURE',
+        'سجل مهمة عمل معتمدة تم تطبيقه تلقائياً');
+    } catch (err) {
+      this.logger.error(`Failed to upsert mission record for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
+    }
+  }
+
   private async upsertLeaveRecord(
     employeeId: string,
     dateStr: string,
@@ -778,7 +840,7 @@ export class DailyClosureService implements OnModuleInit {
          FROM attendance.attendance_records
          WHERE date = $1::date
            AND ("lateMinutes" > "lateCompensatedMinutes" OR "earlyLeaveMinutes" > "earlyLeaveCompensatedMinutes")
-           AND status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')`,
+           AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')`,
         dateStr,
       )) as Array<{
         id: string; employeeId: string;
@@ -985,7 +1047,7 @@ export class DailyClosureService implements OnModuleInit {
          AND "earlyLeaveMinutes" > "earlyLeaveCompensatedMinutes"
          AND "earlyLeaveOffsetMinutes" = 0
          AND "earlyLeavePendingDeductionMinutes" = 0
-         AND status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
        ORDER BY "employeeId" ASC, date ASC`,
       monthStart, monthEnd,
     )) as Array<{ id: string; employeeId: string; date: Date; earlyLeaveMinutes: number; earlyLeaveCompensatedMinutes: number }>;
@@ -1094,7 +1156,7 @@ export class DailyClosureService implements OnModuleInit {
          AND "lateMinutes" > "lateCompensatedMinutes"
          AND "tardinessOffsetMinutes" = 0
          AND "tardinessPendingDeductionMinutes" = 0
-         AND status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
        ORDER BY "employeeId" ASC, date ASC`,
       monthStart, monthEnd,
     )) as Array<{ id: string; employeeId: string; date: Date; lateMinutes: number; lateCompensatedMinutes: number }>;
@@ -1213,7 +1275,7 @@ export class DailyClosureService implements OnModuleInit {
               "tardinessPendingDeductionMinutes", "earlyLeavePendingDeductionMinutes"
        FROM attendance.attendance_records
        WHERE date >= $1::date AND date <= $2::date
-         AND status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
          AND ("lateMinutes" > "lateCompensatedMinutes" OR "earlyLeaveMinutes" > "earlyLeaveCompensatedMinutes")
        ORDER BY "employeeId" ASC, date ASC`,
       monthStart, monthEnd,
@@ -1325,7 +1387,7 @@ export class DailyClosureService implements OnModuleInit {
        FROM attendance.attendance_records ar
        WHERE ar.date >= $1::date AND ar.date <= $2::date
          AND (ar."lateMinutes" > 0 OR ar."earlyLeaveMinutes" > 0)
-         AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
        ORDER BY ar."employeeId" ASC, ar.date ASC`,
       monthStart, monthEnd,
     )) as Array<{
@@ -1580,7 +1642,7 @@ export class DailyClosureService implements OnModuleInit {
            JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
            LEFT JOIN attendance.attendance_breaks ab ON ab."attendanceRecordId" = ar.id
            WHERE ar.date = $1::date
-             AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+             AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            GROUP BY ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes",
                     ar."leaveStartTime", ar."leaveEndTime", ar."halfDayPeriod",
                     ws."workStartTime", ws."workEndTime"
@@ -1712,7 +1774,7 @@ export class DailyClosureService implements OnModuleInit {
            JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
            WHERE ar.date = $1::date
              AND ar."workedMinutes" IS NOT NULL
-             AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+             AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
          )
          SELECT id, "employeeId", "workedMinutes", "scheduledMinutes"
          FROM sched
@@ -1745,7 +1807,7 @@ export class DailyClosureService implements OnModuleInit {
            AND ral.timestamp >= $1::date
            AND ral.timestamp < $1::date + INTERVAL '30 hours'
          WHERE ar.date = $1::date
-           AND ar.status NOT IN ('ON_LEAVE', 'HOLIDAY', 'WEEKEND', 'ABSENT')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'ABSENT')
          GROUP BY ar."employeeId"
          HAVING COUNT(ral.id) > 8`,
         dateStr,
@@ -1872,7 +1934,7 @@ export class DailyClosureService implements OnModuleInit {
          WHERE ar.date = $1::date
            AND ar."clockInTime" IS NOT NULL
            AND ar."clockOutTime" IS NOT NULL
-           AND ar.status NOT IN ('ABSENT', 'ON_LEAVE')`,
+           AND ar.status NOT IN ('ABSENT', 'ON_LEAVE', 'ON_MISSION')`,
         dateStr,
       )) as Array<{
         id: string; employeeId: string;
