@@ -17,8 +17,12 @@ export async function sendExcel(
 
   sheet.columns.forEach(col => { col.width = 20; });
 
+  // اسم الملف قد يحتوي حروفاً عربية — غير مسموح وضعها كما هي داخل هيدر HTTP،
+  // فنرسل بديلاً إنجليزياً بسيطاً (filename=) مع الاسم الأصلي مرمّزاً حسب المعيار (filename*=)
+  const asciiFallback = filename.replace(/[^\x20-\x7E]/g, '_') || 'export';
+  const encoded = encodeURIComponent(`${filename}.xlsx`);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${asciiFallback}.xlsx"; filename*=UTF-8''${encoded}`);
 
   await workbook.xlsx.write(res as any);
   res.end();
