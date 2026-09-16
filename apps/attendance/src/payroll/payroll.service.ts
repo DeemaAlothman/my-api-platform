@@ -246,10 +246,19 @@ export class PayrollService {
       }
 
       if (leave.isHourlyLeave) {
-        if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') {
+        if (leave.source === 'EARLY_LEAVE_AUTO') {
+          // خلل توقيت مؤكَّد بمحرك الحضور الأساسي (attendance-computation.service.ts) بيخلّي
+          // earlyLeaveMinutes الخام غير موثوق وغير متّسق عبر الأيام لنفس الموظف (مؤكَّد بفحص شامل
+          // لسجل فاطمة الخلف الكامل) — فبالتالي أي EARLY_LEAVE_AUTO مبني عليه (وحصة الرصيد
+          // المشترك اللي استهلكها) غير موثوق. نستثنيه بالكامل هنا، ونعيد حساب الخروج المبكر
+          // بأكمله (الاستهلاك من الرصيد المشترك والتجاوز) بشكل مستقل ومتّسق أدناه (بعد هذا الحلقة)
+          // من وقت البصمة الخام مباشرة. التأخير (TARDINESS_AUTO) غير متأثر — رصيده موثوق ويُعالَج
+          // بشكل طبيعي كما كان.
+          continue;
+        }
+        if (leave.source === 'TARDINESS_AUTO') {
           const leaveDateKey: string = new Date(leave.startDate).toISOString().split('T')[0];
-          const expectedAlertType: string = leave.source === 'TARDINESS_AUTO' ? 'LATE' : 'EARLY_LEAVE';
-          if (justifiedAutoLeaveDates.has(`${leaveDateKey}|${expectedAlertType}`)) {
+          if (justifiedAutoLeaveDates.has(`${leaveDateKey}|LATE`)) {
             continue;
           }
         }
@@ -309,39 +318,12 @@ export class PayrollService {
     // دقائق التأخير/الخروج المبكر غير المبررة التي انتهى رصيدها ولم تُولَّد لها طلبات إجازة تلقائية
     // تُضاف مباشرة للخصم التلقائي لتظهر في عمودَي V (الإجازة التلقائية) وW (القيمة)
     if (salaryLinked) {
-      // التبريرات المعتمدة للانصراف المبكر (HR_APPROVED / MANAGER_APPROVED) تُستثنى من الخصم المعلّق —
-      // نفس منطق استثناء تبريرات التأخير أدناه (justifiedLateMinutes)، لأن الإغلاق اليومي حالياً
-      // لا يستثني دقائق الانصراف المبكر المبررة عند حساب earlyLeavePendingDeductionMinutes (خلل منفصل بمهمة الإغلاق اليومي)
-      const pendingEarlyRecordIds: string[] = records
-        .filter(r => (r.earlyLeavePendingDeductionMinutes ?? 0) > 0)
-        .map(r => r.id);
-      const justifiedEarlyPendingByRecord = new Map<string, number>();
-      if (pendingEarlyRecordIds.length > 0) {
-        const earlyJustifications: Array<{ attendanceRecordId: string; deductionMinutes: number | null }> =
-          await this.prisma.$queryRawUnsafe(`
-            SELECT aj."attendanceRecordId", aj."deductionMinutes"
-            FROM attendance.attendance_justifications aj
-            JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
-            WHERE aj."attendanceRecordId" = ANY($1::text[])
-              AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
-              AND aa."alertType" = 'EARLY_LEAVE'
-          `, pendingEarlyRecordIds);
+      // ملاحظة: استثناء التبريرات المعتمدة على الانصراف المبكر من الخصم المعلّق القديم
+      // (earlyLeavePendingDeductionMinutes) أُزيل من هنا — الانصراف المبكر بأكمله الآن يُعاد حسابه
+      // بشكل مستقل ومتّسق أدناه (بعد إصلاح سماحية التأخير) من وقت البصمة الخام مباشرة، بسبب خلل
+      // توقيت مؤكَّد بمحرك الحضور الأساسي جعل الحقل القديم غير موثوق (راجع فحص فاطمة الخلف).
 
-        const pendingByRecord = new Map<string, number>();
-        for (const r of records) {
-          pendingByRecord.set(r.id, r.earlyLeavePendingDeductionMinutes ?? 0);
-        }
-
-        for (const j of earlyJustifications) {
-          const fullPending: number = pendingByRecord.get(j.attendanceRecordId) ?? 0;
-          // deductionMinutes=NULL يعني مبرر كلياً (نفس منطق التأخير) → نستثني كامل الخصم المعلّق لذلك اليوم
-          const justified: number = j.deductionMinutes ?? fullPending;
-          const previousJustified: number = justifiedEarlyPendingByRecord.get(j.attendanceRecordId) ?? 0;
-          justifiedEarlyPendingByRecord.set(j.attendanceRecordId, previousJustified + justified);
-        }
-      }
-
-      // نفس الاستثناء بالضبط لكن للتأخير — التبريرات المعتمدة على التأخير كانت مستثناة فقط من
+      // التبريرات المعتمدة على التأخير كانت مستثناة فقط من
       // totalLateMinutesEffective (عرض إحصائي)، ولم تكن تُستثنى من tardinessPendingDeductionMinutes
       // الخام هنا، فيصير خصم فعلي غلط على حادثة تأخير معتمدة (نفس فجوة الانصراف المبكر أعلاه تماماً)
       const pendingLateRecordIds: string[] = records
@@ -373,15 +355,11 @@ export class PayrollService {
       }
 
       const attendancePendingMinutes = records.reduce((sum, r) => {
-        const rawEarlyPending = r.earlyLeavePendingDeductionMinutes ?? 0;
-        const justifiedEarly = Math.min(rawEarlyPending, justifiedEarlyPendingByRecord.get(r.id) ?? 0);
-        const effectiveEarlyPending = Math.max(0, rawEarlyPending - justifiedEarly);
-
         const rawLatePending = r.tardinessPendingDeductionMinutes ?? 0;
         const justifiedLate = Math.min(rawLatePending, justifiedLatePendingByRecord.get(r.id) ?? 0);
         const effectiveLatePending = Math.max(0, rawLatePending - justifiedLate);
 
-        return sum + effectiveEarlyPending + effectiveLatePending;
+        return sum + effectiveLatePending;
       }, 0);
       autoLeaveOverLimitMinutes += attendancePendingMinutes;
     }
@@ -442,6 +420,63 @@ export class PayrollService {
         uncompensatedToleranceMinutes += uncompensated;
       }
       autoLeaveOverLimitMinutes += uncompensatedToleranceMinutes;
+    }
+
+    // إعادة حساب الانصراف المبكر بالكامل بشكل مستقل ومتّسق — استبدال كامل لما كان يعتمد على
+    // earlyLeaveMinutes/earlyLeaveOffsetMinutes/earlyLeavePendingDeductionMinutes المخزَّنة (غير
+    // موثوقة بسبب خلل توقيت مؤكَّد بمحرك الحضور الأساسي، مؤكَّد بفحص شامل لسجل فاطمة الخلف — نفس
+    // الأيام أعطت نتائج مختلفة عبر الوقت لنفس البيانات). يحسب من وقت البصمة الخام مباشرة، يطبّق
+    // "الحضور المبكر يعوّض الخروج المبكر"، ثم يستهلك من رصيد الساعتين الشهري المشترك المتبقي (بعد
+    // ما استهلكه التأخير أعلاه فقط — EARLY_LEAVE_AUTO مُستثنى بالكامل من حلقة leavesWithType فوق
+    // تحديداً لهذا السبب). صفر تعديل على أي بيانات مخزَّنة.
+    if (salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime) {
+      const hourlyTypeRows = await this.prisma.$queryRawUnsafe(`
+        SELECT "maxHoursPerMonth" FROM leaves.leave_types
+        WHERE code = 'HOURLY' AND "isActive" = true LIMIT 1
+      `) as Array<{ maxHoursPerMonth: number | null }>;
+      const maxHoursPerMonth = Number(hourlyTypeRows[0]?.maxHoursPerMonth ?? 2);
+      let remainingPoolMinutes = Math.max(0, (maxHoursPerMonth * 60) - tardinessAutoFreeMinutes);
+
+      const excludedStatusesForEarlyLeave = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+      const [earlyStartH, earlyStartM] = scheduleWorkStartTime.split(':').map(Number);
+      const [earlyEndH, earlyEndM] = scheduleWorkEndTime.split(':').map(Number);
+      const EARLY_LEAVE_BUSINESS_UTC_OFFSET_HOURS = 3;
+
+      const sortedRecords = [...records].sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
+
+      let consistentEarlyLeaveOverLimitMinutes = 0;
+      for (const r of sortedRecords) {
+        if (!(r as any).clockOutTime) continue;
+        if (excludedStatusesForEarlyLeave.has(r.status)) continue;
+
+        const recDate = new Date(r.date);
+        const schedStart = new Date(Date.UTC(
+          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+          earlyStartH - EARLY_LEAVE_BUSINESS_UTC_OFFSET_HOURS, earlyStartM, 0, 0,
+        ));
+        let schedEnd = new Date(Date.UTC(
+          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+          earlyEndH - EARLY_LEAVE_BUSINESS_UTC_OFFSET_HOURS, earlyEndM, 0, 0,
+        ));
+        if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
+
+        const clockIn = new Date((r as any).clockInTime);
+        const clockOut = new Date((r as any).clockOutTime);
+        const earlyArrival = Math.max(0, Math.round((schedStart.getTime() - clockIn.getTime()) / 60000));
+        const rawEarlyLeave = Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000));
+        const effectiveEarlyLeave = Math.max(0, rawEarlyLeave - earlyArrival);
+        if (effectiveEarlyLeave <= 0) continue;
+
+        const dateKey = recDate.toISOString().split('T')[0];
+        if (justifiedAutoLeaveDates.has(`${dateKey}|EARLY_LEAVE`)) continue;
+
+        const consumedFromPool = Math.min(effectiveEarlyLeave, remainingPoolMinutes);
+        remainingPoolMinutes -= consumedFromPool;
+        consistentEarlyLeaveOverLimitMinutes += effectiveEarlyLeave - consumedFromPool;
+      }
+      autoLeaveOverLimitMinutes += consistentEarlyLeaveOverLimitMinutes;
     }
 
     // المجموع الإجمالي للإجازة الساعية (للعرض)
