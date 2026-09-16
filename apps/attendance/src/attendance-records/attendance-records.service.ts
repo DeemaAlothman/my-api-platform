@@ -343,68 +343,82 @@ export class AttendanceRecordsService {
     }
 
     const justifiedLateRecordIds = new Set<string>();
+    const justifiedEarlyLeaveRecordIds = new Set<string>();
     const recordIds = records.map((r: any) => r.id);
     if (recordIds.length > 0) {
-      const justified: Array<{ attendanceRecordId: string }> = await this.prisma.$queryRawUnsafe(`
-        SELECT aj."attendanceRecordId"
+      const justified: Array<{ attendanceRecordId: string; alertType: string }> = await this.prisma.$queryRawUnsafe(`
+        SELECT aj."attendanceRecordId", aa."alertType"
         FROM attendance.attendance_justifications aj
         JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
         WHERE aj."attendanceRecordId" = ANY($1::text[])
           AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
-          AND aa."alertType" = 'LATE'
+          AND aa."alertType" IN ('LATE', 'EARLY_LEAVE')
       `, recordIds);
-      for (const j of justified) justifiedLateRecordIds.add(j.attendanceRecordId);
+      for (const j of justified) {
+        if (j.alertType === 'LATE') justifiedLateRecordIds.add(j.attendanceRecordId);
+        else justifiedEarlyLeaveRecordIds.add(j.attendanceRecordId);
+      }
     }
 
     const excludedStatusesForDisplay = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
 
     const items = records.map((record: any) => {
       let displayLateMinutes = record.lateMinutes;
+      let displayEarlyLeaveMinutes = record.earlyLeaveMinutes;
       let displayStatus = record.status;
 
-      if (justifiedLateRecordIds.has(record.id)) {
-        displayLateMinutes = 0;
-      } else {
-        const sched = scheduleByEmployee.get(record.employeeId);
-        if (
-          record.clockInTime && sched?.workStartTime && sched?.workEndTime &&
-          sched.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status)
-        ) {
-          const [startH, startM] = sched.workStartTime.split(':').map(Number);
-          const [endH, endM] = sched.workEndTime.split(':').map(Number);
-          const recDate = new Date(record.date);
-          // خادم الحاوية يشتغل بتوقيت UTC صافٍ (تأكدنا: docker exec ... date → UTC)، بينما
-          // "workStartTime/workEndTime" مقصودة بتوقيت العمل المحلي (UTC+3) — استخدام setHours()
-          // هنا كان يحسبها كـUTC مباشرة (فرق 3 ساعات غلط)، فيطلع rawLate سالباً دايماً = صفر خصم
-          // دائماً. الحل: بناء الوقت بـUTC صراحة مع طرح فرق التوقيت، بغض النظر عن توقيت السيرفر.
-          const BUSINESS_UTC_OFFSET_HOURS = 3;
-          const schedStart = new Date(Date.UTC(
-            recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-            startH - BUSINESS_UTC_OFFSET_HOURS, startM, 0, 0,
-          ));
-          let schedEnd = new Date(Date.UTC(
-            recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-            endH - BUSINESS_UTC_OFFSET_HOURS, endM, 0, 0,
-          ));
-          if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
+      const sched = scheduleByEmployee.get(record.employeeId);
+      const canRecompute =
+        record.clockInTime && sched?.workStartTime && sched?.workEndTime &&
+        sched.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status);
 
-          const clockIn = new Date(record.clockInTime);
-          const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+      if (canRecompute) {
+        const [startH, startM] = sched!.workStartTime!.split(':').map(Number);
+        const [endH, endM] = sched!.workEndTime!.split(':').map(Number);
+        const recDate = new Date(record.date);
+        // خادم الحاوية يشتغل بتوقيت UTC صافٍ (تأكدنا: docker exec ... date → UTC)، بينما
+        // "workStartTime/workEndTime" مقصودة بتوقيت العمل المحلي (UTC+3) — استخدام setHours()
+        // هنا كان يحسبها كـUTC مباشرة (فرق 3 ساعات غلط). الحل: بناء الوقت بـUTC صراحة مع طرح
+        // فرق التوقيت، بغض النظر عن توقيت السيرفر. (نفس الخطأ موجود أصلاً بمحرك الحضور الأساسي
+        // attendance-computation.service.ts، وهو سبب تناقض نتائج فاطمة الخلف وغيرها — هذا تصحيح
+        // للعرض فقط، صفر لمس على البيانات المخزَّنة أو المحرك الأساسي)
+        const BUSINESS_UTC_OFFSET_HOURS = 3;
+        const schedStart = new Date(Date.UTC(
+          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+          startH - BUSINESS_UTC_OFFSET_HOURS, startM, 0, 0,
+        ));
+        let schedEnd = new Date(Date.UTC(
+          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+          endH - BUSINESS_UTC_OFFSET_HOURS, endM, 0, 0,
+        ));
+        if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
 
-          if (rawLate > 0) {
-            const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
-            const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
-            displayLateMinutes = Math.max(0, rawLate - excessAtEnd);
-            if (displayLateMinutes > 0 && record.status === 'PRESENT') {
-              displayStatus = 'LATE';
-            }
-          }
+        const clockIn = new Date(record.clockInTime);
+        const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
+        const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+        const earlyArrival = Math.max(0, Math.round((schedStart.getTime() - clockIn.getTime()) / 60000));
+
+        if (justifiedLateRecordIds.has(record.id)) {
+          displayLateMinutes = 0;
+        } else if (rawLate > 0) {
+          const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
+          displayLateMinutes = Math.max(0, rawLate - excessAtEnd);
+          if (displayLateMinutes > 0 && record.status === 'PRESENT') displayStatus = 'LATE';
+        }
+
+        if (justifiedEarlyLeaveRecordIds.has(record.id)) {
+          displayEarlyLeaveMinutes = 0;
+        } else if (clockOut) {
+          const rawEarlyLeave = Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000));
+          displayEarlyLeaveMinutes = Math.max(0, rawEarlyLeave - earlyArrival);
+          if (displayEarlyLeaveMinutes > 0 && displayStatus === 'PRESENT') displayStatus = 'EARLY_LEAVE';
         }
       }
 
       return {
         ...record,
         lateMinutes: displayLateMinutes,
+        earlyLeaveMinutes: displayEarlyLeaveMinutes,
         status: displayStatus,
         employee: employeeMap.get(record.employeeId) || null,
       };
