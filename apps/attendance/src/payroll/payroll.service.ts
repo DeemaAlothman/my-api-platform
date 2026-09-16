@@ -209,6 +209,27 @@ export class PayrollService {
       return n;
     };
 
+    // التبريرات المعتمدة بالكامل (HR_APPROVED / MANAGER_APPROVED) على تأخير أو انصراف مبكر —
+    // أيام عليها هيك تبرير يجب أن تُستثنى تماماً من حساب رصيد الساعتين الشهري المشترك (لا تُحسب
+    // كمستهلكة ولا كمتجاوزة)، لأن التبرير المعتمد يعني صفر أثر لهذا اليوم إطلاقاً — بما فيه استهلاك
+    // الرصيد الذي يفترض أن يبقى متاحاً كاملاً لأيام أخرى غير مبررة بنفس الشهر
+    const justifiedAutoLeaveDates = new Set<string>();
+    if (salaryLinked) {
+      const justifiedIncidents: Array<{ date: Date; alertType: string }> = await this.prisma.$queryRawUnsafe(`
+        SELECT aa.date, aa."alertType"
+        FROM attendance.attendance_justifications aj
+        JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
+        WHERE aj."employeeId" = $1
+          AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
+          AND aa."alertType" IN ('LATE', 'EARLY_LEAVE')
+          AND aa.date >= $2 AND aa.date <= $3
+      `, employeeId, startDate, endDate);
+      for (const inc of justifiedIncidents) {
+        const dateKey: string = new Date(inc.date).toISOString().split('T')[0];
+        justifiedAutoLeaveDates.add(`${dateKey}|${inc.alertType}`);
+      }
+    }
+
     for (const leave of leavesWithType) {
       if (!leave.isHourlyLeave) {
         const d = new Date(leave.startDate);
@@ -221,6 +242,13 @@ export class PayrollService {
       }
 
       if (leave.isHourlyLeave) {
+        if (leave.source === 'TARDINESS_AUTO' || leave.source === 'EARLY_LEAVE_AUTO') {
+          const leaveDateKey: string = new Date(leave.startDate).toISOString().split('T')[0];
+          const expectedAlertType: string = leave.source === 'TARDINESS_AUTO' ? 'LATE' : 'EARLY_LEAVE';
+          if (justifiedAutoLeaveDates.has(`${leaveDateKey}|${expectedAlertType}`)) {
+            continue;
+          }
+        }
         const minutes = Math.round((leave.durationHours || 0) * 60);
         // حساب الزيادة عن الحد الشهري ديناميكياً (يتجاوز deductionInfo المخزونة إذا كانت null)
         const maxHoursPerMonth = leave.maxHoursPerMonth ?? null;
