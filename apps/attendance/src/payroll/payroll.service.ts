@@ -149,7 +149,11 @@ export class PayrollService {
     });
 
     // أيام العمل من الجدول الزمني
-    const { count: workingDays, workDaysArray, dailyWorkMinutes } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
+    const {
+      count: workingDays, workDaysArray, dailyWorkMinutes,
+      workStartTime: scheduleWorkStartTime, workEndTime: scheduleWorkEndTime,
+      lateToleranceMin: scheduleLateToleranceMin, shiftType: scheduleShiftType,
+    } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
 
     // D: جلب الإجازات المعتمدة مع نوعها (يحل محل استعلامَي approvedLeaves و unpaidDailyLeaves القديمَيْن)
     const leavesWithType = await this.prisma.$queryRawUnsafe(`
@@ -380,6 +384,56 @@ export class PayrollService {
         return sum + effectiveEarlyPending + effectiveLatePending;
       }, 0);
       autoLeaveOverLimitMinutes += attendancePendingMinutes;
+    }
+
+    // إصلاح السماحية الثابتة: سماحية التأخير الحالية (schedule.lateToleranceMin) كانت تُسامح أي تأخير
+    // ضمنها تلقائياً وبلا شرط — حتى لو الموظف طلع بالوقت العادي بدون أي تعويض فعلي. القاعدة الصحيحة:
+    // السماحية تُمنح فقط إذا عُوِّضت بالبقاء بعد الدوام بنفس القدر أو أكثر؛ وإلا تُحسم بالكامل.
+    // حساب مستقل بالكامل من وقت البصمة الخام + الجدول — صفر تعديل على أي بيانات مخزّنة، يضيف فقط
+    // الفجوة (دقائق السماحية غير المعوَّضة فعلياً) لقناة الحسم الموجودة أصلاً (autoLeaveOverLimitMinutes)
+    if (salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime) {
+      const excludedStatusesForTolerance = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+      const [toleranceStartH, toleranceStartM] = scheduleWorkStartTime.split(':').map(Number);
+      const [toleranceEndH, toleranceEndM] = scheduleWorkEndTime.split(':').map(Number);
+      let uncompensatedToleranceMinutes = 0;
+
+      for (const r of records) {
+        if (!(r as any).clockInTime) continue;
+        if (excludedStatusesForTolerance.has(r.status)) continue;
+
+        const recDate = new Date(r.date);
+        const schedStart = new Date(recDate);
+        schedStart.setHours(toleranceStartH, toleranceStartM, 0, 0);
+        let schedEnd = new Date(recDate);
+        schedEnd.setHours(toleranceEndH, toleranceEndM, 0, 0);
+        if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
+
+        const clockIn = new Date((r as any).clockInTime);
+        const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+        if (rawLate <= 0) continue;
+
+        const clockOutRaw = (r as any).clockOutTime;
+        const clockOut = clockOutRaw ? new Date(clockOutRaw) : null;
+        const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
+
+        // الدقائق اللي الآلية الحالية أصلاً بتعوّضها (الجزء الزائد عن السماحية، إذا تعوّض بالبقاء)
+        const beyondTolerance = Math.max(0, rawLate - scheduleLateToleranceMin);
+        const alreadyCompensatedByExisting = Math.min(beyondTolerance, excessAtEnd);
+        const remainingCompensation = Math.max(0, excessAtEnd - alreadyCompensatedByExisting);
+
+        // الدقائق ضمن نطاق السماحية (اللي كانت تُسامح تلقائياً بدون أي شرط سابقاً)
+        const withinTolerance = Math.min(rawLate, scheduleLateToleranceMin);
+        const newlyCompensated = Math.min(withinTolerance, remainingCompensation);
+        const uncompensated = withinTolerance - newlyCompensated;
+        if (uncompensated <= 0) continue;
+
+        // استثناء الأيام المبررة والمعتمدة بالكامل (نفس منطق كل حسومات التأخير الأخرى)
+        const dateKey = recDate.toISOString().split('T')[0];
+        if (justifiedAutoLeaveDates.has(`${dateKey}|LATE`)) continue;
+
+        uncompensatedToleranceMinutes += uncompensated;
+      }
+      autoLeaveOverLimitMinutes += uncompensatedToleranceMinutes;
     }
 
     // المجموع الإجمالي للإجازة الساعية (للعرض)
@@ -1085,7 +1139,11 @@ export class PayrollService {
     return count;
   }
 
-  private async getWorkingDaysInfo(employeeId: string, startDate: Date, endDate: Date): Promise<{ count: number; workDaysArray: number[]; dailyWorkMinutes: number }> {
+  private async getWorkingDaysInfo(employeeId: string, startDate: Date, endDate: Date): Promise<{
+    count: number; workDaysArray: number[]; dailyWorkMinutes: number;
+    workStartTime: string | null; workEndTime: string | null;
+    lateToleranceMin: number; shiftType: string;
+  }> {
     const schedule = await this.prisma.employeeSchedule.findFirst({
       where: {
         employeeId,
@@ -1115,7 +1173,13 @@ export class PayrollService {
       if (workDaysArray.includes(current.getDay())) count++;
       current.setDate(current.getDate() + 1);
     }
-    return { count, workDaysArray, dailyWorkMinutes };
+    return {
+      count, workDaysArray, dailyWorkMinutes,
+      workStartTime: schedule?.schedule?.workStartTime ?? null,
+      workEndTime: schedule?.schedule?.workEndTime ?? null,
+      lateToleranceMin: schedule?.schedule?.lateToleranceMin ?? 0,
+      shiftType: (schedule?.schedule as any)?.shiftType ?? 'DAY',
+    };
   }
 
   // ==================== Read ====================
