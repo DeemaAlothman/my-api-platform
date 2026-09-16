@@ -337,11 +337,47 @@ export class PayrollService {
         }
       }
 
+      // نفس الاستثناء بالضبط لكن للتأخير — التبريرات المعتمدة على التأخير كانت مستثناة فقط من
+      // totalLateMinutesEffective (عرض إحصائي)، ولم تكن تُستثنى من tardinessPendingDeductionMinutes
+      // الخام هنا، فيصير خصم فعلي غلط على حادثة تأخير معتمدة (نفس فجوة الانصراف المبكر أعلاه تماماً)
+      const pendingLateRecordIds: string[] = records
+        .filter(r => (r.tardinessPendingDeductionMinutes ?? 0) > 0)
+        .map(r => r.id);
+      const justifiedLatePendingByRecord = new Map<string, number>();
+      if (pendingLateRecordIds.length > 0) {
+        const lateJustificationsForPending: Array<{ attendanceRecordId: string; deductionMinutes: number | null }> =
+          await this.prisma.$queryRawUnsafe(`
+            SELECT aj."attendanceRecordId", aj."deductionMinutes"
+            FROM attendance.attendance_justifications aj
+            JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
+            WHERE aj."attendanceRecordId" = ANY($1::text[])
+              AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
+              AND aa."alertType" = 'LATE'
+          `, pendingLateRecordIds);
+
+        const pendingLateByRecord = new Map<string, number>();
+        for (const r of records) {
+          pendingLateByRecord.set(r.id, r.tardinessPendingDeductionMinutes ?? 0);
+        }
+
+        for (const j of lateJustificationsForPending) {
+          const fullPending: number = pendingLateByRecord.get(j.attendanceRecordId) ?? 0;
+          const justified: number = j.deductionMinutes ?? fullPending;
+          const previousJustified: number = justifiedLatePendingByRecord.get(j.attendanceRecordId) ?? 0;
+          justifiedLatePendingByRecord.set(j.attendanceRecordId, previousJustified + justified);
+        }
+      }
+
       const attendancePendingMinutes = records.reduce((sum, r) => {
         const rawEarlyPending = r.earlyLeavePendingDeductionMinutes ?? 0;
         const justifiedEarly = Math.min(rawEarlyPending, justifiedEarlyPendingByRecord.get(r.id) ?? 0);
         const effectiveEarlyPending = Math.max(0, rawEarlyPending - justifiedEarly);
-        return sum + effectiveEarlyPending + (r.tardinessPendingDeductionMinutes ?? 0);
+
+        const rawLatePending = r.tardinessPendingDeductionMinutes ?? 0;
+        const justifiedLate = Math.min(rawLatePending, justifiedLatePendingByRecord.get(r.id) ?? 0);
+        const effectiveLatePending = Math.max(0, rawLatePending - justifiedLate);
+
+        return sum + effectiveEarlyPending + effectiveLatePending;
       }, 0);
       autoLeaveOverLimitMinutes += attendancePendingMinutes;
     }
