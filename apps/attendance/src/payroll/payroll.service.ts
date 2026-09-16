@@ -280,29 +280,32 @@ export class PayrollService {
       // التبريرات المعتمدة للانصراف المبكر (HR_APPROVED / MANAGER_APPROVED) تُستثنى من الخصم المعلّق —
       // نفس منطق استثناء تبريرات التأخير أدناه (justifiedLateMinutes)، لأن الإغلاق اليومي حالياً
       // لا يستثني دقائق الانصراف المبكر المبررة عند حساب earlyLeavePendingDeductionMinutes (خلل منفصل بمهمة الإغلاق اليومي)
-      const pendingEarlyRecordIds = records
+      const pendingEarlyRecordIds: string[] = records
         .filter(r => (r.earlyLeavePendingDeductionMinutes ?? 0) > 0)
         .map(r => r.id);
       const justifiedEarlyPendingByRecord = new Map<string, number>();
       if (pendingEarlyRecordIds.length > 0) {
-        const earlyJustifications = await this.prisma.$queryRawUnsafe(`
-          SELECT aj."attendanceRecordId", aj."deductionMinutes"
-          FROM attendance.attendance_justifications aj
-          JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
-          WHERE aj."attendanceRecordId" = ANY($1::text[])
-            AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
-            AND aa."alertType" = 'EARLY_LEAVE'
-        `, pendingEarlyRecordIds) as Array<{ attendanceRecordId: string; deductionMinutes: number | null }>;
+        const earlyJustifications: Array<{ attendanceRecordId: string; deductionMinutes: number | null }> =
+          await this.prisma.$queryRawUnsafe(`
+            SELECT aj."attendanceRecordId", aj."deductionMinutes"
+            FROM attendance.attendance_justifications aj
+            JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
+            WHERE aj."attendanceRecordId" = ANY($1::text[])
+              AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
+              AND aa."alertType" = 'EARLY_LEAVE'
+          `, pendingEarlyRecordIds);
 
-        const pendingByRecord = new Map(records.map(r => [r.id, r.earlyLeavePendingDeductionMinutes ?? 0]));
+        const pendingByRecord = new Map<string, number>();
+        for (const r of records) {
+          pendingByRecord.set(r.id, r.earlyLeavePendingDeductionMinutes ?? 0);
+        }
+
         for (const j of earlyJustifications) {
-          const fullPending = pendingByRecord.get(j.attendanceRecordId) ?? 0;
+          const fullPending: number = pendingByRecord.get(j.attendanceRecordId) ?? 0;
           // deductionMinutes=NULL يعني مبرر كلياً (نفس منطق التأخير) → نستثني كامل الخصم المعلّق لذلك اليوم
-          const justified = j.deductionMinutes ?? fullPending;
-          justifiedEarlyPendingByRecord.set(
-            j.attendanceRecordId,
-            (justifiedEarlyPendingByRecord.get(j.attendanceRecordId) ?? 0) + justified,
-          );
+          const justified: number = j.deductionMinutes ?? fullPending;
+          const previousJustified: number = justifiedEarlyPendingByRecord.get(j.attendanceRecordId) ?? 0;
+          justifiedEarlyPendingByRecord.set(j.attendanceRecordId, previousJustified + justified);
         }
       }
 
