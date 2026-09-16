@@ -321,10 +321,85 @@ export class AttendanceRecordsService {
     const employeeIds = [...new Set(records.map((r: any) => r.employeeId))] as string[];
     const employeeMap = await this.getEmployeeNames(employeeIds);
 
-    const items = records.map((record: any) => ({
-      ...record,
-      employee: employeeMap.get(record.employeeId) || null,
-    }));
+    // عرض فقط — لا تعديل على أي بيانات مخزَّنة: نعيد حساب دقائق التأخير "الصحيحة" (سماحية تُمنح
+    // فقط عند تعويضها فعلياً بالبقاء بعد الدوام، لا مجاناً) للعرض بهذه الصفحة تحديداً، بنفس منطق
+    // تصحيح الراتب المطبَّق أصلاً — بدون أي UPDATE على attendance_records
+    const scheduleByEmployee = new Map<string, { workStartTime: string | null; workEndTime: string | null; shiftType: string }>();
+    if (employeeIds.length > 0) {
+      const employeeSchedules = await this.prisma.employeeSchedule.findMany({
+        where: { employeeId: { in: employeeIds }, isActive: true },
+        include: { schedule: true },
+        orderBy: { effectiveFrom: 'desc' },
+      });
+      for (const es of employeeSchedules) {
+        if (!scheduleByEmployee.has(es.employeeId)) {
+          scheduleByEmployee.set(es.employeeId, {
+            workStartTime: es.schedule?.workStartTime ?? null,
+            workEndTime: es.schedule?.workEndTime ?? null,
+            shiftType: (es.schedule as any)?.shiftType ?? 'DAY',
+          });
+        }
+      }
+    }
+
+    const justifiedLateRecordIds = new Set<string>();
+    const recordIds = records.map((r: any) => r.id);
+    if (recordIds.length > 0) {
+      const justified: Array<{ attendanceRecordId: string }> = await this.prisma.$queryRawUnsafe(`
+        SELECT aj."attendanceRecordId"
+        FROM attendance.attendance_justifications aj
+        JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
+        WHERE aj."attendanceRecordId" = ANY($1::text[])
+          AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
+          AND aa."alertType" = 'LATE'
+      `, recordIds);
+      for (const j of justified) justifiedLateRecordIds.add(j.attendanceRecordId);
+    }
+
+    const excludedStatusesForDisplay = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+
+    const items = records.map((record: any) => {
+      let displayLateMinutes = record.lateMinutes;
+      let displayStatus = record.status;
+
+      if (justifiedLateRecordIds.has(record.id)) {
+        displayLateMinutes = 0;
+      } else {
+        const sched = scheduleByEmployee.get(record.employeeId);
+        if (
+          record.clockInTime && sched?.workStartTime && sched?.workEndTime &&
+          sched.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status)
+        ) {
+          const [startH, startM] = sched.workStartTime.split(':').map(Number);
+          const [endH, endM] = sched.workEndTime.split(':').map(Number);
+          const recDate = new Date(record.date);
+          const schedStart = new Date(recDate);
+          schedStart.setHours(startH, startM, 0, 0);
+          let schedEnd = new Date(recDate);
+          schedEnd.setHours(endH, endM, 0, 0);
+          if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
+
+          const clockIn = new Date(record.clockInTime);
+          const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+
+          if (rawLate > 0) {
+            const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
+            const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
+            displayLateMinutes = Math.max(0, rawLate - excessAtEnd);
+            if (displayLateMinutes > 0 && record.status === 'PRESENT') {
+              displayStatus = 'LATE';
+            }
+          }
+        }
+      }
+
+      return {
+        ...record,
+        lateMinutes: displayLateMinutes,
+        status: displayStatus,
+        employee: employeeMap.get(record.employeeId) || null,
+      };
+    });
 
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
