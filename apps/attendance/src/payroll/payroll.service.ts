@@ -277,10 +277,41 @@ export class PayrollService {
     // دقائق التأخير/الخروج المبكر غير المبررة التي انتهى رصيدها ولم تُولَّد لها طلبات إجازة تلقائية
     // تُضاف مباشرة للخصم التلقائي لتظهر في عمودَي V (الإجازة التلقائية) وW (القيمة)
     if (salaryLinked) {
-      const attendancePendingMinutes = records.reduce(
-        (sum, r) => sum + (r.earlyLeavePendingDeductionMinutes ?? 0) + (r.tardinessPendingDeductionMinutes ?? 0),
-        0,
-      );
+      // التبريرات المعتمدة للانصراف المبكر (HR_APPROVED / MANAGER_APPROVED) تُستثنى من الخصم المعلّق —
+      // نفس منطق استثناء تبريرات التأخير أدناه (justifiedLateMinutes)، لأن الإغلاق اليومي حالياً
+      // لا يستثني دقائق الانصراف المبكر المبررة عند حساب earlyLeavePendingDeductionMinutes (خلل منفصل بمهمة الإغلاق اليومي)
+      const pendingEarlyRecordIds = records
+        .filter(r => (r.earlyLeavePendingDeductionMinutes ?? 0) > 0)
+        .map(r => r.id);
+      const justifiedEarlyPendingByRecord = new Map<string, number>();
+      if (pendingEarlyRecordIds.length > 0) {
+        const earlyJustifications = await this.prisma.$queryRawUnsafe(`
+          SELECT aj."attendanceRecordId", aj."deductionMinutes"
+          FROM attendance.attendance_justifications aj
+          JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
+          WHERE aj."attendanceRecordId" = ANY($1::text[])
+            AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
+            AND aa."alertType" = 'EARLY_LEAVE'
+        `, pendingEarlyRecordIds) as Array<{ attendanceRecordId: string; deductionMinutes: number | null }>;
+
+        const pendingByRecord = new Map(records.map(r => [r.id, r.earlyLeavePendingDeductionMinutes ?? 0]));
+        for (const j of earlyJustifications) {
+          const fullPending = pendingByRecord.get(j.attendanceRecordId) ?? 0;
+          // deductionMinutes=NULL يعني مبرر كلياً (نفس منطق التأخير) → نستثني كامل الخصم المعلّق لذلك اليوم
+          const justified = j.deductionMinutes ?? fullPending;
+          justifiedEarlyPendingByRecord.set(
+            j.attendanceRecordId,
+            (justifiedEarlyPendingByRecord.get(j.attendanceRecordId) ?? 0) + justified,
+          );
+        }
+      }
+
+      const attendancePendingMinutes = records.reduce((sum, r) => {
+        const rawEarlyPending = r.earlyLeavePendingDeductionMinutes ?? 0;
+        const justifiedEarly = Math.min(rawEarlyPending, justifiedEarlyPendingByRecord.get(r.id) ?? 0);
+        const effectiveEarlyPending = Math.max(0, rawEarlyPending - justifiedEarly);
+        return sum + effectiveEarlyPending + (r.tardinessPendingDeductionMinutes ?? 0);
+      }, 0);
       autoLeaveOverLimitMinutes += attendancePendingMinutes;
     }
 
