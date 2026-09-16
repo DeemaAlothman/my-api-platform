@@ -373,10 +373,19 @@ export class AttendanceRecordsService {
           const [startH, startM] = sched.workStartTime.split(':').map(Number);
           const [endH, endM] = sched.workEndTime.split(':').map(Number);
           const recDate = new Date(record.date);
-          const schedStart = new Date(recDate);
-          schedStart.setHours(startH, startM, 0, 0);
-          let schedEnd = new Date(recDate);
-          schedEnd.setHours(endH, endM, 0, 0);
+          // خادم الحاوية يشتغل بتوقيت UTC صافٍ (تأكدنا: docker exec ... date → UTC)، بينما
+          // "workStartTime/workEndTime" مقصودة بتوقيت العمل المحلي (UTC+3) — استخدام setHours()
+          // هنا كان يحسبها كـUTC مباشرة (فرق 3 ساعات غلط)، فيطلع rawLate سالباً دايماً = صفر خصم
+          // دائماً. الحل: بناء الوقت بـUTC صراحة مع طرح فرق التوقيت، بغض النظر عن توقيت السيرفر.
+          const BUSINESS_UTC_OFFSET_HOURS = 3;
+          const schedStart = new Date(Date.UTC(
+            recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+            startH - BUSINESS_UTC_OFFSET_HOURS, startM, 0, 0,
+          ));
+          let schedEnd = new Date(Date.UTC(
+            recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+            endH - BUSINESS_UTC_OFFSET_HOURS, endM, 0, 0,
+          ));
           if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
 
           const clockIn = new Date(record.clockInTime);

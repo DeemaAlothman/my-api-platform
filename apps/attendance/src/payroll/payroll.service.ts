@@ -402,10 +402,18 @@ export class PayrollService {
         if (excludedStatusesForTolerance.has(r.status)) continue;
 
         const recDate = new Date(r.date);
-        const schedStart = new Date(recDate);
-        schedStart.setHours(toleranceStartH, toleranceStartM, 0, 0);
-        let schedEnd = new Date(recDate);
-        schedEnd.setHours(toleranceEndH, toleranceEndM, 0, 0);
+        // خادم/حاوية الـattendance تشتغل بتوقيت UTC صافٍ (مؤكَّد)، بينما workStartTime/workEndTime
+        // مقصودة بتوقيت العمل المحلي (UTC+3) — setHours() كانت تحسبها كـUTC مباشرة (فرق 3 ساعات
+        // غلط)، فيطلع rawLate سالباً دائماً = صفر تأثير فعلي لهذا التصحيح. بناء الوقت بـUTC صراحة.
+        const TOLERANCE_BUSINESS_UTC_OFFSET_HOURS = 3;
+        const schedStart = new Date(Date.UTC(
+          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+          toleranceStartH - TOLERANCE_BUSINESS_UTC_OFFSET_HOURS, toleranceStartM, 0, 0,
+        ));
+        let schedEnd = new Date(Date.UTC(
+          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+          toleranceEndH - TOLERANCE_BUSINESS_UTC_OFFSET_HOURS, toleranceEndM, 0, 0,
+        ));
         if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
 
         const clockIn = new Date((r as any).clockInTime);
