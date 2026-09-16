@@ -400,10 +400,9 @@ export class AttendanceRecordsService {
 
         if (justifiedLateRecordIds.has(record.id)) {
           displayLateMinutes = 0;
-        } else if (rawLate > 0) {
+        } else {
           const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
           displayLateMinutes = Math.max(0, rawLate - excessAtEnd);
-          if (displayLateMinutes > 0 && record.status === 'PRESENT') displayStatus = 'LATE';
         }
 
         if (justifiedEarlyLeaveRecordIds.has(record.id)) {
@@ -411,7 +410,19 @@ export class AttendanceRecordsService {
         } else if (clockOut) {
           const rawEarlyLeave = Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000));
           displayEarlyLeaveMinutes = Math.max(0, rawEarlyLeave - earlyArrival);
-          if (displayEarlyLeaveMinutes > 0 && displayStatus === 'PRESENT') displayStatus = 'EARLY_LEAVE';
+        } else {
+          displayEarlyLeaveMinutes = 0;
+        }
+
+        // إعادة تحديد الحالة بالكامل من الرقمين المصحَّحين (لا تصحيح جزئي) — يطابق منطق
+        // المحرك الأساسي تماماً، ويرجّع الحالة لـ"حاضر" لو الدقائق صارت صفر (كانت تعلق على
+        // "خروج مبكر"/"متأخر" القديمة الخطأ من غير ما ترجع تنزل). لا تلمس حالات خاصة أخرى
+        // (إجازة جزئية، نصف يوم، إلخ) — تلك تحتفظ بتصنيفها الأصلي، فقط الدقائق تتصحح للعرض.
+        const normalStatusesForRederivation = new Set(['PRESENT', 'LATE', 'EARLY_LEAVE']);
+        if (normalStatusesForRederivation.has(record.status)) {
+          if (displayLateMinutes > 0) displayStatus = 'LATE';
+          else if (displayEarlyLeaveMinutes > 0) displayStatus = 'EARLY_LEAVE';
+          else displayStatus = 'PRESENT';
         }
       }
 
