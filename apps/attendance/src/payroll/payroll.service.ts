@@ -1456,7 +1456,17 @@ export class PayrollService {
     if (empIds.length > 0) {
       leaveTypeRows = await this.prisma.$queryRawUnsafe(`
         SELECT lr."employeeId", lt."nameAr" as "typeName", lt."isPaid",
-               SUM(GREATEST((LEAST(lr."endDate"::date, $3::date) - GREATEST(lr."startDate"::date, $2::date) + 1)::float, 0)) as days
+               SUM(
+                 CASE
+                   WHEN lr."startDate"::date = lr."endDate"::date THEN
+                     -- طلب يوم واحد (يشمل نصف اليوم) — استخدام totalDays المخزَّن مباشرة (0.5 أو 1)
+                     -- بدل حساب تاريخ النهاية-البداية+1 اللي كان يتجاهل isHalfDay ويحسب أي يوم كيوم كامل
+                     CASE WHEN lr."startDate"::date BETWEEN $2::date AND $3::date THEN lr."totalDays" ELSE 0 END
+                   ELSE
+                     -- طلب متعدد الأيام: نفس حساب تداخل التقويم القديم بدون أي تغيير
+                     GREATEST((LEAST(lr."endDate"::date, $3::date) - GREATEST(lr."startDate"::date, $2::date) + 1)::float, 0)
+                 END
+               ) as days
         FROM leaves.leave_requests lr
         JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
         WHERE lr."employeeId" = ANY($1::text[])
