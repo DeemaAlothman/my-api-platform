@@ -360,6 +360,35 @@ export class AttendanceRecordsService {
       }
     }
 
+    // إجازة ساعية يدوية معتمدة تُغطّي بداية/نهاية الدوام الرسمي بالضبط (غياب معتمد رسمياً، مش
+    // تأخير/خروج مبكر حقيقي) — مؤكَّد بحالة حقيقية: إجازة 16:00-18:00 (تطابق نهاية الدوام 18:00)
+    // كانت تُحسب خطأً كخروج مبكر قبل هذا الإصلاح. نفس منطق تصحيح الراتب بالضبط.
+    const morningCoverageByEmployeeDate = new Map<string, number>();
+    const eveningCoverageByEmployeeDate = new Map<string, number>();
+    if (employeeIds.length > 0) {
+      const manualHourlyLeaveRows: Array<{ employeeId: string; date: Date; startTime: string; endTime: string; durationHours: number }> =
+        await this.prisma.$queryRawUnsafe(`
+          SELECT lr."employeeId", lr."startDate" as date, lr."startTime", lr."endTime", lr."durationHours"
+          FROM leaves.leave_requests lr
+          WHERE lr."employeeId" = ANY($1::text[]) AND lr.status = 'APPROVED' AND lr."isHourlyLeave" = true
+            AND (lr.source IS NULL OR lr.source = 'EMPLOYEE_REQUEST')
+            AND lr."startTime" IS NOT NULL AND lr."endTime" IS NOT NULL
+        `, employeeIds);
+      for (const leave of manualHourlyLeaveRows) {
+        const sched = scheduleByEmployee.get(leave.employeeId);
+        if (!sched?.workStartTime || !sched?.workEndTime) continue;
+        const dk = new Date(leave.date).toISOString().split('T')[0];
+        const key = `${leave.employeeId}|${dk}`;
+        const minutes = Math.round((leave.durationHours || 0) * 60);
+        if (leave.startTime <= sched.workStartTime) {
+          morningCoverageByEmployeeDate.set(key, (morningCoverageByEmployeeDate.get(key) ?? 0) + minutes);
+        }
+        if (leave.endTime >= sched.workEndTime) {
+          eveningCoverageByEmployeeDate.set(key, (eveningCoverageByEmployeeDate.get(key) ?? 0) + minutes);
+        }
+      }
+    }
+
     const excludedStatusesForDisplay = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
 
     const items = records.map((record: any) => {
@@ -398,7 +427,10 @@ export class AttendanceRecordsService {
 
         const clockIn = new Date(record.clockInTime);
         const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
-        const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+        const coverageKey = `${record.employeeId}|${new Date(record.date).toISOString().split('T')[0]}`;
+        const morningCoverage = morningCoverageByEmployeeDate.get(coverageKey) ?? 0;
+        const eveningCoverage = eveningCoverageByEmployeeDate.get(coverageKey) ?? 0;
+        const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000) - morningCoverage);
         const earlyArrival = Math.max(0, Math.round((schedStart.getTime() - clockIn.getTime()) / 60000));
 
         if (justifiedLateRecordIds.has(record.id)) {
@@ -412,7 +444,7 @@ export class AttendanceRecordsService {
         if (justifiedEarlyLeaveRecordIds.has(record.id)) {
           displayEarlyLeaveMinutes = 0;
         } else if (clockOut) {
-          const rawEarlyLeave = Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000));
+          const rawEarlyLeave = Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000) - eveningCoverage);
           const earlyLeaveForgiven = Math.min(earlyArrival, GRACE_PERIOD_MINUTES);
           displayEarlyLeaveMinutes = Math.max(0, rawEarlyLeave - earlyLeaveForgiven);
         } else {
@@ -650,6 +682,31 @@ export class AttendanceRecordsService {
     });
     const sched = employeeSchedule?.schedule;
 
+    // إجازة ساعية يدوية معتمدة بهذا اليوم — لازم نطرحها من التأخير/الخروج المبكر الخام قبل
+    // حساب السماحية، تماماً كما بصفحة سجل الحضور وحساب الراتب (fetched early so it can offset
+    // the raw late/early-leave minutes below; also reused for display in section 3 further down)
+    const manualHourlyLeaveRowsForDay: Array<{
+      id: string; startTime: string; endTime: string; durationHours: number; status: string; reason: string | null; typeName: string;
+    }> = await this.prisma.$queryRawUnsafe(`
+      SELECT lr.id, lr."startTime", lr."endTime", lr."durationHours", lr.status, lr.reason, lt."nameAr" as "typeName"
+      FROM leaves.leave_requests lr
+      JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+      WHERE lr."employeeId" = $1 AND lr."startDate"::date = $2::date
+        AND lr."isHourlyLeave" = true
+        AND (lr.source IS NULL OR lr.source = 'EMPLOYEE_REQUEST')
+      ORDER BY lr."createdAt" ASC
+    `, employeeId, dateStr);
+    let morningLeaveCoverageMinutes = 0;
+    let eveningLeaveCoverageMinutes = 0;
+    if (sched?.workStartTime && sched?.workEndTime) {
+      for (const leave of manualHourlyLeaveRowsForDay) {
+        if (leave.status !== 'APPROVED') continue;
+        const minutes = Math.round((leave.durationHours || 0) * 60);
+        if (leave.startTime <= sched.workStartTime) morningLeaveCoverageMinutes += minutes;
+        if (leave.endTime >= sched.workEndTime) eveningLeaveCoverageMinutes += minutes;
+      }
+    }
+
     // إعادة حساب التأخير/الخروج المبكر بنفس معادلة صفحة سجل الحضور بالضبط (سماحية بحد أقصى 15
     // دقيقة + فرق توقيت UTC+3) — عشان هاد التقرير يطابق الصفحة والراتب تماماً
     let computedLateMinutes = (record as any).lateMinutes ?? 0;
@@ -675,10 +732,10 @@ export class AttendanceRecordsService {
 
       const clockIn = new Date((record as any).clockInTime);
       const clockOut = (record as any).clockOutTime ? new Date((record as any).clockOutTime) : null;
-      const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+      const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000) - morningLeaveCoverageMinutes);
       const earlyArrival = Math.max(0, Math.round((schedStart.getTime() - clockIn.getTime()) / 60000));
       const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
-      const rawEarlyLeave = clockOut ? Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000)) : 0;
+      const rawEarlyLeave = clockOut ? Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000) - eveningLeaveCoverageMinutes) : 0;
 
       computedLateMinutes = Math.max(0, rawLate - Math.min(excessAtEnd, GRACE_PERIOD_MINUTES));
       computedEarlyLeaveMinutes = Math.max(0, rawEarlyLeave - Math.min(earlyArrival, GRACE_PERIOD_MINUTES));
@@ -718,16 +775,9 @@ export class AttendanceRecordsService {
       ORDER BY "createdAt" ASC
     `, employeeId, dateStr) as Array<{ source: string; durationHours: number; status: string }>;
 
-    // 3) إجازة ساعية يدوية (طلبها الموظف بنفسه) بوقتها بالضبط
-    const manualHourlyLeaveRows = await this.prisma.$queryRawUnsafe(`
-      SELECT lr.id, lr."startTime", lr."endTime", lr."durationHours", lr.status, lr.reason, lt."nameAr" as "typeName"
-      FROM leaves.leave_requests lr
-      JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
-      WHERE lr."employeeId" = $1 AND lr."startDate"::date = $2::date
-        AND lr."isHourlyLeave" = true
-        AND (lr.source IS NULL OR lr.source = 'EMPLOYEE_REQUEST')
-      ORDER BY lr."createdAt" ASC
-    `, employeeId, dateStr);
+    // 3) إجازة ساعية يدوية (طلبها الموظف بنفسه) بوقتها بالضبط — تم جلبها مسبقاً بالأعلى
+    // (manualHourlyLeaveRowsForDay) واستُخدمت لخصم التغطية من التأخير/الخروج المبكر الخام
+    const manualHourlyLeaveRows = manualHourlyLeaveRowsForDay;
 
     // 4) طلب مهمة عمل (داخلية/خارجية) يشمل هذا اليوم
     const missionRequestRows = await this.prisma.$queryRawUnsafe(`

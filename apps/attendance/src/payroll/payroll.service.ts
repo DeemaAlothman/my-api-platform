@@ -339,6 +339,32 @@ export class PayrollService {
       const maxHoursPerMonth = Number(hourlyTypeRows[0]?.maxHoursPerMonth ?? 2);
       let remainingPoolMinutes = maxHoursPerMonth * 60;
 
+      // إجازة ساعية يدوية معتمدة (طلبها الموظف بنفسه) تُغطّي بداية أو نهاية الدوام الرسمي بالضبط —
+      // تُطرح كاملة من التأخير/الخروج المبكر الخام قبل أي حساب، لأنها غياب معتمد رسمياً وليست
+      // "خروج مبكر" أو "تأخير" حقيقي. مؤكَّد بحالة حقيقية: إجازة ساعية 16:00-18:00 (تطابق نهاية
+      // الدوام 18:00) اعتُبرت خطأً 109 دقيقة "خروج مبكر" قبل هذا الإصلاح.
+      const manualHourlyLeaveRows: Array<{ date: Date; startTime: string; endTime: string; durationHours: number }> =
+        await this.prisma.$queryRawUnsafe(`
+          SELECT lr."startDate" as date, lr."startTime", lr."endTime", lr."durationHours"
+          FROM leaves.leave_requests lr
+          WHERE lr."employeeId" = $1 AND lr.status = 'APPROVED' AND lr."isHourlyLeave" = true
+            AND (lr.source IS NULL OR lr.source = 'EMPLOYEE_REQUEST')
+            AND lr."startDate" >= $2 AND lr."startDate" <= $3
+            AND lr."startTime" IS NOT NULL AND lr."endTime" IS NOT NULL
+        `, employeeId, startDate, endDate);
+      const morningCoverageByDate = new Map<string, number>();
+      const eveningCoverageByDate = new Map<string, number>();
+      for (const leave of manualHourlyLeaveRows) {
+        const dk = new Date(leave.date).toISOString().split('T')[0];
+        const minutes = Math.round((leave.durationHours || 0) * 60);
+        if (leave.startTime <= scheduleWorkStartTime) {
+          morningCoverageByDate.set(dk, (morningCoverageByDate.get(dk) ?? 0) + minutes);
+        }
+        if (leave.endTime >= scheduleWorkEndTime) {
+          eveningCoverageByDate.set(dk, (eveningCoverageByDate.get(dk) ?? 0) + minutes);
+        }
+      }
+
       const sortedRecords = [...records].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       );
@@ -367,12 +393,17 @@ export class PayrollService {
         const clockOutRaw = (r as any).clockOutTime;
         const clockOut = clockOutRaw ? new Date(clockOutRaw) : null;
 
-        const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+        const dateKey = recDate.toISOString().split('T')[0];
+
+        const rawLateBeforeLeave = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
         const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
         const earlyArrival = Math.max(0, Math.round((schedStart.getTime() - clockIn.getTime()) / 60000));
-        const rawEarlyLeave = clockOut ? Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000)) : 0;
+        const rawEarlyLeaveBeforeLeave = clockOut ? Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000)) : 0;
 
-        const dateKey = recDate.toISOString().split('T')[0];
+        // طرح الإجازة الساعية اليدوية المعتمدة المطابقة لبداية/نهاية الدوام (غياب معتمد رسمياً)
+        const rawLate = Math.max(0, rawLateBeforeLeave - (morningCoverageByDate.get(dateKey) ?? 0));
+        const rawEarlyLeave = Math.max(0, rawEarlyLeaveBeforeLeave - (eveningCoverageByDate.get(dateKey) ?? 0));
+
         const isJustifiedLateDay = justifiedAutoLeaveDates.has(`${dateKey}|LATE`);
         const isJustifiedEarlyLeaveDay = justifiedAutoLeaveDates.has(`${dateKey}|EARLY_LEAVE`);
 
