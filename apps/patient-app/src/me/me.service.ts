@@ -27,6 +27,11 @@ export class MeService {
     return this.erp.getPatientAppointments(erpPatientId);
   }
 
+  // جلسات المريض الفيزيائية من ERP — ليختار المريض جلسة منها ويرى تمارينها (مكافئ الـendpoint الإداري)
+  async getSessions(erpPatientId: string) {
+    return this.erp.getPatientSessions(erpPatientId);
+  }
+
   async listSessionExercises(erpPatientId: string, erpSessionId: string, patientAccountId: string) {
     const session = await this.erp.getSession(erpSessionId);
     if (!session.exists || session.patientId !== erpPatientId) {
