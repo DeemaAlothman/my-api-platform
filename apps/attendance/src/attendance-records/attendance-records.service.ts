@@ -389,6 +389,25 @@ export class AttendanceRecordsService {
       }
     }
 
+    // إجازة نصف يوم معتمدة (صبح أو بعد الظهر): نهاية/بداية الدوام المطلوبة لهذا اليوم تصير
+    // منتصف الدوام فقط، مش الوقت الكامل — نفس منطق تصحيح الراتب بالضبط. مؤكَّد بحالة حقيقية:
+    // موظفة عندها إجازة نصف يوم بعد الظهر معتمدة، واعتُبر خروجها بعد الصبح "خروج مبكر" 256
+    // دقيقة (بمقارنته بنهاية الدوام الكامل) بدل ~30 دقيقة فقط (بمقارنته بمنتصف الدوام).
+    const halfDayLeaveByEmployeeDate = new Map<string, 'MORNING' | 'AFTERNOON'>();
+    if (employeeIds.length > 0) {
+      const halfDayLeaveRows: Array<{ employeeId: string; date: Date; halfDayPeriod: 'MORNING' | 'AFTERNOON' }> =
+        await this.prisma.$queryRawUnsafe(`
+          SELECT lr."employeeId", lr."startDate" as date, lr."halfDayPeriod"
+          FROM leaves.leave_requests lr
+          WHERE lr."employeeId" = ANY($1::text[]) AND lr.status = 'APPROVED' AND lr."isHalfDay" = true
+            AND lr."halfDayPeriod" IS NOT NULL
+        `, employeeIds);
+      for (const leave of halfDayLeaveRows) {
+        const dk = new Date(leave.date).toISOString().split('T')[0];
+        halfDayLeaveByEmployeeDate.set(`${leave.employeeId}|${dk}`, leave.halfDayPeriod);
+      }
+    }
+
     const excludedStatusesForDisplay = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
 
     const items = records.map((record: any) => {
@@ -415,7 +434,7 @@ export class AttendanceRecordsService {
         // سماحية موحّدة (بحد أقصى) للتعويض بين الدخول والخروج — بطلب صريح، مش تعويض غير محدود:
         // لو جا متأخر ساعة وبقي بعد الدوام ساعة، ينسامح منها 15 دقيقة بس، والباقي يُحسب تأخير.
         const GRACE_PERIOD_MINUTES = 15;
-        const schedStart = new Date(Date.UTC(
+        let schedStart = new Date(Date.UTC(
           recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
           startH - BUSINESS_UTC_OFFSET_HOURS, startM, 0, 0,
         ));
@@ -424,6 +443,20 @@ export class AttendanceRecordsService {
           endH - BUSINESS_UTC_OFFSET_HOURS, endM, 0, 0,
         ));
         if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
+
+        const dateKeyForHalfDay = new Date(record.date).toISOString().split('T')[0];
+        const halfDayPeriod = halfDayLeaveByEmployeeDate.get(`${record.employeeId}|${dateKeyForHalfDay}`);
+        if (halfDayPeriod === 'AFTERNOON' || halfDayPeriod === 'MORNING') {
+          const midTotalMin = Math.floor(((startH * 60 + startM) + (endH * 60 + endM)) / 2);
+          const midH = Math.floor(midTotalMin / 60);
+          const midM = midTotalMin % 60;
+          const midShift = new Date(Date.UTC(
+            recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+            midH - BUSINESS_UTC_OFFSET_HOURS, midM, 0, 0,
+          ));
+          if (halfDayPeriod === 'AFTERNOON') schedEnd = midShift;
+          else schedStart = midShift;
+        }
 
         const clockIn = new Date(record.clockInTime);
         const clockOut = record.clockOutTime ? new Date(record.clockOutTime) : null;
@@ -707,6 +740,17 @@ export class AttendanceRecordsService {
       }
     }
 
+    // إجازة نصف يوم معتمدة (صبح أو بعد الظهر) بهذا اليوم — نفس منطق تصحيح الراتب وصفحة السجل
+    // بالضبط: الدوام المطلوب لهذا اليوم يصير حتى منتصف الدوام فقط
+    const halfDayLeaveRowsForDay: Array<{ halfDayPeriod: 'MORNING' | 'AFTERNOON' }> = await this.prisma.$queryRawUnsafe(`
+      SELECT lr."halfDayPeriod"
+      FROM leaves.leave_requests lr
+      WHERE lr."employeeId" = $1 AND lr."startDate"::date = $2::date
+        AND lr.status = 'APPROVED' AND lr."isHalfDay" = true AND lr."halfDayPeriod" IS NOT NULL
+      LIMIT 1
+    `, employeeId, dateStr);
+    const halfDayPeriodForDay = halfDayLeaveRowsForDay[0]?.halfDayPeriod;
+
     // إعادة حساب التأخير/الخروج المبكر بنفس معادلة صفحة سجل الحضور بالضبط (سماحية بحد أقصى 15
     // دقيقة + فرق توقيت UTC+3) — عشان هاد التقرير يطابق الصفحة والراتب تماماً
     let computedLateMinutes = (record as any).lateMinutes ?? 0;
@@ -720,7 +764,7 @@ export class AttendanceRecordsService {
     ) {
       const [startH, startM] = sched.workStartTime.split(':').map(Number);
       const [endH, endM] = sched.workEndTime.split(':').map(Number);
-      const schedStart = new Date(Date.UTC(
+      let schedStart = new Date(Date.UTC(
         recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
         startH - BUSINESS_UTC_OFFSET_HOURS, startM, 0, 0,
       ));
@@ -729,6 +773,18 @@ export class AttendanceRecordsService {
         endH - BUSINESS_UTC_OFFSET_HOURS, endM, 0, 0,
       ));
       if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
+
+      if (halfDayPeriodForDay === 'AFTERNOON' || halfDayPeriodForDay === 'MORNING') {
+        const midTotalMin = Math.floor(((startH * 60 + startM) + (endH * 60 + endM)) / 2);
+        const midH = Math.floor(midTotalMin / 60);
+        const midM = midTotalMin % 60;
+        const midShift = new Date(Date.UTC(
+          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+          midH - BUSINESS_UTC_OFFSET_HOURS, midM, 0, 0,
+        ));
+        if (halfDayPeriodForDay === 'AFTERNOON') schedEnd = midShift;
+        else schedStart = midShift;
+      }
 
       const clockIn = new Date((record as any).clockInTime);
       const clockOut = (record as any).clockOutTime ? new Date((record as any).clockOutTime) : null;
@@ -818,6 +874,7 @@ export class AttendanceRecordsService {
         status: r.status,
       })),
       manualHourlyLeave: manualHourlyLeaveRows,
+      halfDayLeavePeriod: halfDayPeriodForDay ?? null,
       businessMission: missionRequestRows.map(m => ({
         id: m.id, status: m.status,
         missionType: m.details?.missionType ?? null,

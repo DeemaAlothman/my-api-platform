@@ -365,6 +365,27 @@ export class PayrollService {
         }
       }
 
+      // إجازة نصف يوم معتمدة (صبح أو بعد الظهر): نص الدوام المطلوب لهذا اليوم يصير حتى منتصف
+      // الدوام فقط، مش الوقت الكامل — لأنها إجازة معتمدة رسمياً على النصف الثاني. مؤكَّد بحالة
+      // حقيقية: موظفة عندها إجازة نصف يوم بعد الظهر اعتُبر خروجها بعد إنهاء الصبح "خروج مبكر"
+      // بمقارنته بنهاية الدوام الكامل (256 دقيقة) بدل منتصف الدوام (~30 دقيقة فقط).
+      const halfDayLeaveByDate = new Map<string, 'MORNING' | 'AFTERNOON'>();
+      const halfDayLeaveRows: Array<{ date: Date; halfDayPeriod: 'MORNING' | 'AFTERNOON' }> =
+        await this.prisma.$queryRawUnsafe(`
+          SELECT lr."startDate" as date, lr."halfDayPeriod"
+          FROM leaves.leave_requests lr
+          WHERE lr."employeeId" = $1 AND lr.status = 'APPROVED' AND lr."isHalfDay" = true
+            AND lr."halfDayPeriod" IS NOT NULL
+            AND lr."startDate" >= $2 AND lr."startDate" <= $3
+        `, employeeId, startDate, endDate);
+      for (const leave of halfDayLeaveRows) {
+        const dk = new Date(leave.date).toISOString().split('T')[0];
+        halfDayLeaveByDate.set(dk, leave.halfDayPeriod);
+      }
+      const midShiftTotalMin = Math.floor(((schedStartH * 60 + schedStartM) + (schedEndH * 60 + schedEndM)) / 2);
+      const midShiftH = Math.floor(midShiftTotalMin / 60);
+      const midShiftM = midShiftTotalMin % 60;
+
       const sortedRecords = [...records].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       );
@@ -379,7 +400,7 @@ export class PayrollService {
         if (excludedStatusesForAttendanceRecalc.has(r.status)) continue;
 
         const recDate = new Date(r.date);
-        const schedStart = new Date(Date.UTC(
+        let schedStart = new Date(Date.UTC(
           recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
           schedStartH - BUSINESS_UTC_OFFSET_HOURS, schedStartM, 0, 0,
         ));
@@ -389,11 +410,25 @@ export class PayrollService {
         ));
         if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
 
+        const dateKey = recDate.toISOString().split('T')[0];
+        const halfDayPeriod = halfDayLeaveByDate.get(dateKey);
+        if (halfDayPeriod === 'AFTERNOON') {
+          // إجازة بعد الظهر معتمدة: الدوام المطلوب ينتهي عند منتصف الدوام
+          schedEnd = new Date(Date.UTC(
+            recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+            midShiftH - BUSINESS_UTC_OFFSET_HOURS, midShiftM, 0, 0,
+          ));
+        } else if (halfDayPeriod === 'MORNING') {
+          // إجازة صبح معتمدة: الدوام المطلوب يبدأ من منتصف الدوام
+          schedStart = new Date(Date.UTC(
+            recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+            midShiftH - BUSINESS_UTC_OFFSET_HOURS, midShiftM, 0, 0,
+          ));
+        }
+
         const clockIn = new Date((r as any).clockInTime);
         const clockOutRaw = (r as any).clockOutTime;
         const clockOut = clockOutRaw ? new Date(clockOutRaw) : null;
-
-        const dateKey = recDate.toISOString().split('T')[0];
 
         const rawLateBeforeLeave = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
         const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
