@@ -939,11 +939,13 @@ export class PayrollService {
       absentDays,
       absentUnjustified,
       lateDays,
-      totalLateMinutes,
-      earlyLeaveDays,
       // القيمة المحفوظة تعكس الحساب المصحَّح (يطابق صفحة سجل الحضور) حين يتوفر، بدل الرقم الخام
       // القديم (غير موثوق بسبب خلل التوقيت بمحرك الحضور الأساسي) — هذا الحقل يُقرأ مباشرة بتصدير
-      // الإكسل. المتغيّر الخام totalEarlyLeaveMinutes يبقى بلا تغيير بباقي الحسابات الداخلية.
+      // الإكسل. المتغيّر الخام totalLateMinutes يبقى بلا تغيير بباقي الحسابات الداخلية.
+      totalLateMinutes: payrollCorrections.correctedTotalLateMinutes ?? totalLateMinutes,
+      earlyLeaveDays,
+      // نفس المنطق: القيمة المحفوظة تعكس الحساب المصحَّح بدل الرقم الخام. المتغيّر الخام
+      // totalEarlyLeaveMinutes يبقى بلا تغيير بباقي الحسابات الداخلية.
       totalEarlyLeaveMinutes: payrollCorrections.correctedTotalEarlyLeaveMinutes ?? totalEarlyLeaveMinutes,
       breakOverLimitMinutes,
       overtimeMinutes,
@@ -1024,7 +1026,9 @@ export class PayrollService {
         : null,
       deductionBreakdown: {
         tardiness: {
-          totalMinutes: totalLateMinutes,
+          // نفس منطق الحقل المحفوظ بالأعلى: الرقم المصحَّح حين يتوفر، بدل الرقم الخام —
+          // عشان يطابق الإكسل وصفحة سجل الحضور تماماً
+          totalMinutes: payrollCorrections.correctedTotalLateMinutes ?? totalLateMinutes,
           compensatedByWork: totalCompensationMinutes,
           justified: justifiedLateMinutes,
           coveredByHourlyBalance: tardinessOffsetMinutesPayroll,
@@ -1034,7 +1038,7 @@ export class PayrollService {
           amount: parseFloat(lateDeductionAmount.toFixed(2)),
         },
         earlyLeave: {
-          totalMinutes: totalEarlyLeaveMinutes,
+          totalMinutes: payrollCorrections.correctedTotalEarlyLeaveMinutes ?? totalEarlyLeaveMinutes,
           deductibleMinutes: earlyLeaveDeductionMinutes,
           deductedAsDays: earlyLeaveDeductionDaysFromTiers,
           amount: parseFloat(earlyLeaveDeductionAmount.toFixed(2)),
