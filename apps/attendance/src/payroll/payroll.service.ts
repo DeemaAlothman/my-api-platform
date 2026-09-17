@@ -155,6 +155,11 @@ export class PayrollService {
       lateToleranceMin: scheduleLateToleranceMin, shiftType: scheduleShiftType,
     } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
 
+    // إجماليات مصحَّحة ومتّسقة (نفس معادلة صفحة سجل الحضور بالضبط) — تُستخدم لاستبدال حقلي
+    // totalLateMinutesEffective/totalEarlyLeaveMinutes القديمين وقت الحفظ، عشان يطابق الإكسل
+    // ما يظهر بصفحة العرض تماماً. تُملأ لاحقاً بالكتلتين المخصَّصتين للتأخير والانصراف المبكر.
+    const payrollCorrections: { correctedTotalLateMinutes?: number; correctedTotalEarlyLeaveMinutes?: number } = {};
+
     // D: جلب الإجازات المعتمدة مع نوعها (يحل محل استعلامَي approvedLeaves و unpaidDailyLeaves القديمَيْن)
     const leavesWithType = await this.prisma.$queryRawUnsafe(`
       SELECT lr."startDate", lr."endDate", lr."totalDays",
@@ -374,6 +379,10 @@ export class PayrollService {
       const [toleranceStartH, toleranceStartM] = scheduleWorkStartTime.split(':').map(Number);
       const [toleranceEndH, toleranceEndM] = scheduleWorkEndTime.split(':').map(Number);
       let uncompensatedToleranceMinutes = 0;
+      // إجمالي التأخير "الفعّال" المتّسق (نفس صيغة صفحة العرض بالضبط) — يُستخدم لاستبدال
+      // totalLateMinutesEffective القديم (كان لا يطبّق التعويض بالبقاء، فقط يطرح المبرَّر) عشان
+      // يطابق تصدير الإكسل ما يظهر بصفحة سجل الحضور تماماً
+      let correctedTotalLateMinutes = 0;
 
       for (const r of records) {
         if (!(r as any).clockInTime) continue;
@@ -402,6 +411,15 @@ export class PayrollService {
         const clockOut = clockOutRaw ? new Date(clockOutRaw) : null;
         const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
 
+        const dateKey = recDate.toISOString().split('T')[0];
+        const isJustifiedLateDay = justifiedAutoLeaveDates.has(`${dateKey}|LATE`);
+
+        // إجمالي التأخير الفعّال المتّسق لهذا اليوم (يطابق صفحة العرض بالضبط): التأخير الخام
+        // مطروحاً منه أي دقائق زيادة بقيها بعد الدوام، صفر لو اليوم مبرّر ومعتمد بالكامل
+        correctedTotalLateMinutes += isJustifiedLateDay ? 0 : Math.max(0, rawLate - excessAtEnd);
+
+        if (isJustifiedLateDay) continue;
+
         // الدقائق اللي الآلية الحالية أصلاً بتعوّضها (الجزء الزائد عن السماحية، إذا تعوّض بالبقاء)
         const beyondTolerance = Math.max(0, rawLate - scheduleLateToleranceMin);
         const alreadyCompensatedByExisting = Math.min(beyondTolerance, excessAtEnd);
@@ -413,13 +431,10 @@ export class PayrollService {
         const uncompensated = withinTolerance - newlyCompensated;
         if (uncompensated <= 0) continue;
 
-        // استثناء الأيام المبررة والمعتمدة بالكامل (نفس منطق كل حسومات التأخير الأخرى)
-        const dateKey = recDate.toISOString().split('T')[0];
-        if (justifiedAutoLeaveDates.has(`${dateKey}|LATE`)) continue;
-
         uncompensatedToleranceMinutes += uncompensated;
       }
       autoLeaveOverLimitMinutes += uncompensatedToleranceMinutes;
+      (payrollCorrections as any).correctedTotalLateMinutes = correctedTotalLateMinutes;
     }
 
     // إعادة حساب الانصراف المبكر بالكامل بشكل مستقل ومتّسق — استبدال كامل لما كان يعتمد على
@@ -447,6 +462,7 @@ export class PayrollService {
       );
 
       let consistentEarlyLeaveOverLimitMinutes = 0;
+      let correctedTotalEarlyLeaveMinutes = 0;
       for (const r of sortedRecords) {
         if (!(r as any).clockOutTime) continue;
         if (excludedStatusesForEarlyLeave.has(r.status)) continue;
@@ -470,13 +486,19 @@ export class PayrollService {
         if (effectiveEarlyLeave <= 0) continue;
 
         const dateKey = recDate.toISOString().split('T')[0];
-        if (justifiedAutoLeaveDates.has(`${dateKey}|EARLY_LEAVE`)) continue;
+        const isJustifiedEarlyLeaveDay = justifiedAutoLeaveDates.has(`${dateKey}|EARLY_LEAVE`);
+
+        // إجمالي الانصراف المبكر الفعّال المتّسق (يطابق صفحة العرض بالضبط)، صفر لو اليوم مبرَّر
+        correctedTotalEarlyLeaveMinutes += isJustifiedEarlyLeaveDay ? 0 : effectiveEarlyLeave;
+
+        if (isJustifiedEarlyLeaveDay) continue;
 
         const consumedFromPool = Math.min(effectiveEarlyLeave, remainingPoolMinutes);
         remainingPoolMinutes -= consumedFromPool;
         consistentEarlyLeaveOverLimitMinutes += effectiveEarlyLeave - consumedFromPool;
       }
       autoLeaveOverLimitMinutes += consistentEarlyLeaveOverLimitMinutes;
+      payrollCorrections.correctedTotalEarlyLeaveMinutes = correctedTotalEarlyLeaveMinutes;
     }
 
     // المجموع الإجمالي للإجازة الساعية (للعرض)
@@ -738,7 +760,12 @@ export class PayrollService {
     const unpaidDailyDeductionAmount = totalUnpaidDailyDays * dailyRate;
 
     const totalCompensationMinutes = records.reduce((sum, r) => sum + (r.lateCompensatedMinutes ?? 0), 0);
-    const totalLateMinutesEffective = Math.max(0, totalLateMinutes - justifiedLateMinutes);
+    // القيمة المصحَّحة (نفس معادلة صفحة سجل الحضور) تُستخدم إذا توفّرت — تطابق تصدير الإكسل مع
+    // الصفحة تماماً. الحساب القديم (طرح المبرَّر فقط، بلا تعويض بالبقاء) يبقى fallback فقط
+    // لموظفي الوردية المرنة أو حين لا يتوفر جدول دوام واضح.
+    const totalLateMinutesEffective = payrollCorrections.correctedTotalLateMinutes !== undefined
+      ? payrollCorrections.correctedTotalLateMinutes
+      : Math.max(0, totalLateMinutes - justifiedLateMinutes);
 
     // الشرائح اليومية مُعطَّلة — التأخير والخروج المبكر يُحسمان حصراً عبر autoLeaveOverLimitMinutes (دقيقة بدقيقة)
     lateDeductionMinutes = 0;
@@ -945,7 +972,10 @@ export class PayrollService {
       lateDays,
       totalLateMinutes,
       earlyLeaveDays,
-      totalEarlyLeaveMinutes,
+      // القيمة المحفوظة تعكس الحساب المصحَّح (يطابق صفحة سجل الحضور) حين يتوفر، بدل الرقم الخام
+      // القديم (غير موثوق بسبب خلل التوقيت بمحرك الحضور الأساسي) — هذا الحقل يُقرأ مباشرة بتصدير
+      // الإكسل. المتغيّر الخام totalEarlyLeaveMinutes يبقى بلا تغيير بباقي الحسابات الداخلية.
+      totalEarlyLeaveMinutes: payrollCorrections.correctedTotalEarlyLeaveMinutes ?? totalEarlyLeaveMinutes,
       breakOverLimitMinutes,
       overtimeMinutes,
       totalWorkedMinutes,
