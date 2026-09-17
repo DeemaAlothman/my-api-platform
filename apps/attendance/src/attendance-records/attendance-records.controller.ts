@@ -84,6 +84,12 @@ export class AttendanceRecordsController {
     return this.service.getRawStamps(id);
   }
 
+  @Get(':id/day-details')
+  @Permission('attendance.records.read')
+  getDayDetails(@Param('id') id: string) {
+    return this.service.getDayDetails(id);
+  }
+
   @Patch('raw-stamps/:logId/interpretation')
   @Permission('attendance.records.update-manual')
   updateStampInterpretation(

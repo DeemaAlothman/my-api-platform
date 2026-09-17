@@ -636,6 +636,148 @@ export class AttendanceRecordsService {
     );
   }
 
+  // ─── تقرير تفصيلي شامل ليوم واحد — يجمع كل أسباب الحسم/عدمه بمكان واحد بدون غموض ─────────────
+  async getDayDetails(recordId: string) {
+    const record = await this.findOne(recordId);
+    const employeeId = (record as any).employeeId as string;
+    const recDate = new Date((record as any).date);
+    const dateStr = recDate.toISOString().split('T')[0];
+
+    const employeeSchedule = await this.prisma.employeeSchedule.findFirst({
+      where: { employeeId, isActive: true },
+      include: { schedule: true },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    const sched = employeeSchedule?.schedule;
+
+    // إعادة حساب التأخير/الخروج المبكر بنفس معادلة صفحة سجل الحضور بالضبط (سماحية بحد أقصى 15
+    // دقيقة + فرق توقيت UTC+3) — عشان هاد التقرير يطابق الصفحة والراتب تماماً
+    let computedLateMinutes = (record as any).lateMinutes ?? 0;
+    let computedEarlyLeaveMinutes = (record as any).earlyLeaveMinutes ?? 0;
+    const GRACE_PERIOD_MINUTES = 15;
+    const BUSINESS_UTC_OFFSET_HOURS = 3;
+    const excludedStatuses = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+    if (
+      (record as any).clockInTime && sched?.workStartTime && sched?.workEndTime &&
+      (sched as any).shiftType !== 'FLEXIBLE' && !excludedStatuses.has((record as any).status)
+    ) {
+      const [startH, startM] = sched.workStartTime.split(':').map(Number);
+      const [endH, endM] = sched.workEndTime.split(':').map(Number);
+      const schedStart = new Date(Date.UTC(
+        recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+        startH - BUSINESS_UTC_OFFSET_HOURS, startM, 0, 0,
+      ));
+      let schedEnd = new Date(Date.UTC(
+        recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
+        endH - BUSINESS_UTC_OFFSET_HOURS, endM, 0, 0,
+      ));
+      if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
+
+      const clockIn = new Date((record as any).clockInTime);
+      const clockOut = (record as any).clockOutTime ? new Date((record as any).clockOutTime) : null;
+      const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+      const earlyArrival = Math.max(0, Math.round((schedStart.getTime() - clockIn.getTime()) / 60000));
+      const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
+      const rawEarlyLeave = clockOut ? Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000)) : 0;
+
+      computedLateMinutes = Math.max(0, rawLate - Math.min(excessAtEnd, GRACE_PERIOD_MINUTES));
+      computedEarlyLeaveMinutes = Math.max(0, rawEarlyLeave - Math.min(earlyArrival, GRACE_PERIOD_MINUTES));
+    }
+
+    // 1) تبريرات التأخير/الخروج المبكر المرتبطة بهذا السجل بالذات
+    const justificationRows: Array<{
+      id: string; status: string; alertType: string; deductionMinutes: number | null;
+      managerReviewedAt: Date | null; hrReviewedAt: Date | null; descriptionAr: string | null;
+    }> = await this.prisma.$queryRawUnsafe(`
+      SELECT aj.id, aj.status, aa."alertType", aj."deductionMinutes",
+             aj."managerReviewedAt", aj."hrReviewedAt", aj."descriptionAr"
+      FROM attendance.attendance_justifications aj
+      JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
+      WHERE aj."attendanceRecordId" = $1
+      ORDER BY aj."createdAt" ASC
+    `, recordId);
+
+    const WITH_DEDUCTION_STATUSES = new Set(['HR_APPROVED_WITH_DEDUCTION', 'HR_REJECTED', 'MANAGER_REJECTED', 'AUTO_REJECTED']);
+    const justifications = justificationRows.map(j => ({
+      alertType: j.alertType,
+      status: j.status,
+      deductionOutcome: WITH_DEDUCTION_STATUSES.has(j.status) ? 'WITH_DEDUCTION'
+        : ['HR_APPROVED', 'MANAGER_APPROVED'].includes(j.status) ? 'NO_DEDUCTION'
+        : 'PENDING',
+      reason: j.descriptionAr,
+      managerReviewedAt: j.managerReviewedAt,
+      hrReviewedAt: j.hrReviewedAt,
+    }));
+
+    // 2) استهلاك الرصيد الساعي التلقائي (تعويض تأخير/انصراف مبكر من رصيد الساعتين الشهري)
+    const autoHourlyLeaveRows = await this.prisma.$queryRawUnsafe(`
+      SELECT source, "durationHours", status
+      FROM leaves.leave_requests
+      WHERE "employeeId" = $1 AND "startDate"::date = $2::date
+        AND "isHourlyLeave" = true AND source IN ('TARDINESS_AUTO', 'EARLY_LEAVE_AUTO')
+      ORDER BY "createdAt" ASC
+    `, employeeId, dateStr) as Array<{ source: string; durationHours: number; status: string }>;
+
+    // 3) إجازة ساعية يدوية (طلبها الموظف بنفسه) بوقتها بالضبط
+    const manualHourlyLeaveRows = await this.prisma.$queryRawUnsafe(`
+      SELECT lr.id, lr."startTime", lr."endTime", lr."durationHours", lr.status, lr.reason, lt."nameAr" as "typeName"
+      FROM leaves.leave_requests lr
+      JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+      WHERE lr."employeeId" = $1 AND lr."startDate"::date = $2::date
+        AND lr."isHourlyLeave" = true
+        AND (lr.source IS NULL OR lr.source = 'EMPLOYEE_REQUEST')
+      ORDER BY lr."createdAt" ASC
+    `, employeeId, dateStr);
+
+    // 4) طلب مهمة عمل (داخلية/خارجية) يشمل هذا اليوم
+    const missionRequestRows = await this.prisma.$queryRawUnsafe(`
+      SELECT id, status, details
+      FROM requests.requests
+      WHERE type = 'BUSINESS_MISSION' AND "deletedAt" IS NULL
+        AND ("employeeId" = $1 OR (details->>'targetEmployeeId') = $1)
+        AND (details->>'startDate')::date <= $2::date
+        AND (details->>'endDate')::date >= $2::date
+      ORDER BY "createdAt" ASC
+    `, employeeId, dateStr) as Array<{ id: string; status: string; details: any }>;
+
+    // 5) لو غايب: هل عندو طلب إجازة (أي حالة) بيشمل هذا اليوم؟ (يعني غياب فيه طلب لسا معلّق/غير معتمد)
+    let absenceLeaveRequests: any[] = [];
+    if ((record as any).status === 'ABSENT') {
+      absenceLeaveRequests = await this.prisma.$queryRawUnsafe(`
+        SELECT lr.id, lr.status, lr."startDate", lr."endDate", lt."nameAr" as "typeName"
+        FROM leaves.leave_requests lr
+        JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
+        WHERE lr."employeeId" = $1
+          AND lr."startDate"::date <= $2::date AND lr."endDate"::date >= $2::date
+          AND lr."deletedAt" IS NULL
+        ORDER BY lr."createdAt" DESC
+      `, employeeId, dateStr);
+    }
+
+    return {
+      date: dateStr,
+      clockInTime: (record as any).clockInTime,
+      clockOutTime: (record as any).clockOutTime,
+      status: (record as any).status,
+      lateMinutes: computedLateMinutes,
+      earlyLeaveMinutes: computedEarlyLeaveMinutes,
+      justifications,
+      autoHourlyLeaveUsage: autoHourlyLeaveRows.map(r => ({
+        type: r.source === 'TARDINESS_AUTO' ? 'LATE_COMPENSATION' : 'EARLY_LEAVE_COMPENSATION',
+        minutes: Math.round(Number(r.durationHours) * 60),
+        status: r.status,
+      })),
+      manualHourlyLeave: manualHourlyLeaveRows,
+      businessMission: missionRequestRows.map(m => ({
+        id: m.id, status: m.status,
+        missionType: m.details?.missionType ?? null,
+        startDate: m.details?.startDate ?? null,
+        endDate: m.details?.endDate ?? null,
+      })),
+      absenceWithUnapprovedLeave: absenceLeaveRequests.filter((l: any) => l.status !== 'APPROVED'),
+    };
+  }
+
   async updateStampInterpretation(logId: string, interpretedAs: string, userId: string) {
     const valid = ['CLOCK_IN', 'CLOCK_OUT', 'BREAK_OUT', 'BREAK_IN', 'EXCLUDED'];
     if (!valid.includes(interpretedAs)) {
