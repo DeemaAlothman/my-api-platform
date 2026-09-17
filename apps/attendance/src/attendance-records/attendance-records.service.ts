@@ -383,6 +383,9 @@ export class AttendanceRecordsService {
         // attendance-computation.service.ts، وهو سبب تناقض نتائج فاطمة الخلف وغيرها — هذا تصحيح
         // للعرض فقط، صفر لمس على البيانات المخزَّنة أو المحرك الأساسي)
         const BUSINESS_UTC_OFFSET_HOURS = 3;
+        // سماحية موحّدة (بحد أقصى) للتعويض بين الدخول والخروج — بطلب صريح، مش تعويض غير محدود:
+        // لو جا متأخر ساعة وبقي بعد الدوام ساعة، ينسامح منها 15 دقيقة بس، والباقي يُحسب تأخير.
+        const GRACE_PERIOD_MINUTES = 15;
         const schedStart = new Date(Date.UTC(
           recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
           startH - BUSINESS_UTC_OFFSET_HOURS, startM, 0, 0,
@@ -402,14 +405,16 @@ export class AttendanceRecordsService {
           displayLateMinutes = 0;
         } else {
           const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
-          displayLateMinutes = Math.max(0, rawLate - excessAtEnd);
+          const lateForgiven = Math.min(excessAtEnd, GRACE_PERIOD_MINUTES);
+          displayLateMinutes = Math.max(0, rawLate - lateForgiven);
         }
 
         if (justifiedEarlyLeaveRecordIds.has(record.id)) {
           displayEarlyLeaveMinutes = 0;
         } else if (clockOut) {
           const rawEarlyLeave = Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000));
-          displayEarlyLeaveMinutes = Math.max(0, rawEarlyLeave - earlyArrival);
+          const earlyLeaveForgiven = Math.min(earlyArrival, GRACE_PERIOD_MINUTES);
+          displayEarlyLeaveMinutes = Math.max(0, rawEarlyLeave - earlyLeaveForgiven);
         } else {
           displayEarlyLeaveMinutes = 0;
         }

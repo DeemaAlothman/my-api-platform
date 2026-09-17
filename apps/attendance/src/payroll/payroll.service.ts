@@ -251,21 +251,13 @@ export class PayrollService {
       }
 
       if (leave.isHourlyLeave) {
-        if (leave.source === 'EARLY_LEAVE_AUTO') {
-          // خلل توقيت مؤكَّد بمحرك الحضور الأساسي (attendance-computation.service.ts) بيخلّي
-          // earlyLeaveMinutes الخام غير موثوق وغير متّسق عبر الأيام لنفس الموظف (مؤكَّد بفحص شامل
-          // لسجل فاطمة الخلف الكامل) — فبالتالي أي EARLY_LEAVE_AUTO مبني عليه (وحصة الرصيد
-          // المشترك اللي استهلكها) غير موثوق. نستثنيه بالكامل هنا، ونعيد حساب الخروج المبكر
-          // بأكمله (الاستهلاك من الرصيد المشترك والتجاوز) بشكل مستقل ومتّسق أدناه (بعد هذا الحلقة)
-          // من وقت البصمة الخام مباشرة. التأخير (TARDINESS_AUTO) غير متأثر — رصيده موثوق ويُعالَج
-          // بشكل طبيعي كما كان.
+        if (leave.source === 'EARLY_LEAVE_AUTO' || leave.source === 'TARDINESS_AUTO') {
+          // كلا المصدرين (تأخير وانصراف مبكر تلقائي) مبنيّان على lateMinutes/earlyLeaveMinutes
+          // الخام من محرك الحضور الأساسي — خلل توقيت مؤكَّد (فحص فاطمة الخلف) يجعلها غير موثوقة
+          // وغير متّسقة عبر الأيام لنفس الموظف. نستثنيهما بالكامل هنا، ونعيد حساب التأخير
+          // والانصراف المبكر بأكملهما (بما فيها استهلاك الرصيد المشترك) بشكل مستقل ومتّسق أدناه،
+          // من وقت البصمة الخام مباشرة، بقاعدة سماحية موحّدة (تعويض بحد أقصى) لكلا الجانبين.
           continue;
-        }
-        if (leave.source === 'TARDINESS_AUTO') {
-          const leaveDateKey: string = new Date(leave.startDate).toISOString().split('T')[0];
-          if (justifiedAutoLeaveDates.has(`${leaveDateKey}|LATE`)) {
-            continue;
-          }
         }
         const minutes = Math.round((leave.durationHours || 0) * 60);
         // حساب الزيادة عن الحد الشهري ديناميكياً (يتجاوز deductionInfo المخزونة إذا كانت null)
@@ -320,184 +312,95 @@ export class PayrollService {
       if (leave.typeName === 'إجازة سنوية') continue; // السنوية لها عمود منفصل
       paidLeaveDays += calcOverlapDays(new Date(leave.startDate), new Date(leave.endDate));
     }
-    // دقائق التأخير/الخروج المبكر غير المبررة التي انتهى رصيدها ولم تُولَّد لها طلبات إجازة تلقائية
-    // تُضاف مباشرة للخصم التلقائي لتظهر في عمودَي V (الإجازة التلقائية) وW (القيمة)
-    if (salaryLinked) {
-      // ملاحظة: استثناء التبريرات المعتمدة على الانصراف المبكر من الخصم المعلّق القديم
-      // (earlyLeavePendingDeductionMinutes) أُزيل من هنا — الانصراف المبكر بأكمله الآن يُعاد حسابه
-      // بشكل مستقل ومتّسق أدناه (بعد إصلاح سماحية التأخير) من وقت البصمة الخام مباشرة، بسبب خلل
-      // توقيت مؤكَّد بمحرك الحضور الأساسي جعل الحقل القديم غير موثوق (راجع فحص فاطمة الخلف).
-
-      // التبريرات المعتمدة على التأخير كانت مستثناة فقط من
-      // totalLateMinutesEffective (عرض إحصائي)، ولم تكن تُستثنى من tardinessPendingDeductionMinutes
-      // الخام هنا، فيصير خصم فعلي غلط على حادثة تأخير معتمدة (نفس فجوة الانصراف المبكر أعلاه تماماً)
-      const pendingLateRecordIds: string[] = records
-        .filter(r => (r.tardinessPendingDeductionMinutes ?? 0) > 0)
-        .map(r => r.id);
-      const justifiedLatePendingByRecord = new Map<string, number>();
-      if (pendingLateRecordIds.length > 0) {
-        const lateJustificationsForPending: Array<{ attendanceRecordId: string; deductionMinutes: number | null }> =
-          await this.prisma.$queryRawUnsafe(`
-            SELECT aj."attendanceRecordId", aj."deductionMinutes"
-            FROM attendance.attendance_justifications aj
-            JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
-            WHERE aj."attendanceRecordId" = ANY($1::text[])
-              AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
-              AND aa."alertType" = 'LATE'
-          `, pendingLateRecordIds);
-
-        const pendingLateByRecord = new Map<string, number>();
-        for (const r of records) {
-          pendingLateByRecord.set(r.id, r.tardinessPendingDeductionMinutes ?? 0);
-        }
-
-        for (const j of lateJustificationsForPending) {
-          const fullPending: number = pendingLateByRecord.get(j.attendanceRecordId) ?? 0;
-          const justified: number = j.deductionMinutes ?? fullPending;
-          const previousJustified: number = justifiedLatePendingByRecord.get(j.attendanceRecordId) ?? 0;
-          justifiedLatePendingByRecord.set(j.attendanceRecordId, previousJustified + justified);
-        }
-      }
-
-      const attendancePendingMinutes = records.reduce((sum, r) => {
-        const rawLatePending = r.tardinessPendingDeductionMinutes ?? 0;
-        const justifiedLate = Math.min(rawLatePending, justifiedLatePendingByRecord.get(r.id) ?? 0);
-        const effectiveLatePending = Math.max(0, rawLatePending - justifiedLate);
-
-        return sum + effectiveLatePending;
-      }, 0);
-      autoLeaveOverLimitMinutes += attendancePendingMinutes;
-    }
-
-    // إصلاح السماحية الثابتة: سماحية التأخير الحالية (schedule.lateToleranceMin) كانت تُسامح أي تأخير
-    // ضمنها تلقائياً وبلا شرط — حتى لو الموظف طلع بالوقت العادي بدون أي تعويض فعلي. القاعدة الصحيحة:
-    // السماحية تُمنح فقط إذا عُوِّضت بالبقاء بعد الدوام بنفس القدر أو أكثر؛ وإلا تُحسم بالكامل.
-    // حساب مستقل بالكامل من وقت البصمة الخام + الجدول — صفر تعديل على أي بيانات مخزّنة، يضيف فقط
-    // الفجوة (دقائق السماحية غير المعوَّضة فعلياً) لقناة الحسم الموجودة أصلاً (autoLeaveOverLimitMinutes)
+    // إعادة حساب التأخير والانصراف المبكر بأكملهما بشكل مستقل ومتّسق (حلقة واحدة موحّدة) — استبدال
+    // كامل لما كان يعتمد على lateMinutes/earlyLeaveMinutes وكل الحقول المشتقة منها المخزَّنة بمحرك
+    // الحضور الأساسي (tardinessPendingDeductionMinutes، earlyLeavePendingDeductionMinutes،
+    // TARDINESS_AUTO/EARLY_LEAVE_AUTO) — غير موثوقة بسبب خلل توقيت مؤكَّد (فحص شامل لسجل فاطمة
+    // الخلف: نفس الأيام أعطت نتائج مختلفة عبر الوقت لنفس البيانات).
+    //
+    // القاعدة (بطلب صريح): سماحية موحّدة (GRACE_PERIOD_MINUTES) تُستخدم كـ"حد أقصى" للتعويض بين
+    // وقت الدخول والخروج — لا تعويض غير محدود. مثال: جا متأخر 60 دقيقة وبقي بعد الدوام 60 دقيقة →
+    // ينسامح منها 15 دقيقة بس (الحد الأقصى)، والباقي (45) يُحسم. نفس القاعدة بالضبط للانصراف
+    // المبكر (الحضور المبكر يعوّض بحد أقصى GRACE_PERIOD_MINUTES دقيقة). بعد هذا السقف، الباقي
+    // يُستهلك من رصيد الساعتين الشهري المشترك (التأخير أولاً، ثم الانصراف المبكر بالباقي)، ويُحسم
+    // فقط ما تجاوز الرصيد. صفر تعديل على أي بيانات مخزَّنة — حساب بالذاكرة وقت التوليد فقط، يؤثر
+    // على كشوف DRAFT حصراً.
     if (salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime) {
-      const excludedStatusesForTolerance = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
-      const [toleranceStartH, toleranceStartM] = scheduleWorkStartTime.split(':').map(Number);
-      const [toleranceEndH, toleranceEndM] = scheduleWorkEndTime.split(':').map(Number);
-      let uncompensatedToleranceMinutes = 0;
-      // إجمالي التأخير "الفعّال" المتّسق (نفس صيغة صفحة العرض بالضبط) — يُستخدم لاستبدال
-      // totalLateMinutesEffective القديم (كان لا يطبّق التعويض بالبقاء، فقط يطرح المبرَّر) عشان
-      // يطابق تصدير الإكسل ما يظهر بصفحة سجل الحضور تماماً
-      let correctedTotalLateMinutes = 0;
+      const GRACE_PERIOD_MINUTES = 15;
+      const BUSINESS_UTC_OFFSET_HOURS = 3; // خادم الحاوية UTC صافٍ، بينما أوقات الجدول محلية (UTC+3) — مؤكَّد
+      const excludedStatusesForAttendanceRecalc = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+      const [schedStartH, schedStartM] = scheduleWorkStartTime.split(':').map(Number);
+      const [schedEndH, schedEndM] = scheduleWorkEndTime.split(':').map(Number);
 
-      for (const r of records) {
-        if (!(r as any).clockInTime) continue;
-        if (excludedStatusesForTolerance.has(r.status)) continue;
-
-        const recDate = new Date(r.date);
-        // خادم/حاوية الـattendance تشتغل بتوقيت UTC صافٍ (مؤكَّد)، بينما workStartTime/workEndTime
-        // مقصودة بتوقيت العمل المحلي (UTC+3) — setHours() كانت تحسبها كـUTC مباشرة (فرق 3 ساعات
-        // غلط)، فيطلع rawLate سالباً دائماً = صفر تأثير فعلي لهذا التصحيح. بناء الوقت بـUTC صراحة.
-        const TOLERANCE_BUSINESS_UTC_OFFSET_HOURS = 3;
-        const schedStart = new Date(Date.UTC(
-          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-          toleranceStartH - TOLERANCE_BUSINESS_UTC_OFFSET_HOURS, toleranceStartM, 0, 0,
-        ));
-        let schedEnd = new Date(Date.UTC(
-          recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-          toleranceEndH - TOLERANCE_BUSINESS_UTC_OFFSET_HOURS, toleranceEndM, 0, 0,
-        ));
-        if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
-
-        const clockIn = new Date((r as any).clockInTime);
-        const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
-        if (rawLate <= 0) continue;
-
-        const clockOutRaw = (r as any).clockOutTime;
-        const clockOut = clockOutRaw ? new Date(clockOutRaw) : null;
-        const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
-
-        const dateKey = recDate.toISOString().split('T')[0];
-        const isJustifiedLateDay = justifiedAutoLeaveDates.has(`${dateKey}|LATE`);
-
-        // إجمالي التأخير الفعّال المتّسق لهذا اليوم (يطابق صفحة العرض بالضبط): التأخير الخام
-        // مطروحاً منه أي دقائق زيادة بقيها بعد الدوام، صفر لو اليوم مبرّر ومعتمد بالكامل
-        correctedTotalLateMinutes += isJustifiedLateDay ? 0 : Math.max(0, rawLate - excessAtEnd);
-
-        if (isJustifiedLateDay) continue;
-
-        // الدقائق اللي الآلية الحالية أصلاً بتعوّضها (الجزء الزائد عن السماحية، إذا تعوّض بالبقاء)
-        const beyondTolerance = Math.max(0, rawLate - scheduleLateToleranceMin);
-        const alreadyCompensatedByExisting = Math.min(beyondTolerance, excessAtEnd);
-        const remainingCompensation = Math.max(0, excessAtEnd - alreadyCompensatedByExisting);
-
-        // الدقائق ضمن نطاق السماحية (اللي كانت تُسامح تلقائياً بدون أي شرط سابقاً)
-        const withinTolerance = Math.min(rawLate, scheduleLateToleranceMin);
-        const newlyCompensated = Math.min(withinTolerance, remainingCompensation);
-        const uncompensated = withinTolerance - newlyCompensated;
-        if (uncompensated <= 0) continue;
-
-        uncompensatedToleranceMinutes += uncompensated;
-      }
-      autoLeaveOverLimitMinutes += uncompensatedToleranceMinutes;
-      (payrollCorrections as any).correctedTotalLateMinutes = correctedTotalLateMinutes;
-    }
-
-    // إعادة حساب الانصراف المبكر بالكامل بشكل مستقل ومتّسق — استبدال كامل لما كان يعتمد على
-    // earlyLeaveMinutes/earlyLeaveOffsetMinutes/earlyLeavePendingDeductionMinutes المخزَّنة (غير
-    // موثوقة بسبب خلل توقيت مؤكَّد بمحرك الحضور الأساسي، مؤكَّد بفحص شامل لسجل فاطمة الخلف — نفس
-    // الأيام أعطت نتائج مختلفة عبر الوقت لنفس البيانات). يحسب من وقت البصمة الخام مباشرة، يطبّق
-    // "الحضور المبكر يعوّض الخروج المبكر"، ثم يستهلك من رصيد الساعتين الشهري المشترك المتبقي (بعد
-    // ما استهلكه التأخير أعلاه فقط — EARLY_LEAVE_AUTO مُستثنى بالكامل من حلقة leavesWithType فوق
-    // تحديداً لهذا السبب). صفر تعديل على أي بيانات مخزَّنة.
-    if (salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime) {
       const hourlyTypeRows = await this.prisma.$queryRawUnsafe(`
         SELECT "maxHoursPerMonth" FROM leaves.leave_types
         WHERE code = 'HOURLY' AND "isActive" = true LIMIT 1
       `) as Array<{ maxHoursPerMonth: number | null }>;
       const maxHoursPerMonth = Number(hourlyTypeRows[0]?.maxHoursPerMonth ?? 2);
-      let remainingPoolMinutes = Math.max(0, (maxHoursPerMonth * 60) - tardinessAutoFreeMinutes);
-
-      const excludedStatusesForEarlyLeave = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
-      const [earlyStartH, earlyStartM] = scheduleWorkStartTime.split(':').map(Number);
-      const [earlyEndH, earlyEndM] = scheduleWorkEndTime.split(':').map(Number);
-      const EARLY_LEAVE_BUSINESS_UTC_OFFSET_HOURS = 3;
+      let remainingPoolMinutes = maxHoursPerMonth * 60;
 
       const sortedRecords = [...records].sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
       );
 
-      let consistentEarlyLeaveOverLimitMinutes = 0;
+      let correctedTotalLateMinutes = 0;
       let correctedTotalEarlyLeaveMinutes = 0;
+      let lateOverLimitMinutes = 0;
+      let earlyLeaveOverLimitMinutes = 0;
+
       for (const r of sortedRecords) {
-        if (!(r as any).clockOutTime) continue;
-        if (excludedStatusesForEarlyLeave.has(r.status)) continue;
+        if (!(r as any).clockInTime) continue;
+        if (excludedStatusesForAttendanceRecalc.has(r.status)) continue;
 
         const recDate = new Date(r.date);
         const schedStart = new Date(Date.UTC(
           recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-          earlyStartH - EARLY_LEAVE_BUSINESS_UTC_OFFSET_HOURS, earlyStartM, 0, 0,
+          schedStartH - BUSINESS_UTC_OFFSET_HOURS, schedStartM, 0, 0,
         ));
         let schedEnd = new Date(Date.UTC(
           recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-          earlyEndH - EARLY_LEAVE_BUSINESS_UTC_OFFSET_HOURS, earlyEndM, 0, 0,
+          schedEndH - BUSINESS_UTC_OFFSET_HOURS, schedEndM, 0, 0,
         ));
         if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
 
         const clockIn = new Date((r as any).clockInTime);
-        const clockOut = new Date((r as any).clockOutTime);
+        const clockOutRaw = (r as any).clockOutTime;
+        const clockOut = clockOutRaw ? new Date(clockOutRaw) : null;
+
+        const rawLate = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
+        const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
         const earlyArrival = Math.max(0, Math.round((schedStart.getTime() - clockIn.getTime()) / 60000));
-        const rawEarlyLeave = Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000));
-        const effectiveEarlyLeave = Math.max(0, rawEarlyLeave - earlyArrival);
-        if (effectiveEarlyLeave <= 0) continue;
+        const rawEarlyLeave = clockOut ? Math.max(0, Math.round((schedEnd.getTime() - clockOut.getTime()) / 60000)) : 0;
 
         const dateKey = recDate.toISOString().split('T')[0];
+        const isJustifiedLateDay = justifiedAutoLeaveDates.has(`${dateKey}|LATE`);
         const isJustifiedEarlyLeaveDay = justifiedAutoLeaveDates.has(`${dateKey}|EARLY_LEAVE`);
 
-        // إجمالي الانصراف المبكر الفعّال المتّسق (يطابق صفحة العرض بالضبط)، صفر لو اليوم مبرَّر
-        correctedTotalEarlyLeaveMinutes += isJustifiedEarlyLeaveDay ? 0 : effectiveEarlyLeave;
+        // التأخير: يُسامح منه بحد أقصى GRACE_PERIOD_MINUTES دقيقة إذا بقي بعد الدوام بهذا القدر أو أكثر
+        const lateForgiven = Math.min(excessAtEnd, GRACE_PERIOD_MINUTES);
+        const chargeableLate = isJustifiedLateDay ? 0 : Math.max(0, rawLate - lateForgiven);
+        correctedTotalLateMinutes += chargeableLate;
 
-        if (isJustifiedEarlyLeaveDay) continue;
+        // الانصراف المبكر: يُسامح منه بحد أقصى GRACE_PERIOD_MINUTES دقيقة إذا جا بدري بهذا القدر أو أكثر
+        const earlyLeaveForgiven = Math.min(earlyArrival, GRACE_PERIOD_MINUTES);
+        const chargeableEarlyLeave = isJustifiedEarlyLeaveDay ? 0 : Math.max(0, rawEarlyLeave - earlyLeaveForgiven);
+        correctedTotalEarlyLeaveMinutes += chargeableEarlyLeave;
 
-        const consumedFromPool = Math.min(effectiveEarlyLeave, remainingPoolMinutes);
-        remainingPoolMinutes -= consumedFromPool;
-        consistentEarlyLeaveOverLimitMinutes += effectiveEarlyLeave - consumedFromPool;
+        // الرصيد الشهري المشترك (2 ساعة تقريباً): التأخير يُستهلك منه أولاً بترتيب التاريخ، ثم الانصراف المبكر بالباقي
+        if (chargeableLate > 0) {
+          const consumed = Math.min(chargeableLate, remainingPoolMinutes);
+          remainingPoolMinutes -= consumed;
+          lateOverLimitMinutes += chargeableLate - consumed;
+        }
+        if (chargeableEarlyLeave > 0) {
+          const consumed = Math.min(chargeableEarlyLeave, remainingPoolMinutes);
+          remainingPoolMinutes -= consumed;
+          earlyLeaveOverLimitMinutes += chargeableEarlyLeave - consumed;
+        }
       }
-      autoLeaveOverLimitMinutes += consistentEarlyLeaveOverLimitMinutes;
+
+      autoLeaveOverLimitMinutes += lateOverLimitMinutes + earlyLeaveOverLimitMinutes;
+      payrollCorrections.correctedTotalLateMinutes = correctedTotalLateMinutes;
       payrollCorrections.correctedTotalEarlyLeaveMinutes = correctedTotalEarlyLeaveMinutes;
     }
 
