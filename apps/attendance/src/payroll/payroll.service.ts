@@ -1485,12 +1485,22 @@ export class PayrollService {
       leaveTypeByEmployee.get(row.employeeId)!.set(row.typeName, Number(row.days));
     }
 
-    // عدد أيام نصف اليوم (حضور نصف دوام) لكل موظف خلال الشهر
+    // عدد أيام نصف اليوم "غير المدفوعة" لكل موظف خلال الشهر — مرتبطة بطلب إجازة نصف يوم معتمد
+    // من نوع غير مدفوع (isPaid=false) تحديداً. سابقاً كان يُحسب أي سجل حضور فيه halfDayPeriod
+    // بغض النظر عن السبب، فكان يحتسب حتى أنصاف الأيام المرتبطة بإجازة سنوية مدفوعة (خلل، مؤكَّد
+    // على فاطمة الخلف: يومين إجازة سنوية نصفية كانوا يُحسبوا هنا كـ"نصف يوم غير مدفوع" بالغلط).
     const halfDayByEmployee = new Map<string, number>();
     if (empIds.length > 0) {
       const halfDayRows = await this.prisma.$queryRawUnsafe(`
         SELECT ar."employeeId", COUNT(*)::int as count
         FROM attendance.attendance_records ar
+        JOIN leaves.leave_requests lr
+          ON lr."employeeId" = ar."employeeId"
+          AND lr."isHalfDay" = true
+          AND lr.status = 'APPROVED'
+          AND lr."deletedAt" IS NULL
+          AND lr."startDate"::date = ar.date::date
+        JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId" AND lt."isPaid" = false
         WHERE ar."employeeId" = ANY($1::text[])
           AND ar."halfDayPeriod" IS NOT NULL
           AND ar.date >= $2 AND ar.date <= $3
