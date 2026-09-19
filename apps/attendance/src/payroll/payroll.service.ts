@@ -164,6 +164,7 @@ export class PayrollService {
     const leavesWithType = await this.prisma.$queryRawUnsafe(`
       SELECT lr."startDate", lr."endDate", lr."totalDays",
              lr."isHourlyLeave", lr."durationHours", lr."deductionInfo",
+             lr."startTime", lr."endTime",
              lt.code as "typeCode", lt."isPaid", lt."nameAr" as "typeName",
              lt."maxHoursPerMonth",
              COALESCE(lr.source, 'EMPLOYEE_REQUEST') as source
@@ -177,6 +178,7 @@ export class PayrollService {
       startDate: Date; endDate: Date; totalDays: number;
       isHourlyLeave: boolean; durationHours: number | null;
       deductionInfo: { overLimitHours?: number } | null;
+      startTime: string | null; endTime: string | null;
       typeCode: string; isPaid: boolean; typeName: string;
       maxHoursPerMonth: number | null; source: string;
     }>;
@@ -203,9 +205,14 @@ export class PayrollService {
     let earlyLeaveAutoOverLimitMinutes = 0;
 
     // تتبع الساعات المستخدمة لكل نوع إجازة ساعية لحساب الزيادة عن الحد الشهري ديناميكياً
-    // hourlyUsedByType: للإجازات اليدوية فقط — autoHourlyUsedByType: للإجازات التلقائية (تأخير/خروج مبكر)
+    // hourlyUsedByType: للإجازات اليدوية من نوع غير HOURLY فقط — autoHourlyUsedByType: للإجازات
+    // التلقائية (تأخير/خروج مبكر). إجازات نوع HOURLY اليدوية تُجمَّع بمصفوفة منفصلة (تحت) لتُستهلك
+    // من نفس الرصيد المشترك مع التأخير/الخروج المبكر بترتيب زمني موحّد — بدل رصيد مستقل مضاعَف
+    // (مؤكَّد بحالة حقيقية: موظفة عندها إجازة ساعية يدوية بمنتصف اليوم + تأخير حقيقي بنفس الشهر،
+    // كانت كل حالة تاخذ رصيد 120 دقيقة لحالها، بمجموع 240 دقيقة بدل 120 المفروضة)
     const hourlyUsedByType     = new Map<string, number>();
     const autoHourlyUsedByType = new Map<string, number>();
+    const manualHourlyPoolEvents: Array<{ date: Date; minutes: number }> = [];
 
     // عدد أيام الإجازة التي تقع فعلاً داخل فترة الراتب (لإصلاح إجازات تمتد عبر شهرين)
     const calcOverlapDays = (ls: Date, le: Date): number => {
@@ -260,6 +267,23 @@ export class PayrollService {
           continue;
         }
         const minutes = Math.round((leave.durationHours || 0) * 60);
+        // إجازة يدوية من نوع HOURLY تحديداً (نفس النوع اللي منه رصيد التأخير/الخروج المبكر
+        // المشترك)، وبمنتصف الدوام (لا تلامس بداية أو نهاية الدوام): تُجمَّع هون فقط، وتُستهلك
+        // لاحقاً من نفس الرصيد المشترك بترتيب زمني موحّد (أدناه) بدل رصيد مستقل مضاعَف — بس فقط
+        // إذا كان رصيد التأخير/الخروج المبكر المشترك سيُحسب أصلاً لهذا الموظف (نفس شرط الكتلة
+        // الموحّدة تماماً). أما الإجازة اللي تلامس بداية/نهاية الدوام فهي أصلاً مُعالجة كـ"تغطية"
+        // مباشرة (تُلغي التأخير/الخروج المبكر لنفس يومها بالضبط) بمكان آخر بالكتلة الموحّدة —
+        // فتبقى بمسارها القديم المستقل هون، حتى لا تُحسب مرتين (مؤكَّد بحالة حقيقية سليمة:
+        // موظفة إجازتها 10:00-12:00 تطابق بداية دوامها 10:00 بالضبط، وتغطي تأخيرها لنفس اليوم)
+        const touchesShiftBoundary = !!leave.startTime && !!leave.endTime && !!scheduleWorkStartTime && !!scheduleWorkEndTime &&
+          (leave.startTime <= scheduleWorkStartTime || leave.endTime >= scheduleWorkEndTime);
+        if (
+          leave.typeCode === 'HOURLY' && leave.isPaid && !touchesShiftBoundary &&
+          salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime
+        ) {
+          manualHourlyPoolEvents.push({ date: new Date(leave.startDate), minutes });
+          continue;
+        }
         // حساب الزيادة عن الحد الشهري ديناميكياً (يتجاوز deductionInfo المخزونة إذا كانت null)
         const maxHoursPerMonth = leave.maxHoursPerMonth ?? null;
         let overLimitMinutes = 0;
@@ -394,6 +418,9 @@ export class PayrollService {
       let correctedTotalEarlyLeaveMinutes = 0;
       let lateOverLimitMinutes = 0;
       let earlyLeaveOverLimitMinutes = 0;
+      // كل أحداث استهلاك الرصيد المشترك (تأخير + انصراف مبكر + إجازة ساعية يدوية من نوع HOURLY)
+      // تُجمَّع هون أولاً، وتُستهلك لاحقاً بمسار زمني واحد — بدل رصيد منفصل لكل نوع
+      const poolEvents: Array<{ date: Date; type: 'LATE' | 'EARLY' | 'MANUAL'; minutes: number }> = [];
 
       for (const r of sortedRecords) {
         if (!(r as any).clockInTime) continue;
@@ -452,22 +479,44 @@ export class PayrollService {
         const chargeableEarlyLeave = isJustifiedEarlyLeaveDay ? 0 : Math.max(0, rawEarlyLeave - earlyLeaveForgiven);
         correctedTotalEarlyLeaveMinutes += chargeableEarlyLeave;
 
-        // الرصيد الشهري المشترك (2 ساعة تقريباً): التأخير يُستهلك منه أولاً بترتيب التاريخ، ثم الانصراف المبكر بالباقي
-        if (chargeableLate > 0) {
-          const consumed = Math.min(chargeableLate, remainingPoolMinutes);
-          remainingPoolMinutes -= consumed;
-          lateOverLimitMinutes += chargeableLate - consumed;
-        }
-        if (chargeableEarlyLeave > 0) {
-          const consumed = Math.min(chargeableEarlyLeave, remainingPoolMinutes);
-          remainingPoolMinutes -= consumed;
-          earlyLeaveOverLimitMinutes += chargeableEarlyLeave - consumed;
+        // يُجمَّع الحدث هون فقط؛ الاستهلاك الفعلي من الرصيد المشترك يصير أدناه بترتيب زمني واحد
+        // يشمل أيضاً الإجازة الساعية اليدوية (نفس اليوم أو أيام أخرى بنفس الشهر)
+        if (chargeableLate > 0) poolEvents.push({ date: recDate, type: 'LATE', minutes: chargeableLate });
+        if (chargeableEarlyLeave > 0) poolEvents.push({ date: recDate, type: 'EARLY', minutes: chargeableEarlyLeave });
+      }
+
+      // دمج أحداث التأخير/الانصراف المبكر مع أحداث الإجازة الساعية اليدوية، وترتيبها زمنياً
+      // (بنفس اليوم: تأخير ثم انصراف مبكر ثم إجازة يدوية — نفس ترتيب الاستهلاك السابق)، ثم
+      // استهلاك رصيد واحد مشترك (2 ساعة تقريباً) بمسار واحد بدل رصيد مستقل لكل نوع
+      const typePriority: Record<'LATE' | 'EARLY' | 'MANUAL', number> = { LATE: 0, EARLY: 1, MANUAL: 2 };
+      for (const ev of manualHourlyPoolEvents) {
+        poolEvents.push({ date: ev.date, type: 'MANUAL', minutes: ev.minutes });
+      }
+      poolEvents.sort((a, b) => {
+        const dateDiff = a.date.getTime() - b.date.getTime();
+        return dateDiff !== 0 ? dateDiff : typePriority[a.type] - typePriority[b.type];
+      });
+
+      for (const ev of poolEvents) {
+        const consumed = Math.min(ev.minutes, remainingPoolMinutes);
+        remainingPoolMinutes -= consumed;
+        const overflow = ev.minutes - consumed;
+        if (ev.type === 'LATE') {
+          lateOverLimitMinutes += overflow;
+        } else if (ev.type === 'EARLY') {
+          earlyLeaveOverLimitMinutes += overflow;
+        } else {
+          paidHourlyLeaveMinutes += consumed;
+          unpaidHourlyLeaveMinutes += overflow;
         }
       }
 
       autoLeaveOverLimitMinutes += lateOverLimitMinutes + earlyLeaveOverLimitMinutes;
       payrollCorrections.correctedTotalLateMinutes = correctedTotalLateMinutes;
       payrollCorrections.correctedTotalEarlyLeaveMinutes = correctedTotalEarlyLeaveMinutes;
+    } else {
+      // الشرط أعلاه لم يتحقق (وردية مرنة أو موظف غير مرتبط براتب) — الإجازة الساعية اليدوية من
+      // نوع HOURLY لم تُؤجَّل للتجميع المشترك أصلاً (نفس الشرط بالأعلى)، فلا حاجة لمعالجتها هون
     }
 
     // المجموع الإجمالي للإجازة الساعية (للعرض)
