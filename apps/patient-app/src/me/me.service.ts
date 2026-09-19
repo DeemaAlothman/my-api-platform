@@ -32,6 +32,30 @@ export class MeService {
     return this.erp.getPatientSessions(erpPatientId);
   }
 
+  // كل تمارين المريض عبر كل جلساته دفعة وحدة، وكل تمرين معه معلومات الجلسة التابع إلها
+  async listAllExercises(erpPatientId: string, patientAccountId: string) {
+    const [assignments, sessions] = await Promise.all([
+      this.prisma.sessionExerciseAssignment.findMany({
+        where: { erpPatientId },
+        include: {
+          exercise: true,
+          executions: { where: { patientAccountId }, orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+        orderBy: [{ erpSessionId: 'asc' }, { sortOrder: 'asc' }],
+      }),
+      this.erp.getPatientSessions(erpPatientId),
+    ]);
+
+    const sessionById = new Map(sessions.map((s) => [s.id, s]));
+
+    return assignments.map((a) => ({
+      ...a,
+      execution: a.executions[0] ?? null,
+      executions: undefined,
+      session: sessionById.get(a.erpSessionId) ?? null,
+    }));
+  }
+
   async listSessionExercises(erpPatientId: string, erpSessionId: string, patientAccountId: string) {
     const session = await this.erp.getSession(erpSessionId);
     if (!session.exists || session.patientId !== erpPatientId) {
@@ -55,11 +79,31 @@ export class MeService {
   }
 
   private async mustLoadOwnAssignment(assignmentId: string, erpPatientId: string) {
-    const assignment = await this.prisma.sessionExerciseAssignment.findUnique({ where: { id: assignmentId } });
+    const assignment = await this.prisma.sessionExerciseAssignment.findUnique({
+      where: { id: assignmentId },
+      include: { exercise: true },
+    });
     if (!assignment || assignment.erpPatientId !== erpPatientId) {
       throw new NotFoundException({ code: 'ASSIGNMENT_NOT_FOUND', message: 'التمرين غير موجود' });
     }
     return assignment;
+  }
+
+  // إشعار تلقائي للمعالج المسؤول (بدون أي تدخل يدوي منه) — نفس نظام إشعارات الموظفين الموجود
+  // أصلاً بخدمة users (يظهر بنفس جرس الإشعارات الحالي بالداشبورد، صفر بنية جديدة)
+  private async notifyTherapist(erpTherapistId: string | null | undefined, titleAr: string, messageAr: string) {
+    if (!erpTherapistId) return;
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+       VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+      erpTherapistId, titleAr, messageAr, JSON.stringify({}),
+    ).catch(() => {});
+  }
+
+  private async getPatientDisplayName(erpPatientId: string): Promise<string> {
+    const patients = await this.erp.findPatientsByIds([erpPatientId]);
+    const p = patients[erpPatientId];
+    return p ? `${p.firstName} ${p.lastName}` : 'المريض';
   }
 
   private async getOrCreateExecution(assignmentId: string, patientAccountId: string) {
@@ -99,7 +143,7 @@ export class MeService {
       ? Math.max(0, Math.round((completedAt.getTime() - execution.startedAt.getTime()) / 1000))
       : assignment.durationSeconds;
 
-    return this.prisma.exerciseExecution.update({
+    const updated = await this.prisma.exerciseExecution.update({
       where: { id: execution.id },
       data: {
         status: 'COMPLETED',
@@ -109,6 +153,15 @@ export class MeService {
         completionNote: dto.completionNote,
       },
     });
+
+    const patientName = await this.getPatientDisplayName(erpPatientId);
+    this.notifyTherapist(
+      assignment.erpTherapistId,
+      'إكمال تمرين',
+      `المريض ${patientName} أكمل تمرين "${assignment.exercise.nameAr}" من برنامجه.`,
+    ).catch(() => {});
+
+    return updated;
   }
 
   async skip(assignmentId: string, erpPatientId: string, patientAccountId: string, dto: SkipExerciseDto) {
@@ -119,16 +172,18 @@ export class MeService {
     if (!dto.skipReasonId && !dto.skipReasonText) {
       throw new BadRequestException({ code: 'SKIP_REASON_REQUIRED', message: 'سبب التخطي إلزامي' });
     }
+    let reasonNameAr: string | null = null;
     if (dto.skipReasonId) {
       const reason = await this.prisma.skipReason.findUnique({ where: { id: dto.skipReasonId } });
       if (!reason) throw new BadRequestException({ code: 'INVALID_SKIP_REASON', message: 'سبب التخطي غير صالح' });
       if (reason.nameEn.toLowerCase() === 'other' && !dto.skipReasonText) {
         throw new BadRequestException({ code: 'SKIP_REASON_TEXT_REQUIRED', message: 'يرجى كتابة سبب التخطي' });
       }
+      reasonNameAr = reason.nameAr;
     }
 
     const execution = await this.getOrCreateExecution(assignmentId, patientAccountId);
-    return this.prisma.exerciseExecution.update({
+    const updated = await this.prisma.exerciseExecution.update({
       where: { id: execution.id },
       data: {
         status: 'SKIPPED',
@@ -137,6 +192,16 @@ export class MeService {
         skipReasonText: dto.skipReasonText,
       },
     });
+
+    const patientName = await this.getPatientDisplayName(erpPatientId);
+    const reasonForMessage = dto.skipReasonText || reasonNameAr || 'غير محدد';
+    this.notifyTherapist(
+      assignment.erpTherapistId,
+      'تخطي تمرين',
+      `المريض ${patientName} تخطى تمرين "${assignment.exercise.nameAr}" — السبب: ${reasonForMessage}`,
+    ).catch(() => {});
+
+    return updated;
   }
 
   async listSkipReasons() {

@@ -29,6 +29,12 @@ export class MeController {
     return this.service.listSessionExercises(patient.erpPatientId, erpSessionId, patient.patientAccountId);
   }
 
+  // كل تمارين المريض عبر كل جلساته دفعة وحدة (مع معلومات الجلسة داخل كل عنصر)
+  @Get('exercises')
+  listAllExercises(@CurrentPatient() patient: CurrentPatient) {
+    return this.service.listAllExercises(patient.erpPatientId, patient.patientAccountId);
+  }
+
   @Get('skip-reasons')
   listSkipReasons() {
     return this.service.listSkipReasons();
