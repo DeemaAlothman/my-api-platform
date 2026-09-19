@@ -603,7 +603,7 @@ export class CasesService {
   async upsertTreatmentGoals(caseId: string, dto: TreatmentGoalsDto) {
     await this.findCaseOrThrow(caseId);
     const data: any = {
-      goals: (dto.goals ?? []) as any,
+      goals: { set: dto.goals ?? [] },
       customGoal: dto.customGoal,
       decreasePain: dto.decreasePain ?? false,
       improveStrength: dto.improveStrength ?? false,
