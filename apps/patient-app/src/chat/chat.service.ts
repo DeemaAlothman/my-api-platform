@@ -91,7 +91,28 @@ export class ChatService {
         .catch(() => {});
     }
 
+    // إشعار المعالج عند رسالة جديدة من المريض — بنفس نظام إشعارات الموظفين الموجود أصلاً بخدمة users
+    if (senderType === 'PATIENT') {
+      this.notifyTherapistOfMessage(conversation.erpTherapistId, conversation.erpPatientId, messageText).catch(() => {});
+    }
+
     return message;
+  }
+
+  private async notifyTherapistOfMessage(erpTherapistId: string, erpPatientId: string, messageText: string) {
+    const patients = await this.erp.findPatientsByIds([erpPatientId]);
+    const p = patients[erpPatientId];
+    const patientName = p ? `${p.firstName} ${p.lastName}` : 'مريضك';
+    const preview = messageText.length > 100 ? messageText.slice(0, 100) + '…' : messageText;
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+       VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+      erpTherapistId,
+      'رسالة جديدة من مريض',
+      `رسالة جديدة من ${patientName}: ${preview}`,
+      JSON.stringify({}),
+    ).catch(() => {});
   }
 
   // تعليم رسائل الطرف الآخر كمقروءة
