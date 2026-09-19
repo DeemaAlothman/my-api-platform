@@ -46,6 +46,39 @@ export class LeaveBalancesService {
     }));
   }
 
+  // حساب استخدام الإجازة الساعية للشهر الحالي من الطلبات اليدوية الحقيقية فقط — يستثني حوادث
+  // التأخير/الخروج المبكر التلقائية (EARLY_LEAVE_AUTO/TARDINESS_AUTO) لأنها ليست طلب إجازة حقيقي
+  // من الموظف. مؤكَّد بحالة حقيقية: usedHours المخزّن بجدول leave_balances تراكمي على كامل السنة
+  // ويشمل خطأً هالحوادث التلقائية (موظفة عندها 4 ساعات إجازة يدوية حقيقية هالشهر، وكان معروض
+  // "مستخدم 6.0" بسبب 2 ساعة إضافية من حوادث تلقائية معتمدة). الرصيد الفعلي شهري (٢ ساعة/شهر)
+  // وليس سنوي، فلازم يُحسب لحظياً من طلبات الشهر الحالي بدل قراءة usedHours السنوي المخزّن مباشرة
+  private async getHourlyMonthlyUsage(employeeId: string, leaveTypeId: string): Promise<{ usedHours: number; maxHoursPerMonth: number }> {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+    const usedRows = await this.prisma.$queryRawUnsafe(
+      `SELECT COALESCE(SUM("durationHours"), 0) as "usedHours"
+       FROM leaves.leave_requests
+       WHERE "employeeId" = $1 AND "leaveTypeId" = $2
+         AND "isHourlyLeave" = true AND status = 'APPROVED'
+         AND (source IS NULL OR source = 'EMPLOYEE_REQUEST')
+         AND "startDate" >= $3 AND "startDate" < $4
+         AND "deletedAt" IS NULL`,
+      employeeId, leaveTypeId, monthStart, nextMonthStart,
+    ) as Array<{ usedHours: number }>;
+
+    const typeRows = await this.prisma.$queryRawUnsafe(
+      `SELECT "maxHoursPerMonth" FROM leaves.leave_types WHERE id = $1`,
+      leaveTypeId,
+    ) as Array<{ maxHoursPerMonth: number | null }>;
+
+    return {
+      usedHours: Number(usedRows[0]?.usedHours ?? 0),
+      maxHoursPerMonth: Number(typeRows[0]?.maxHoursPerMonth ?? 2),
+    };
+  }
+
   // الحصول على رصيد موظف معين
   async findByEmployee(employeeId: string, year?: number) {
     const currentYear = year || new Date().getFullYear();
@@ -62,10 +95,27 @@ export class LeaveBalancesService {
 
     const employeeMap = await this.getEmployeeNames([employeeId]);
 
-    return balances.map((balance: any) => ({
-      ...balance,
-      employee: employeeMap.get(balance.employeeId) || null,
-    }));
+    const result = [];
+    for (const balance of balances as any[]) {
+      if (balance.leaveType?.code === 'HOURLY') {
+        const { usedHours, maxHoursPerMonth } = await this.getHourlyMonthlyUsage(employeeId, balance.leaveTypeId);
+        const remainingHours = Math.max(0, maxHoursPerMonth - usedHours);
+        result.push({
+          ...balance,
+          employee: employeeMap.get(balance.employeeId) || null,
+          usedHours,
+          usedDays: usedHours,
+          remainingHours,
+          remainingDays: remainingHours,
+        });
+      } else {
+        result.push({
+          ...balance,
+          employee: employeeMap.get(balance.employeeId) || null,
+        });
+      }
+    }
+    return result;
   }
 
   // ملخص الإجازة السنوية لموظف معين بسنة محددة: المستحق مقابل المأخوذ
