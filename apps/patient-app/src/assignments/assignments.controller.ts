@@ -59,4 +59,11 @@ export class AssignmentsController {
   listExecutionsByPatient(@Param('erpPatientId') erpPatientId: string) {
     return this.service.listExecutionsByPatient(erpPatientId);
   }
+
+  // سير جلسات مريض محدد لمعالجه — كل جلسة مع ملخص إكمال تماريها
+  @Get('patients/:erpPatientId/sessions-progress')
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.EXECUTION_VIEW)
+  getSessionsProgress(@Param('erpPatientId') erpPatientId: string) {
+    return this.service.getSessionsProgress(erpPatientId);
+  }
 }

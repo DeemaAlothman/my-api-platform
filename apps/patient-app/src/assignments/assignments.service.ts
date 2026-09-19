@@ -175,4 +175,43 @@ export class AssignmentsService {
       orderBy: [{ erpSessionId: 'asc' }, { sortOrder: 'asc' }],
     });
   }
+
+  // سير جلسات المريض للمعالج المسؤول — كل جلسة مع ملخص حالة تمارينها (كم مكتمل/متخطّى/لسا)
+  async getSessionsProgress(erpPatientId: string) {
+    const [sessions, assignments] = await Promise.all([
+      this.erp.getPatientSessions(erpPatientId),
+      this.prisma.sessionExerciseAssignment.findMany({
+        where: { erpPatientId, status: 'ACTIVE' }, // الملغي لم يعد جزءاً من العمل المطلوب من المريض
+        include: { executions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+      }),
+    ]);
+
+    const bySession = new Map<string, typeof assignments>();
+    for (const a of assignments) {
+      if (!bySession.has(a.erpSessionId)) bySession.set(a.erpSessionId, []);
+      bySession.get(a.erpSessionId)!.push(a);
+    }
+
+    return sessions.map((session) => {
+      const items = bySession.get(session.id) ?? [];
+      const totalExercises = items.length;
+      let completed = 0, skipped = 0, inProgress = 0, notStarted = 0;
+      for (const a of items) {
+        const status = a.executions[0]?.status ?? 'NOT_STARTED';
+        if (status === 'COMPLETED') completed++;
+        else if (status === 'SKIPPED') skipped++;
+        else if (status === 'IN_PROGRESS') inProgress++;
+        else notStarted++;
+      }
+      return {
+        session,
+        totalExercises,
+        completed,
+        skipped,
+        inProgress,
+        notStarted,
+        allCompleted: totalExercises > 0 && completed === totalExercises,
+      };
+    });
+  }
 }
