@@ -21,6 +21,7 @@ enum PatientAccountStatus {
 enum PatientAccountSource {
   APP
   DASHBOARD
+  AUTO_CONVERSION
 
   @@schema("patient_app")
 }
@@ -170,6 +171,10 @@ model Exercise {
   commonMistakesEn     String? @db.Text
 
   defaultDurationSeconds Int?
+  defaultSets            Int?
+  defaultReps            Int?
+  defaultHoldSeconds     Int?
+  defaultRestSeconds     Int?
 
   active              Boolean  @default(true)
   createdByUserId     String

@@ -7,6 +7,14 @@ export class CreateAccountDto {
   @IsString() @MinLength(6) password: string;
 }
 
+// إنشاء تلقائي (خدمة-لخدمة) عند تحويل حالة إلى علاج فيزيائي — اسم المستخدم يُبنى من اسم المريض داخلياً
+export class AutoCreateAccountDto {
+  @IsUUID() erpPatientId: string;
+  @IsString() firstName: string;
+  @IsString() lastName: string;
+  @IsOptional() @IsString() patientNumber?: string;
+}
+
 export class UpdateAccountDto {
   @IsOptional() @IsEnum(['ACTIVE', 'INACTIVE', 'BLOCKED']) status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
   @IsOptional() @IsString() @MinLength(6) password?: string;

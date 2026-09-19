@@ -52,6 +52,7 @@ enum AppointmentStatus {
   CANCELLED
   NO_SHOW
   RESCHEDULED
+  LATE
   @@schema("clinic_appointments")
 }
 

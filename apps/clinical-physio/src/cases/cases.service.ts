@@ -41,6 +41,7 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 };
 
 const PATIENTS_URL = process.env.PATIENTS_SERVICE_URL || 'http://localhost:4010';
+const PATIENT_APP_URL = process.env.PATIENT_APP_SERVICE_URL || 'http://patient-app:4017';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 
 @Injectable()
@@ -63,6 +64,27 @@ export class CasesService {
       // فشل الاتصال → نعامله كعدم وجود (فشل مغلق)
     }
     throw new BadRequestException({ code: 'PATIENT_NOT_FOUND', message: 'Patient not found' });
+  }
+
+  // إنشاء حساب تطبيق المريض تلقائياً عند أول تحويل لعلاج فيزيائي — فشل الاتصال لا يكسر عملية التحويل
+  private async autoCreatePatientAppAccount(patientId: string): Promise<void> {
+    try {
+      const nameMap = await this.resolvePatientNames([patientId]);
+      const info = nameMap[patientId];
+      if (!info) return;
+      await fetch(`${PATIENT_APP_URL}/api/v1/patient-app/internal/accounts/auto-create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+        body: JSON.stringify({
+          erpPatientId: patientId,
+          firstName: info.firstName,
+          lastName: info.lastName,
+          patientNumber: info.patientNumber,
+        }),
+      });
+    } catch {
+      // لا يكسر عملية التحويل — الحساب ممكن يُنشأ يدوياً لاحقاً من لوحة التحكم
+    }
   }
 
   private async findCaseOrThrow(id: string) {
@@ -1022,6 +1044,7 @@ export class CasesService {
           },
         );
       }
+      this.autoCreatePatientAppAccount(examCase.patientId).catch(() => {});
       return result;
     });
   }

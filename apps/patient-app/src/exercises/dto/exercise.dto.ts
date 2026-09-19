@@ -24,6 +24,10 @@ export class CreateExerciseDto {
   @IsOptional() @IsString() commonMistakesEn?: string;
 
   @IsOptional() @IsInt() defaultDurationSeconds?: number;
+  @IsOptional() @IsInt() defaultSets?: number;
+  @IsOptional() @IsInt() defaultReps?: number;
+  @IsOptional() @IsInt() defaultHoldSeconds?: number;
+  @IsOptional() @IsInt() defaultRestSeconds?: number;
 
   @IsOptional() @IsArray() @IsUUID('4', { each: true }) goalIds?: string[];
 }
@@ -50,6 +54,10 @@ export class UpdateExerciseDto {
   @IsOptional() @IsString() commonMistakesEn?: string;
 
   @IsOptional() @IsInt() defaultDurationSeconds?: number;
+  @IsOptional() @IsInt() defaultSets?: number;
+  @IsOptional() @IsInt() defaultReps?: number;
+  @IsOptional() @IsInt() defaultHoldSeconds?: number;
+  @IsOptional() @IsInt() defaultRestSeconds?: number;
   @IsOptional() @IsBoolean() active?: boolean;
 
   @IsOptional() @IsArray() @IsUUID('4', { each: true }) goalIds?: string[];

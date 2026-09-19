@@ -2,7 +2,9 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { ErpClientService } from '../integrations/erp-client.service';
-import { CreateAccountDto, UpdateAccountDto, ListAccountsQueryDto } from './dto/account.dto';
+import { CreateAccountDto, UpdateAccountDto, ListAccountsQueryDto, AutoCreateAccountDto } from './dto/account.dto';
+
+const AUTO_ACCOUNT_PASSWORD = '00000000';
 
 @Injectable()
 export class AccountsService {
@@ -34,6 +36,31 @@ export class AccountsService {
         passwordHash,
         createdSource: 'DASHBOARD',
         createdByUserId,
+        status: 'ACTIVE',
+      },
+    });
+  }
+
+  // إنشاء تلقائي (خدمة-لخدمة) عند تحويل حالة إلى علاج فيزيائي — اسم مستخدم = اسم المريض، كلمة سر ثابتة 00000000
+  // إن كان للمريض حساب أصلاً (بأي مصدر)، لا يُنشأ حساب ثانٍ — العملية idempotent بأمان
+  async autoCreateFromConversion(dto: AutoCreateAccountDto) {
+    const existingAccount = await this.prisma.patientAccount.findFirst({
+      where: { erpPatientId: dto.erpPatientId, deletedAt: null },
+    });
+    if (existingAccount) return existingAccount;
+
+    const baseUsername = `${dto.firstName} ${dto.lastName}`.trim();
+    const usernameTaken = await this.prisma.patientAccount.findFirst({ where: { username: baseUsername } });
+    // تعارض بالاسم (مريض آخر بنفس الاسم) → نميّز باسم المستخدم عبر إلحاق رقم الملف الفريد
+    const username = usernameTaken && dto.patientNumber ? `${baseUsername}-${dto.patientNumber}` : baseUsername;
+
+    const passwordHash = await bcrypt.hash(AUTO_ACCOUNT_PASSWORD, 10);
+    return this.prisma.patientAccount.create({
+      data: {
+        erpPatientId: dto.erpPatientId,
+        username,
+        passwordHash,
+        createdSource: 'AUTO_CONVERSION',
         status: 'ACTIVE',
       },
     });

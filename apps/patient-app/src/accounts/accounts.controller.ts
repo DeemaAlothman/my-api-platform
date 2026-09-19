@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '@shared/auth';
+import { JwtAuthGuard, InternalAuthGuard } from '@shared';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
 import { Permission } from '@shared/decorators/permission.decorator';
 import { PERMISSIONS } from '@shared/constants/permissions.constants';
 import { User } from '@shared/auth/decorators/current-user.decorator';
 import { AccountsService } from './accounts.service';
-import { CreateAccountDto, UpdateAccountDto, ListAccountsQueryDto } from './dto/account.dto';
+import { CreateAccountDto, UpdateAccountDto, ListAccountsQueryDto, AutoCreateAccountDto } from './dto/account.dto';
 
 @Controller('patient-app/accounts')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -40,5 +40,17 @@ export class AccountsController {
   @Permission(PERMISSIONS.CLINIC_PATIENT_APP.ACCOUNT_MANAGE)
   update(@Param('id') id: string, @Body() dto: UpdateAccountDto) {
     return this.service.update(id, dto);
+  }
+}
+
+// نقطة داخلية (خدمة-لخدمة): إنشاء حساب تطبيق تلقائياً عند تحويل حالة إلى علاج فيزيائي — تُستخدم من clinical-physio
+@Controller('patient-app/internal/accounts')
+export class AccountsInternalController {
+  constructor(private readonly service: AccountsService) {}
+
+  @Post('auto-create')
+  @UseGuards(InternalAuthGuard)
+  autoCreate(@Body() dto: AutoCreateAccountDto) {
+    return this.service.autoCreateFromConversion(dto);
   }
 }
