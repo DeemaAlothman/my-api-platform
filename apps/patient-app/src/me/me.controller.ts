@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { PatientJwtAuthGuard } from '../patient-auth/guards/patient-jwt-auth.guard';
 import { CurrentPatient } from '../patient-auth/decorators/current-patient.decorator';
 import { MeService } from './me.service';
@@ -66,5 +66,11 @@ export class MeController {
   @Get('progress')
   getProgress(@CurrentPatient() patient: CurrentPatient) {
     return this.service.getProgress(patient.erpPatientId, patient.patientAccountId);
+  }
+
+  // سجل الإنجاز اليومي لآخر N يوم (افتراضي 14) — للرسم البياني وأيام الالتزام المتتالية
+  @Get('progress/daily')
+  getDailyProgress(@Query('days') days: string | undefined, @CurrentPatient() patient: CurrentPatient) {
+    return this.service.getDailyProgress(patient.patientAccountId, days ? parseInt(days, 10) : 14);
   }
 }

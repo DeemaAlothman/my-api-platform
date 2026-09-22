@@ -63,6 +63,8 @@ export class AssignmentsService {
         restSeconds: dto.restSeconds ?? exercise.defaultRestSeconds ?? undefined,
         frequencyTextAr: dto.frequencyTextAr,
         frequencyTextEn: dto.frequencyTextEn,
+        timesPerDay: dto.timesPerDay,
+        daysPerWeek: dto.daysPerWeek,
         customInstructionAr: dto.customInstructionAr,
         customInstructionEn: dto.customInstructionEn,
       },

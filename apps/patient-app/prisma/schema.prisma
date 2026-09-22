@@ -231,6 +231,8 @@ model SessionExerciseAssignment {
   restSeconds         Int?
   frequencyTextAr     String?
   frequencyTextEn     String?
+  timesPerDay         Int?
+  daysPerWeek         Int?
   customInstructionAr String? @db.Text
   customInstructionEn String? @db.Text
 

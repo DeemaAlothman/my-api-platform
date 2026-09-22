@@ -11,6 +11,8 @@ export class CreateAssignmentDto {
   @IsOptional() @IsInt() restSeconds?: number;
   @IsOptional() @IsString() frequencyTextAr?: string;
   @IsOptional() @IsString() frequencyTextEn?: string;
+  @IsOptional() @IsInt() timesPerDay?: number;
+  @IsOptional() @IsInt() daysPerWeek?: number;
   @IsOptional() @IsString() customInstructionAr?: string;
   @IsOptional() @IsString() customInstructionEn?: string;
 }
@@ -23,6 +25,8 @@ export class UpdateAssignmentDto {
   @IsOptional() @IsInt() restSeconds?: number;
   @IsOptional() @IsString() frequencyTextAr?: string;
   @IsOptional() @IsString() frequencyTextEn?: string;
+  @IsOptional() @IsInt() timesPerDay?: number;
+  @IsOptional() @IsInt() daysPerWeek?: number;
   @IsOptional() @IsString() customInstructionAr?: string;
   @IsOptional() @IsString() customInstructionEn?: string;
 }

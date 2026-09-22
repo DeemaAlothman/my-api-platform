@@ -47,13 +47,72 @@ export class MeService {
     ]);
 
     const sessionById = new Map(sessions.map((s) => [s.id, s]));
+    // تمرين تابع لجلسة حالتها محذوفة أو مش PHYSIO ما رح يرجع أصلاً (بدل ما يرجع بـsession: null)
+    const visible = assignments.filter((a) => sessionById.has(a.erpSessionId));
 
-    return assignments.map((a) => ({
+    const { start, end } = this.ammanTodayBoundsUtc();
+    const todayCounts = visible.length
+      ? await this.prisma.exerciseExecution.groupBy({
+          by: ['assignmentId'],
+          where: {
+            patientAccountId,
+            status: 'COMPLETED',
+            completedAt: { gte: start, lt: end },
+            assignmentId: { in: visible.map((a) => a.id) },
+          },
+          _count: { _all: true },
+        })
+      : [];
+    const todayCountByAssignment = new Map(todayCounts.map((c) => [c.assignmentId, c._count._all]));
+
+    return visible.map((a) => ({
       ...a,
       execution: a.executions[0] ?? null,
       executions: undefined,
-      session: sessionById.get(a.erpSessionId) ?? null,
+      session: sessionById.get(a.erpSessionId),
+      todayCompletedCount: todayCountByAssignment.get(a.id) ?? 0,
     }));
+  }
+
+  // حدود "اليوم" بتوقيت عمّان (UTC+3 ثابت بدون توقيت صيفي) مُعبَّرة كـUTC — لاستخدامها بفلاتر completedAt
+  private ammanTodayBoundsUtc(refDate: Date = new Date()) {
+    const AMMAN_OFFSET_MS = 180 * 60_000;
+    const shifted = new Date(refDate.getTime() + AMMAN_OFFSET_MS);
+    const dateKey = shifted.toISOString().slice(0, 10);
+    const start = new Date(new Date(`${dateKey}T00:00:00.000Z`).getTime() - AMMAN_OFFSET_MS);
+    const end = new Date(start.getTime() + 86_400_000);
+    return { start, end };
+  }
+
+  private ammanDateKey(d: Date): string {
+    return new Date(d.getTime() + 180 * 60_000).toISOString().slice(0, 10);
+  }
+
+  // سجل الإنجاز اليومي (للرسم البياني وحساب أيام الالتزام المتتالية) — بتوقيت عمّان، أيام بدون إنجاز ترجع 0
+  async getDailyProgress(patientAccountId: string, days: number) {
+    const n = Math.min(Math.max(Math.trunc(days) || 14, 1), 90);
+    const todayKey = this.ammanDateKey(new Date());
+    const todayUtcMidnight = new Date(`${todayKey}T00:00:00.000Z`);
+    const rangeStartUtc = new Date(todayUtcMidnight.getTime() - (n - 1) * 86_400_000 - 180 * 60_000);
+
+    const executions = await this.prisma.exerciseExecution.findMany({
+      where: { patientAccountId, status: 'COMPLETED', completedAt: { gte: rangeStartUtc } },
+      select: { completedAt: true },
+    });
+
+    const counts = new Map<string, number>();
+    for (const e of executions) {
+      const key = this.ammanDateKey(e.completedAt!);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    const result: { date: string; completed: number }[] = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const dayUtc = new Date(todayUtcMidnight.getTime() - i * 86_400_000);
+      const key = dayUtc.toISOString().slice(0, 10);
+      result.push({ date: key, completed: counts.get(key) ?? 0 });
+    }
+    return result;
   }
 
   async listSessionExercises(erpPatientId: string, erpSessionId: string, patientAccountId: string) {
@@ -143,6 +202,16 @@ export class MeService {
       ? Math.max(0, Math.round((completedAt.getTime() - execution.startedAt.getTime()) / 1000))
       : assignment.durationSeconds;
 
+    const minRequiredSeconds = this.minRequiredSeconds(assignment);
+    if (elapsedSeconds < minRequiredSeconds) {
+      throw new BadRequestException({
+        code: 'EXERCISE_DURATION_NOT_ELAPSED',
+        message: `لازم يمضي ${minRequiredSeconds} ثانية على الأقل قبل إكمال هذا التمرين`,
+        requiredSeconds: minRequiredSeconds,
+        elapsedSeconds,
+      });
+    }
+
     const updated = await this.prisma.exerciseExecution.update({
       where: { id: execution.id },
       data: {
@@ -205,7 +274,18 @@ export class MeService {
   }
 
   async listSkipReasons() {
-    return this.prisma.skipReason.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } });
+    const reasons = await this.prisma.skipReason.findMany({ where: { active: true }, orderBy: { sortOrder: 'asc' } });
+    // سبب "أخرى" فقط هو اللي يتطلب نص (نفس الشرط المعتمد فعلياً بـskip()) — حتى يطلبه التطبيق من المريض قبل الإرسال
+    return reasons.map((r) => ({ ...r, requiresText: r.nameEn.toLowerCase() === 'other' }));
+  }
+
+  // الحد الأدنى المطلوب (ثواني) قبل قبول "إكمال" — يطابق حساب التطبيق بالضبط، بدون احتساب أوقات الراحة (قابلة للتخطي)
+  private minRequiredSeconds(assignment: { durationSeconds: number; sets: number | null; reps: number | null; holdSeconds: number | null }): number {
+    const sets = assignment.sets ?? 1;
+    if (assignment.reps) {
+      return assignment.holdSeconds ? sets * assignment.reps * assignment.holdSeconds : sets * assignment.reps * 2;
+    }
+    return sets * assignment.durationSeconds;
   }
 
   async getProgress(erpPatientId: string, patientAccountId: string) {
