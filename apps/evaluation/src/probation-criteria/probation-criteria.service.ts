@@ -7,7 +7,7 @@ export class ProbationCriteriaService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(employeeId?: string) {
-    return this.prisma.probationCriteria.findMany({
+    const items = await this.prisma.probationCriteria.findMany({
       where: {
         isActive: true,
         OR: [
@@ -15,8 +15,21 @@ export class ProbationCriteriaService {
           ...(employeeId ? [{ targetEmployeeId: employeeId }] : []),
         ],
       },
+      include: { jobTitleOverrides: { where: { isEnabled: true }, select: { jobTitleId: true } } },
       orderBy: { displayOrder: 'asc' },
     });
+    return items.map(({ jobTitleOverrides, ...c }) => ({
+      ...c,
+      jobTitleIds: jobTitleOverrides.map(o => o.jobTitleId),
+    }));
+  }
+
+  // يجمع jobTitleId المفرد (توافق عكسي) مع jobTitleIds بدون تكرار
+  private resolveJobTitleIds(dto: Pick<CreateProbationCriteriaDto, 'jobTitleId' | 'jobTitleIds'>): string[] | undefined {
+    if (dto.jobTitleIds !== undefined) {
+      return [...new Set([...(dto.jobTitleIds ?? []), ...(dto.jobTitleId ? [dto.jobTitleId] : [])])];
+    }
+    return dto.jobTitleId ? [dto.jobTitleId] : undefined;
   }
 
   async create(dto: CreateProbationCriteriaDto) {
@@ -31,12 +44,12 @@ export class ProbationCriteriaService {
       },
     });
 
-    // لو انبعت مسمى وظيفي وقت الإنشاء، نربط السؤال فيه مباشرة (إضافة، بدون ما نلمس أي ربط تاني موجود لهالمسمى)
-    if (dto.jobTitleId) {
-      await this.prisma.jobTitleCriteria.upsert({
-        where: { jobTitleId_criteriaId: { jobTitleId: dto.jobTitleId, criteriaId: created.id } },
-        create: { jobTitleId: dto.jobTitleId, criteriaId: created.id, isEnabled: true },
-        update: { isEnabled: true },
+    // لو انبعت مسمى وظيفي واحد أو أكتر وقت الإنشاء، نربط السؤال فيهن مباشرة (إضافة، بدون ما نلمس أي ربط تاني موجود لهالمسميات)
+    const jobTitleIds = this.resolveJobTitleIds(dto);
+    if (jobTitleIds?.length) {
+      await this.prisma.jobTitleCriteria.createMany({
+        data: jobTitleIds.map(jobTitleId => ({ jobTitleId, criteriaId: created.id, isEnabled: true })),
+        skipDuplicates: true,
       });
     }
 
@@ -60,7 +73,7 @@ export class ProbationCriteriaService {
     const item = await this.prisma.probationCriteria.findUnique({ where: { id } });
     if (!item) throw new NotFoundException('المعيار غير موجود');
 
-    return this.prisma.probationCriteria.update({
+    const updated = await this.prisma.probationCriteria.update({
       where: { id },
       data: {
         ...(dto.nameAr && { nameAr: dto.nameAr }),
@@ -70,6 +83,20 @@ export class ProbationCriteriaService {
         ...(dto.targetEmployeeId !== undefined && { targetEmployeeId: dto.targetEmployeeId }),
       },
     });
+
+    // استبدال كامل لقائمة المسميات الوظيفية المرتبط فيها هالسؤال — قائمة فاضية [] معناها يصير سؤال عام بالكامل
+    const jobTitleIds = this.resolveJobTitleIds(dto);
+    if (jobTitleIds !== undefined) {
+      await this.prisma.jobTitleCriteria.deleteMany({ where: { criteriaId: id } });
+      if (jobTitleIds.length) {
+        await this.prisma.jobTitleCriteria.createMany({
+          data: jobTitleIds.map(jobTitleId => ({ jobTitleId, criteriaId: id, isEnabled: true })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    return updated;
   }
 
   async delete(id: string) {
