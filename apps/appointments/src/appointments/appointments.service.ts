@@ -366,8 +366,8 @@ export class AppointmentsService implements OnModuleInit {
 
     const [employees, departments] = await Promise.all([
       practitionerIds.length
-        ? this.prisma.$queryRawUnsafe<Array<{ id: string; firstNameAr: string; lastNameAr: string }>>(
-            `SELECT id, "firstNameAr", "lastNameAr" FROM users.employees WHERE id = ANY($1::text[])`,
+        ? this.prisma.$queryRawUnsafe<Array<{ userId: string; firstNameAr: string; lastNameAr: string }>>(
+            `SELECT "userId", "firstNameAr", "lastNameAr" FROM users.employees WHERE "userId" = ANY($1::text[])`,
             practitionerIds,
           )
         : Promise.resolve([]),
@@ -378,7 +378,7 @@ export class AppointmentsService implements OnModuleInit {
           )
         : Promise.resolve([]),
     ]);
-    const employeeMap = new Map(employees.map(e => [e.id, `${e.firstNameAr} ${e.lastNameAr}`]));
+    const employeeMap = new Map(employees.map(e => [e.userId, `${e.firstNameAr} ${e.lastNameAr}`]));
     const departmentMap = new Map(departments.map(d => [d.id, d.nameAr]));
 
     const rows = raw.map((a, idx) => ({
@@ -391,6 +391,7 @@ export class AppointmentsService implements OnModuleInit {
       cancelled: a.status === 'CANCELLED',
       postponed: a.status === 'RESCHEDULED',
       noShow: a.status === 'NO_SHOW',
+      cancelledReason: a.cancelledReason ?? '',
     }));
 
     const totals = rows.reduce(
@@ -424,13 +425,14 @@ export class AppointmentsService implements OnModuleInit {
       check(r.cancelled),
       check(r.postponed),
       check(r.noShow),
+      r.cancelledReason,
     ]);
-    excelRows.push(['العدد الكلي', '', '', '', '', totals.attended, totals.cancelled, totals.postponed, totals.noShow]);
+    excelRows.push(['العدد الكلي', '', '', '', '', totals.attended, totals.cancelled, totals.postponed, totals.noShow, '']);
 
     await sendExcel(
       res,
       'إحصائيات المواعيد',
-      ['اسم المريض', 'القسم', 'نوع الخدمة', 'اسم الفني', 'تاريخ الزيارة', 'تم الحضور', 'ملغاة', 'تم التأجيل', 'غياب'],
+      ['اسم المريض', 'القسم', 'نوع الخدمة', 'اسم الفني', 'تاريخ الزيارة', 'تم الحضور', 'ملغاة', 'تم التأجيل', 'غياب', 'سبب الإلغاء'],
       excelRows as any,
     );
   }
