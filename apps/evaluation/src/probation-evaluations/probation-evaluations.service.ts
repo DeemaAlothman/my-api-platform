@@ -34,16 +34,32 @@ export class ProbationEvaluationsService {
       },
     });
 
-    const allCriteria = await this.prisma.probationCriteria.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { targetEmployeeId: null },
-          { targetEmployeeId: dto.employeeId },
-        ],
-      },
-      orderBy: { displayOrder: 'asc' },
-    });
+    // المعايير حسب المسمى الوظيفي إن كان له تخصيص مُعرَّف، وإلا نرجع للسلوك القديم (أساسية + مخصصة باسم الموظف)
+    const jobTitleId = await this.resolveEmployeeJobTitleId(dto.employeeId);
+    let allCriteria: Array<{ id: string }> = [];
+    if (jobTitleId) {
+      const jobTitleOverrides = await this.prisma.jobTitleCriteria.findMany({
+        where: { jobTitleId, isEnabled: true },
+        include: { criteria: true },
+        orderBy: { displayOrder: 'asc' },
+      });
+      allCriteria = jobTitleOverrides
+        .filter(o => o.criteria.isActive)
+        .map(o => o.criteria);
+    }
+
+    if (allCriteria.length === 0) {
+      allCriteria = await this.prisma.probationCriteria.findMany({
+        where: {
+          isActive: true,
+          OR: [
+            { targetEmployeeId: null },
+            { targetEmployeeId: dto.employeeId },
+          ],
+        },
+        orderBy: { displayOrder: 'asc' },
+      });
+    }
 
     if (allCriteria.length > 0) {
       await this.prisma.probationCriteriaScore.createMany({
@@ -970,7 +986,17 @@ export class ProbationEvaluationsService {
     }
   }
 
+  // جلب المسمى الوظيفي للموظف من خدمة users
+  private async resolveEmployeeJobTitleId(employeeId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ jobTitleId: string | null }>>(
+      `SELECT "jobTitleId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    );
+    return rows[0]?.jobTitleId ?? null;
+  }
+
   // جلب مدير الموظف المباشر (managerId) من خدمة users
+
   private async resolveEmployeeManagerId(employeeId: string): Promise<string | null> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ managerId: string | null }>>(
       `SELECT "managerId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
