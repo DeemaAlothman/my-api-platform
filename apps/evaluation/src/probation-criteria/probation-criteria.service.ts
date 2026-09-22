@@ -20,7 +20,7 @@ export class ProbationCriteriaService {
   }
 
   async create(dto: CreateProbationCriteriaDto) {
-    return this.prisma.probationCriteria.create({
+    const created = await this.prisma.probationCriteria.create({
       data: {
         nameAr: dto.nameAr,
         nameEn: dto.nameEn,
@@ -29,6 +29,30 @@ export class ProbationCriteriaService {
         displayOrder: dto.displayOrder ?? 0,
         targetEmployeeId: dto.targetEmployeeId ?? null,
       },
+    });
+
+    // لو انبعت مسمى وظيفي وقت الإنشاء، نربط السؤال فيه مباشرة (إضافة، بدون ما نلمس أي ربط تاني موجود لهالمسمى)
+    if (dto.jobTitleId) {
+      await this.prisma.jobTitleCriteria.upsert({
+        where: { jobTitleId_criteriaId: { jobTitleId: dto.jobTitleId, criteriaId: created.id } },
+        create: { jobTitleId: dto.jobTitleId, criteriaId: created.id, isEnabled: true },
+        update: { isEnabled: true },
+      });
+    }
+
+    return created;
+  }
+
+  // تفعيل/إلغاء سؤال واحد بعينه لمسمى وظيفي واحد — بدون المساس بباقي أسئلة نفس المسمى الوظيفي
+  // isEnabled=false يُستخدم لاستثناء سؤال ثابت (Core) من الظهور لهالمسمى الوظيفي تحديداً
+  async setCriteriaEnabledForJobTitle(jobTitleId: string, criteriaId: string, isEnabled: boolean) {
+    const criteria = await this.prisma.probationCriteria.findUnique({ where: { id: criteriaId } });
+    if (!criteria) throw new NotFoundException('المعيار غير موجود');
+
+    return this.prisma.jobTitleCriteria.upsert({
+      where: { jobTitleId_criteriaId: { jobTitleId, criteriaId } },
+      create: { jobTitleId, criteriaId, isEnabled },
+      update: { isEnabled },
     });
   }
 

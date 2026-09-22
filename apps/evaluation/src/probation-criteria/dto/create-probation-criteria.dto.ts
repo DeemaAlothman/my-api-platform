@@ -9,8 +9,14 @@ export class CreateProbationCriteriaDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() displayOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() targetEmployeeId?: string;
+  // لو انبعت، السؤال بينربط تلقائياً بهالمسمى الوظيفي (بالإضافة للأسئلة الثابتة، مو بدل عنها)
+  @ApiPropertyOptional() @IsOptional() @IsString() jobTitleId?: string;
 }
 
 export class JobTitleCriteriaDto {
   @ApiProperty({ type: [String] }) criteriaIds: string[];
+}
+
+export class SetJobTitleCriteriaEnabledDto {
+  @ApiProperty() @IsBoolean() isEnabled: boolean;
 }

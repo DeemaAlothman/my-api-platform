@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProbationCriteriaService } from './probation-criteria.service';
-import { CreateProbationCriteriaDto, JobTitleCriteriaDto } from './dto/create-probation-criteria.dto';
+import { CreateProbationCriteriaDto, JobTitleCriteriaDto, SetJobTitleCriteriaEnabledDto } from './dto/create-probation-criteria.dto';
 import { JwtAuthGuard } from '@shared/auth';
 
 @ApiTags('Probation Criteria')
@@ -34,5 +34,15 @@ export class ProbationCriteriaController {
   @Put('job-title/:jobTitleId')
   setJobTitleCriteria(@Param('jobTitleId') jobTitleId: string, @Body() dto: JobTitleCriteriaDto) {
     return this.service.setJobTitleCriteria(jobTitleId, dto.criteriaIds);
+  }
+
+  // تفعيل/إلغاء سؤال واحد لمسمى وظيفي واحد — لاستثناء سؤال ثابت (Core) عن مسمى وظيفي معيّن مثلاً
+  @Put('job-title/:jobTitleId/:criteriaId')
+  setJobTitleCriteriaEnabled(
+    @Param('jobTitleId') jobTitleId: string,
+    @Param('criteriaId') criteriaId: string,
+    @Body() dto: SetJobTitleCriteriaEnabledDto,
+  ) {
+    return this.service.setCriteriaEnabledForJobTitle(jobTitleId, criteriaId, dto.isEnabled);
   }
 }

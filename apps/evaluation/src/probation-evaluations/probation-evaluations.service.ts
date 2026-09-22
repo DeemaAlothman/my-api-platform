@@ -34,31 +34,35 @@ export class ProbationEvaluationsService {
       },
     });
 
-    // المعايير حسب المسمى الوظيفي إن كان له تخصيص مُعرَّف، وإلا نرجع للسلوك القديم (أساسية + مخصصة باسم الموظف)
-    const jobTitleId = await this.resolveEmployeeJobTitleId(dto.employeeId);
-    let allCriteria: Array<{ id: string }> = [];
-    if (jobTitleId) {
-      const jobTitleOverrides = await this.prisma.jobTitleCriteria.findMany({
-        where: { jobTitleId, isEnabled: true },
-        include: { criteria: true },
-        orderBy: { displayOrder: 'asc' },
-      });
-      allCriteria = jobTitleOverrides
-        .filter(o => o.criteria.isActive)
-        .map(o => o.criteria);
-    }
+    // الأسئلة العامة (تظهر للكل افتراضياً) + أي سؤال مخصص باسم هالموظف تحديداً (الأسلوب القديم)
+    let allCriteria = await this.prisma.probationCriteria.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { targetEmployeeId: null },
+          { targetEmployeeId: dto.employeeId },
+        ],
+      },
+      orderBy: { displayOrder: 'asc' },
+    });
 
-    if (allCriteria.length === 0) {
-      allCriteria = await this.prisma.probationCriteria.findMany({
-        where: {
-          isActive: true,
-          OR: [
-            { targetEmployeeId: null },
-            { targetEmployeeId: dto.employeeId },
-          ],
-        },
-        orderBy: { displayOrder: 'asc' },
+    // تخصيص حسب المسمى الوظيفي: استثناء أسئلة عامة معطّلة لهالمسمى + إضافة أسئلة خاصة به
+    const jobTitleId = await this.resolveEmployeeJobTitleId(dto.employeeId);
+    if (jobTitleId) {
+      const jobTitleLinks = await this.prisma.jobTitleCriteria.findMany({
+        where: { jobTitleId },
+        include: { criteria: true },
       });
+      const disabledIds = new Set(jobTitleLinks.filter(l => !l.isEnabled).map(l => l.criteriaId));
+      const enabledExtra = jobTitleLinks
+        .filter(l => l.isEnabled && l.criteria.isActive)
+        .map(l => l.criteria);
+
+      const merged = [...allCriteria.filter(c => !disabledIds.has(c.id)), ...enabledExtra];
+      const seen = new Set<string>();
+      allCriteria = merged
+        .filter(c => (seen.has(c.id) ? false : (seen.add(c.id), true)))
+        .sort((a, b) => a.displayOrder - b.displayOrder);
     }
 
     if (allCriteria.length > 0) {
