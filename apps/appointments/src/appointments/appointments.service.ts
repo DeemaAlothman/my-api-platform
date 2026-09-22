@@ -361,10 +361,11 @@ export class AppointmentsService implements OnModuleInit {
     const withPatientNames = await this.attachPatientNames(raw);
     const patientNameByIndex = withPatientNames.map(p => p.patientName || '');
 
-    // المعالج المسؤول فعلياً عن الحالة: بالجلسات الفيزيائية physiotherapistId هو المعالج الحقيقي
-    // (practitionerId قد يكون موظف الاستقبال اللي حجز الموعد)، وإلا يُعتمد practitionerId
-    const responsibleId = (a: (typeof raw)[number]) => a.physiotherapistId || a.practitionerId;
-    const practitionerIds = [...new Set(raw.map(responsibleId).filter(Boolean))];
+    // المعالج المسؤول فعلياً عن الحالة: therapistIds هو الحقل الصحيح (تأكدنا بالبيانات الفعلية
+    // إنو practitionerId=createdBy دائماً، أي موظف الاستقبال اللي سجّل الموعد، مش المعالج).
+    const responsibleIds = (a: (typeof raw)[number]): string[] =>
+      a.therapistIds?.length ? a.therapistIds : (a.physiotherapistId ? [a.physiotherapistId] : (a.practitionerId ? [a.practitionerId] : []));
+    const practitionerIds = [...new Set(raw.flatMap(responsibleIds))];
     const departmentIds = [...new Set(raw.map(a => a.departmentId).filter((id): id is string => !!id))];
 
     const [employees, departments] = await Promise.all([
@@ -388,7 +389,7 @@ export class AppointmentsService implements OnModuleInit {
       patientName: patientNameByIndex[idx] ?? '',
       department: a.departmentId ? (departmentMap.get(a.departmentId) ?? '') : '',
       serviceType: SERVICE_TYPE_AR[a.appointmentType as string] ?? a.appointmentType,
-      practitionerName: responsibleId(a) ? (employeeMap.get(responsibleId(a)) ?? '') : '',
+      practitionerName: responsibleIds(a).map(id => employeeMap.get(id)).filter(Boolean).join('، '),
       visitDate: a.startTime,
       attended: a.status === 'COMPLETED',
       cancelled: a.status === 'CANCELLED',
