@@ -21,6 +21,7 @@ export class UpdatePatientDto {
 
   @IsOptional() @IsString() nationality?: string;
   @IsOptional() @IsString() occupation?: string;
+  @IsOptional() @IsBoolean() isCompanyPatient?: boolean;
 
   @IsOptional() @Type(() => Number) @IsNumber() heightCm?: number;
   @IsOptional() @Type(() => Number) @IsNumber() weightKg?: number;

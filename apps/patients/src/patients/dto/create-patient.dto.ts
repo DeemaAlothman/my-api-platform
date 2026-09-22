@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsNumber, IsEmail, IsDateString } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsNumber, IsEmail, IsDateString, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum IdType { NATIONAL_ID = 'NATIONAL_ID', PASSPORT = 'PASSPORT', UNHCR = 'UNHCR', OTHER = 'OTHER' }
@@ -35,6 +35,7 @@ export class CreatePatientDto {
 
   @IsOptional() @IsString() nationality?: string;
   @IsOptional() @IsString() occupation?: string;
+  @IsOptional() @IsBoolean() isCompanyPatient?: boolean;
 
   @IsOptional() @Type(() => Number) @IsNumber() heightCm?: number;
   @IsOptional() @Type(() => Number) @IsNumber() weightKg?: number;

@@ -139,6 +139,9 @@ model Patient {
   documentConsent String?   // e.g. FULL, NONE
   mediaConsent    Boolean?
 
+  // هل المريض مريض شركة (تأمين/جهة عمل) — اختياري، افتراضياً لا
+  isCompanyPatient Boolean @default(false)
+
   // Referral
   referralSource   ReferralSource?
   referralDetails  String?   // اسم الطبيب / المشفى / الجمعية
