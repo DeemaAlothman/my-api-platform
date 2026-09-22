@@ -1,11 +1,12 @@
 import {
-  Controller, Get, Post, Put, Patch, Body, Param, Query, UseGuards,
+  Controller, Get, Post, Put, Patch, Body, Param, Query, Res, UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { AppointmentsService } from './appointments.service';
 import {
   CreateAppointmentDto, UpdateAppointmentDto, UpdateStatusDto,
   RescheduleDto, ListAppointmentsQueryDto, CalendarQueryDto, SlotsQueryDto,
-  PractitionerPatientsQueryDto, MyAppointmentsQueryDto,
+  PractitionerPatientsQueryDto, MyAppointmentsQueryDto, StatisticsQueryDto,
 } from './dto/appointment.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -52,6 +53,18 @@ export class AppointmentsController {
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
   getCalendar(@Query() query: CalendarQueryDto) {
     return this.service.getCalendar(query);
+  }
+
+  @Get('statistics')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.STATISTICS_VIEW)
+  getStatistics(@Query() query: StatisticsQueryDto) {
+    return this.service.getStatistics(query);
+  }
+
+  @Get('statistics/export-xlsx')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.STATISTICS_VIEW)
+  exportStatisticsXlsx(@Query() query: StatisticsQueryDto, @Res() res: Response) {
+    return this.service.exportStatisticsXlsx(query, res);
   }
 
   @Get('practitioner-patients')

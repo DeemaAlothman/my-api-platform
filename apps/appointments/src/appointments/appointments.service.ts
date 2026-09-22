@@ -1,11 +1,40 @@
 import {
   Injectable, NotFoundException, BadRequestException, OnModuleInit,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateAppointmentDto, UpdateAppointmentDto, UpdateStatusDto,
   RescheduleDto, ListAppointmentsQueryDto, CalendarQueryDto, SlotsQueryDto,
+  StatisticsQueryDto,
 } from './dto/appointment.dto';
+import { sendExcel } from '../common/utils/excel.util';
+
+// تسميات عربية لنوع الخدمة — تُستخدم بتقرير الإحصائيات
+const SERVICE_TYPE_AR: Record<string, string> = {
+  ASSESSMENT: 'تقييم سريري',
+  FITTING: 'تركيب',
+  SESSION: 'جلسة',
+  FOLLOW_UP: 'متابعة',
+  COMMITTEE: 'لجنة',
+  EXAMINATION: 'معاينة',
+  REHABILITATION: 'تأهيل',
+  COMPANY_EXAMINATION: 'معاينة شركة',
+  REFERRAL_EXAMINATION: 'معاينة إحالة',
+  TRIAL_DELIVERY: 'تسليم تجريبي',
+  FINAL_DELIVERY: 'تسليم نهائي',
+  REVIEW: 'مراجعة',
+  IMPRESSION_TAKING: 'أخذ انطباع',
+  MEASUREMENT_TAKING: 'أخذ قياس',
+  WHEELCHAIR_DELIVERY: 'تسليم كرسي متحرك',
+  WARRANTY_DELIVERY: 'تسليم ضمان',
+  COSMETIC_DELIVERY: 'تسليم تجميلي',
+  ANALYSIS: 'تحليل',
+  INSTALLATION: 'تنصيب',
+  ORTHOPEDIC_EXAMINATION: 'معاينة عظمية',
+  FOOT_ANALYSIS_EXAMINATION: 'تحليل قدم',
+  LIMB_PATIENT_EXAMINATION: 'معاينة مريض طرف',
+};
 
 // أنواع المواعيد المسموح بها لكل قسم
 const DEPT_ALLOWED_TYPES: Record<string, string[]> = {
@@ -317,6 +346,93 @@ export class AppointmentsService implements OnModuleInit {
       patientNumber: i.patientId ? (map.get(i.patientId)?.number ?? '') : '',
       phone: i.patientId ? (map.get(i.patientId)?.phone ?? '') : '',
     }));
+  }
+
+  // بناء صفوف تقرير الإحصائيات (مواعيد + أسماء مرضى/فنيين/أقسام + أعمدة الحالة)
+  private async buildStatisticsRows(query: StatisticsQueryDto) {
+    const from = new Date(query.dateFrom);
+    const to = new Date(query.dateTo);
+    to.setDate(to.getDate() + 1); // نهاية شاملة لليوم الأخير
+
+    const where: any = { startTime: { gte: from, lt: to } };
+    if (query.departmentId) where.departmentId = query.departmentId;
+
+    const raw = await this.prisma.appointment.findMany({ where, orderBy: { startTime: 'asc' } });
+    const withPatientNames = await this.attachPatientNames(raw);
+    const patientNameByIndex = withPatientNames.map(p => p.patientName || '');
+
+    const practitionerIds = [...new Set(raw.map(a => a.practitionerId).filter(Boolean))];
+    const departmentIds = [...new Set(raw.map(a => a.departmentId).filter((id): id is string => !!id))];
+
+    const [employees, departments] = await Promise.all([
+      practitionerIds.length
+        ? this.prisma.$queryRawUnsafe<Array<{ id: string; firstNameAr: string; lastNameAr: string }>>(
+            `SELECT id, "firstNameAr", "lastNameAr" FROM users.employees WHERE id = ANY($1::text[])`,
+            practitionerIds,
+          )
+        : Promise.resolve([]),
+      departmentIds.length
+        ? this.prisma.$queryRawUnsafe<Array<{ id: string; nameAr: string }>>(
+            `SELECT id, "nameAr" FROM users.departments WHERE id = ANY($1::text[])`,
+            departmentIds,
+          )
+        : Promise.resolve([]),
+    ]);
+    const employeeMap = new Map(employees.map(e => [e.id, `${e.firstNameAr} ${e.lastNameAr}`]));
+    const departmentMap = new Map(departments.map(d => [d.id, d.nameAr]));
+
+    const rows = raw.map((a, idx) => ({
+      patientName: patientNameByIndex[idx] ?? '',
+      department: a.departmentId ? (departmentMap.get(a.departmentId) ?? '') : '',
+      serviceType: SERVICE_TYPE_AR[a.appointmentType as string] ?? a.appointmentType,
+      practitionerName: a.practitionerId ? (employeeMap.get(a.practitionerId) ?? '') : '',
+      visitDate: a.startTime,
+      attended: a.status === 'COMPLETED',
+      cancelled: a.status === 'CANCELLED',
+      postponed: a.status === 'RESCHEDULED',
+      noShow: a.status === 'NO_SHOW',
+    }));
+
+    const totals = rows.reduce(
+      (acc, r) => ({
+        attended: acc.attended + (r.attended ? 1 : 0),
+        cancelled: acc.cancelled + (r.cancelled ? 1 : 0),
+        postponed: acc.postponed + (r.postponed ? 1 : 0),
+        noShow: acc.noShow + (r.noShow ? 1 : 0),
+      }),
+      { attended: 0, cancelled: 0, postponed: 0, noShow: 0 },
+    );
+
+    return { rows, totals, total: rows.length };
+  }
+
+  async getStatistics(query: StatisticsQueryDto) {
+    return this.buildStatisticsRows(query);
+  }
+
+  async exportStatisticsXlsx(query: StatisticsQueryDto, res: Response) {
+    const { rows, totals } = await this.buildStatisticsRows(query);
+    const check = (v: boolean) => (v ? '✓' : '');
+
+    const excelRows = rows.map(r => [
+      r.patientName,
+      r.department,
+      r.serviceType,
+      r.practitionerName,
+      r.visitDate,
+      check(r.attended),
+      check(r.cancelled),
+      check(r.postponed),
+      check(r.noShow),
+    ]);
+    excelRows.push(['العدد الكلي', '', '', '', '', totals.attended, totals.cancelled, totals.postponed, totals.noShow]);
+
+    await sendExcel(
+      res,
+      'إحصائيات المواعيد',
+      ['اسم المريض', 'القسم', 'نوع الخدمة', 'اسم الفني', 'تاريخ الزيارة', 'تم الحضور', 'ملغاة', 'تم التأجيل', 'غياب'],
+      excelRows as any,
+    );
   }
 
   async findAll(query: ListAppointmentsQueryDto) {

@@ -41,6 +41,12 @@ export enum PractitionerRoleEnum {
 export enum CaseTypeEnum          { PROSTHETICS='PROSTHETICS', PHYSIO='PHYSIO', GENERAL='GENERAL' }
 export enum AppointmentStatusEnum { SCHEDULED='SCHEDULED', CONFIRMED='CONFIRMED', COMPLETED='COMPLETED', CANCELLED='CANCELLED', NO_SHOW='NO_SHOW', RESCHEDULED='RESCHEDULED', LATE='LATE' }
 
+export class StatisticsQueryDto {
+  @IsDateString() dateFrom: string;
+  @IsDateString() dateTo: string;
+  @IsOptional() @IsString() departmentId?: string;
+}
+
 export class CreateAppointmentDto {
   @IsOptional() @IsString()
   patientId?: string;
