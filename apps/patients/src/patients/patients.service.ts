@@ -178,6 +178,7 @@ export class PatientsService {
     if (query.gender) where.gender = query.gender;
     if (query.governorate) where.city = { governorate: query.governorate };
     if (query.documentConsent) where.documentConsent = query.documentConsent;
+    if (query.isCompanyPatient !== undefined) where.isCompanyPatient = query.isCompanyPatient;
     if (query.consentDecision) {
       where.consents = query.consentDecision === 'NONE'
         ? { none: {} }
