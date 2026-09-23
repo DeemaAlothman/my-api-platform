@@ -72,10 +72,12 @@ export class AppointmentsService implements OnModuleInit {
     ).catch(() => {});
   }
 
-  private async notifyPractitioner(appt: { id: string; practitionerId: string; physiotherapistId?: string | null; therapistIds?: string[]; patientId: string; startTime: Date }, titleAr: string, messageAr: string) {
+  // لا نبلّغ الشخص نفسه بإجراء هو من نفّذه (حجز/إلغاء/تعديل الحالة)
+  private async notifyPractitioner(appt: { id: string; practitionerId: string; physiotherapistId?: string | null; therapistIds?: string[]; patientId: string; startTime: Date }, titleAr: string, messageAr: string, excludeUserId?: string) {
     const targets = new Set<string>([appt.practitionerId]);
     if (appt.physiotherapistId) targets.add(appt.physiotherapistId);
     for (const tid of appt.therapistIds ?? []) targets.add(tid);
+    if (excludeUserId) targets.delete(excludeUserId);
     const payload = { appointmentId: appt.id, patientId: appt.patientId };
     for (const userId of targets) {
       await this.insertNotif(userId, payload, titleAr, messageAr);
@@ -296,7 +298,7 @@ export class AppointmentsService implements OnModuleInit {
     if (dto.appointmentType === 'EXAMINATION') {
       await this.notifyExaminationDeptHeads(appt, dto.practitionerRole, msg);
     } else {
-      await this.notifyPractitioner(appt as any, 'موعد جديد', msg);
+      await this.notifyPractitioner(appt as any, 'موعد جديد', msg, userId);
     }
 
     // رسالة داخلية للممارس وكل المعالجين
@@ -668,7 +670,7 @@ export class AppointmentsService implements OnModuleInit {
     );
   }
 
-  async cancel(id: string, reason?: string) {
+  async cancel(id: string, reason?: string, performedBy?: string) {
     const appt = await this.findOne(id);
     const updated = await this.prisma.appointment.update({
       where: { id },
@@ -677,7 +679,7 @@ export class AppointmentsService implements OnModuleInit {
     const msg = reason ? `تم إلغاء موعدك. السبب: ${reason}` : 'تم إلغاء موعدك';
     const supervisorMsg = reason ? `تم إلغاء موعد للمريض. السبب: ${reason}` : 'تم إلغاء موعد للمريض';
     await Promise.all([
-      this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg),
+      this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg, performedBy),
       this.notifySupervisors(appt, supervisorMsg),
     ]);
     return updated;
@@ -701,7 +703,7 @@ export class AppointmentsService implements OnModuleInit {
     });
   }
 
-  async updateStatus(id: string, dto: UpdateStatusDto) {
+  async updateStatus(id: string, dto: UpdateStatusDto, performedBy?: string) {
     const appt = await this.findOne(id);
     const updated = await this.prisma.appointment.update({
       where: { id },
@@ -714,7 +716,7 @@ export class AppointmentsService implements OnModuleInit {
       const msg = dto.cancelledReason ? `تم إلغاء موعدك. السبب: ${dto.cancelledReason}` : 'تم إلغاء موعدك';
       const supervisorMsg = dto.cancelledReason ? `تم إلغاء موعد للمريض. السبب: ${dto.cancelledReason}` : 'تم إلغاء موعد للمريض';
       await Promise.all([
-        this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg),
+        this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg, performedBy),
         this.notifySupervisors(appt, supervisorMsg),
       ]);
     }

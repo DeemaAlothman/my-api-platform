@@ -105,8 +105,8 @@ export class AppointmentsController {
 
   @Put(':id/cancel')
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.CANCEL)
-  cancel(@Param('id') id: string, @Body('reason') reason?: string) {
-    return this.service.cancel(id, reason);
+  cancel(@Param('id') id: string, @Body('reason') reason: string | undefined, @User() user: any) {
+    return this.service.cancel(id, reason, user.userId);
   }
 
   @Put(':id/reschedule')
@@ -117,8 +117,8 @@ export class AppointmentsController {
 
   @Put(':id/status')
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.CREATE)
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto) {
-    return this.service.updateStatus(id, dto);
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto, @User() user: any) {
+    return this.service.updateStatus(id, dto, user.userId);
   }
 
   @Patch(':id/link-patient')
