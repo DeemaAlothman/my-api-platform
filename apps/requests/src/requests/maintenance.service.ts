@@ -5,7 +5,8 @@ import { CreateMaintenanceDto, LogisticsDecisionDto, RepairOption } from './dto/
 
 /**
  * طلب الصيانة — مسار معزول تماماً عن باقي أنواع الطلبات.
- * المسار: مقدّم الطلب → المدير المباشر → المسؤول اللوجستي → (حسب الخيار) → المدير التنفيذي → الموظف المكلَّف → DONE
+ * المسار: مقدّم الطلب → المسؤول اللوجستي → (حسب الخيار) → المدير التنفيذي → الموظف المكلَّف → DONE
+ * (لم يعد المدير المباشر جزءاً من المسار — الطلب يذهب مباشرة للمسؤول اللوجستي)
  */
 @Injectable()
 export class MaintenanceService {
@@ -114,7 +115,7 @@ export class MaintenanceService {
 
   // ── Flow ───────────────────────────────────────────────────────────────────
 
-  // 1) أي موظف يقدّم طلب صيانة → PENDING_MANAGER
+  // 1) أي موظف يقدّم طلب صيانة → PENDING_LOGISTICS مباشرة (تم إلغاء مرحلة المدير المباشر)
   async create(dto: CreateMaintenanceDto, userId: string) {
     const employeeId = await this.empId(userId);
     const details = {
@@ -134,12 +135,12 @@ export class MaintenanceService {
             requestNumber,
             employeeId,
             type: 'MAINTENANCE' as any,
-            status: 'PENDING_MANAGER' as any,
+            status: 'PENDING_LOGISTICS' as any,
             details,
           },
         });
-        await this.addHistory(req.id, 'SUBMIT', null, 'PENDING_MANAGER', employeeId, 'تقديم طلب صيانة');
-        await this.notifyManagerOf(employeeId, req.id, 'طلب صيانة جديد', 'لديك طلب صيانة بانتظار موافقتك');
+        await this.addHistory(req.id, 'SUBMIT', null, 'PENDING_LOGISTICS', employeeId, 'تقديم طلب صيانة');
+        await this.notifyRole('requests:lo-approve', req.id, 'طلب صيانة جديد', 'طلب صيانة بانتظار قرار المسؤول اللوجستي');
         return req;
       } catch (err: any) {
         if (err?.code === 'P2002' && err?.meta?.target?.includes('requestNumber')) continue;
