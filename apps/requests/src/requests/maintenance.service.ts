@@ -308,4 +308,32 @@ export class MaintenanceService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  // سجل الصيانة — كل طلبات الصيانة بكل حالاتها، متاح لكل الأشخاص التابعين للقسم اللوجستي
+  // (يشمل المنجز والقيد التنفيذ والمرفوض، عشان الكل يشوف شو تم إنجازه وشو لسا قيد المعالجة)
+  async maintenanceLog() {
+    const items = await this.prisma.request.findMany({
+      where: { type: 'MAINTENANCE' as any, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const employeeIds = [...new Set([
+      ...items.map(i => i.employeeId),
+      ...items.map(i => i.targetEmployeeId).filter((id): id is string => !!id),
+    ])];
+    if (employeeIds.length === 0) return items;
+
+    const placeholders = employeeIds.map((_, i) => `$${i + 1}`).join(', ');
+    const employees = await this.prisma.$queryRawUnsafe<Array<{ id: string; firstNameAr: string; lastNameAr: string }>>(
+      `SELECT id, "firstNameAr", "lastNameAr" FROM users.employees WHERE id IN (${placeholders})`,
+      ...employeeIds,
+    );
+    const nameMap = new Map(employees.map(e => [e.id, `${e.firstNameAr} ${e.lastNameAr}`]));
+
+    return items.map(i => ({
+      ...i,
+      submittedByName: nameMap.get(i.employeeId) ?? '',
+      assignedToName: i.targetEmployeeId ? (nameMap.get(i.targetEmployeeId) ?? '') : null,
+    }));
+  }
 }

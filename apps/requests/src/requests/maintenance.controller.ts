@@ -24,6 +24,14 @@ export class MaintenanceController {
     return this.maintenance.myTasks(user.userId);
   }
 
+  // سجل الصيانة — كل الطلبات بكل حالاتها، لأي حدا عنده صلاحية اللوجستي
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('requests:lo-approve')
+  @Get('log')
+  maintenanceLog() {
+    return this.maintenance.maintenanceLog();
+  }
+
   // المدير المباشر: موافقة — الـ service يتحقق من canApprove بدون permission guard
   @UseGuards(JwtAuthGuard)
   @Post(':id/manager-approve')
