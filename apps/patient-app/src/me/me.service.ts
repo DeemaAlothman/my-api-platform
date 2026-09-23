@@ -28,8 +28,22 @@ export class MeService {
   }
 
   // جلسات المريض الفيزيائية من ERP — ليختار المريض جلسة منها ويرى تمارينها (مكافئ الـendpoint الإداري)
+  // كل جلسة معها rated/ratingId حتى يعرف التطبيق إخفاء زر "قيّم الجلسة" لو صارت متقيَّمة أصلاً (بدل انتظار خطأ RATING_ALREADY_EXISTS)
   async getSessions(erpPatientId: string) {
-    return this.erp.getPatientSessions(erpPatientId);
+    const sessions = await this.erp.getPatientSessions(erpPatientId);
+    if (sessions.length === 0) return sessions;
+
+    const ratings = await this.prisma.therapistRating.findMany({
+      where: { erpSessionId: { in: sessions.map((s) => s.id) } },
+      select: { id: true, erpSessionId: true },
+    });
+    const ratingBySession = new Map(ratings.map((r) => [r.erpSessionId, r.id]));
+
+    return sessions.map((s) => ({
+      ...s,
+      rated: ratingBySession.has(s.id),
+      ratingId: ratingBySession.get(s.id) ?? null,
+    }));
   }
 
   // كل تمارين المريض عبر كل جلساته دفعة وحدة، وكل تمرين معه معلومات الجلسة التابع إلها
@@ -50,28 +64,39 @@ export class MeService {
     // تمرين تابع لجلسة حالتها محذوفة أو مش PHYSIO ما رح يرجع أصلاً (بدل ما يرجع بـsession: null)
     const visible = assignments.filter((a) => sessionById.has(a.erpSessionId));
 
-    const { start, end } = this.ammanTodayBoundsUtc();
-    const todayCounts = visible.length
-      ? await this.prisma.exerciseExecution.groupBy({
-          by: ['assignmentId'],
-          where: {
-            patientAccountId,
-            status: 'COMPLETED',
-            completedAt: { gte: start, lt: end },
-            assignmentId: { in: visible.map((a) => a.id) },
-          },
-          _count: { _all: true },
-        })
-      : [];
-    const todayCountByAssignment = new Map(todayCounts.map((c) => [c.assignmentId, c._count._all]));
+    const todayCountByAssignment = await this.todayCompletedCountMap(visible.map((a) => a.id), patientAccountId);
 
     return visible.map((a) => ({
       ...a,
+      exercise: this.withThumbnailFallback(a.exercise),
       execution: a.executions[0] ?? null,
       executions: undefined,
       session: sessionById.get(a.erpSessionId),
       todayCompletedCount: todayCountByAssignment.get(a.id) ?? 0,
     }));
+  }
+
+  // عدد مرات إكمال كل إسناد اليوم (بتوقيت عمّان) — مشترك بين /me/exercises و/me/sessions/:id/exercises
+  private async todayCompletedCountMap(assignmentIds: string[], patientAccountId: string) {
+    if (assignmentIds.length === 0) return new Map<string, number>();
+    const { start, end } = this.ammanTodayBoundsUtc();
+    const counts = await this.prisma.exerciseExecution.groupBy({
+      by: ['assignmentId'],
+      where: {
+        patientAccountId,
+        status: 'COMPLETED',
+        completedAt: { gte: start, lt: end },
+        assignmentId: { in: assignmentIds },
+      },
+      _count: { _all: true },
+    });
+    return new Map(counts.map((c) => [c.assignmentId, c._count._all]));
+  }
+
+  // صورة التمرين نفسها تصلح كصورة مصغّرة لو ما حدّد المعالج thumbnailUrl صريح (فيديو بدون thumbnail يبقى بدون صورة)
+  private withThumbnailFallback<T extends { mediaType: string; mediaUrl: string | null; thumbnailUrl: string | null }>(exercise: T): T {
+    if (exercise.thumbnailUrl || exercise.mediaType !== 'IMAGE') return exercise;
+    return { ...exercise, thumbnailUrl: exercise.mediaUrl };
   }
 
   // حدود "اليوم" بتوقيت عمّان (UTC+3 ثابت بدون توقيت صيفي) مُعبَّرة كـUTC — لاستخدامها بفلاتر completedAt
@@ -130,10 +155,14 @@ export class MeService {
       orderBy: { sortOrder: 'asc' },
     });
 
+    const todayCountByAssignment = await this.todayCompletedCountMap(assignments.map((a) => a.id), patientAccountId);
+
     return assignments.map((a) => ({
       ...a,
+      exercise: this.withThumbnailFallback(a.exercise),
       execution: a.executions[0] ?? null,
       executions: undefined,
+      todayCompletedCount: todayCountByAssignment.get(a.id) ?? 0,
     }));
   }
 

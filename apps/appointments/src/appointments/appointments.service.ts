@@ -321,6 +321,7 @@ export class AppointmentsService implements OnModuleInit {
           type: 'APPOINTMENT_CREATED',
           titleAr: 'موعد جديد', titleEn: 'New appointment',
           bodyAr: msg, bodyEn: `A new appointment has been booked on ${dateStr} at ${timeStr}.`,
+          entityId: appt.id,
         }),
       }).catch(() => {});
     }

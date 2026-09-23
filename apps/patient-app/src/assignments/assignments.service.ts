@@ -79,6 +79,7 @@ export class AssignmentsService {
         'New exercise in your program',
         `تمت إضافة تمرين "${created.exercise.nameAr}" إلى برنامجك.`,
         `The exercise "${created.exercise.nameEn}" was added to your program.`,
+        created.id,
       )
       .catch(() => {});
 
@@ -106,6 +107,7 @@ export class AssignmentsService {
         'An exercise in your program was updated',
         `تم تعديل إعدادات تمرين "${updated.exercise.nameAr}" ببرنامجك.`,
         `The settings of "${updated.exercise.nameEn}" in your program were updated.`,
+        updated.id,
       )
       .catch(() => {});
 
@@ -130,6 +132,7 @@ export class AssignmentsService {
         'An exercise in your program was cancelled',
         `تم إلغاء تمرين "${cancelled.exercise.nameAr}" ببرنامجك.`,
         `The exercise "${cancelled.exercise.nameEn}" in your program was cancelled.`,
+        cancelled.id,
       )
       .catch(() => {});
 

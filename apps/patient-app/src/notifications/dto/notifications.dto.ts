@@ -1,4 +1,4 @@
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class RegisterDeviceDto {
   @IsString() token: string;
@@ -14,4 +14,5 @@ export class InternalNotifyDto {
   @IsString() titleEn: string;
   @IsString() bodyAr: string;
   @IsString() bodyEn: string;
+  @IsOptional() @IsString() entityId?: string;
 }

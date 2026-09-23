@@ -58,6 +58,11 @@ export class ChatService {
     return conversation;
   }
 
+  // عدد رسائل المعالج غير المقروءة من طرف المريض — لعدّاد تبويب الرسائل بالتطبيق
+  async countUnreadForPatient(conversationId: string) {
+    return this.prisma.chatMessage.count({ where: { conversationId, senderType: 'THERAPIST', readAt: null } });
+  }
+
   async listMessages(conversationId: string, after?: string) {
     return this.prisma.chatMessage.findMany({
       where: {
@@ -87,6 +92,7 @@ export class ChatService {
           'New message from your therapist',
           messageText.length > 100 ? messageText.slice(0, 100) + '…' : messageText,
           messageText.length > 100 ? messageText.slice(0, 100) + '…' : messageText,
+          conversation.id,
         )
         .catch(() => {});
     }

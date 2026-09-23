@@ -13,8 +13,11 @@ export class ChatController {
   @Get()
   async getConversation(@CurrentPatient() patient: { erpPatientId: string }) {
     const conversation = await this.service.getOrCreateActiveConversationForPatient(patient.erpPatientId);
-    const messages = await this.service.listMessages(conversation.id);
-    return { conversation, messages };
+    const [messages, unreadCount] = await Promise.all([
+      this.service.listMessages(conversation.id),
+      this.service.countUnreadForPatient(conversation.id),
+    ]);
+    return { conversation, messages, unreadCount };
   }
 
   @Get('messages')

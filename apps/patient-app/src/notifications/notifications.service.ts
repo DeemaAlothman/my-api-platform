@@ -11,6 +11,17 @@ type NotificationType =
   | 'APPOINTMENT_CREATED'
   | 'NEW_CHAT_MESSAGE';
 
+// تصنيف كل نوع إشعار لفتح الشاشة الصح بالتطبيق — يُرسل بحمولة الـpush وبسجل الإشعار (data: {type, id})
+const PUSH_ENTITY_TYPE: Record<NotificationType, 'EXERCISE' | 'APPOINTMENT' | 'MESSAGE'> = {
+  DAILY_REMINDER: 'EXERCISE',
+  PROGRAM_ASSIGNED: 'EXERCISE',
+  PROGRAM_UPDATED: 'EXERCISE',
+  PROGRAM_CANCELLED: 'EXERCISE',
+  PROGRAM_REORDERED: 'EXERCISE',
+  APPOINTMENT_CREATED: 'APPOINTMENT',
+  NEW_CHAT_MESSAGE: 'MESSAGE',
+};
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -36,13 +47,13 @@ export class NotificationsService {
     titleEn: string,
     bodyAr: string,
     bodyEn: string,
-    payload?: Record<string, unknown>,
+    entityId?: string,
   ) {
     const account = await this.prisma.patientAccount.findFirst({
       where: { erpPatientId, status: 'ACTIVE', deletedAt: null },
     });
     if (!account) return null; // لا يوجد حساب تطبيق فعّال لهذا المريض — لا شيء لإشعاره
-    return this.notify(account.id, erpPatientId, type, titleAr, titleEn, bodyAr, bodyEn, payload);
+    return this.notify(account.id, erpPatientId, type, titleAr, titleEn, bodyAr, bodyEn, entityId);
   }
 
   async notify(
@@ -53,13 +64,16 @@ export class NotificationsService {
     titleEn: string,
     bodyAr: string,
     bodyEn: string,
-    payload?: Record<string, unknown>,
+    entityId?: string,
   ) {
     const devices = await this.prisma.deviceToken.findMany({ where: { patientAccountId } });
+    // {type, id} لتوجيه التطبيق للشاشة الصح عند فتح الإشعار — نفس الحمولة تُخزَّن بالسجل وتُرسل بالـpush
+    const payload = { type: PUSH_ENTITY_TYPE[type], id: entityId ?? null };
     const delivered = await this.pushSender.send(
       devices.map((d) => d.token),
       titleAr,
       bodyAr,
+      { type: payload.type, id: entityId ?? '' },
     );
 
     return this.prisma.notificationLog.create({

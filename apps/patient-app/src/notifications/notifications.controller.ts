@@ -41,6 +41,7 @@ export class NotificationsInternalController {
       dto.titleEn,
       dto.bodyAr,
       dto.bodyEn,
+      dto.entityId,
     );
   }
 }
