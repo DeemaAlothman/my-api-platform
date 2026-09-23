@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ErpClientService } from '../integrations/erp-client.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateAssignmentDto, UpdateAssignmentDto, ReorderAssignmentsDto } from './dto/assignment.dto';
+import { withThumbnailFallback } from '../common/exercise-thumbnail.util';
 
 @Injectable()
 export class AssignmentsService {
@@ -24,11 +25,12 @@ export class AssignmentsService {
 
   async listBySession(erpSessionId: string) {
     await this.mustLoadSession(erpSessionId);
-    return this.prisma.sessionExerciseAssignment.findMany({
+    const assignments = await this.prisma.sessionExerciseAssignment.findMany({
       where: { erpSessionId },
       include: { exercise: true },
       orderBy: { sortOrder: 'asc' },
     });
+    return assignments.map((a) => ({ ...a, exercise: withThumbnailFallback(a.exercise) }));
   }
 
   async create(erpSessionId: string, dto: CreateAssignmentDto, assignedByUserId: string) {
@@ -70,6 +72,7 @@ export class AssignmentsService {
       },
       include: { exercise: true },
     });
+    created.exercise = withThumbnailFallback(created.exercise);
 
     this.notifications
       .notifyByErpPatientId(
@@ -98,6 +101,7 @@ export class AssignmentsService {
       throw new BadRequestException({ code: 'ASSIGNMENT_CANCELLED', message: 'لا يمكن تعديل تمرين ملغي' });
     }
     const updated = await this.prisma.sessionExerciseAssignment.update({ where: { id }, data: dto, include: { exercise: true } });
+    updated.exercise = withThumbnailFallback(updated.exercise);
 
     this.notifications
       .notifyByErpPatientId(
@@ -123,6 +127,7 @@ export class AssignmentsService {
       data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledByUserId, cancellationReason: reason },
       include: { exercise: true },
     });
+    cancelled.exercise = withThumbnailFallback(cancelled.exercise);
 
     this.notifications
       .notifyByErpPatientId(
@@ -174,11 +179,12 @@ export class AssignmentsService {
 
   // عرض تنفيذ المريض بالداشبورد (بند 8 بالتوصيف)
   async listExecutionsByPatient(erpPatientId: string) {
-    return this.prisma.sessionExerciseAssignment.findMany({
+    const assignments = await this.prisma.sessionExerciseAssignment.findMany({
       where: { erpPatientId },
       include: { exercise: true, executions: { orderBy: { createdAt: 'desc' }, take: 1, include: { skipReason: true } } },
       orderBy: [{ erpSessionId: 'asc' }, { sortOrder: 'asc' }],
     });
+    return assignments.map((a) => ({ ...a, exercise: withThumbnailFallback(a.exercise) }));
   }
 
   // سير جلسات المريض للمعالج المسؤول — كل جلسة مع ملخص حالة تمارينها (كم مكتمل/متخطّى/لسا)

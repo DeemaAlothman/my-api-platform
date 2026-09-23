@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import { ErpClientService } from '../integrations/erp-client.service';
 import { CompleteExerciseDto, SkipExerciseDto } from './dto/me.dto';
+import { withThumbnailFallback } from '../common/exercise-thumbnail.util';
 
 @Injectable()
 export class MeService {
@@ -68,7 +69,7 @@ export class MeService {
 
     return visible.map((a) => ({
       ...a,
-      exercise: this.withThumbnailFallback(a.exercise),
+      exercise: withThumbnailFallback(a.exercise),
       execution: a.executions[0] ?? null,
       executions: undefined,
       session: sessionById.get(a.erpSessionId),
@@ -91,12 +92,6 @@ export class MeService {
       _count: { _all: true },
     });
     return new Map(counts.map((c) => [c.assignmentId, c._count._all]));
-  }
-
-  // صورة التمرين نفسها تصلح كصورة مصغّرة لو ما حدّد المعالج thumbnailUrl صريح (فيديو بدون thumbnail يبقى بدون صورة)
-  private withThumbnailFallback<T extends { mediaType: string; mediaUrl: string | null; thumbnailUrl: string | null }>(exercise: T): T {
-    if (exercise.thumbnailUrl || exercise.mediaType !== 'IMAGE') return exercise;
-    return { ...exercise, thumbnailUrl: exercise.mediaUrl };
   }
 
   // حدود "اليوم" بتوقيت عمّان (UTC+3 ثابت بدون توقيت صيفي) مُعبَّرة كـUTC — لاستخدامها بفلاتر completedAt
@@ -159,7 +154,7 @@ export class MeService {
 
     return assignments.map((a) => ({
       ...a,
-      exercise: this.withThumbnailFallback(a.exercise),
+      exercise: withThumbnailFallback(a.exercise),
       execution: a.executions[0] ?? null,
       executions: undefined,
       todayCompletedCount: todayCountByAssignment.get(a.id) ?? 0,

@@ -5,6 +5,7 @@ import { CreateExerciseDto, UpdateExerciseDto, ListExercisesQueryDto } from './d
 import { join, extname } from 'path';
 import { randomUUID } from 'crypto';
 import { FILE_STORAGE_ROOT } from './exercise-media.config';
+import { withThumbnailFallback } from '../common/exercise-thumbnail.util';
 
 @Injectable()
 export class ExercisesService {
@@ -34,18 +35,19 @@ export class ExercisesService {
         { nameEn: { contains: query.search, mode: 'insensitive' } },
       ];
     }
-    return this.prisma.exercise.findMany({ where, include: this.include(), orderBy: { nameAr: 'asc' } });
+    const exercises = await this.prisma.exercise.findMany({ where, include: this.include(), orderBy: { nameAr: 'asc' } });
+    return exercises.map(withThumbnailFallback);
   }
 
   async findOne(id: string) {
     const exercise = await this.prisma.exercise.findFirst({ where: { id, deletedAt: null }, include: this.include() });
     if (!exercise) throw new NotFoundException('التمرين غير موجود');
-    return exercise;
+    return withThumbnailFallback(exercise);
   }
 
   async create(dto: CreateExerciseDto, userId: string) {
     const { goalIds, ...data } = dto;
-    return this.prisma.exercise.create({
+    const created = await this.prisma.exercise.create({
       data: {
         ...data,
         createdByUserId: userId,
@@ -53,12 +55,13 @@ export class ExercisesService {
       },
       include: this.include(),
     });
+    return withThumbnailFallback(created);
   }
 
   async update(id: string, dto: UpdateExerciseDto, userId: string) {
     await this.findOne(id);
     const { goalIds, ...data } = dto;
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (goalIds !== undefined) {
         await tx.exerciseGoalLink.deleteMany({ where: { exerciseId: id } });
         if (goalIds.length) {
@@ -71,6 +74,7 @@ export class ExercisesService {
         include: this.include(),
       });
     });
+    return withThumbnailFallback(updated);
   }
 
   // رفع ملف الوسائط (فيديو/صورة) للتمرين — يُخزَّن على Backblaze B2 (S3-compatible) عبر StorageService.
@@ -114,7 +118,7 @@ export class ExercisesService {
       this.storage.deleteFile(exercise.mediaStorageKey).catch(() => {});
     }
 
-    return updated;
+    return withThumbnailFallback(updated);
   }
 
   // توافق للخلف: ملفات مرفوعة قبل الانتقال لـB2 (مخزّنة محلياً، mediaStorageKey فاضي) تبقى تُخدَّم من القرص كما هي
