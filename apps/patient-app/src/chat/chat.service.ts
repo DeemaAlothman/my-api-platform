@@ -131,11 +131,23 @@ export class ChatService {
     return { marked: true };
   }
 
-  // قائمة محادثات المعالج (staff-facing) — بمرضاه المسندين فقط
+  // قائمة محادثات المعالج (staff-facing) — بمرضاه المسندين فقط، معها اسم المريض
+  // (الموقع ما بيقدر يجيب اسم المريض بنفسه — GET /patients/:id بيرجع 403 لحساب المعالج)
   async listConversationsForTherapist(erpTherapistId: string) {
-    return this.prisma.chatConversation.findMany({
+    const conversations = await this.prisma.chatConversation.findMany({
       where: { erpTherapistId, active: true },
       orderBy: { updatedAt: 'desc' },
+    });
+    if (conversations.length === 0) return conversations;
+
+    const patients = await this.erp.findPatientsByIds(conversations.map((c) => c.erpPatientId));
+    return conversations.map((c) => {
+      const p = patients[c.erpPatientId];
+      return {
+        ...c,
+        patientName: p ? `${p.firstName} ${p.lastName}` : null,
+        patient: p ? { id: p.id, firstName: p.firstName, lastName: p.lastName, patientNumber: p.patientNumber } : null,
+      };
     });
   }
 }
