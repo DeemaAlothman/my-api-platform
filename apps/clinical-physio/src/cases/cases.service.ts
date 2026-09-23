@@ -359,6 +359,30 @@ export class CasesService {
     return { deletedCount: result.count };
   }
 
+  // physiotherapistId بالحالات/الجلسات هو معرّف موظف (users.employees.id)، مش معرّف مستخدم — نفس القاعدة
+  // المعتمدة أصلاً بـsendNotifToEmployee بالأسفل. خدمة patient-app (والمقارنات مع JWT المستخدم المسجل دخول)
+  // بتحتاج userId فعلي، فلازم نترجم هون قبل ما نرجّع physiotherapistId/erpTherapistId لأي خدمة تانية.
+  private async employeeIdToUserId(employeeId: string | null | undefined): Promise<string | null> {
+    if (!employeeId) return null;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string | null }>>(
+      `SELECT "userId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    ).catch(() => [] as Array<{ userId: string | null }>);
+    return rows[0]?.userId ?? null;
+  }
+
+  private async employeeIdsToUserIds(employeeIds: (string | null | undefined)[]): Promise<Map<string, string>> {
+    const uniqueIds = [...new Set(employeeIds.filter((id): id is string => !!id))];
+    if (uniqueIds.length === 0) return new Map();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; userId: string | null }>>(
+      `SELECT id, "userId" FROM users.employees WHERE id = ANY($1::text[]) AND "deletedAt" IS NULL`,
+      uniqueIds,
+    ).catch(() => [] as Array<{ id: string; userId: string | null }>);
+    const map = new Map<string, string>();
+    for (const r of rows) if (r.userId) map.set(r.id, r.userId);
+    return map;
+  }
+
   // نقطة داخلية (خدمة-لخدمة): كل جلسات مريض عبر حالاته الفيزيائية — لخدمة patient-app (بند 9/15 بالتوصيف)
   async getPatientSessionsInternal(patientId: string) {
     const cases = await this.prisma.physioCase.findMany({
@@ -376,7 +400,14 @@ export class CasesService {
       },
     });
     const therapistByCase = new Map(cases.map((c) => [c.id, c.physiotherapistId]));
-    return sessions.map((s) => ({ ...s, physiotherapistId: s.physiotherapistId ?? therapistByCase.get(s.caseId) ?? null }));
+    const userIdByEmployeeId = await this.employeeIdsToUserIds([
+      ...cases.map((c) => c.physiotherapistId),
+      ...sessions.map((s) => s.physiotherapistId),
+    ]);
+    return sessions.map((s) => {
+      const employeeId = s.physiotherapistId ?? therapistByCase.get(s.caseId) ?? null;
+      return { ...s, physiotherapistId: employeeId ? (userIdByEmployeeId.get(employeeId) ?? null) : null };
+    });
   }
 
   // نقطة داخلية (خدمة-لخدمة): جلب المعالج المسؤول الحالي عن مريض (لخدمة patient-app — Chat)
@@ -387,7 +418,9 @@ export class CasesService {
       select: { id: true, physiotherapistId: true },
     });
     if (!activeCase || !activeCase.physiotherapistId) return { exists: false };
-    return { exists: true, caseId: activeCase.id, erpTherapistId: activeCase.physiotherapistId };
+    const userId = await this.employeeIdToUserId(activeCase.physiotherapistId);
+    if (!userId) return { exists: false }; // المعالج غير مربوط بحساب مستخدم فعّال — لا يوجد طرف يقدر يستقبل محادثة/إشعار
+    return { exists: true, caseId: activeCase.id, erpTherapistId: userId };
   }
 
   // نقطة داخلية (خدمة-لخدمة): جلب جلسة علاج فيزيائي واحدة + هوية المريض والمعالج (لخدمة patient-app)
@@ -397,12 +430,14 @@ export class CasesService {
       include: { case: { select: { patientId: true, physiotherapistId: true, status: true, deletedAt: true } } },
     });
     if (!session || session.case.deletedAt) return { exists: false };
+    const employeeId = session.physiotherapistId ?? session.case.physiotherapistId ?? null;
+    const userId = await this.employeeIdToUserId(employeeId);
     return {
       exists: true,
       id: session.id,
       caseId: session.caseId,
       patientId: session.case.patientId,
-      physiotherapistId: session.physiotherapistId ?? session.case.physiotherapistId ?? null,
+      physiotherapistId: userId,
       sessionNumber: session.sessionNumber,
       sessionDate: session.sessionDate,
       attendanceConfirmed: session.attendanceConfirmed,
