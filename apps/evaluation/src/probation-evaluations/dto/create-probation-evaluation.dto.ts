@@ -58,4 +58,10 @@ export class WorkflowActionDto {
   @IsBoolean()
   sendToCeo?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() decisionDocumentUrl?: string;
+
+  @ApiPropertyOptional({ description: 'ما هو انجاز قمت به خلال الفترة التي قضيتها بالعمل معنا' })
+  @IsOptional() @IsString() achievementNote?: string;
+
+  @ApiPropertyOptional({ description: 'رابط المرفق المرفوع مسبقاً (يُرفع الملف بشكل منفصل ويُمرَّر رابطه هون)' })
+  @IsOptional() @IsString() achievementFileUrl?: string;
 }

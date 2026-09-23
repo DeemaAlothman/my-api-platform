@@ -2,6 +2,18 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProbationEvaluationDto, WorkflowActionDto } from './dto/create-probation-evaluation.dto';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const ACHIEVEMENT_FILE_DIR = process.env.UPLOAD_DIR
+  ? path.join(process.env.UPLOAD_DIR, 'probation-achievements')
+  : '/app/uploads/probation-achievements';
+const MAX_ACHIEVEMENT_FILE_BYTES = 10 * 1024 * 1024; // 10MB
+const ALLOWED_ACHIEVEMENT_MIME_TYPES = [
+  'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
 
 @Injectable()
 export class ProbationEvaluationsService {
@@ -170,7 +182,12 @@ export class ProbationEvaluationsService {
 
     await this.prisma.probationEvaluation.update({
       where: { id },
-      data: { status: 'PENDING_DIRECT_MANAGER' as any, employeeNotes: dto.notes },
+      data: {
+        status: 'PENDING_DIRECT_MANAGER' as any,
+        employeeNotes: dto.notes,
+        employeeAchievementNote: dto.achievementNote,
+        employeeAchievementFileUrl: dto.achievementFileUrl,
+      },
     });
 
     await this.recomputeScores(id);
@@ -191,6 +208,49 @@ export class ProbationEvaluationsService {
     await this.logHistory(id, 'SELF_EVALUATE', performedBy, dto.notes ?? 'أكمل الموظف تقييمه الذاتي');
 
     return this.findOne(id);
+  }
+
+  // رفع مرفق "انجاز قمت به خلال فترة العمل" — يُستدعى قبل self-evaluate، والرابط الناتج يُمرَّر بحقل achievementFileUrl
+  async uploadAchievementFile(id: string, file: Express.Multer.File, userId: string) {
+    if (!file || !file.buffer || file.size === 0) {
+      throw new BadRequestException('الملف فارغ أو لم يتم استلامه');
+    }
+    if (file.size > MAX_ACHIEVEMENT_FILE_BYTES) {
+      throw new BadRequestException('حجم الملف يتجاوز الحد المسموح (10 ميغابايت)');
+    }
+    if (!ALLOWED_ACHIEVEMENT_MIME_TYPES.includes(file.mimetype)) {
+      throw new BadRequestException('نوع الملف غير مدعوم');
+    }
+
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_SELF_EVALUATION') {
+      throw new BadRequestException('التقييم ليس في مرحلة التقييم الذاتي');
+    }
+
+    if (!fs.existsSync(ACHIEVEMENT_FILE_DIR)) {
+      fs.mkdirSync(ACHIEVEMENT_FILE_DIR, { recursive: true });
+    }
+
+    const safeName = `${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+    const diskPath = path.join(ACHIEVEMENT_FILE_DIR, safeName);
+    fs.writeFileSync(diskPath, file.buffer);
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: { employeeAchievementFileUrl: diskPath },
+    });
+
+    return { achievementFileUrl: diskPath };
+  }
+
+  async getAchievementFilePath(id: string) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    const filePath = (evaluation as any).employeeAchievementFileUrl;
+    if (!filePath) throw new NotFoundException('لا يوجد مرفق لهذا التقييم');
+    if (!fs.existsSync(filePath)) throw new NotFoundException('الملف لم يعد موجوداً على الخادم');
+    return filePath;
   }
 
   async update(id: string, dto: Partial<CreateProbationEvaluationDto>) {

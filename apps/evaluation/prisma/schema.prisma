@@ -325,6 +325,10 @@ model ProbationEvaluation {
   employeeNotes         String?
   overallRating         Float?
 
+  // ما هو انجاز قمت به خلال الفترة التي قضيتها بالعمل معنا (بند بالتقييم الذاتي)
+  employeeAchievementNote    String?  @db.Text
+  employeeAchievementFileUrl String?
+
   // حقول حساب الدرجات المرجّحة 70/30
   managerScorePercent   Float?
   selfScorePercent      Float?

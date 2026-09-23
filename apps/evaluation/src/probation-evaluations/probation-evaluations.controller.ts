@@ -1,5 +1,12 @@
-import { Controller, Get, Post, Put, Param, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller, Get, Post, Put, Param, Body, UseGuards, Request,
+  UseInterceptors, UploadedFile, Res, StreamableFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ProbationEvaluationsService } from './probation-evaluations.service';
 import { CreateProbationEvaluationDto, WorkflowActionDto } from './dto/create-probation-evaluation.dto';
 import { JwtAuthGuard } from '@shared/auth';
@@ -51,6 +58,29 @@ export class ProbationEvaluationsController {
   @Post(':id/self-evaluate')
   selfEvaluate(@Param('id') id: string, @Body() dto: WorkflowActionDto, @Request() req: any) {
     return this.service.selfEvaluate(id, req.user?.userId ?? 'system', dto);
+  }
+
+  // رفع مرفق "انجاز قمت به خلال فترة العمل" — تُستدعى قبل self-evaluate، والرابط الناتج يُمرَّر بحقل achievementFileUrl
+  @Post(':id/achievement-file')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadAchievementFile(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req: any,
+  ) {
+    return this.service.uploadAchievementFile(id, file, req.user?.userId ?? 'system');
+  }
+
+  @Get(':id/achievement-file')
+  async downloadAchievementFile(@Param('id') id: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const filePath = await this.service.getAchievementFilePath(id);
+    const buffer = fs.readFileSync(filePath);
+    res.set({
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `inline; filename="${encodeURIComponent(path.basename(filePath))}"`,
+      'Content-Length': String(buffer.length),
+    });
+    return new StreamableFile(buffer);
   }
 
   @Post(':id/submit')
