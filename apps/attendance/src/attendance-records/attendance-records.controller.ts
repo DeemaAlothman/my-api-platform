@@ -50,6 +50,16 @@ export class AttendanceRecordsController {
     return this.service.findAll(query);
   }
 
+  // بصمات المرؤوسين المباشرين للمدير الحالي فقط (endpoint مستقل — لا يغيّر GET /attendance-records)
+  @Get('my-team')
+  @Permission('attendance.records.read-team')
+  getMyTeamRecords(
+    @EmployeeId() employeeId: string,
+    @Query() query: ListAttendanceRecordsQueryDto,
+  ) {
+    return this.service.getMyTeamRecords(employeeId, query);
+  }
+
   // ─── Needs-review list ───────────────────────────────────────────────────
 
   @Get('needs-review')

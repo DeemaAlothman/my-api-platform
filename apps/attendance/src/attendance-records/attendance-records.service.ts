@@ -286,8 +286,34 @@ export class AttendanceRecordsService {
     return this.prisma.attendanceRecord.create({ data });
   }
 
+  // بصمات المرؤوسين المباشرين فقط لمدير معيّن — تستعمل نفس findAll بالضبط (نفس الشكل والحسابات)
+  async getMyTeamRecords(managerEmployeeId: string, filters?: {
+    employeeId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    page?: number | string;
+    limit?: number | string;
+  }) {
+    const subordinates = (await this.prisma.$queryRawUnsafe(
+      `SELECT id FROM users.employees WHERE "managerId" = $1 AND "deletedAt" IS NULL`,
+      managerEmployeeId,
+    )) as Array<{ id: string }>;
+    const subordinateIds = subordinates.map(s => s.id);
+
+    const limit = Math.min(100, Math.max(1, Number(filters?.limit) || 10));
+    const emptyPage = { items: [], page: 1, limit, total: 0, totalPages: 1 };
+    if (!subordinateIds.length) return emptyPage;
+
+    // فلتر موظف محدد مسموح فقط لو هو فعلاً من مرؤوسيه
+    if (filters?.employeeId && !subordinateIds.includes(filters.employeeId)) return emptyPage;
+
+    return this.findAll({ ...filters, employeeIds: subordinateIds });
+  }
+
   async findAll(filters?: {
     employeeId?: string;
+    employeeIds?: string[];
     dateFrom?: string;
     dateTo?: string;
     status?: string;
@@ -297,6 +323,7 @@ export class AttendanceRecordsService {
     const where: any = {};
 
     if (filters?.employeeId) where.employeeId = filters.employeeId;
+    else if (filters?.employeeIds) where.employeeId = { in: filters.employeeIds };
     if (filters?.status) where.status = filters.status;
     if (filters?.dateFrom || filters?.dateTo) {
       where.date = {};
