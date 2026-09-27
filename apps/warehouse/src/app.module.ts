@@ -7,6 +7,7 @@ import { HealthModule } from './health/health.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { StockModule } from './stock/stock.module';
+import { MaterialRequestsModule } from './material-requests/material-requests.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -21,6 +22,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     WarehousesModule,
     CatalogModule,
     StockModule,
+    MaterialRequestsModule,
   ],
   providers: [
     PrismaService,

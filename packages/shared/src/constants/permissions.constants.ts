@@ -324,6 +324,10 @@ export const PERMISSIONS = {
     SUPPLIERS_UPDATE:  'warehouse.suppliers.update',
     STOCK_READ:        'warehouse.stock.read',
     STOCK_ADJUST:      'warehouse.stock.adjust',
+    MATERIAL_REQUESTS_READ:     'warehouse.material_requests.read',
+    MATERIAL_REQUESTS_READ_OWN: 'warehouse.material_requests.read_own',
+    MATERIAL_REQUESTS_CREATE:   'warehouse.material_requests.create',
+    MATERIAL_REQUESTS_APPROVE:  'warehouse.material_requests.approve',
   },
   CLINIC_REPORTS: {
     VIEW_CLINICAL: 'clinic.reports.view_clinical',

@@ -39,8 +39,9 @@ model Warehouse {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  balances  StockBalance[]
-  movements StockMovement[]
+  balances         StockBalance[]
+  movements        StockMovement[]
+  materialRequests MaterialRequest[]
 
   @@map("warehouses")
   @@schema("warehouse")
@@ -109,8 +110,9 @@ model Item {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  balances  StockBalance[]
-  movements StockMovement[]
+  balances             StockBalance[]
+  movements            StockMovement[]
+  materialRequestItems MaterialRequestItem[]
 
   @@index([categoryId])
   @@index([unitId])
@@ -140,6 +142,8 @@ model StockBalance {
 enum MovementType {
   STOCK_IN
   STOCK_OUT
+  RESERVE // حجز عند الاعتماد — لا يغيّر onHand، يزيد reserved فقط
+  ISSUE   // صرف فعلي لطلب مواد معتمد — ينقص onHand وreserved معاً
 
   @@schema("warehouse")
 }
@@ -153,16 +157,74 @@ model StockMovement {
   warehouse         Warehouse    @relation(fields: [warehouseId], references: [id])
 
   movementType      MovementType
-  onHandDelta       Decimal      @db.Decimal(18, 3)
+  onHandDelta       Decimal      @default(0) @db.Decimal(18, 3)
+  reservedDelta     Decimal      @default(0) @db.Decimal(18, 3)
   balanceAfter      Decimal      @db.Decimal(18, 3)
 
-  documentType      String       // MANUAL بهذه المرحلة — لاحقاً STOCK_IN_DOC / PURCHASE / ...
-  documentId         String?
+  documentType      String       // MANUAL / MATERIAL_REQUEST — لاحقاً STOCK_IN_DOC / PURCHASE / ...
+  documentId        String?
+  referenceType     String?
+  referenceId       String?
   notes             String?
   performedByUserId String
   createdAt         DateTime     @default(now())
 
   @@index([itemId, warehouseId, createdAt])
+  @@index([documentType, documentId])
   @@map("stock_movements")
+  @@schema("warehouse")
+}
+
+// ── طلب المواد → الاعتماد (يحجز فوراً) → الصرف ──────────────────────────────
+
+enum MaterialRequestStatus {
+  SUBMITTED           // بانتظار مسؤول المستودع
+  APPROVED            // اعتماد كامل — تم حجز كامل الكمية المطلوبة
+  PARTIALLY_APPROVED  // اعتماد جزئي — الكمية المتاحة أقل من المطلوبة
+  REJECTED
+  PARTIALLY_ISSUED
+  ISSUED              // صُرف كل ما تم اعتماده
+  CANCELLED
+
+  @@schema("warehouse")
+}
+
+model MaterialRequest {
+  id                String                @id @default(uuid())
+  documentNo        String                @unique
+  warehouseId       String
+  warehouse         Warehouse             @relation(fields: [warehouseId], references: [id])
+  status            MaterialRequestStatus @default(SUBMITTED)
+  referenceType     String                @default("MANUAL") // PROSTHETICS_CASE / DEPARTMENT / MANUAL ...
+  referenceId       String?
+  departmentId      String?               // users.departments.id — مرجع خارجي بلا FK
+  requestedByUserId String
+  notes             String?
+  rejectionReason   String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  items MaterialRequestItem[]
+
+  @@index([status])
+  @@index([referenceType, referenceId])
+  @@index([requestedByUserId])
+  @@map("material_requests")
+  @@schema("warehouse")
+}
+
+model MaterialRequestItem {
+  id                String          @id @default(uuid())
+  materialRequestId String
+  materialRequest   MaterialRequest @relation(fields: [materialRequestId], references: [id])
+  itemId            String
+  item              Item            @relation(fields: [itemId], references: [id])
+
+  requestedQty Decimal @db.Decimal(18, 3)
+  approvedQty  Decimal @default(0) @db.Decimal(18, 3)
+  issuedQty    Decimal @default(0) @db.Decimal(18, 3)
+
+  @@index([materialRequestId])
+  @@map("material_request_items")
   @@schema("warehouse")
 }
