@@ -50,3 +50,15 @@ export class IssueMaterialRequestDto {
   @Type(() => IssueItemInputDto)
   items?: IssueItemInputDto[];
 }
+
+// نداء خدمة-لخدمة (مثلاً من الأطراف الصناعية) — يبحث عن الصنف بـpartCode بدل itemId
+// لأن الخدمة المستدعية غالباً ما تعرف معرّف المستودع الداخلي للصنف
+export class CreateFromPartCodeDto {
+  @IsString() @IsNotEmpty() partCode: string;
+  @Type(() => Number) @IsNumber() @Min(0.001) quantity: number;
+  @IsOptional() @IsString() warehouseId?: string; // إذا لم يُرسل، يُختار أول مستودع رئيسي فعّال
+  @IsString() @IsNotEmpty() referenceType: string; // PROSTHETICS_CASE مثلاً
+  @IsOptional() @IsString() referenceId?: string;
+  @IsString() @IsNotEmpty() requestedByUserId: string;
+  @IsOptional() @IsString() notes?: string;
+}

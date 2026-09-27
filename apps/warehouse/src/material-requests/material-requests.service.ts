@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateMaterialRequestDto, ApproveMaterialRequestDto, RejectMaterialRequestDto, IssueMaterialRequestDto,
+  CreateFromPartCodeDto,
 } from './dto/material-request.dto';
 
 @Injectable()
@@ -229,5 +230,57 @@ export class MaterialRequestsService {
       await tx.materialRequest.update({ where: { id }, data: { status } });
       return tx.materialRequest.findUnique({ where: { id }, include: { items: { include: { item: true } } } });
     });
+  }
+
+  // ── نداءات خدمة-لخدمة (InternalAuthGuard) — لربط خدمات خارجية مثل الأطراف الصناعية ──
+
+  // ينشئ الطلب فقط إذا كان الصنف موجوداً فعلاً بكتالوج المستودع بنفس partCode.
+  // إذا لم يوجد، يرجع matched:false بدون أي خطأ — القرار بعدها للخدمة المستدعية (كما بالنظام القديم matchedInInventory)
+  async createFromPartCode(dto: CreateFromPartCodeDto) {
+    let warehouseId = dto.warehouseId;
+    if (warehouseId) {
+      const wh = await this.prisma.warehouse.findUnique({ where: { id: warehouseId } });
+      if (!wh) throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'المستودع غير موجود' });
+    } else {
+      const wh = await this.prisma.warehouse.findFirst({ where: { isActive: true, type: 'MAIN' }, orderBy: { createdAt: 'asc' } });
+      if (!wh) return { matched: false, reason: 'NO_WAREHOUSE_CONFIGURED' };
+      warehouseId = wh.id;
+    }
+
+    const item = await this.prisma.item.findFirst({ where: { partCode: dto.partCode, isActive: true, deletedAt: null } });
+    if (!item) return { matched: false, reason: 'ITEM_NOT_FOUND' };
+
+    const request = await this.create(
+      {
+        warehouseId,
+        referenceType: dto.referenceType,
+        referenceId: dto.referenceId,
+        notes: dto.notes,
+        items: [{ itemId: item.id, requestedQty: dto.quantity }],
+      },
+      dto.requestedByUserId,
+    );
+
+    return { matched: true, materialRequestId: request.id, documentNo: request.documentNo, itemId: item.id, status: request.status };
+  }
+
+  async getStatusInternal(id: string) {
+    const request = await this.prisma.materialRequest.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+    if (!request) throw new NotFoundException({ code: 'MATERIAL_REQUEST_NOT_FOUND', message: 'طلب المواد غير موجود' });
+    return {
+      id: request.id,
+      documentNo: request.documentNo,
+      status: request.status,
+      rejectionReason: request.rejectionReason,
+      items: request.items.map((i) => ({
+        itemId: i.itemId,
+        requestedQty: i.requestedQty,
+        approvedQty: i.approvedQty,
+        issuedQty: i.issuedQty,
+      })),
+    };
   }
 }

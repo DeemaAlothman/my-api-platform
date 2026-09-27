@@ -2,12 +2,31 @@ import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/co
 import { MaterialRequestsService } from './material-requests.service';
 import {
   CreateMaterialRequestDto, ApproveMaterialRequestDto, RejectMaterialRequestDto, IssueMaterialRequestDto,
+  CreateFromPartCodeDto,
 } from './dto/material-request.dto';
 import { JwtAuthGuard } from '@shared/auth';
-import { PermissionsGuard } from '@shared';
+import { PermissionsGuard, InternalAuthGuard } from '@shared';
 import { Permission } from '@shared';
 import { User } from '@shared/auth/decorators/current-user.decorator';
 import { PERMISSIONS } from '@shared/constants/permissions.constants';
+
+// نقطة داخلية (خدمة-لخدمة): لربط خدمات خارجية مثل الأطراف الصناعية بدون أي أثر على مسارات المستخدمين
+@Controller('warehouse/material-requests/internal')
+export class MaterialRequestsInternalController {
+  constructor(private readonly service: MaterialRequestsService) {}
+
+  @Post('from-part-code')
+  @UseGuards(InternalAuthGuard)
+  createFromPartCode(@Body() dto: CreateFromPartCodeDto) {
+    return this.service.createFromPartCode(dto);
+  }
+
+  @Get(':id')
+  @UseGuards(InternalAuthGuard)
+  getStatus(@Param('id') id: string) {
+    return this.service.getStatusInternal(id);
+  }
+}
 
 @Controller('warehouse/material-requests')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
