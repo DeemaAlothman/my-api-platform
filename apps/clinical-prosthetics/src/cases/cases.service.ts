@@ -22,6 +22,9 @@ import {
 
 const PATIENTS_URL = process.env.PATIENTS_SERVICE_URL || 'http://patients:4010';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+// مسار خدمة المستودع الجديدة — يعمل بالتوازي مع النظام القديم فقط، ولا يستبدله (انظر addComponent)
+const WAREHOUSE_URL = process.env.WAREHOUSE_SERVICE_URL || 'http://warehouse:4018';
+const WAREHOUSE_ENABLED = process.env.WAREHOUSE_ENABLED === 'true';
 
 // حقول قسم "العضلات وحركة المفاصل" — أي حقل غير هدول يُحسب على أنه قسم "الطرف"
 const UPPER_MUSCLE_KEYS = ['romData', 'canBalanceOneSide'];
@@ -1006,6 +1009,33 @@ export class CasesService {
     } catch (_) {}
 
     await this.notifyInventoryManagers(dto.partCode, dto.partName, caseId, inventoryRequest?.requestId ?? null);
+
+    // ── مسار تجريبي موازٍ لخدمة warehouse الجديدة ──────────────────────────
+    // خلف مفتاح إيقاف افتراضي (WAREHOUSE_ENABLED=false) — لا يُستبدل أي شيء أعلاه؛
+    // هذا نداء إضافي بحت داخل try/catch منفصل، فشله لا يكسر إنشاء المكوّن ولا يغيّر
+    // الرد المُرجَع (matchedInInventory/inventoryRequest أعلاه يبقيان كما هما تماماً).
+    if (WAREHOUSE_ENABLED) {
+      try {
+        const res = await fetch(`${WAREHOUSE_URL}/api/v1/warehouse/material-requests/internal/from-part-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+          body: JSON.stringify({
+            partCode: dto.partCode,
+            quantity: 1,
+            referenceType: 'PROSTHETICS_CASE',
+            referenceId: caseId,
+            requestedByUserId: userId,
+          }),
+        });
+        const json: any = await res.json().catch(() => null);
+        if (json?.data?.matched) {
+          await this.prisma.prosthesisComponent.update({
+            where: { id: component.id },
+            data: { warehouseItemId: json.data.itemId, materialRequestId: json.data.materialRequestId },
+          });
+        }
+      } catch { /* تجريبي وموازٍ فقط — لا يجوز أن يكسر تدفق إضافة المكوّن الحالي */ }
+    }
 
     return { ...component, matchedInInventory, inventoryRequest };
   }
