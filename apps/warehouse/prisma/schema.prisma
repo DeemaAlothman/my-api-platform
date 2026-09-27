@@ -39,6 +39,9 @@ model Warehouse {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
+  balances  StockBalance[]
+  movements StockMovement[]
+
   @@map("warehouses")
   @@schema("warehouse")
 }
@@ -106,8 +109,60 @@ model Item {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
+  balances  StockBalance[]
+  movements StockMovement[]
+
   @@index([categoryId])
   @@index([unitId])
   @@map("items")
+  @@schema("warehouse")
+}
+
+// ── الأرصدة والحركات — بدون أي مستند شراء/بيع بعد، إدخال/إخراج يدوي فقط ────
+
+model StockBalance {
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id])
+
+  onHandQty   Decimal   @default(0) @db.Decimal(18, 3)
+  reservedQty Decimal   @default(0) @db.Decimal(18, 3)
+  avgUnitCost Decimal?  @db.Decimal(18, 4)
+  updatedAt   DateTime  @updatedAt
+
+  @@id([warehouseId, itemId])
+  @@map("stock_balances")
+  @@schema("warehouse")
+  // availableQty = onHandQty - reservedQty (يُشتق، لا يُخزَّن)
+}
+
+enum MovementType {
+  STOCK_IN
+  STOCK_OUT
+
+  @@schema("warehouse")
+}
+
+// حركة غير قابلة للتعديل — لا updatedAt عمداً
+model StockMovement {
+  id                String       @id @default(uuid())
+  itemId            String
+  item              Item         @relation(fields: [itemId], references: [id])
+  warehouseId       String
+  warehouse         Warehouse    @relation(fields: [warehouseId], references: [id])
+
+  movementType      MovementType
+  onHandDelta       Decimal      @db.Decimal(18, 3)
+  balanceAfter      Decimal      @db.Decimal(18, 3)
+
+  documentType      String       // MANUAL بهذه المرحلة — لاحقاً STOCK_IN_DOC / PURCHASE / ...
+  documentId         String?
+  notes             String?
+  performedByUserId String
+  createdAt         DateTime     @default(now())
+
+  @@index([itemId, warehouseId, createdAt])
+  @@map("stock_movements")
   @@schema("warehouse")
 }

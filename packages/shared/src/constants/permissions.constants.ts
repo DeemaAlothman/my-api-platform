@@ -322,6 +322,8 @@ export const PERMISSIONS = {
     SUPPLIERS_READ:    'warehouse.suppliers.read',
     SUPPLIERS_CREATE:  'warehouse.suppliers.create',
     SUPPLIERS_UPDATE:  'warehouse.suppliers.update',
+    STOCK_READ:        'warehouse.stock.read',
+    STOCK_ADJUST:      'warehouse.stock.adjust',
   },
   CLINIC_REPORTS: {
     VIEW_CLINICAL: 'clinic.reports.view_clinical',
