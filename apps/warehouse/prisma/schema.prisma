@@ -45,6 +45,8 @@ model Warehouse {
   purchaseInvoices PurchaseInvoice[]
   transfersFrom    StockTransfer[]   @relation("TransfersFrom")
   transfersTo      StockTransfer[]   @relation("TransfersTo")
+  returns          Return[]
+  returnItemsPosted ReturnItem[]     @relation("ReturnItemPostedWarehouse")
 
   @@map("warehouses")
   @@schema("warehouse")
@@ -160,6 +162,7 @@ model Item {
   materialRequestItems MaterialRequestItem[]
   purchaseInvoiceItems PurchaseInvoiceItem[]
   stockTransferItems   StockTransferItem[]
+  returnItems          ReturnItem[]
 
   @@index([categoryId])
   @@index([unitId])
@@ -191,11 +194,13 @@ model StockBalance {
 enum MovementType {
   STOCK_IN
   STOCK_OUT
-  RESERVE      // حجز عند الاعتماد — لا يغيّر onHand، يزيد reserved فقط
-  ISSUE        // صرف فعلي لطلب مواد معتمد — ينقص onHand وreserved معاً
-  PURCHASE     // ترحيل فاتورة شراء — يزيد onHand ويحدّث تكلفة الوحدة
-  TRANSFER_OUT // خروج من المستودع المصدر بالنقل
-  TRANSFER_IN  // دخول للمستودع الهدف بالنقل
+  RESERVE       // حجز عند الاعتماد — لا يغيّر onHand، يزيد reserved فقط
+  ISSUE         // صرف فعلي لطلب مواد معتمد — ينقص onHand وreserved معاً
+  PURCHASE      // ترحيل فاتورة شراء — يزيد onHand ويحدّث تكلفة الوحدة
+  TRANSFER_OUT  // خروج من المستودع المصدر بالنقل
+  TRANSFER_IN   // دخول للمستودع الهدف بالنقل
+  RETURN_OUT    // مرتجع مشتريات — خروج للمورّد
+  RETURN_IN     // مرتجع وارد (مبيعات/صرف/تصنيع) — لمستودع عادي أو مستودع التالف حسب الفحص
 
   @@schema("warehouse")
 }
@@ -328,7 +333,8 @@ model PurchaseInvoice {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items PurchaseInvoiceItem[]
+  items   PurchaseInvoiceItem[]
+  returns Return[]
 
   @@index([status])
   @@index([supplierId])
@@ -406,5 +412,71 @@ model StockTransferItem {
 
   @@index([stockTransferId])
   @@map("stock_transfer_items")
+  @@schema("warehouse")
+}
+
+// ── المرتجعات (4 أنواع) ──────────────────────────────────────────────────
+// مرتجع مشتريات: يخصم من نفس مستودع الفاتورة الأصلية ويقيَّد بالكمية المشتراة فعلياً.
+// الثلاثة الباقية (مبيعات/صرف/تصنيع): وارد للمستودع — GOOD يدخل متاحاً فوراً،
+// DAMAGED/INSPECT يدخلان مستودع تالف/حجر مستقل (حسب القرار)، ثم يُنقَلان لاحقاً
+// بمستند نقل عادي بعد الفحص — بدون تكرار منطق جديد.
+
+enum ReturnType {
+  PURCHASE_RETURN
+  SALES_RETURN
+  ISSUE_RETURN
+  PRODUCTION_RETURN
+
+  @@schema("warehouse")
+}
+
+enum ReturnCondition {
+  GOOD
+  DAMAGED
+  INSPECT
+
+  @@schema("warehouse")
+}
+
+model Return {
+  id                String           @id @default(uuid())
+  documentNo        String           @unique
+  returnType        ReturnType
+  warehouseId       String           // المستودع الأصلي المعني (مصدر لمرتجع الشراء، أو المقصود لباقي الأنواع)
+  warehouse         Warehouse        @relation(fields: [warehouseId], references: [id])
+  purchaseInvoiceId String?          // إلزامي فعلياً لمرتجع الشراء (يُتحقَّق بالخدمة)
+  purchaseInvoice   PurchaseInvoice? @relation(fields: [purchaseInvoiceId], references: [id])
+  sourceReferenceType String?  // SALES_INVOICE / PROSTHETICS_CASE / DEPARTMENT / MANUAL ...
+  sourceReferenceId   String?
+  departmentId        String?
+  createdByUserId     String
+  notes               String?
+  createdAt           DateTime @default(now())
+
+  items ReturnItem[]
+
+  @@index([returnType])
+  @@index([warehouseId])
+  @@index([sourceReferenceType, sourceReferenceId])
+  @@map("returns")
+  @@schema("warehouse")
+}
+
+model ReturnItem {
+  id       String  @id @default(uuid())
+  returnId String
+  return   Return  @relation(fields: [returnId], references: [id])
+  itemId   String
+  item     Item    @relation(fields: [itemId], references: [id])
+
+  qty               Decimal         @db.Decimal(18, 3)
+  condition         ReturnCondition @default(GOOD) // يُستعمل فقط لغير مرتجع الشراء
+  postedWarehouseId String          // المستودع الفعلي يلي دخلت/خرجت منه الكمية فعلياً (بعد توجيه الفحص)
+  postedWarehouse   Warehouse       @relation("ReturnItemPostedWarehouse", fields: [postedWarehouseId], references: [id])
+  unitPrice         Decimal?        @db.Decimal(18, 4) // لمرتجع الشراء فقط (بعملة الفاتورة الأصلية)
+  note              String?
+
+  @@index([returnId])
+  @@map("return_items")
   @@schema("warehouse")
 }
