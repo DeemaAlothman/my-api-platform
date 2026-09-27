@@ -2,7 +2,7 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '@shared/auth';
 import { PrismaService } from '../prisma/prisma.service';
 
-@Controller('health')
+@Controller('warehouse/health')
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
