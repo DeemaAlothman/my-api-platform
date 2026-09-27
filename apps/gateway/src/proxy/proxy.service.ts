@@ -101,6 +101,11 @@ export class ProxyService {
       url: process.env.PATIENT_APP_SERVICE_URL || 'http://localhost:4017',
       prefix: '/patient-app',
     });
+
+    this.services.set('warehouse', {
+      url: process.env.WAREHOUSE_SERVICE_URL || 'http://localhost:4018',
+      prefix: '/warehouse',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

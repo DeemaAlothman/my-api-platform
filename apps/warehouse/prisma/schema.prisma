@@ -1,0 +1,19 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["warehouse"]
+}
+
+// جدول شاهد فقط لإثبات أن الاتصال بقاعدة البيانات والـ migrations يعملان — لا معنى تشغيلياً له
+model WarehouseMeta {
+  id        Int      @id @default(autoincrement())
+  note      String
+  createdAt DateTime @default(now())
+
+  @@map("warehouse_meta")
+  @@schema("warehouse")
+}

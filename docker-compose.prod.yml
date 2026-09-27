@@ -287,6 +287,22 @@ services:
     networks:
       - app-network
 
+  warehouse:
+    build:
+      context: .
+      dockerfile: apps/warehouse/Dockerfile
+    container_name: myapiplatform-warehouse
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=warehouse
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   podiatry:
     build:
       context: .
@@ -376,6 +392,7 @@ services:
       PODIATRY_SERVICE_URL: http://podiatry:4015
       REFERRALS_SERVICE_URL: http://referrals:4016
       PATIENT_APP_SERVICE_URL: http://patient-app:4017
+      WAREHOUSE_SERVICE_URL: http://warehouse:4018
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012,http://159.198.37.52:3012,http://159.198.37.52:3000
@@ -418,6 +435,8 @@ services:
       referrals:
         condition: service_started
       patient-app:
+        condition: service_started
+      warehouse:
         condition: service_started
     networks:
       - app-network

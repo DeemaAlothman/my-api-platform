@@ -918,3 +918,18 @@ export class PatientAppProxyController {
     await this.proxy.forward(req, res, 'patient-app');
   }
 }
+
+@Controller('warehouse')
+export class WarehouseProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'warehouse');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'warehouse');
+  }
+}
