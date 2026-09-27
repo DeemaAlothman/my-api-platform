@@ -328,6 +328,13 @@ export const PERMISSIONS = {
     MATERIAL_REQUESTS_READ_OWN: 'warehouse.material_requests.read_own',
     MATERIAL_REQUESTS_CREATE:   'warehouse.material_requests.create',
     MATERIAL_REQUESTS_APPROVE:  'warehouse.material_requests.approve',
+    CURRENCIES_READ:            'warehouse.currencies.read',
+    CURRENCIES_MANAGE:          'warehouse.currencies.manage',
+    PURCHASE_INVOICES_READ:     'warehouse.purchase_invoices.read',
+    PURCHASE_INVOICES_CREATE:   'warehouse.purchase_invoices.create',
+    PURCHASE_INVOICES_APPROVE:  'warehouse.purchase_invoices.approve',
+    PURCHASE_INVOICES_POST:     'warehouse.purchase_invoices.post',
+    PURCHASE_PRICES_VIEW:       'warehouse.purchase_prices.view',
   },
   CLINIC_REPORTS: {
     VIEW_CLINICAL: 'clinic.reports.view_clinical',

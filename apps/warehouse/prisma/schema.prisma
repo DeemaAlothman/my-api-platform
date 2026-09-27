@@ -42,6 +42,7 @@ model Warehouse {
   balances         StockBalance[]
   movements        StockMovement[]
   materialRequests MaterialRequest[]
+  purchaseInvoices PurchaseInvoice[]
 
   @@map("warehouses")
   @@schema("warehouse")
@@ -79,7 +80,39 @@ model Supplier {
   address  String?
   isActive Boolean @default(true)
 
+  purchaseInvoices PurchaseInvoice[]
+
   @@map("suppliers")
+  @@schema("warehouse")
+}
+
+// ── العملات وأسعار الصرف — عملة الأساس ديناميكية (قابلة للتغيير من الإدارة) ──
+
+model Currency {
+  id              String  @id @default(uuid())
+  code            String  @unique // USD, SYP, ...
+  name            String
+  isBaseCurrency  Boolean @default(false)
+
+  exchangeRates    ExchangeRate[]
+  purchaseInvoices PurchaseInvoice[]
+
+  @@map("currencies")
+  @@schema("warehouse")
+}
+
+// سجل تاريخي لأسعار الصرف — rate = كم تساوي وحدة واحدة من هالعملة بعملة الأساس
+model ExchangeRate {
+  id             String   @id @default(uuid())
+  currencyId     String
+  currency       Currency @relation(fields: [currencyId], references: [id])
+  rate           Decimal  @db.Decimal(18, 8)
+  effectiveFrom  DateTime @default(now())
+  enteredByUserId String
+  createdAt      DateTime @default(now())
+
+  @@index([currencyId, effectiveFrom])
+  @@map("exchange_rates")
   @@schema("warehouse")
 }
 
@@ -87,6 +120,15 @@ enum ItemType {
   COMPONENT
   CONSUMABLE
   SERVICE
+
+  @@schema("warehouse")
+}
+
+// طريقة عرض تكلفة الوحدة لهذا الصنف بالتقارير — قابلة للاختيار لكل صنف لحاله
+enum CostingMethod {
+  HIGHEST_PRICE
+  LAST_PRICE
+  AVERAGE_PRICE
 
   @@schema("warehouse")
 }
@@ -105,6 +147,7 @@ model Item {
   unit         Unit          @relation(fields: [unitId], references: [id])
   manufacturer String?
   minStock     Decimal?      @db.Decimal(18, 3)
+  costingMethod CostingMethod @default(AVERAGE_PRICE)
   isActive     Boolean       @default(true)
   deletedAt    DateTime?
   createdAt    DateTime      @default(now())
@@ -113,6 +156,7 @@ model Item {
   balances             StockBalance[]
   movements            StockMovement[]
   materialRequestItems MaterialRequestItem[]
+  purchaseInvoiceItems PurchaseInvoiceItem[]
 
   @@index([categoryId])
   @@index([unitId])
@@ -128,10 +172,12 @@ model StockBalance {
   itemId      String
   item        Item      @relation(fields: [itemId], references: [id])
 
-  onHandQty   Decimal   @default(0) @db.Decimal(18, 3)
-  reservedQty Decimal   @default(0) @db.Decimal(18, 3)
-  avgUnitCost Decimal?  @db.Decimal(18, 4)
-  updatedAt   DateTime  @updatedAt
+  onHandQty      Decimal  @default(0) @db.Decimal(18, 3)
+  reservedQty    Decimal  @default(0) @db.Decimal(18, 3)
+  avgUnitCost    Decimal? @db.Decimal(18, 4) // متوسط مرجّح — يُحدَّث بكل ترحيل شراء
+  lastUnitCost   Decimal? @db.Decimal(18, 4) // آخر سعر شراء تم ترحيله
+  highestUnitCost Decimal? @db.Decimal(18, 4) // أعلى سعر شراء وُصِل له
+  updatedAt      DateTime @updatedAt
 
   @@id([warehouseId, itemId])
   @@map("stock_balances")
@@ -142,8 +188,9 @@ model StockBalance {
 enum MovementType {
   STOCK_IN
   STOCK_OUT
-  RESERVE // حجز عند الاعتماد — لا يغيّر onHand، يزيد reserved فقط
-  ISSUE   // صرف فعلي لطلب مواد معتمد — ينقص onHand وreserved معاً
+  RESERVE  // حجز عند الاعتماد — لا يغيّر onHand، يزيد reserved فقط
+  ISSUE    // صرف فعلي لطلب مواد معتمد — ينقص onHand وreserved معاً
+  PURCHASE // ترحيل فاتورة شراء — يزيد onHand ويحدّث تكلفة الوحدة
 
   @@schema("warehouse")
 }
@@ -226,5 +273,78 @@ model MaterialRequestItem {
 
   @@index([materialRequestId])
   @@map("material_request_items")
+  @@schema("warehouse")
+}
+
+// ── الشراء — اعتماد مالي ثم ترحيل مخزني، مرحلتان منفصلتان ───────────────────
+
+enum PurchaseInvoiceStatus {
+  DRAFT
+  APPROVED  // اعتماد مالي فقط — لسا ما أثّر على المخزون
+  POSTED    // تم الترحيل — زاد الرصيد فعلياً
+  REJECTED
+  CANCELLED
+
+  @@schema("warehouse")
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+
+  @@schema("warehouse")
+}
+
+model PurchaseInvoice {
+  id             String                @id @default(uuid())
+  documentNo     String                @unique
+  supplierId     String
+  supplier       Supplier              @relation(fields: [supplierId], references: [id])
+  warehouseId    String
+  warehouse      Warehouse             @relation(fields: [warehouseId], references: [id])
+  currencyId     String
+  currency       Currency              @relation(fields: [currencyId], references: [id])
+  exchangeRate   Decimal               @db.Decimal(18, 8) // نسخة مجمَّدة وقت الإنشاء — لا تتغيّر لاحقاً حتى لو تغيّر السعر المركزي
+  invoiceDate    DateTime              @default(now())
+  discountType   DiscountType?
+  discountValue  Decimal?              @db.Decimal(18, 4)
+  subtotal       Decimal               @db.Decimal(18, 4) // بعملة الفاتورة
+  total          Decimal               @db.Decimal(18, 4) // بعملة الفاتورة، بعد الخصم
+  status         PurchaseInvoiceStatus @default(DRAFT)
+  notes          String?
+  rejectionReason String?
+
+  createdByUserId String
+  approvedByUserId String?
+  approvedAt       DateTime?
+  postedByUserId   String?
+  postedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items PurchaseInvoiceItem[]
+
+  @@index([status])
+  @@index([supplierId])
+  @@index([warehouseId])
+  @@map("purchase_invoices")
+  @@schema("warehouse")
+}
+
+model PurchaseInvoiceItem {
+  id                String          @id @default(uuid())
+  purchaseInvoiceId String
+  purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
+  itemId            String
+  item              Item            @relation(fields: [itemId], references: [id])
+
+  qty           Decimal @db.Decimal(18, 3)
+  unitPrice     Decimal @db.Decimal(18, 4) // بعملة الفاتورة
+  baseUnitPrice Decimal @db.Decimal(18, 4) // = unitPrice × exchangeRate — بعملة الأساس، لتحديث تكلفة المخزون
+  lineTotal     Decimal @db.Decimal(18, 4) // بعملة الفاتورة
+
+  @@index([purchaseInvoiceId])
+  @@map("purchase_invoice_items")
   @@schema("warehouse")
 }
