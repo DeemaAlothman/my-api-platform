@@ -776,6 +776,11 @@ model ProsthesisComponent {
   isApproved      Boolean  @default(false)
   approvedAt      DateTime?
 
+  // ربط اختياري بخدمة warehouse الجديدة — فاضي حالياً لكل السجلات القديمة والجديدة
+  // إلى أن يُفعَّل مسار المستودع الجديد (خلف feature flag)، بدون أي تأثير على السلوك الحالي
+  warehouseItemId    String?
+  materialRequestId  String?
+
   @@map("prosthesis_components")
   @@schema("clinic_prosthetics")
   @@index([caseId])
