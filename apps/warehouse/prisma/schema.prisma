@@ -17,3 +17,97 @@ model WarehouseMeta {
   @@map("warehouse_meta")
   @@schema("warehouse")
 }
+
+// ── بيانات أساسية (Master Data) — بدون أي منطق أرصدة أو حركات بعد ──────────
+
+enum WarehouseType {
+  MAIN
+  QUARANTINE
+  OTHER
+
+  @@schema("warehouse")
+}
+
+model Warehouse {
+  id                String        @id @default(uuid())
+  code              String        @unique
+  name              String
+  type              WarehouseType @default(MAIN)
+  location          String?
+  isActive          Boolean       @default(true)
+  managerEmployeeId String?       // users.employees.id — مرجع خارجي بلا FK
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@map("warehouses")
+  @@schema("warehouse")
+}
+
+model Unit {
+  id     String  @id @default(uuid())
+  name   String
+  symbol String?
+  items  Item[]
+
+  @@map("units")
+  @@schema("warehouse")
+}
+
+model ItemCategory {
+  id       String         @id @default(uuid())
+  name     String
+  nameAr   String?
+  parentId String?
+  parent   ItemCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children ItemCategory[] @relation("CategoryHierarchy")
+  isActive Boolean        @default(true)
+  items    Item[]
+
+  @@map("item_categories")
+  @@schema("warehouse")
+}
+
+model Supplier {
+  id       String  @id @default(uuid())
+  name     String
+  phone    String?
+  email    String?
+  address  String?
+  isActive Boolean @default(true)
+
+  @@map("suppliers")
+  @@schema("warehouse")
+}
+
+enum ItemType {
+  COMPONENT
+  CONSUMABLE
+  SERVICE
+
+  @@schema("warehouse")
+}
+
+model Item {
+  id           String        @id @default(uuid())
+  sku          String        @unique
+  partCode     String?       @unique // مفتاح الربط مع مكوّنات الأطراف الصناعية (partCode)
+  barcode      String?
+  name         String
+  nameAr       String?
+  itemType     ItemType      @default(CONSUMABLE)
+  categoryId   String?
+  category     ItemCategory? @relation(fields: [categoryId], references: [id])
+  unitId       String
+  unit         Unit          @relation(fields: [unitId], references: [id])
+  manufacturer String?
+  minStock     Decimal?      @db.Decimal(18, 3)
+  isActive     Boolean       @default(true)
+  deletedAt    DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([categoryId])
+  @@index([unitId])
+  @@map("items")
+  @@schema("warehouse")
+}

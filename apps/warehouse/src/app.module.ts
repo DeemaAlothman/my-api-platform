@@ -4,6 +4,8 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from './prisma/prisma.service';
 import { HealthModule } from './health/health.module';
+import { WarehousesModule } from './warehouses/warehouses.module';
+import { CatalogModule } from './catalog/catalog.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -15,6 +17,8 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
       signOptions: { expiresIn: '15m' },
     }),
     HealthModule,
+    WarehousesModule,
+    CatalogModule,
   ],
   providers: [
     PrismaService,
