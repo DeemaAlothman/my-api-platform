@@ -43,6 +43,8 @@ model Warehouse {
   movements        StockMovement[]
   materialRequests MaterialRequest[]
   purchaseInvoices PurchaseInvoice[]
+  transfersFrom    StockTransfer[]   @relation("TransfersFrom")
+  transfersTo      StockTransfer[]   @relation("TransfersTo")
 
   @@map("warehouses")
   @@schema("warehouse")
@@ -157,6 +159,7 @@ model Item {
   movements            StockMovement[]
   materialRequestItems MaterialRequestItem[]
   purchaseInvoiceItems PurchaseInvoiceItem[]
+  stockTransferItems   StockTransferItem[]
 
   @@index([categoryId])
   @@index([unitId])
@@ -188,9 +191,11 @@ model StockBalance {
 enum MovementType {
   STOCK_IN
   STOCK_OUT
-  RESERVE  // حجز عند الاعتماد — لا يغيّر onHand، يزيد reserved فقط
-  ISSUE    // صرف فعلي لطلب مواد معتمد — ينقص onHand وreserved معاً
-  PURCHASE // ترحيل فاتورة شراء — يزيد onHand ويحدّث تكلفة الوحدة
+  RESERVE      // حجز عند الاعتماد — لا يغيّر onHand، يزيد reserved فقط
+  ISSUE        // صرف فعلي لطلب مواد معتمد — ينقص onHand وreserved معاً
+  PURCHASE     // ترحيل فاتورة شراء — يزيد onHand ويحدّث تكلفة الوحدة
+  TRANSFER_OUT // خروج من المستودع المصدر بالنقل
+  TRANSFER_IN  // دخول للمستودع الهدف بالنقل
 
   @@schema("warehouse")
 }
@@ -346,5 +351,60 @@ model PurchaseInvoiceItem {
 
   @@index([purchaseInvoiceId])
   @@map("purchase_invoice_items")
+  @@schema("warehouse")
+}
+
+// ── النقل بين المستودعات ─────────────────────────────────────────────────
+// نفس أمين المستودع بالطرفين → ينفَّذ مباشرة (COMPLETED فوراً).
+// أمينان مختلفان → IN_TRANSIT بعد الإرسال، وينتظر تأكيد استلام صريح.
+
+enum StockTransferStatus {
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+
+  @@schema("warehouse")
+}
+
+model StockTransfer {
+  id                String              @id @default(uuid())
+  documentNo        String              @unique
+  fromWarehouseId   String
+  fromWarehouse     Warehouse           @relation("TransfersFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouseId     String
+  toWarehouse       Warehouse           @relation("TransfersTo", fields: [toWarehouseId], references: [id])
+  status            StockTransferStatus @default(IN_TRANSIT)
+  requestedByUserId String
+  notes             String?
+
+  sentAt            DateTime?
+  receivedByUserId  String?
+  receivedAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items StockTransferItem[]
+
+  @@index([status])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+  @@map("stock_transfers")
+  @@schema("warehouse")
+}
+
+model StockTransferItem {
+  id              String        @id @default(uuid())
+  stockTransferId String
+  stockTransfer   StockTransfer @relation(fields: [stockTransferId], references: [id])
+  itemId          String
+  item            Item          @relation(fields: [itemId], references: [id])
+
+  requestedQty Decimal  @db.Decimal(18, 3)
+  sentQty      Decimal? @db.Decimal(18, 3)
+  receivedQty  Decimal? @db.Decimal(18, 3)
+
+  @@index([stockTransferId])
+  @@map("stock_transfer_items")
   @@schema("warehouse")
 }

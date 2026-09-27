@@ -335,6 +335,9 @@ export const PERMISSIONS = {
     PURCHASE_INVOICES_APPROVE:  'warehouse.purchase_invoices.approve',
     PURCHASE_INVOICES_POST:     'warehouse.purchase_invoices.post',
     PURCHASE_PRICES_VIEW:       'warehouse.purchase_prices.view',
+    TRANSFERS_READ:    'warehouse.transfers.read',
+    TRANSFERS_CREATE:  'warehouse.transfers.create',
+    TRANSFERS_RECEIVE: 'warehouse.transfers.receive',
   },
   CLINIC_REPORTS: {
     VIEW_CLINICAL: 'clinic.reports.view_clinical',

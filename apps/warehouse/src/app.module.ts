@@ -10,6 +10,7 @@ import { StockModule } from './stock/stock.module';
 import { MaterialRequestsModule } from './material-requests/material-requests.module';
 import { CurrenciesModule } from './currencies/currencies.module';
 import { PurchasingModule } from './purchasing/purchasing.module';
+import { TransfersModule } from './transfers/transfers.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -27,6 +28,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     MaterialRequestsModule,
     CurrenciesModule,
     PurchasingModule,
+    TransfersModule,
   ],
   providers: [
     PrismaService,
