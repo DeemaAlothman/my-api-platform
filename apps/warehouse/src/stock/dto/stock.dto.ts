@@ -14,3 +14,9 @@ export class AdjustStockDto {
   @Type(() => Number) @IsNumber() @Min(0.001) quantity: number;
   @IsOptional() @IsString() notes?: string;
 }
+
+export class SetMinStockDto {
+  @IsString() @IsNotEmpty() warehouseId: string;
+  @IsString() @IsNotEmpty() itemId: string;
+  @Type(() => Number) @IsNumber() @Min(0) minStock: number;
+}

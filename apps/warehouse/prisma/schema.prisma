@@ -47,6 +47,8 @@ model Warehouse {
   transfersTo      StockTransfer[]   @relation("TransfersTo")
   returns          Return[]
   returnItemsPosted ReturnItem[]     @relation("ReturnItemPostedWarehouse")
+  itemSettings     ItemWarehouseSetting[]
+  inventoryCounts  InventoryCount[]
 
   @@map("warehouses")
   @@schema("warehouse")
@@ -163,6 +165,8 @@ model Item {
   purchaseInvoiceItems PurchaseInvoiceItem[]
   stockTransferItems   StockTransferItem[]
   returnItems          ReturnItem[]
+  warehouseSettings    ItemWarehouseSetting[]
+  inventoryCountItems  InventoryCountItem[]
 
   @@index([categoryId])
   @@index([unitId])
@@ -478,5 +482,67 @@ model ReturnItem {
 
   @@index([returnId])
   @@map("return_items")
+  @@schema("warehouse")
+}
+
+// ── حد أدنى لكل مادة داخل كل مستودع لحاله — يتجاوز items.minStock العام عند وجوده ──
+
+model ItemWarehouseSetting {
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  minStock    Decimal   @db.Decimal(18, 3)
+  updatedAt   DateTime  @updatedAt
+
+  @@id([itemId, warehouseId])
+  @@map("item_warehouse_settings")
+  @@schema("warehouse")
+}
+
+// ── الجرد — يجمّد المستودع مؤقتاً أثناء الجلسة (يُتحقَّق منه بكل عمليات المخزون الأخرى) ──
+
+enum InventoryCountStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+
+  @@schema("warehouse")
+}
+
+model InventoryCount {
+  id              String               @id @default(uuid())
+  documentNo      String               @unique
+  warehouseId     String
+  warehouse       Warehouse            @relation(fields: [warehouseId], references: [id])
+  status          InventoryCountStatus @default(IN_PROGRESS)
+  startedByUserId String
+  startedAt       DateTime             @default(now())
+  completedByUserId String?
+  completedAt       DateTime?
+  notes             String?
+
+  items InventoryCountItem[]
+
+  @@index([warehouseId])
+  @@index([status])
+  @@map("inventory_counts")
+  @@schema("warehouse")
+}
+
+model InventoryCountItem {
+  id               String         @id @default(uuid())
+  inventoryCountId String
+  inventoryCount   InventoryCount @relation(fields: [inventoryCountId], references: [id])
+  itemId           String
+  item             Item           @relation(fields: [itemId], references: [id])
+
+  systemQty     Decimal  @db.Decimal(18, 3) // لقطة الرصيد لحظة بدء الجرد
+  actualQty     Decimal? @db.Decimal(18, 3) // يُدخلها الموظف أثناء العدّ الفعلي
+  differenceQty Decimal? @db.Decimal(18, 3) // actualQty - systemQty، يُحسب عند التسجيل
+  note          String?
+
+  @@index([inventoryCountId])
+  @@map("inventory_count_items")
   @@schema("warehouse")
 }

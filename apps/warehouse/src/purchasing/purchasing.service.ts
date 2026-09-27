@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrenciesService } from '../currencies/currencies.service';
+import { InventoryCountsService } from '../inventory-counts/inventory-counts.service';
 import { CreatePurchaseInvoiceDto, RejectPurchaseInvoiceDto } from './dto/purchase-invoice.dto';
 
 const PRICE_FIELDS = ['unitPrice', 'baseUnitPrice', 'lineTotal'];
@@ -11,6 +12,7 @@ export class PurchasingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly currencies: CurrenciesService,
+    private readonly inventoryCounts: InventoryCountsService,
   ) {}
 
   // يُستدعى من الـcontroller فقط لمن لا يملك warehouse.purchase_prices.view
@@ -159,6 +161,7 @@ export class PurchasingService {
     if (invoice.status !== 'APPROVED') {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'الفاتورة يجب اعتمادها مالياً أولاً قبل الترحيل' });
     }
+    await this.inventoryCounts.assertWarehouseNotFrozen(invoice.warehouseId);
 
     return this.prisma.$transaction(async (tx) => {
       for (const line of invoice.items) {

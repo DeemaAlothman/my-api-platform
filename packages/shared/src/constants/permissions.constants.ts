@@ -340,6 +340,9 @@ export const PERMISSIONS = {
     TRANSFERS_RECEIVE: 'warehouse.transfers.receive',
     RETURNS_READ:      'warehouse.returns.read',
     RETURNS_CREATE:    'warehouse.returns.create',
+    COUNTS_READ:    'warehouse.counts.read',
+    COUNTS_CREATE:  'warehouse.counts.create',
+    COUNTS_APPROVE: 'warehouse.counts.approve',
   },
   CLINIC_REPORTS: {
     VIEW_CLINICAL: 'clinic.reports.view_clinical',

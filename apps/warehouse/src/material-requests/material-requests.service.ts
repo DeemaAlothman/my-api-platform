@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { InventoryCountsService } from '../inventory-counts/inventory-counts.service';
 import {
   CreateMaterialRequestDto, ApproveMaterialRequestDto, RejectMaterialRequestDto, IssueMaterialRequestDto,
   CreateFromPartCodeDto,
@@ -7,7 +8,10 @@ import {
 
 @Injectable()
 export class MaterialRequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryCounts: InventoryCountsService,
+  ) {}
 
   private async generateDocumentNo(): Promise<string> {
     const last = await this.prisma.materialRequest.findFirst({
@@ -98,6 +102,7 @@ export class MaterialRequestsService {
     if (request.status !== 'SUBMITTED') {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'الطلب ليس بانتظار الاعتماد' });
     }
+    await this.inventoryCounts.assertWarehouseNotFrozen(request.warehouseId);
 
     const overrideMap = new Map((dto.items ?? []).map((i) => [i.itemId, i.approvedQty]));
 
@@ -176,6 +181,7 @@ export class MaterialRequestsService {
     if (!['APPROVED', 'PARTIALLY_APPROVED', 'PARTIALLY_ISSUED'].includes(request.status)) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'الطلب ليس بحالة يمكن الصرف منها' });
     }
+    await this.inventoryCounts.assertWarehouseNotFrozen(request.warehouseId);
 
     const overrideMap = new Map((dto.items ?? []).map((i) => [i.itemId, i.issuedQty]));
 

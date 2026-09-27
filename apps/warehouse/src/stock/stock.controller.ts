@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { StockService } from './stock.service';
-import { AdjustStockDto } from './dto/stock.dto';
+import { AdjustStockDto, SetMinStockDto } from './dto/stock.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
@@ -38,5 +38,17 @@ export class StockController {
   @Permission(PERMISSIONS.WAREHOUSE.STOCK_ADJUST)
   adjust(@Body() dto: AdjustStockDto, @User() user: any) {
     return this.service.adjust(dto, user.userId);
+  }
+
+  @Get('low-stock')
+  @Permission(PERMISSIONS.WAREHOUSE.STOCK_READ)
+  lowStock(@Query('warehouseId') warehouseId?: string) {
+    return this.service.lowStock(warehouseId);
+  }
+
+  @Post('min-stock')
+  @Permission(PERMISSIONS.WAREHOUSE.STOCK_ADJUST)
+  setMinStock(@Body() dto: SetMinStockDto) {
+    return this.service.setMinStock(dto.warehouseId, dto.itemId, dto.minStock);
   }
 }

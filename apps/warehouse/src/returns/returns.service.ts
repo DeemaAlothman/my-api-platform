@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { InventoryCountsService } from '../inventory-counts/inventory-counts.service';
 import { CreateReturnDto, ReturnTypeEnum, ReturnConditionEnum } from './dto/return.dto';
 
 @Injectable()
 export class ReturnsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryCounts: InventoryCountsService,
+  ) {}
 
   private async generateDocumentNo(): Promise<string> {
     const last = await this.prisma.return.findFirst({
@@ -60,6 +64,7 @@ export class ReturnsService {
     const warehouse = await this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } });
     if (!warehouse) throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'المستودع غير موجود' });
     if (!dto.items?.length) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لازم بند واحد على الأقل' });
+    await this.inventoryCounts.assertWarehouseNotFrozen(dto.warehouseId);
 
     const documentNo = await this.generateDocumentNo();
 
@@ -163,6 +168,9 @@ export class ReturnsService {
         const postedWarehouseId = condition === ReturnConditionEnum.GOOD
           ? dto.warehouseId
           : await this.resolveDamagedWarehouseId(tx, dto.damagedWarehouseId);
+        if (postedWarehouseId !== dto.warehouseId) {
+          await this.inventoryCounts.assertWarehouseNotFrozen(postedWarehouseId);
+        }
 
         await tx.$executeRawUnsafe(
           `INSERT INTO warehouse.stock_balances ("warehouseId", "itemId", "onHandQty", "reservedQty", "updatedAt")

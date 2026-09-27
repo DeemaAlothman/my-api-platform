@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { InventoryCountsService } from '../inventory-counts/inventory-counts.service';
 import { CreateTransferDto, ReceiveTransferDto } from './dto/transfer.dto';
 
 @Injectable()
 export class TransfersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventoryCounts: InventoryCountsService,
+  ) {}
 
   private async generateDocumentNo(): Promise<string> {
     const last = await this.prisma.stockTransfer.findFirst({
@@ -58,6 +62,8 @@ export class TransfersService {
     if (!fromWh) throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'المستودع المصدر غير موجود' });
     if (!toWh) throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'المستودع الهدف غير موجود' });
     if (!dto.items?.length) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لازم بند واحد على الأقل' });
+    await this.inventoryCounts.assertWarehouseNotFrozen(dto.fromWarehouseId);
+    await this.inventoryCounts.assertWarehouseNotFrozen(dto.toWarehouseId);
 
     const sameKeeper = !!fromWh.managerEmployeeId && fromWh.managerEmployeeId === toWh.managerEmployeeId;
 
@@ -156,6 +162,7 @@ export class TransfersService {
     if (transfer.status !== 'IN_TRANSIT') {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'مستند النقل ليس بانتظار الاستلام' });
     }
+    await this.inventoryCounts.assertWarehouseNotFrozen(transfer.toWarehouseId);
 
     const overrideMap = new Map((dto.items ?? []).map((i) => [i.itemId, i.receivedQty]));
 
