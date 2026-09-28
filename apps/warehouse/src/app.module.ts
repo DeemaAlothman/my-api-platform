@@ -15,6 +15,7 @@ import { ReturnsModule } from './returns/returns.module';
 import { InventoryCountsModule } from './inventory-counts/inventory-counts.module';
 import { QuotationsModule } from './quotations/quotations.module';
 import { SalesInvoicesModule } from './sales-invoices/sales-invoices.module';
+import { ReportsModule } from './reports/reports.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -37,6 +38,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     InventoryCountsModule,
     QuotationsModule,
     SalesInvoicesModule,
+    ReportsModule,
   ],
   providers: [
     PrismaService,

@@ -8,5 +8,6 @@ import { InventoryCountsModule } from '../inventory-counts/inventory-counts.modu
   imports: [InventoryCountsModule],
   controllers: [StockController],
   providers: [StockService, PrismaService],
+  exports: [StockService],
 })
 export class StockModule {}

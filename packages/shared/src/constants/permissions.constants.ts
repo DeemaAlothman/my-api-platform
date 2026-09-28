@@ -351,6 +351,7 @@ export const PERMISSIONS = {
     SALES_INVOICES_READ:    'warehouse.sales_invoices.read',
     SALES_INVOICES_CREATE:  'warehouse.sales_invoices.create',
     SALES_INVOICES_APPROVE: 'warehouse.sales_invoices.approve',
+    REPORTS_READ: 'warehouse.reports.read',
   },
   CLINIC_REPORTS: {
     VIEW_CLINICAL: 'clinic.reports.view_clinical',
