@@ -102,6 +102,8 @@ model Currency {
 
   exchangeRates    ExchangeRate[]
   purchaseInvoices PurchaseInvoice[]
+  quotations       Quotation[]
+  salesInvoices    SalesInvoice[]
 
   @@map("currencies")
   @@schema("warehouse")
@@ -167,6 +169,8 @@ model Item {
   returnItems          ReturnItem[]
   warehouseSettings    ItemWarehouseSetting[]
   inventoryCountItems  InventoryCountItem[]
+  quotationItems       QuotationItem[]
+  salesInvoiceItems    SalesInvoiceItem[]
 
   @@index([categoryId])
   @@index([unitId])
@@ -544,5 +548,159 @@ model InventoryCountItem {
 
   @@index([inventoryCountId])
   @@map("inventory_count_items")
+  @@schema("warehouse")
+}
+
+// ── العروض المالية وفواتير المبيعات ─────────────────────────────────────────
+// لا يوجد كيان عميل/شركة — المريض فقط (مرجع خارجي بلا FK). لا تخصم من المخزون
+// إطلاقاً — الخصم الفعلي يتم فقط عبر طلب المواد/الصرف (منفصل تماماً).
+// تعديل عرض بعد اعتماده = نسخة/إصدار جديد، لا تعديل مباشر على القديم.
+
+enum QuotationStatus {
+  DRAFT       // مسودة قابلة للتعديل المباشر
+  APPROVED    // اعتماد إداري (أسعار/خصم) — لسا ما أُرسل للمريض
+  SENT        // أُرسل للمريض
+  ACCEPTED    // وافق المريض — يمكن توليد فاتورة مبيعات
+  REJECTED
+  SUPERSEDED  // استُبدل بنسخة أحدث (بعد new-version)
+  CANCELLED
+
+  @@schema("warehouse")
+}
+
+enum QuotationLineType {
+  ITEM     // صنف من كتالوج المستودع (itemId مطلوب)
+  SERVICE  // خدمة حرة (بدون مخزون)
+  SESSION  // جلسة علاجية (مرجع خارجي، بدون مخزون)
+  CUSTOM   // بند حر نصي
+
+  @@schema("warehouse")
+}
+
+model Quotation {
+  id                 String          @id @default(uuid())
+  documentNo         String          @unique
+  version            Int             @default(1)
+  parentQuotationId  String?
+  parentQuotation    Quotation?      @relation("QuotationVersions", fields: [parentQuotationId], references: [id])
+  childVersions      Quotation[]     @relation("QuotationVersions")
+
+  patientId          String          // مرجع خارجي لخدمة patients — بلا FK
+  currencyId         String
+  currency           Currency        @relation(fields: [currencyId], references: [id])
+  exchangeRate       Decimal         @db.Decimal(18, 8) // نسخة مجمَّدة وقت الإنشاء
+
+  discountType       DiscountType?
+  discountValue      Decimal?        @db.Decimal(18, 4)
+  subtotal           Decimal         @db.Decimal(18, 4)
+  total              Decimal         @db.Decimal(18, 4)
+  paymentTerms       String?         // نص حر — لا تتبع دفعات فعلي (قرار: نص بس)
+
+  status             QuotationStatus @default(DRAFT)
+  validUntil         DateTime?
+
+  createdByUserId    String
+  approvedByUserId   String?
+  approvedAt         DateTime?
+  sentAt             DateTime?
+  acceptedAt         DateTime?
+  acceptedByName     String?         // اسم من وافق نيابة عن المريض (نص حر)
+  rejectionReason    String?
+  notes              String?
+
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  items         QuotationItem[]
+  salesInvoices SalesInvoice[]
+
+  @@index([status])
+  @@index([patientId])
+  @@map("quotations")
+  @@schema("warehouse")
+}
+
+model QuotationItem {
+  id           String            @id @default(uuid())
+  quotationId  String
+  quotation    Quotation         @relation(fields: [quotationId], references: [id])
+  lineType     QuotationLineType @default(ITEM)
+  itemId       String?
+  item         Item?             @relation(fields: [itemId], references: [id])
+  description  String
+
+  qty           Decimal      @db.Decimal(18, 3)
+  unitPrice     Decimal      @db.Decimal(18, 4)
+  discountType  DiscountType?
+  discountValue Decimal?     @db.Decimal(18, 4)
+  lineTotal     Decimal      @db.Decimal(18, 4)
+
+  @@index([quotationId])
+  @@map("quotation_items")
+  @@schema("warehouse")
+}
+
+enum SalesInvoiceStatus {
+  DRAFT
+  APPROVED
+  CANCELLED
+
+  @@schema("warehouse")
+}
+
+model SalesInvoice {
+  id             String             @id @default(uuid())
+  documentNo     String             @unique
+  quotationId    String?
+  quotation      Quotation?         @relation(fields: [quotationId], references: [id])
+  patientId      String             // مرجع خارجي — بلا FK
+  currencyId     String
+  currency       Currency           @relation(fields: [currencyId], references: [id])
+  exchangeRate   Decimal            @db.Decimal(18, 8)
+  invoiceDate    DateTime           @default(now())
+
+  discountType   DiscountType?
+  discountValue  Decimal?           @db.Decimal(18, 4)
+  subtotal       Decimal            @db.Decimal(18, 4)
+  total          Decimal            @db.Decimal(18, 4)
+
+  paymentMethod  String?            // نص حر (قرار: بدون تتبع دفعات فعلي)
+  paymentTerms   String?
+
+  status         SalesInvoiceStatus @default(DRAFT)
+  createdByUserId  String
+  approvedByUserId String?
+  approvedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items SalesInvoiceItem[]
+  // ملاحظة: مرتجع المبيعات لا يُربَط بـFK مباشر — يُستعمل نفس النمط العام
+  // Return.sourceReferenceType='SALES_INVOICE' + sourceReferenceId=هذا الـid (كباقي المراجع الخارجية)
+
+  @@index([status])
+  @@index([patientId])
+  @@map("sales_invoices")
+  @@schema("warehouse")
+}
+
+model SalesInvoiceItem {
+  id             String            @id @default(uuid())
+  salesInvoiceId String
+  salesInvoice   SalesInvoice      @relation(fields: [salesInvoiceId], references: [id])
+  lineType       QuotationLineType @default(ITEM)
+  itemId         String?
+  item           Item?             @relation(fields: [itemId], references: [id])
+  description    String
+
+  qty           Decimal       @db.Decimal(18, 3)
+  unitPrice     Decimal       @db.Decimal(18, 4)
+  discountType  DiscountType?
+  discountValue Decimal?      @db.Decimal(18, 4)
+  lineTotal     Decimal       @db.Decimal(18, 4)
+
+  @@index([salesInvoiceId])
+  @@map("sales_invoice_items")
   @@schema("warehouse")
 }
