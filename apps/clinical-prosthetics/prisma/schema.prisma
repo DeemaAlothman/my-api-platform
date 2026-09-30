@@ -129,6 +129,7 @@ enum PainType {
   SHARP_STABBING
   PINS
   OTHER
+  NONE
   @@schema("clinic_prosthetics")
 }
 
