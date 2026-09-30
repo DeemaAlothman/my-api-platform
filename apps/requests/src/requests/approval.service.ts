@@ -32,7 +32,11 @@ export class ApprovalService {
     if (workflows.length === 0) return false;
 
     // إذا كان المدير المباشر هو CEO: احذف خطوة CEO المنفصلة وابقِ DIRECT_MANAGER → HR
-    if (employeeId && workflows.some(w => w.approverRole === 'DIRECT_MANAGER')) {
+    // مستثنى REWARD/PENALTY_PROPOSAL: بهالنوعين "DIRECT_MANAGER" بالمسار يقصد مدير الموظف المستفيد
+    // (يُحسم بمنطق مخصص بالأسفل)، مش مدير مقدّم الطلب — استخدام employeeId هون كان بيشيل CEO
+    // بالغلط حتى لو DM/HR انشالوا أصلاً بنفس الوقت (تخطي الخطوات ذكي)، فيضل الطلب بلا أي خطوة إطلاقاً.
+    if (!['REWARD', 'PENALTY_PROPOSAL'].includes(requestType) &&
+        employeeId && workflows.some(w => w.approverRole === 'DIRECT_MANAGER')) {
       const isManagerCeo = await this.isDirectManagerCeo(employeeId);
       if (isManagerCeo) {
         workflows = workflows.filter(w => w.approverRole !== 'CEO');
