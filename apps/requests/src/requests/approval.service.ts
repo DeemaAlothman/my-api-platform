@@ -421,7 +421,17 @@ export class ApprovalService {
       AND s.status = 'PENDING'
       AND (
         (s."approverRole" = 'DIRECT_MANAGER'
-          AND ${approverEmployeeId ? `r."employeeId" IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL)` : 'false'})
+          AND ${approverEmployeeId ? `
+            (
+              -- REWARD/PENALTY_PROPOSAL: خطوة DM تُحقق مقابل الموظف المستهدف لا مقدِّم الطلب (نفس منطق approve())
+              (r.type IN ('REWARD', 'PENALTY_PROPOSAL') AND COALESCE(
+                r.details->'employees'->0->>'employeeId',
+                r.details->>'targetEmployeeId'
+              ) IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL))
+              OR
+              (r.type NOT IN ('REWARD', 'PENALTY_PROPOSAL') AND r."employeeId" IN (SELECT id FROM users.employees WHERE "managerId" = '${approverEmployeeId}' AND "deletedAt" IS NULL))
+            )
+          ` : 'false'})
         OR (s."approverRole" = 'DEPARTMENT_MANAGER'
           AND ${approverEmployeeId ? `r."employeeId" IN (
             SELECT e.id FROM users.employees e
