@@ -46,19 +46,27 @@ export class DashboardDataController {
         : [];
       const ids = subordinateIds.map(r => r.id);
 
-      const pendingApprovals = ids.length
+      // REWARD/PENALTY_PROPOSAL: خطوة DM تخص مدير الموظف المستهدف بالتفاصيل لا مدير مقدّم الطلب
+      // (نفس القاعدة المعتمدة بـapprove() و getPendingMyApproval) — فنجيب كل الخطوات المعلّقة ونفلتر بالكود
+      const subordinateSet = new Set(ids);
+      const pendingDmSteps = ids.length
         ? await this.prisma.approvalStep.findMany({
-            where: {
-              status: 'PENDING',
-              approverRole: 'DIRECT_MANAGER',
-              request: { employeeId: { in: ids } },
-            },
+            where: { status: 'PENDING', approverRole: 'DIRECT_MANAGER' },
             include: {
-              request: { select: { id: true, type: true, status: true, employeeId: true, createdAt: true } },
+              request: { select: { id: true, type: true, status: true, employeeId: true, details: true, createdAt: true } },
             },
             orderBy: { createdAt: 'desc' },
           })
         : [];
+      const pendingApprovals = pendingDmSteps.filter((s) => {
+        const req = s.request as any;
+        const details = req.details as any;
+        const targetEmployeeId =
+          req.type === 'REWARD' ? details?.employees?.[0]?.employeeId
+          : req.type === 'PENALTY_PROPOSAL' ? details?.targetEmployeeId
+          : req.employeeId;
+        return targetEmployeeId && subordinateSet.has(targetEmployeeId);
+      });
       return { pendingRequestApprovals: pendingApprovals };
     }
 
