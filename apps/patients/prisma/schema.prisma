@@ -159,6 +159,7 @@ model Patient {
   documents PatientDocument[]
   consents  Consent[]
   notes     PatientNote[]
+  links     PatientLink[]
 
   @@index([idNumber])
   @@index([patientNumber])
@@ -180,6 +181,19 @@ model PatientDocument {
 
   @@index([patientId])
   @@map("patient_documents")
+}
+
+model PatientLink {
+  id        String   @id @default(uuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  title     String
+  url       String
+  addedAt   DateTime @default(now())
+  addedBy   String
+
+  @@index([patientId])
+  @@map("patient_links")
 }
 
 model Consent {

@@ -11,6 +11,7 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients.query.dto';
 import { CreateConsentDto } from './dto/create-consent.dto';
+import { CreateLinkDto } from './dto/create-link.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
 import { Permission } from '@shared/decorators/permission.decorator';
@@ -144,6 +145,27 @@ export class PatientsController {
   @Permission(PERMISSIONS.CLINIC_PATIENTS.UPLOAD_DOCUMENTS)
   deleteDocument(@Param('id') id: string, @Param('docId') docId: string) {
     return this.service.deleteDocument(id, docId);
+  }
+
+  // ── Links ─────────────────────────────────────────────────────────
+  // نفس مبدأ المستندات، بدون رفع ملف — رابط خارجي فقط (title + url)
+
+  @Post(':id/links')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.UPLOAD_DOCUMENTS)
+  addLink(@Param('id') id: string, @Body() dto: CreateLinkDto, @User() user: any) {
+    return this.service.addLink(id, dto, user.userId);
+  }
+
+  @Get(':id/links')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.VIEW_DOCUMENTS)
+  getLinks(@Param('id') id: string) {
+    return this.service.getLinks(id);
+  }
+
+  @Delete(':id/links/:linkId')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.UPLOAD_DOCUMENTS)
+  deleteLink(@Param('id') id: string, @Param('linkId') linkId: string) {
+    return this.service.deleteLink(id, linkId);
   }
 
   // ── Consents ──────────────────────────────────────────────────────

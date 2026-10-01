@@ -5,6 +5,7 @@ import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { ListPatientsQueryDto } from './dto/list-patients.query.dto';
 import { CreateConsentDto } from './dto/create-consent.dto';
+import { CreateLinkDto } from './dto/create-link.dto';
 import { sendExcel } from '../common/utils/excel.util';
 
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
@@ -428,6 +429,39 @@ export class PatientsService {
     if (!doc) throw new NotFoundException('الوثيقة غير موجودة');
     await this.prisma.patientDocument.delete({ where: { id: docId } });
     return { message: 'تم حذف الوثيقة' };
+  }
+
+  // ── Links ─────────────────────────────────────────────────────────
+  // نفس مبدأ المستندات، بدون رفع ملف — رابط خارجي فقط (title + url)
+
+  async addLink(patientId: string, dto: CreateLinkDto, userId: string) {
+    const patient = await this.prisma.patient.findFirst({ where: { id: patientId, deletedAt: null } });
+    if (!patient) throw new NotFoundException('المريض غير موجود');
+
+    return this.prisma.patientLink.create({
+      data: {
+        patientId,
+        title: dto.title,
+        url: dto.url,
+        addedBy: userId,
+      },
+    });
+  }
+
+  async getLinks(patientId: string) {
+    const patient = await this.prisma.patient.findFirst({ where: { id: patientId, deletedAt: null } });
+    if (!patient) throw new NotFoundException('المريض غير موجود');
+    return this.prisma.patientLink.findMany({
+      where: { patientId },
+      orderBy: { addedAt: 'desc' },
+    });
+  }
+
+  async deleteLink(patientId: string, linkId: string) {
+    const link = await this.prisma.patientLink.findFirst({ where: { id: linkId, patientId } });
+    if (!link) throw new NotFoundException('الرابط غير موجود');
+    await this.prisma.patientLink.delete({ where: { id: linkId } });
+    return { message: 'تم حذف الرابط' };
   }
 
   // ── Consents ──────────────────────────────────────────────────────
