@@ -242,6 +242,7 @@ export class CasesService {
         physicalTherapyDetails: dto.physicalTherapyDetails,
         hasChronicDiseases: dto.hasChronicDiseases ?? false,
         chronicDiseases: dto.chronicDiseases,
+        clinicalHistory: dto.clinicalHistory,
         currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
         previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
         previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
@@ -427,12 +428,15 @@ export class CasesService {
         physicalTherapyDetails: dto.physicalTherapyDetails,
         hasChronicDiseases: dto.hasChronicDiseases,
         chronicDiseases: dto.chronicDiseases,
+        clinicalHistory: dto.clinicalHistory,
         currentlyUsingProsthesis: dto.currentlyUsingProsthesis,
         previouslyUsedProsthesis: dto.previouslyUsedProsthesis,
         previousProsthesisSystemDetail: dto.previousProsthesisSystemDetail,
         ...teamData,
         workshopSupervisorId: dto.workshopSupervisorId,
         prosthesisType: dto.prosthesisType as any,
+        prosthesisSuitable: dto.prosthesisSuitable,
+        proposedProsthesisType: dto.proposedProsthesisType,
         prosthesisCompleted: dto.prosthesisCompleted,
       },
     });
@@ -503,6 +507,8 @@ export class CasesService {
         residualLimbLength: dto.residualLimbLength as any,
         residualLimbShape: dto.residualLimbShape as any,
         residualLimbPhotoUrl: dto.residualLimbPhotoUrl,
+        amputationLevelNote: dto.amputationLevelNote,
+        closureNotes: dto.closureNotes,
         painPresent: dto.painPresent ?? false,
         painArea: dto.painArea,
         painIntensity: dto.painIntensity,
@@ -519,6 +525,8 @@ export class CasesService {
         scarCondition: (dto.scarCondition ?? []) as any,
         hasSkinGrafts: dto.hasSkinGrafts ?? false,
         graftArea: dto.graftArea,
+        generalHealthNotes: dto.generalHealthNotes,
+        otherLimbCondition: dto.otherLimbCondition,
         hasOtherAffectedLimbs: dto.hasOtherAffectedLimbs,
         canBalanceOneSide: dto.canBalanceOneSide,
         usesCompressionBandage: dto.usesCompressionBandage,
@@ -561,6 +569,7 @@ export class CasesService {
       hasSkinGrafts: dto.hasSkinGrafts ?? false,
       graftArea: dto.graftArea,
       otherLimbCondition: dto.otherLimbCondition,
+      generalHealthNotes: dto.generalHealthNotes,
       usesAssistiveDevices: dto.usesAssistiveDevices ?? false,
       assistiveDeviceTypes: dto.assistiveDeviceTypes,
       canClimbStairs: dto.canClimbStairs,
@@ -589,6 +598,8 @@ export class CasesService {
       residualLimbLength:      dto.residualLimbLength,
       residualLimbShape:       dto.residualLimbShape,
       residualLimbPhotoUrl:    dto.residualLimbPhotoUrl,
+      amputationLevelNote:     dto.amputationLevelNote,
+      closureNotes:            dto.closureNotes,
       painPresent:             dto.painPresent,
       painArea:                dto.painArea,
       painIntensity:           dto.painIntensity,
@@ -605,6 +616,8 @@ export class CasesService {
       scarCondition:           dto.scarCondition as any,
       hasSkinGrafts:           dto.hasSkinGrafts,
       graftArea:               dto.graftArea,
+      generalHealthNotes:      dto.generalHealthNotes,
+      otherLimbCondition:      dto.otherLimbCondition,
       hasOtherAffectedLimbs:   dto.hasOtherAffectedLimbs,
       canBalanceOneSide:       dto.canBalanceOneSide,
       usesCompressionBandage:  dto.usesCompressionBandage,
@@ -663,6 +676,7 @@ export class CasesService {
       hasSkinGrafts:            dto.hasSkinGrafts,
       graftArea:                dto.graftArea,
       otherLimbCondition:       dto.otherLimbCondition,
+      generalHealthNotes:       dto.generalHealthNotes,
       usesAssistiveDevices:     dto.usesAssistiveDevices,
       assistiveDeviceTypes:     dto.assistiveDeviceTypes,
       canClimbStairs:           dto.canClimbStairs,
@@ -1934,6 +1948,13 @@ export class CasesService {
         }
       }
     }
+    // حقول التقييم الأساسية
+    if (dto.residualLimbCondition !== undefined) data.residualLimbCondition = dto.residualLimbCondition;
+    if (dto.suspensionSystemUsed  !== undefined) data.suspensionSystemUsed  = dto.suspensionSystemUsed;
+    if (dto.socksDelivered        !== undefined) data.socksDelivered        = dto.socksDelivered;
+    if (dto.linersDelivered       !== undefined) data.linersDelivered       = dto.linersDelivered;
+    if (dto.fittingDate           !== undefined) data.fittingDate           = dto.fittingDate ? new Date(dto.fittingDate) : null;
+    if (dto.generalNotes          !== undefined) data.generalNotes          = dto.generalNotes;
     // اعتماد المدير الطبي — حقول مستقلة عن آراء اللجنة أعلاه
     if (dto.medicalDirectorNotes !== undefined) data.medicalDirectorNotes = dto.medicalDirectorNotes;
     if (dto.readyForDelivery     !== undefined) data.readyForDelivery     = dto.readyForDelivery;

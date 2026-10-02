@@ -88,6 +88,10 @@ export class CreateCaseDto {
   @IsOptional() @IsString()
   chronicDiseases?: string;
 
+  // القصة السريرية (نص حر)
+  @IsOptional() @IsString()
+  clinicalHistory?: string;
+
   // من استمارة التقييم السريري — سؤال واحد للحالة، لا يتكرر حسب الطرف
   @IsOptional() @IsBoolean()
   currentlyUsingProsthesis?: boolean;
@@ -191,6 +195,10 @@ export class UpdateCaseDto {
   @IsOptional() @IsString()
   chronicDiseases?: string;
 
+  // القصة السريرية (نص حر)
+  @IsOptional() @IsString()
+  clinicalHistory?: string;
+
   @IsOptional() @IsString()
   prosthetistId?: string;
 
@@ -215,6 +223,13 @@ export class UpdateCaseDto {
 
   @IsOptional() @IsEnum(ProsthesisTypeEnum)
   prosthesisType?: string;
+
+  // ملاءمة الطرف ونوعه المقترح (قرار اللجنة)
+  @IsOptional() @IsBoolean()
+  prosthesisSuitable?: boolean;
+
+  @IsOptional() @IsString()
+  proposedProsthesisType?: string;
 
   // الطرف الصناعي مكتمل التجميع
   @IsOptional() @IsBoolean()

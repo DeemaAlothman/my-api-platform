@@ -15,6 +15,14 @@ export class UpperLimbAssessmentDto {
   @IsOptional() @IsString()
   residualLimbPhotoUrl?: string;
 
+  // ملاحظة حول مستوى البتر
+  @IsOptional() @IsString()
+  amputationLevelNote?: string;
+
+  // ملاحظات إغلاق الجذمور
+  @IsOptional() @IsString()
+  closureNotes?: string;
+
   @IsOptional() @IsBoolean()
   painPresent?: boolean;
 
@@ -64,6 +72,13 @@ export class UpperLimbAssessmentDto {
 
   @IsOptional() @IsString()
   graftArea?: string;
+
+  // حالة الصحة العامة (نص حر)
+  @IsOptional() @IsString()
+  generalHealthNotes?: string;
+
+  @IsOptional() @IsString()
+  otherLimbCondition?: string;
 
   // هل يوجد أطراف أخرى مصابة؟
   @IsOptional() @IsBoolean()
@@ -179,6 +194,10 @@ export class LowerLimbAssessmentDto {
 
   @IsOptional() @IsString()
   otherLimbCondition?: string;
+
+  // حالة الصحة العامة (نص حر)
+  @IsOptional() @IsString()
+  generalHealthNotes?: string;
 
   @IsOptional() @IsBoolean()
   usesAssistiveDevices?: boolean;

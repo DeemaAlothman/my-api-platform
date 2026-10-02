@@ -55,6 +55,25 @@ export class FinalEvaluationDto {
 }
 
 export class PatchOpinionDto {
+  // حقول التقييم الأساسية — نفس حقول FinalEvaluationDto
+  @IsOptional() @IsString()
+  residualLimbCondition?: string;
+
+  @IsOptional() @IsString()
+  suspensionSystemUsed?: string;
+
+  @IsOptional() @IsInt() @Type(() => Number)
+  socksDelivered?: number;
+
+  @IsOptional() @IsInt() @Type(() => Number)
+  linersDelivered?: number;
+
+  @IsOptional() @IsDateString()
+  fittingDate?: string;
+
+  @IsOptional() @IsString()
+  generalNotes?: string;
+
   @IsOptional() @IsString()
   physioOpinion?: string;
 

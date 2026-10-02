@@ -308,6 +308,9 @@ model ProstheticsCase {
   hasChronicDiseases  Boolean @default(false)
   chronicDiseases     String?
 
+  // القصة السريرية (نص حر)
+  clinicalHistory     String? @db.Text
+
   // من استمارة التقييم السريري (علوي/سفلي) — سؤال واحد للحالة، لا يتكرر حسب الطرف
   currentlyUsingProsthesis       Boolean?
   previouslyUsedProsthesis       Boolean?
@@ -395,6 +398,10 @@ model UpperLimbAssessment {
   residualLimbLength  ResidualLimbLength?
   residualLimbShape   ResidualLimbShape?
   residualLimbPhotoUrl String?
+  // ملاحظة حول مستوى البتر
+  amputationLevelNote String? @db.Text
+  // ملاحظات إغلاق الجذمور
+  closureNotes        String? @db.Text
 
   painPresent          Boolean @default(false)
   painArea             String?
@@ -413,6 +420,10 @@ model UpperLimbAssessment {
   scarCondition       ScarCondition[]
   hasSkinGrafts       Boolean @default(false)
   graftArea           String?
+
+  // حالة الصحة العامة (نص حر)
+  generalHealthNotes  String? @db.Text
+  otherLimbCondition  String?
 
   hasOtherAffectedLimbs          Boolean?
   canBalanceOneSide              Boolean?
@@ -476,6 +487,8 @@ model LowerLimbAssessment {
   graftArea           String?
 
   otherLimbCondition   String?
+  // حالة الصحة العامة (نص حر)
+  generalHealthNotes   String? @db.Text
   usesAssistiveDevices Boolean @default(false)
   assistiveDeviceTypes String?
   canClimbStairs       Boolean?
