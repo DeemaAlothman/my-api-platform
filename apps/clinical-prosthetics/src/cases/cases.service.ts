@@ -1922,6 +1922,8 @@ export class CasesService {
       needsFollowUp:                dto.needsFollowUp ?? false,
       followUpPlan:                 dto.followUpPlan,
       medicalDirectorNotes:         dto.medicalDirectorNotes,
+      managerNotes:                 dto.managerNotes,
+      patientFileComplete:          dto.patientFileComplete,
     };
     return this.prisma.finalEvaluation.upsert({
       where: { caseId },
@@ -1965,11 +1967,15 @@ export class CasesService {
     if (dto.linersDelivered       !== undefined) data.linersDelivered       = dto.linersDelivered;
     if (dto.fittingDate           !== undefined) data.fittingDate           = dto.fittingDate ? new Date(dto.fittingDate) : null;
     if (dto.generalNotes          !== undefined) data.generalNotes          = dto.generalNotes;
+    if (dto.supervisorId          !== undefined) data.supervisorId          = dto.supervisorId;
     // اعتماد المدير الطبي — حقول مستقلة عن آراء اللجنة أعلاه
     if (dto.medicalDirectorNotes !== undefined) data.medicalDirectorNotes = dto.medicalDirectorNotes;
     if (dto.readyForDelivery     !== undefined) data.readyForDelivery     = dto.readyForDelivery;
     if (dto.needsFollowUp        !== undefined) data.needsFollowUp        = dto.needsFollowUp;
     if (dto.followUpPlan         !== undefined) data.followUpPlan         = dto.followUpPlan;
+    // تدقيق المدير
+    if (dto.managerNotes         !== undefined) data.managerNotes         = dto.managerNotes;
+    if (dto.patientFileComplete  !== undefined) data.patientFileComplete  = dto.patientFileComplete;
     if (Object.keys(data).length === 0) {
       return existing ? { ...existing, isLocked: !!existing.medicalDirectorSignedAt } : null;
     }

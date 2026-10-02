@@ -52,6 +52,13 @@ export class FinalEvaluationDto {
 
   @IsOptional() @IsString()
   medicalDirectorNotes?: string;
+
+  // تدقيق المدير — كانت تُرسل فقط مع director-sign (مخفي حالياً بالواجهة)
+  @IsOptional() @IsString()
+  managerNotes?: string;
+
+  @IsOptional() @IsBoolean()
+  patientFileComplete?: boolean;
 }
 
 export class PatchOpinionDto {
@@ -73,6 +80,9 @@ export class PatchOpinionDto {
 
   @IsOptional() @IsString()
   generalNotes?: string;
+
+  @IsOptional() @IsString()
+  supervisorId?: string;
 
   @IsOptional() @IsString()
   physioOpinion?: string;
@@ -103,6 +113,13 @@ export class PatchOpinionDto {
 
   @IsOptional() @IsString()
   followUpPlan?: string;
+
+  // تدقيق المدير
+  @IsOptional() @IsString()
+  managerNotes?: string;
+
+  @IsOptional() @IsBoolean()
+  patientFileComplete?: boolean;
 }
 
 export class DirectorSignDto {
