@@ -90,6 +90,15 @@ export class UpperLimbAssessmentDto {
   @IsOptional() @IsBoolean()
   usesCompressionBandage?: boolean;
 
+  @IsOptional() @IsBoolean()
+  neuromaPresent?: boolean;
+
+  @IsOptional() @IsBoolean()
+  usesProstheticLimb?: boolean;
+
+  @IsOptional() @IsString()
+  prostheticLimbType?: string;
+
   // تقييم مدى حركة المفاصل العام: NORMAL | ACTIVE | SEDENTARY
   @IsOptional() @IsString()
   jointsRangeOfMotion?: string;
@@ -207,6 +216,12 @@ export class LowerLimbAssessmentDto {
 
   @IsOptional() @IsBoolean()
   canClimbStairs?: boolean;
+
+  @IsOptional() @IsBoolean()
+  usesProstheticLimb?: boolean;
+
+  @IsOptional() @IsString()
+  prostheticLimbType?: string;
 
   @IsOptional() @IsBoolean()
   canBalanceOneSide?: boolean;
