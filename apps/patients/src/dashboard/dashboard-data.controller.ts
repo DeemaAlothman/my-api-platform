@@ -30,6 +30,7 @@ export class DashboardDataController {
       newPatientsPreviousMonth,
       openByStatus,
       prostheticsDeliveredThisMonth,
+      prostheticsDeliveredTotal,
       avgRows,
       waitingListCount,
       appointmentsThisMonth,
@@ -51,6 +52,11 @@ export class DashboardDataController {
          JOIN clinic_prosthetics.prosthetics_cases c ON c.id = fd."caseId"
          WHERE c."deletedAt" IS NULL AND fd."createdAt" >= $1 AND fd."createdAt" < $2`,
         thisMonthStart, nextMonthStart,
+      ),
+      // إجمالي الحالات المسلّمة (كل الفترات)
+      this.count(
+        `SELECT COUNT(*)::int AS count FROM clinic_prosthetics.prosthetics_cases
+         WHERE "deletedAt" IS NULL AND status::text = 'DELIVERED'`,
       ),
       this.prisma.$queryRawUnsafe<Array<{ avg: number | null }>>(
         `SELECT AVG(EXTRACT(EPOCH FROM (fd."createdAt" - c."createdAt")) / 86400)::float AS avg
@@ -85,6 +91,7 @@ export class DashboardDataController {
           ? openByStatus.map((r) => ({ status: r.status, count: Number(r.count) }))
           : null,
         prostheticsDeliveredThisMonth,
+        prostheticsDeliveredTotal,
         avgDaysIntakeToDelivery: avg == null ? null : Math.round(Number(avg)),
         waitingListCount,
         appointmentsThisMonth,
