@@ -93,13 +93,24 @@ export class HrReportsService {
         ORDER BY month
       `,
 
+      // المغادرون فعلاً = انتهت خدمتهم (INACTIVE/TERMINATED) بتاريخ الانفكاك، بدون السجلات المحذوفة.
+      // SUSPENDED مستبعد لأنه إيقاف مؤقت. إنهاء التجربة ما بيكتب separationDate، فمنعتمد تاريخ انتهاء التجربة بديلاً.
       this.prisma.$queryRaw<Array<{ month: Date; count: bigint }>>`
         SELECT
-          DATE_TRUNC('month', "deletedAt") AS month,
-          COUNT(*)::bigint                 AS count
-        FROM users.employees
-        WHERE "deletedAt" IS NOT NULL
-          AND EXTRACT(YEAR FROM "deletedAt") = ${year}
+          DATE_TRUNC('month', t.separated_at) AS month,
+          COUNT(*)::bigint                    AS count
+        FROM (
+          SELECT COALESCE(
+                   "separationDate"::timestamp,
+                   CASE WHEN "employmentStatus" = 'TERMINATED' AND "probationResult" = 'TERMINATE'
+                        THEN "probationCompletedAt" END
+                 ) AS separated_at
+          FROM users.employees
+          WHERE "deletedAt" IS NULL
+            AND "employmentStatus" IN ('INACTIVE', 'TERMINATED')
+        ) t
+        WHERE t.separated_at IS NOT NULL
+          AND EXTRACT(YEAR FROM t.separated_at) = ${year}
         GROUP BY month
         ORDER BY month
       `,
