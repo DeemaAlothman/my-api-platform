@@ -11,7 +11,24 @@ export class DashboardService {
     requests:   process.env.REQUESTS_SERVICE_URL   || 'http://localhost:4006',
     evaluation: process.env.EVALUATION_SERVICE_URL || 'http://localhost:4005',
     jobs:       process.env.JOBS_SERVICE_URL        || 'http://localhost:4008',
+    patients:   process.env.PATIENTS_SERVICE_URL    || 'http://localhost:4010',
   };
+
+  // دمج ردود الخدمات: إذا خدمتين رجّعوا نفس المفتاح ككائن (مثل previousMonth)، منجمع حقولهم بدل ما وحدة تمسح التانية
+  private merge(parts: any[]): any {
+    const out: any = {};
+    for (const part of parts) {
+      if (!part || typeof part !== 'object') continue;
+      for (const [key, value] of Object.entries(part)) {
+        const existing = out[key];
+        const bothPlainObjects =
+          existing && value && typeof existing === 'object' && typeof value === 'object' &&
+          !Array.isArray(existing) && !Array.isArray(value);
+        out[key] = bothPlainObjects ? { ...existing, ...(value as object) } : value;
+      }
+    }
+    return out;
+  }
 
   constructor(private readonly http: HttpService) {}
 
@@ -65,6 +82,7 @@ export class DashboardService {
     let requestsPromise: Promise<any>   = Promise.resolve(null);
     let evaluationPromise: Promise<any> = Promise.resolve(null);
     let jobsPromise: Promise<any>       = Promise.resolve(null);
+    let clinicPromise: Promise<any>     = Promise.resolve(null);
 
     if (role === 'EMPLOYEE') {
       attendancePromise = this.fetch(serviceUrl('attendance'), token);
@@ -87,23 +105,17 @@ export class DashboardService {
       requestsPromise   = this.fetch(serviceUrl('requests'), token);
       evaluationPromise = this.fetch(serviceUrl('evaluation'), token);
       jobsPromise       = this.fetch(serviceUrl('jobs'), token);
+      clinicPromise     = this.fetch(serviceUrl('patients'), token);
     } else if (role === 'CFO') {
       attendancePromise = this.fetch(serviceUrl('attendance'), token);
       leavePromise      = this.fetch(serviceUrl('leave'), token);
       requestsPromise   = this.fetch(serviceUrl('requests'), token);
     }
 
-    const [usersData, attendanceData, leaveData, requestsData, evaluationData, jobsData] =
-      await Promise.all([usersPromise, attendancePromise, leavePromise, requestsPromise, evaluationPromise, jobsPromise]);
+    const parts = await Promise.all([
+      usersPromise, attendancePromise, leavePromise, requestsPromise, evaluationPromise, jobsPromise, clinicPromise,
+    ]);
 
-    return {
-      role,
-      ...(usersData      || {}),
-      ...(attendanceData || {}),
-      ...(leaveData      || {}),
-      ...(requestsData   || {}),
-      ...(evaluationData || {}),
-      ...(jobsData       || {}),
-    };
+    return { role, ...this.merge(parts) };
   }
 }

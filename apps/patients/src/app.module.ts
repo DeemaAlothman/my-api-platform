@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from './prisma/prisma.service';
 import { PatientsModule } from './patients/patients.module';
 import { CitiesModule } from './cities/cities.module';
+import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -17,6 +18,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     }),
     PatientsModule,
     CitiesModule,
+    DashboardDataModule,
   ],
   providers: [
     PrismaService,
