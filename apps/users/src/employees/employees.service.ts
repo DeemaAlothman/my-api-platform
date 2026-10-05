@@ -331,6 +331,12 @@ export class EmployeesService {
             nameEn: true,
           },
         },
+        jobTitle: {
+          select: {
+            code: true,
+            nameAr: true,
+          },
+        },
       },
       orderBy: { firstNameAr: 'asc' },
     });
