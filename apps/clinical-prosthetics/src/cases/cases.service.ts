@@ -117,42 +117,7 @@ export class CasesService {
     'FOLLOW_UP', 'FINAL_REVIEW', 'DELIVERED',
   ];
 
-  // هل عندها أي نموذج معاينة (أي نوع بتر) تم تعبيته؟
-  private async hasAnyAssessment(caseId: string): Promise<boolean> {
-    const [upper, lower, transhumeral, elbow, transradial, hemipelvectomy, transtibial, transfemoral, kneeDisart, ankleDisart] = await Promise.all([
-      this.prisma.upperLimbAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.lowerLimbAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.transhumeralAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.elbowDisarticulationAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.transradialAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.hemipelvectomyAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.transtibialAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.transfemoralAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.kneeDisarticulationAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-      this.prisma.ankleDisarticulationAssessment.findFirst({ where: { caseId }, select: { id: true } }),
-    ]);
-    return !!(upper || lower || transhumeral || elbow || transradial || hemipelvectomy || transtibial || transfemoral || kneeDisart || ankleDisart);
-  }
-
-  // هل اللجنة عبّت أي رأي أو قرار نهائي لهذه الحالة؟
-  private async hasCommitteeInput(caseId: string): Promise<boolean> {
-    const review = await this.prisma.committeeReview.findUnique({ where: { caseId } });
-    if (!review) return false;
-    return !!(review.prosthetistOpinion || review.physiotherapistOpinion || review.doctorOpinion ||
-      review.committeeHeadOpinion || review.expertOpinion || (review as any).finalDecision);
-  }
-
-  // تمت المعاينة: تحقق واحد من (نموذج معاينة / رأي لجنة) فقط. اخذ قياس: تحقق الاثنين سوا.
-  private async advanceAfterAssessmentSubmitted(caseId: string): Promise<void> {
-    const hasCommittee = await this.hasCommitteeInput(caseId);
-    await this.autoAdvanceStatus(caseId, hasCommittee ? 'FITTING' : 'COMMITTEE_REVIEW');
-  }
-
-  private async advanceAfterCommitteeSubmitted(caseId: string): Promise<void> {
-    const hasAssessment = await this.hasAnyAssessment(caseId);
-    await this.autoAdvanceStatus(caseId, hasAssessment ? 'FITTING' : 'COMMITTEE_REVIEW');
-  }
-
+  // المعاينة العامة (علوي/سفلي) أو اللجنة → تمت المعاينة. ورقة القياس (نماذج مستوى البتر) → اخذ قياس.
   private async autoAdvanceStatus(caseId: string, targetStatus: string): Promise<void> {
     try {
       const c = await this.prisma.prostheticsCase.findFirst({
@@ -498,7 +463,7 @@ export class CasesService {
 
   async upsertUpperAssessment(caseId: string, dto: UpperLimbAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'COMMITTEE_REVIEW'); // تمت المعاينة
     const side = dto.side as any;
     return this.prisma.upperLimbAssessment.create({
       data: {
@@ -546,7 +511,7 @@ export class CasesService {
 
   async upsertLowerAssessment(caseId: string, dto: LowerLimbAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'COMMITTEE_REVIEW'); // تمت المعاينة
     const side = dto.side as any;
     const data: any = {
       residualLimbLength: dto.residualLimbLength as any,
@@ -649,7 +614,7 @@ export class CasesService {
     if (existing) {
       return this.prisma.upperLimbAssessment.update({ where: { id: existing.id }, data });
     }
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'COMMITTEE_REVIEW'); // تمت المعاينة
     return this.prisma.upperLimbAssessment.create({ data: { caseId, side: side as any, ...data } });
   }
 
@@ -709,13 +674,13 @@ export class CasesService {
     if (existing) {
       return this.prisma.lowerLimbAssessment.update({ where: { id: existing.id }, data });
     }
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'COMMITTEE_REVIEW'); // تمت المعاينة
     return this.prisma.lowerLimbAssessment.create({ data: { caseId, side: side as any, ...data } });
   }
 
   async upsertTranshumeralAssessment(caseId: string, dto: TranshumeralAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING'); // ورقة قياس → اخذ قياس
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -732,7 +697,7 @@ export class CasesService {
 
   async upsertElbowDisarticulationAssessment(caseId: string, dto: ElbowDisarticulationAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING'); // ورقة قياس → اخذ قياس
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -749,7 +714,7 @@ export class CasesService {
 
   async upsertTransradialAssessment(caseId: string, dto: TransradialAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING'); // ورقة قياس → اخذ قياس
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -766,7 +731,7 @@ export class CasesService {
 
   async upsertHemipelvectomyAssessment(caseId: string, dto: HemipelvectomyAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING'); // ورقة قياس → اخذ قياس
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -784,7 +749,7 @@ export class CasesService {
 
   async upsertTranstibialAssessment(caseId: string, dto: TranstibialAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING'); // ورقة قياس → اخذ قياس
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -802,7 +767,7 @@ export class CasesService {
 
   async upsertTransfemoralAssessment(caseId: string, dto: TransfemoralAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING'); // ورقة قياس → اخذ قياس
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -820,7 +785,7 @@ export class CasesService {
 
   async upsertKneeDisarticulationAssessment(caseId: string, dto: KneeDisarticulationAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING'); // ورقة قياس → اخذ قياس
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -838,7 +803,7 @@ export class CasesService {
 
   async upsertAnkleDisarticulationAssessment(caseId: string, dto: AnkleDisarticulationAssessmentDto) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterAssessmentSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'FITTING'); // ورقة قياس → اخذ قياس
     const side = dto.side as any;
     const data: any = {
       notes: dto.notes,
@@ -858,7 +823,7 @@ export class CasesService {
 
   async submitCommitteeOpinion(caseId: string, dto: CommitteeOpinionDto, userId: string) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterCommitteeSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'COMMITTEE_REVIEW'); // تمت المعاينة
 
     // قفل الرأي: لا يمكن تعديله بعد تقديمه
     const opinionFieldByRole: Record<string, string> = {
@@ -908,7 +873,7 @@ export class CasesService {
 
   async committeeDecide(caseId: string, dto: CommitteeDecideDto, userId: string) {
     await this.findCaseOrThrow(caseId);
-    await this.advanceAfterCommitteeSubmitted(caseId);
+    await this.autoAdvanceStatus(caseId, 'COMMITTEE_REVIEW'); // تمت المعاينة
     return this.prisma.committeeReview.upsert({
       where: { caseId },
       create: {
