@@ -7,8 +7,8 @@ import { IsString, IsOptional, IsArray, IsObject } from 'class-validator';
  * ( ) = حقل نصي حر
  *
  * SubjectiveHistory keys:
- *   mainCause:           string[]  – none | unknown | acute_injury | post_surgery | chronic_overuse
- *   painLocation:        string[]  – forefoot | midfoot | rearfoot
+ *   mainCause:           string[]  – none | unknown | acute_injury | post_surgery | chronic_overuse | hereditary_condition
+ *   painLocation:        string[]  – none | forefoot | midfoot | rearfoot
  *   vasScore:            string    – ( ) رقم من 0-10
  *   painCharacteristics: string[]  – morning_startup | eases_with_activity | progressively_worse | night_pain | pain_at_rest
  *
