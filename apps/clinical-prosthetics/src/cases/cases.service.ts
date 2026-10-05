@@ -223,13 +223,20 @@ export class CasesService {
   }
 
   async findAll(query: ListCasesQueryDto) {
-    const { page = 1, limit = 20, patientId, status, amputationType, prosthetistId } = query;
+    const { page = 1, limit = 20, patientId, status, amputationType, prosthetistId, deliveredFrom, deliveredTo } = query;
     const skip = (page - 1) * limit;
     const where: any = { deletedAt: null };
     if (patientId) where.patientId = patientId;
     if (status) where.status = status;
     if (amputationType) where.amputationType = { has: amputationType };
     if (prosthetistId) where.prosthetistId = prosthetistId;
+    if (deliveredFrom || deliveredTo) {
+      const inspectionDate: any = {};
+      if (deliveredFrom) inspectionDate.gte = new Date(deliveredFrom);
+      // شامل ليوم "إلى" كامل
+      if (deliveredTo) inspectionDate.lt = new Date(new Date(deliveredTo).getTime() + 86_400_000);
+      where.finalDelivery = { is: { inspectionDate } };
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.prostheticsCase.findMany({
@@ -239,12 +246,17 @@ export class CasesService {
           upperAssessment: { select: { id: true, side: true, examinedAt: true } },
           lowerAssessment: { select: { id: true, side: true, examinedAt: true } },
           committeeReview: { select: { id: true, finalDecision: true } },
+          finalDelivery: { select: { inspectionDate: true } },
         },
       }),
       this.prisma.prostheticsCase.count({ where }),
     ]);
     const nameMap = await this.resolvePatientNames(items.map((i) => i.patientId));
-    const enriched = items.map((i) => ({ ...i, patient: nameMap[i.patientId] ?? null }));
+    const enriched = items.map(({ finalDelivery, ...i }) => ({
+      ...i,
+      patient: nameMap[i.patientId] ?? null,
+      finalDeliveryDate: finalDelivery?.inspectionDate ? finalDelivery.inspectionDate.toISOString().slice(0, 10) : null,
+    }));
     return { items: enriched, total, page, limit };
   }
 

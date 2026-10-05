@@ -257,6 +257,13 @@ export class ListCasesQueryDto {
   @IsOptional() @IsString()
   prosthetistId?: string;
 
+  // فلترة بتاريخ الخروج المسجّل بالتسليم النهائي (inspectionDate)، YYYY-MM-DD، شاملة للطرفين
+  @IsOptional() @IsDateString()
+  deliveredFrom?: string;
+
+  @IsOptional() @IsDateString()
+  deliveredTo?: string;
+
   @IsOptional() @IsInt() @Min(1) @Type(() => Number)
   page?: number = 1;
 
