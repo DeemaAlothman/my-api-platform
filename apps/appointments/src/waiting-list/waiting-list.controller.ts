@@ -1,6 +1,7 @@
 import {
-  Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards,
+  Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { WaitingListService } from './waiting-list.service';
 import {
   CreateWaitingListEntryDto, UpdateWaitingListEntryDto, ListWaitingListQueryDto,
@@ -26,6 +27,13 @@ export class WaitingListController {
   @Permission(PERMISSIONS.CLINIC_WAITING_LIST.VIEW)
   findAll(@Query() query: ListWaitingListQueryDto) {
     return this.service.findAll(query);
+  }
+
+  // قبل :id حتى ما ينفهم export-xlsx كمعرّف
+  @Get('export-xlsx')
+  @Permission(PERMISSIONS.CLINIC_WAITING_LIST.VIEW)
+  exportXlsx(@Query('status') status: string | undefined, @Res() res: Response) {
+    return this.service.exportXlsx(status, res);
   }
 
   @Get(':id')
