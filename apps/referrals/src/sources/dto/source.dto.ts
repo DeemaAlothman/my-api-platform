@@ -41,6 +41,13 @@ export class CreateSourceDto {
   @IsOptional() @Type(() => Number) @IsNumber() latitude?: number;
   @IsOptional() @Type(() => Number) @IsNumber() longitude?: number;
   @IsOptional() @IsString() notes?: string;
+
+  // حقول الجمعيات
+  @IsOptional() @IsString() projectName?: string;
+  @IsOptional() @IsString() supportingEntity?: string;
+  @IsOptional() @IsDateString() contractDate?: string;
+  @IsOptional() @IsDateString() activationDate?: string;
+  @IsOptional() @IsDateString() contractEndDate?: string;
 }
 
 export class UpdateSourceDto {
@@ -64,6 +71,13 @@ export class UpdateSourceDto {
   @IsOptional() @Type(() => Number) @IsNumber() latitude?: number;
   @IsOptional() @Type(() => Number) @IsNumber() longitude?: number;
   @IsOptional() @IsString() notes?: string;
+
+  // حقول الجمعيات
+  @IsOptional() @IsString() projectName?: string;
+  @IsOptional() @IsString() supportingEntity?: string;
+  @IsOptional() @IsDateString() contractDate?: string;
+  @IsOptional() @IsDateString() activationDate?: string;
+  @IsOptional() @IsDateString() contractEndDate?: string;
 }
 
 export class CreateVisitDto {

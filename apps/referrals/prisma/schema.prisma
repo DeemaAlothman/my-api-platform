@@ -67,6 +67,13 @@ model ReferralSource {
 
   notes String? @db.Text
 
+  // حقول الجمعيات (اختيارية)
+  projectName      String?
+  supportingEntity String?
+  contractDate     DateTime?
+  activationDate   DateTime?
+  contractEndDate  DateTime?
+
   visits ReferralVisit[]
 
   // Soft delete

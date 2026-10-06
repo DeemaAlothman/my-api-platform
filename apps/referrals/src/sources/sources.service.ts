@@ -7,6 +7,16 @@ import {
   ListSourcesQueryDto,
 } from './dto/source.dto';
 
+// تواريخ الجمعية تصل كنص (مثل 2026-10-06) — تُحوَّل لـ Date فقط إذا أُرسلت
+const ASSOCIATION_DATE_FIELDS = ['contractDate', 'activationDate', 'contractEndDate'] as const;
+function toAssociationDates(dto: CreateSourceDto | UpdateSourceDto) {
+  const out: Record<string, Date> = {};
+  for (const f of ASSOCIATION_DATE_FIELDS) {
+    if (typeof dto[f] === 'string') out[f] = new Date(dto[f] as string);
+  }
+  return out;
+}
+
 @Injectable()
 export class SourcesService {
   constructor(private prisma: PrismaService) {}
@@ -38,8 +48,10 @@ export class SourcesService {
     });
     if (duplicate) throw new ConflictException('يوجد مصدر إحالة بنفس الاسم مسبقاً');
 
+    // الجمعية بدون مدينة تبقى null — المدينة الافتراضية "حلب" لباقي الأنواع فقط
+    const defaultCity = dto.type === 'ASSOCIATION' ? null : 'حلب';
     return this.prisma.referralSource.create({
-      data: { ...dto, city: dto.city ?? 'حلب', createdBy: userId },
+      data: { ...dto, ...toAssociationDates(dto), city: dto.city ?? defaultCity, createdBy: userId },
     });
   }
 
@@ -88,7 +100,7 @@ export class SourcesService {
     await this.findOne(id);
     return this.prisma.referralSource.update({
       where: { id },
-      data: dto,
+      data: { ...dto, ...toAssociationDates(dto) },
     });
   }
 
