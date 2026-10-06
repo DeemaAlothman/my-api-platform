@@ -305,6 +305,12 @@ export const PERMISSIONS = {
     EDIT:   'clinic.waiting_list.edit',
     DELETE: 'clinic.waiting_list.delete',
   },
+  CLINIC_POTENTIAL_CLIENTS: {
+    VIEW:   'clinic.potential_clients.view',
+    CREATE: 'clinic.potential_clients.create',
+    EDIT:   'clinic.potential_clients.edit',
+    DELETE: 'clinic.potential_clients.delete',
+  },
   CLINIC_INVENTORY: {
     VIEW:   'clinic.inventory.view',
     MANAGE: 'clinic.inventory.manage',

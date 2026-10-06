@@ -150,3 +150,25 @@ model WaitingListEntry {
   @@index([status])
   @@index([priority])
 }
+
+// العملاء المحتملين — جدول مستقل عن قائمة الانتظار (بدون أولوية وبدون حالة)
+model PotentialClient {
+  id                String   @id @default(uuid())
+
+  patientName       String
+  gender            Gender
+  age               Int?
+  registrationDate  DateTime @default(now())
+  arrivalMethod     ArrivalMethod?
+  interestedService String
+  contactNumber     String
+  notes             String? @db.Text
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdBy         String
+
+  @@map("potential_clients")
+  @@schema("clinic_appointments")
+  @@index([registrationDate])
+}
