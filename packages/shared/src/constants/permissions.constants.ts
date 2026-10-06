@@ -294,6 +294,7 @@ export const PERMISSIONS = {
     VIEW:             'clinic.appointments.view',
     VIEW_OWN:         'clinic.appointments.view_own',
     CREATE:           'clinic.appointments.create',
+    UPDATE_STATUS:    'clinic.appointments.update_status',
     CANCEL:           'clinic.appointments.cancel',
     VIEW_ALL_PATIENTS: 'clinic.appointments.view-all-patients',
     STATISTICS_VIEW:  'clinic.appointments.statistics_view',

@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Patch, Body, Param, Query, Res, UseGuards,
+  Controller, Get, Post, Put, Patch, Body, Param, Query, Res, UseGuards, ForbiddenException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AppointmentsService } from './appointments.service';
@@ -116,8 +116,16 @@ export class AppointmentsController {
   }
 
   @Put(':id/status')
-  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.CREATE)
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.CREATE, PERMISSIONS.CLINIC_APPOINTMENTS.UPDATE_STATUS)
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto, @User() user: any) {
+    // صلاحية update_status لا تشمل الإلغاء — الإلغاء يبقى لأصحاب cancel (وcreate كما كان سابقاً)
+    if (dto.status === 'CANCELLED') {
+      const perms: string[] = user?.permissions ?? [];
+      const canCancel = perms.includes(PERMISSIONS.CLINIC_APPOINTMENTS.CANCEL) || perms.includes(PERMISSIONS.CLINIC_APPOINTMENTS.CREATE);
+      if (!canCancel) {
+        throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'ليس لديك صلاحية إلغاء المواعيد' });
+      }
+    }
     return this.service.updateStatus(id, dto, user.userId);
   }
 
