@@ -1,10 +1,11 @@
-import { Controller, Get, Put, Patch, Query, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Query, Param, Body, UseGuards, Req } from '@nestjs/common';
 import { JobApplicationsService } from './job-applications.service';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
 import { ListJobApplicationsQueryDto } from './dto/list-job-applications.query.dto';
 import { UpdateJobApplicationDto } from './dto/update-job-application.dto';
+import { SetTalentDto } from './dto/set-talent.dto';
 
 @Controller('job-applications')
 export class JobApplicationsController {
@@ -40,6 +41,14 @@ export class JobApplicationsController {
   @Put(':id')
   update(@Param('id') id: string, @Body() dto: UpdateJobApplicationDto) {
     return this.jobApplications.update(id, dto);
+  }
+
+  // إضافة/إزالة الطلب من قائمة المواهب
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('job-applications:update')
+  @Patch(':id/talent')
+  setTalent(@Param('id') id: string, @Body() dto: SetTalentDto, @Req() req: any) {
+    return this.jobApplications.setTalent(id, dto.isTalent, req.user?.userId ?? req.user?.sub);
   }
 
   // موافقة المدير التنفيذي — ينقل الحالة إلى HIRED

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumberString } from 'class-validator';
+import { IsOptional, IsString, IsNumberString, IsIn } from 'class-validator';
 
 export class ListJobApplicationsQueryDto {
   @IsOptional()
@@ -12,4 +12,9 @@ export class ListJobApplicationsQueryDto {
   @IsOptional()
   @IsNumberString()
   limit?: string;
+
+  /** true = قائمة المواهب فقط */
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  isTalent?: string;
 }

@@ -153,6 +153,16 @@ model InterviewEvaluation {
   @@schema("jobs")
 }
 
+// قائمة المواهب — علامة محلية على طلب توظيف (الطلبات نفسها في API الموقع الخارجي)
+model TalentFlag {
+  jobApplicationId String   @id
+  markedBy         String?
+  markedAt         DateTime @default(now())
+
+  @@map("talent_flags")
+  @@schema("jobs")
+}
+
 enum EvaluationDecision {
   ACCEPTED
   REFERRED_TO_OTHER

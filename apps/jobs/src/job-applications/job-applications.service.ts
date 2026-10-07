@@ -33,7 +33,8 @@ export class JobApplicationsService {
   /**
    * جلب جميع طلبات التوظيف مع فلترة
    */
-  async findAll(query: { status?: string; page?: string; limit?: string }) {
+  async findAll(query: { status?: string; page?: string; limit?: string; isTalent?: string }) {
+    if (query.isTalent === 'true') return this.findTalents(query);
     try {
       const params: any = {};
       if (query.status) params.status = query.status;
@@ -47,10 +48,64 @@ export class JobApplicationsService {
         }),
       );
 
-      return response.data;
+      const result = response.data;
+      const items: any[] = Array.isArray(result?.data) ? result.data : [];
+      const talentIds = await this.getTalentIds(items.map((a) => a?.id).filter(Boolean));
+      for (const a of items) a.isTalent = talentIds.has(a.id);
+      return result;
     } catch (error) {
       this.handleError(error, 'فشل في جلب طلبات التوظيف');
     }
+  }
+
+  // ── قائمة المواهب (علامة محلية بجدول talent_flags) ─────────────────────
+
+  private async getTalentIds(ids: string[]): Promise<Set<string>> {
+    if (!ids.length) return new Set();
+    // فشل قراءة العلامة لا يوقف عرض الطلبات
+    const rows = await this.prisma.talentFlag.findMany({
+      where: { jobApplicationId: { in: ids } },
+      select: { jobApplicationId: true },
+    }).catch(() => [] as { jobApplicationId: string }[]);
+    return new Set(rows.map((r) => r.jobApplicationId));
+  }
+
+  /** فلتر isTalent=true — يجلب كل طلب من الموقع ويرجّع نفس شكل القائمة { data, pagination } */
+  private async findTalents(query: { status?: string; page?: string; limit?: string }) {
+    const page  = Math.max(1, Number(query.page)  || 1);
+    const limit = Math.max(1, Number(query.limit) || 20);
+
+    const flags = await this.prisma.talentFlag.findMany({ orderBy: { markedAt: 'desc' } });
+    const fetched = await Promise.all(
+      flags.map((f) =>
+        firstValueFrom(
+          this.http.get(`${this.baseUrl}/job-applications/${f.jobApplicationId}`, { headers: this.getHeaders() }),
+        ).then((r) => r.data?.data ?? null).catch(() => null), // طلب محذوف من الموقع → يُتجاهل
+      ),
+    );
+
+    let items = fetched.filter(Boolean);
+    if (query.status) items = items.filter((a: any) => a.status === query.status);
+    for (const a of items) a.isTalent = true;
+
+    const total = items.length;
+    return {
+      data: items.slice((page - 1) * limit, page * limit),
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async setTalent(id: string, isTalent: boolean, userId?: string) {
+    if (isTalent) {
+      await this.prisma.talentFlag.upsert({
+        where: { jobApplicationId: id },
+        create: { jobApplicationId: id, markedBy: userId ?? null },
+        update: {},
+      });
+    } else {
+      await this.prisma.talentFlag.deleteMany({ where: { jobApplicationId: id } });
+    }
+    return { id, isTalent };
   }
 
   /**
@@ -101,6 +156,7 @@ export class JobApplicationsService {
 
       if (data?.data) {
         data.data.interviewEvaluation = interviewEvaluation;
+        data.data.isTalent = (await this.getTalentIds([id])).has(id);
       }
 
       return data;
