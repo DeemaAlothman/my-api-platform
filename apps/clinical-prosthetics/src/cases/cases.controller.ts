@@ -53,6 +53,12 @@ export class CasesInternalController {
       body.appointmentId,
     );
   }
+
+  @Post('treatment-program-end-from-appointment')
+  @UseGuards(InternalAuthGuard)
+  endFromAppointment(@Body() body: { appointmentId: string; sessionEndTime: string }) {
+    return this.service.setTreatmentProgramEndFromAppointment(body.appointmentId, body.sessionEndTime);
+  }
 }
 
 @Controller('prosthetics/cases')

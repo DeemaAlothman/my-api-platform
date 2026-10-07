@@ -1760,6 +1760,22 @@ export class CasesService {
     });
   }
 
+  // عند إنجاز الموعد: وقت الخروج يُكتب فقط إن بدأت الجلسة ولم يُدخَل وقت خروج يدوياً
+  async setTreatmentProgramEndFromAppointment(appointmentId: string, sessionEndTime: string) {
+    if (!appointmentId || !sessionEndTime) return { count: 0 };
+    return this.prisma.caseTreatmentProgram.updateMany({
+      where: {
+        appointmentId,
+        AND: [
+          { sessionStartTime: { not: null } },
+          { sessionStartTime: { not: '' } },
+          { OR: [{ sessionEndTime: null }, { sessionEndTime: '' }] },
+        ],
+      },
+      data: { sessionEndTime },
+    });
+  }
+
   async alertCase(caseId: string, note: string, userId: string) {
     await this.findCaseOrThrow(caseId);
 

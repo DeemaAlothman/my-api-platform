@@ -740,6 +740,20 @@ export class AppointmentsService implements OnModuleInit {
       }).catch(() => {});
     }
 
+    // إنجاز الموعد: وقت الخروج للجلسة المرتبطة (خدمة الأطراف تكتبه فقط إن بدأت الجلسة ولم يُدخَل يدوياً)
+    if (dto.status === 'COMPLETED' && (appt as any).caseType === 'PROSTHETICS' && (appt as any).caseId) {
+      const url = `${process.env.PROSTHETICS_SERVICE_URL || 'http://clinical-prosthetics:4011'}/api/v1/prosthetics/cases/internal/treatment-program-end-from-appointment`;
+      const sessionEndTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' });
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-token': process.env.INTERNAL_SERVICE_TOKEN || '',
+        },
+        body: JSON.stringify({ appointmentId: appt.id, sessionEndTime }),
+      }).catch(() => {});
+    }
+
     return updated;
   }
 }
