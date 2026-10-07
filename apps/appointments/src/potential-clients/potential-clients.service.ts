@@ -19,7 +19,6 @@ export class PotentialClientsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreatePotentialClientDto, userId: string) {
-    const visitedCenter = dto.visitedCenter ?? null;
     return this.prisma.potentialClient.create({
       data: {
         patientName:       dto.patientName,
@@ -29,9 +28,8 @@ export class PotentialClientsService {
         interestedService: dto.interestedService,
         contactNumber:     dto.contactNumber,
         notes:             dto.notes,
-        visitedCenter,
-        // الدفع له معنى فقط إذا زار المركز
-        paidVisit:         visitedCenter === true ? (dto.paidVisit ?? null) : null,
+        visitedCenter:     dto.visitedCenter ?? null,
+        paidVisit:         dto.paidVisit ?? null,
         createdBy:         userId,
       },
     });
@@ -126,17 +124,7 @@ export class PotentialClientsService {
   }
 
   async update(id: string, dto: UpdatePotentialClientDto) {
-    const existing = await this.findOne(id);
-
-    // الدفع له معنى فقط إذا زار المركز — إن لم يكن "زار" (لا / غير محدد) يُفرَّغ الدفع
-    const visitData: { visitedCenter?: boolean | null; paidVisit?: boolean | null } = {};
-    if (dto.visitedCenter !== undefined || dto.paidVisit !== undefined) {
-      const visited = dto.visitedCenter !== undefined ? dto.visitedCenter : existing.visitedCenter;
-      if (dto.visitedCenter !== undefined) visitData.visitedCenter = dto.visitedCenter;
-      if (visited !== true) visitData.paidVisit = null;
-      else if (dto.paidVisit !== undefined) visitData.paidVisit = dto.paidVisit;
-    }
-
+    await this.findOne(id);
     return this.prisma.potentialClient.update({
       where: { id },
       data: {
@@ -147,7 +135,8 @@ export class PotentialClientsService {
         interestedService: dto.interestedService,
         contactNumber:     dto.contactNumber,
         notes:             dto.notes,
-        ...visitData,
+        visitedCenter:     dto.visitedCenter,
+        paidVisit:         dto.paidVisit,
       },
     });
   }

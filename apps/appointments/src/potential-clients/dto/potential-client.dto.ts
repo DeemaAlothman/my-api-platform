@@ -30,7 +30,7 @@ export class CreatePotentialClientDto {
   @IsOptional() @IsBoolean()
   visitedCenter?: boolean | null;
 
-  /** استفاد بدفع فعلي؟ — له معنى فقط إذا visitedCenter = true */
+  /** استفاد بدفع فعلي؟ (null = لم يُحدَّد) — مستقل عن visitedCenter */
   @IsOptional() @IsBoolean()
   paidVisit?: boolean | null;
 }
