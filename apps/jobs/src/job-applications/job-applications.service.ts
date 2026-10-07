@@ -80,7 +80,11 @@ export class JobApplicationsService {
       flags.map((f) =>
         firstValueFrom(
           this.http.get(`${this.baseUrl}/job-applications/${f.jobApplicationId}`, { headers: this.getHeaders() }),
-        ).then((r) => r.data?.data ?? null).catch(() => null), // طلب محذوف من الموقع → يُتجاهل
+        ).then((r) => this.unwrapApplication(r.data)).catch((e) => {
+          // طلب محذوف من الموقع أو خطأ مؤقت → يُتجاهل مع تسجيله
+          this.logger.warn(`Talent fetch failed for ${f.jobApplicationId}: ${e?.response?.status ?? e?.message}`);
+          return null;
+        }),
       ),
     );
 
@@ -93,6 +97,13 @@ export class JobApplicationsService {
       data: items.slice((page - 1) * limit, page * limit),
       pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
+  }
+
+  /** الموقع يرجّع الطلب الواحد مباشرة { id, ... } — ونقبل أيضاً الشكل الملفوف { data: { id, ... } } */
+  private unwrapApplication(body: any): any | null {
+    if (body?.data?.id) return body.data;
+    if (body?.id) return body;
+    return null;
   }
 
   async setTalent(id: string, isTalent: boolean, userId?: string) {
@@ -154,9 +165,10 @@ export class JobApplicationsService {
         },
       }).catch(() => null);
 
-      if (data?.data) {
-        data.data.interviewEvaluation = interviewEvaluation;
-        data.data.isTalent = (await this.getTalentIds([id])).has(id);
+      const app = this.unwrapApplication(data);
+      if (app) {
+        app.interviewEvaluation = interviewEvaluation;
+        app.isTalent = (await this.getTalentIds([id])).has(id);
       }
 
       return data;
