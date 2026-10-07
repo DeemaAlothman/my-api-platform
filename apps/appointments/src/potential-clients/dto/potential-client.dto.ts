@@ -1,5 +1,5 @@
 import {
-  IsString, IsOptional, IsEnum, IsInt, Min, IsNotEmpty,
+  IsString, IsOptional, IsEnum, IsInt, Min, IsNotEmpty, Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { GenderEnum, ArrivalMethodEnum } from '../../waiting-list/dto/waiting-list.dto';
@@ -58,6 +58,14 @@ export class ExportPotentialClientsQueryDto {
   /** بحث جزئي بالاسم / رقم التواصل / الخدمة */
   @IsOptional() @IsString()
   search?: string;
+
+  /** من تاريخ التسجيل (YYYY-MM-DD، بداية اليوم بتوقيت سوريا) */
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateFrom يجب أن يكون بصيغة YYYY-MM-DD' })
+  dateFrom?: string;
+
+  /** إلى تاريخ التسجيل (YYYY-MM-DD، شاملاً آخر اليوم بتوقيت سوريا) */
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateTo يجب أن يكون بصيغة YYYY-MM-DD' })
+  dateTo?: string;
 }
 
 export class ListPotentialClientsQueryDto extends ExportPotentialClientsQueryDto {

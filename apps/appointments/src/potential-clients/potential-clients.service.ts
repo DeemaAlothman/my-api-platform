@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -43,6 +43,19 @@ export class PotentialClientsService {
         { contactNumber:     { contains: search, mode: 'insensitive' } },
         { interestedService: { contains: search, mode: 'insensitive' } },
       ];
+    }
+    // حدود اليوم بتوقيت سوريا (UTC+3): من بداية dateFrom، وحتى ما قبل بداية اليوم التالي لـ dateTo
+    if (query.dateFrom || query.dateTo) {
+      where.registrationDate = {};
+      if (query.dateFrom) where.registrationDate.gte = new Date(`${query.dateFrom}T00:00:00+03:00`);
+      if (query.dateTo) {
+        const end = new Date(`${query.dateTo}T00:00:00+03:00`);
+        end.setUTCDate(end.getUTCDate() + 1);
+        where.registrationDate.lt = end;
+      }
+      for (const d of Object.values(where.registrationDate) as Date[]) {
+        if (isNaN(d.getTime())) throw new BadRequestException('تاريخ غير صالح');
+      }
     }
     return where;
   }
