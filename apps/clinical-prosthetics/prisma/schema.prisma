@@ -1320,6 +1320,7 @@ model CaseTreatmentProgram {
   sessionDate            DateTime?
   sessionTime            String?
   appointmentType        String?  // نوع الموعد (مثل MEASUREMENT_TAKING) — يُعبّأ فقط للجلسات المنشأة من موعد مؤكَّد
+  appointmentId          String?  // معرّف الموعد المصدر (clinic_appointments) — ربط منطقي بدون FK
   sessionStartTime       String?
   sessionEndTime         String?
   description            String?  @db.Text

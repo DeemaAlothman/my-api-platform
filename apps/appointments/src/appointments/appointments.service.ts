@@ -735,6 +735,7 @@ export class AppointmentsService implements OnModuleInit {
           sessionDate: appt.startTime.toISOString(),
           sessionTime,
           appointmentType: appt.appointmentType,
+          appointmentId: appt.id,
         }),
       }).catch(() => {});
     }
