@@ -50,7 +50,17 @@ export class UpdatePotentialClientDto {
   notes?: string;
 }
 
-export class ListPotentialClientsQueryDto {
+export class ExportPotentialClientsQueryDto {
+  /** مطابقة كاملة للخدمة المهتم بها */
+  @IsOptional() @IsString()
+  interestedService?: string;
+
+  /** بحث جزئي بالاسم / رقم التواصل / الخدمة */
+  @IsOptional() @IsString()
+  search?: string;
+}
+
+export class ListPotentialClientsQueryDto extends ExportPotentialClientsQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   page?: number = 1;
 

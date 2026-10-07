@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePotentialClientDto, UpdatePotentialClientDto, ListPotentialClientsQueryDto,
+  ExportPotentialClientsQueryDto,
 } from './dto/potential-client.dto';
 import { sendExcel } from '../common/utils/excel.util';
 
@@ -31,24 +32,51 @@ export class PotentialClientsService {
     });
   }
 
+  // فلاتر مشتركة للقائمة والتصدير
+  private buildWhere(query: ExportPotentialClientsQueryDto) {
+    const where: any = {};
+    if (query.interestedService) where.interestedService = query.interestedService;
+    const search = query.search?.trim();
+    if (search) {
+      where.OR = [
+        { patientName:       { contains: search, mode: 'insensitive' } },
+        { contactNumber:     { contains: search, mode: 'insensitive' } },
+        { interestedService: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    return where;
+  }
+
   async findAll(query: ListPotentialClientsQueryDto) {
     const page  = query.page  ?? 1;
     const limit = query.limit ?? 50;
     const skip  = (page - 1) * limit;
+    const where = this.buildWhere(query);
 
     const [items, total] = await Promise.all([
       this.prisma.potentialClient.findMany({
-        skip, take: limit,
+        where, skip, take: limit,
         orderBy: { registrationDate: 'asc' },
       }),
-      this.prisma.potentialClient.count(),
+      this.prisma.potentialClient.count({ where }),
     ]);
     return { items, total, page, limit };
   }
 
-  // تصدير Excel — كل السجلات بدون صفحات
-  async exportXlsx(res: Response) {
+  // الخدمات المميّزة الموجودة بالسجلات — للقائمة المنسدلة
+  async findServices() {
+    const rows = await this.prisma.potentialClient.findMany({
+      distinct: ['interestedService'],
+      select: { interestedService: true },
+      orderBy: { interestedService: 'asc' },
+    });
+    return rows.map((r) => r.interestedService);
+  }
+
+  // تصدير Excel — كل السجلات المطابقة للفلاتر، بدون صفحات
+  async exportXlsx(query: ExportPotentialClientsQueryDto, res: Response) {
     const items = await this.prisma.potentialClient.findMany({
+      where: this.buildWhere(query),
       orderBy: { registrationDate: 'asc' },
     });
     const rows = items.map((e) => [

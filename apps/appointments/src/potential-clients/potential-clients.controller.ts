@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import { PotentialClientsService } from './potential-clients.service';
 import {
   CreatePotentialClientDto, UpdatePotentialClientDto, ListPotentialClientsQueryDto,
+  ExportPotentialClientsQueryDto,
 } from './dto/potential-client.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -29,11 +30,17 @@ export class PotentialClientsController {
     return this.service.findAll(query);
   }
 
-  // قبل :id حتى ما ينفهم export-xlsx كمعرّف
+  // قبل :id حتى ما ينفهم services / export-xlsx كمعرّف
+  @Get('services')
+  @Permission(PERMISSIONS.CLINIC_POTENTIAL_CLIENTS.VIEW)
+  findServices() {
+    return this.service.findServices();
+  }
+
   @Get('export-xlsx')
   @Permission(PERMISSIONS.CLINIC_POTENTIAL_CLIENTS.VIEW)
-  exportXlsx(@Res() res: Response) {
-    return this.service.exportXlsx(res);
+  exportXlsx(@Query() query: ExportPotentialClientsQueryDto, @Res() res: Response) {
+    return this.service.exportXlsx(query, res);
   }
 
   @Get(':id')
