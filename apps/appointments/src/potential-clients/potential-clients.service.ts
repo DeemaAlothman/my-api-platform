@@ -12,12 +12,14 @@ const ARRIVAL_AR: Record<string, string> = {
   SOCIAL_MEDIA: 'وسائل التواصل', HOSPITAL: 'مستشفى', DOCTOR: 'طبيب',
   ASSOCIATION: 'جمعية', FRIEND: 'صديق', STAFF: 'موظف',
 };
+const YES_NO_AR = (v: boolean | null) => (v === true ? 'نعم' : v === false ? 'لا' : '');
 
 @Injectable()
 export class PotentialClientsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreatePotentialClientDto, userId: string) {
+    const visitedCenter = dto.visitedCenter ?? null;
     return this.prisma.potentialClient.create({
       data: {
         patientName:       dto.patientName,
@@ -27,6 +29,9 @@ export class PotentialClientsService {
         interestedService: dto.interestedService,
         contactNumber:     dto.contactNumber,
         notes:             dto.notes,
+        visitedCenter,
+        // الدفع له معنى فقط إذا زار المركز
+        paidVisit:         visitedCenter === true ? (dto.paidVisit ?? null) : null,
         createdBy:         userId,
       },
     });
@@ -57,6 +62,8 @@ export class PotentialClientsService {
         if (isNaN(d.getTime())) throw new BadRequestException('تاريخ غير صالح');
       }
     }
+    if (query.visitedCenter) where.visitedCenter = query.visitedCenter === 'true';
+    if (query.paidVisit)     where.paidVisit     = query.paidVisit === 'true';
     return where;
   }
 
@@ -100,12 +107,14 @@ export class PotentialClientsService {
       e.arrivalMethod ? (ARRIVAL_AR[e.arrivalMethod] ?? e.arrivalMethod) : '',
       e.interestedService ?? '',
       e.contactNumber ?? '',
+      YES_NO_AR(e.visitedCenter),
+      YES_NO_AR(e.paidVisit),
       e.notes ?? '',
     ]);
     await sendExcel(
       res,
       'العملاء المحتملين',
-      ['اسم المريض', 'الجنس', 'العمر', 'تاريخ التسجيل', 'طريقة الوصول', 'خدمة مهتم بها', 'رقم التواصل', 'الملاحظات'],
+      ['اسم المريض', 'الجنس', 'العمر', 'تاريخ التسجيل', 'طريقة الوصول', 'خدمة مهتم بها', 'رقم التواصل', 'زار المركز', 'استفاد بدفع فعلي', 'الملاحظات'],
       rows,
     );
   }
@@ -117,7 +126,17 @@ export class PotentialClientsService {
   }
 
   async update(id: string, dto: UpdatePotentialClientDto) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
+
+    // الدفع له معنى فقط إذا زار المركز — إن لم يكن "زار" (لا / غير محدد) يُفرَّغ الدفع
+    const visitData: { visitedCenter?: boolean | null; paidVisit?: boolean | null } = {};
+    if (dto.visitedCenter !== undefined || dto.paidVisit !== undefined) {
+      const visited = dto.visitedCenter !== undefined ? dto.visitedCenter : existing.visitedCenter;
+      if (dto.visitedCenter !== undefined) visitData.visitedCenter = dto.visitedCenter;
+      if (visited !== true) visitData.paidVisit = null;
+      else if (dto.paidVisit !== undefined) visitData.paidVisit = dto.paidVisit;
+    }
+
     return this.prisma.potentialClient.update({
       where: { id },
       data: {
@@ -128,6 +147,7 @@ export class PotentialClientsService {
         interestedService: dto.interestedService,
         contactNumber:     dto.contactNumber,
         notes:             dto.notes,
+        ...visitData,
       },
     });
   }

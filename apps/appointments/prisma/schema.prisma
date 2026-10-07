@@ -164,6 +164,10 @@ model PotentialClient {
   contactNumber     String
   notes             String? @db.Text
 
+  // null = لم يُحدَّد بعد
+  visitedCenter     Boolean?  // زار المركز؟
+  paidVisit         Boolean?  // استفاد بدفع فعلي؟ (فقط إذا زار المركز)
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   createdBy         String

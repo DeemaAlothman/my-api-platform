@@ -1,5 +1,5 @@
 import {
-  IsString, IsOptional, IsEnum, IsInt, Min, IsNotEmpty, Matches,
+  IsString, IsOptional, IsEnum, IsInt, Min, IsNotEmpty, Matches, IsBoolean, IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { GenderEnum, ArrivalMethodEnum } from '../../waiting-list/dto/waiting-list.dto';
@@ -25,6 +25,14 @@ export class CreatePotentialClientDto {
 
   @IsOptional() @IsString()
   notes?: string;
+
+  /** زار المركز؟ (null = لم يُحدَّد) */
+  @IsOptional() @IsBoolean()
+  visitedCenter?: boolean | null;
+
+  /** استفاد بدفع فعلي؟ — له معنى فقط إذا visitedCenter = true */
+  @IsOptional() @IsBoolean()
+  paidVisit?: boolean | null;
 }
 
 export class UpdatePotentialClientDto {
@@ -48,6 +56,12 @@ export class UpdatePotentialClientDto {
 
   @IsOptional() @IsString()
   notes?: string;
+
+  @IsOptional() @IsBoolean()
+  visitedCenter?: boolean | null;
+
+  @IsOptional() @IsBoolean()
+  paidVisit?: boolean | null;
 }
 
 export class ExportPotentialClientsQueryDto {
@@ -66,6 +80,12 @@ export class ExportPotentialClientsQueryDto {
   /** إلى تاريخ التسجيل (YYYY-MM-DD، شاملاً آخر اليوم بتوقيت سوريا) */
   @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateTo يجب أن يكون بصيغة YYYY-MM-DD' })
   dateTo?: string;
+
+  @IsOptional() @IsIn(['true', 'false'])
+  visitedCenter?: string;
+
+  @IsOptional() @IsIn(['true', 'false'])
+  paidVisit?: string;
 }
 
 export class ListPotentialClientsQueryDto extends ExportPotentialClientsQueryDto {
