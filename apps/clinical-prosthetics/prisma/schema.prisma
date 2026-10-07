@@ -1319,6 +1319,7 @@ model CaseTreatmentProgram {
 
   sessionDate            DateTime?
   sessionTime            String?
+  appointmentType        String?  // نوع الموعد (مثل MEASUREMENT_TAKING) — يُعبّأ فقط للجلسات المنشأة من موعد مؤكَّد
   sessionStartTime       String?
   sessionEndTime         String?
   description            String?  @db.Text

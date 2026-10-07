@@ -1752,11 +1752,11 @@ export class CasesService {
     return rows.map(r => r.userId).filter(Boolean);
   }
 
-  async createTreatmentProgramFromAppointment(caseId: string, sessionDate: Date, sessionTime: string) {
+  async createTreatmentProgramFromAppointment(caseId: string, sessionDate: Date, sessionTime: string, appointmentType?: string) {
     const cs = await this.prisma.prostheticsCase.findFirst({ where: { id: caseId, deletedAt: null } });
     if (!cs) return null;
     return this.prisma.caseTreatmentProgram.create({
-      data: { caseId, sessionDate, sessionTime },
+      data: { caseId, sessionDate, sessionTime, appointmentType: appointmentType ?? null },
     });
   }
 

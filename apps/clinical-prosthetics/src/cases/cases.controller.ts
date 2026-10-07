@@ -44,11 +44,12 @@ export class CasesInternalController {
 
   @Post('treatment-program-from-appointment')
   @UseGuards(InternalAuthGuard)
-  createFromAppointment(@Body() body: { caseId: string; sessionDate: string; sessionTime: string }) {
+  createFromAppointment(@Body() body: { caseId: string; sessionDate: string; sessionTime: string; appointmentType?: string }) {
     return this.service.createTreatmentProgramFromAppointment(
       body.caseId,
       new Date(body.sessionDate),
       body.sessionTime,
+      body.appointmentType,
     );
   }
 }
