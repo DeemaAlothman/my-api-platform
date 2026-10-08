@@ -2206,7 +2206,15 @@ export class CasesService {
       orderBy: { changedAt: 'asc' },
     }).catch(() => [] as Array<{ id: string; fromStatus: string | null; toStatus: string; source: string; reason: string | null; changedBy: string | null; changedAt: Date }>);
 
-    const actors = await this.resolveActors(history.map((h) => h.changedBy));
+    const caseEvents = await this.prisma.caseEvent.findMany({
+      where: { caseId },
+      orderBy: { createdAt: 'asc' },
+    }).catch(() => [] as Array<{ id: string; type: string; action: string; stage: string | null; actorId: string | null; fields: string[]; metadata: any; createdAt: Date }>);
+
+    const actors = await this.resolveActors([
+      ...history.map((h) => h.changedBy),
+      ...caseEvents.map((e) => e.actorId),
+    ]);
     const actorName = (id: string | null) => (id && actors[id] ? actors[id].name : null);
 
     const stages = this.buildStages(history, c.status as string, actorName);
@@ -2219,8 +2227,11 @@ export class CasesService {
     };
     const items: Item[] = [];
 
-    // أحداث مشتقة من السجلات الفرعية (نفس timeline القديم)
+    // أحداث مشتقة من السجلات الفرعية (نفس timeline القديم) — فقط لما قبل بدء تسجيل الأحداث،
+    // لأن ما بعده مسجّل فعلياً بـ case_events مع اسم المنفّذ (تجنّباً للتكرار)
+    const trackingStart = caseEvents.length ? caseEvents[0].createdAt.getTime() - 60_000 : Infinity;
     events.forEach((e, i) => {
+      if (e.date.getTime() >= trackingStart) return;
       const type = e.type.toUpperCase();
       items.push({
         id: `${type}:${e.date.toISOString()}:${i}`, caseId, type, stage: null,
@@ -2240,6 +2251,18 @@ export class CasesService {
         actorRole: h.changedBy && actors[h.changedBy] ? actors[h.changedBy].role : null,
         changes: [],
         metadata: { fromStatus: h.fromStatus, toStatus: h.toStatus, reason: h.reason, source: h.source },
+      });
+    }
+
+    // أحداث العمليات المسجّلة (حفظ/تعديل/حذف/توقيع/تصدير)
+    for (const ev of caseEvents) {
+      items.push({
+        id: ev.id, caseId, type: ev.type, stage: ev.stage, action: ev.action,
+        title: ev.type, description: null, date: ev.createdAt,
+        actorId: ev.actorId, actorName: actorName(ev.actorId),
+        actorRole: ev.actorId && actors[ev.actorId] ? actors[ev.actorId].role : null,
+        changes: [],
+        metadata: { ...(ev.metadata ?? {}), fields: ev.fields },
       });
     }
 

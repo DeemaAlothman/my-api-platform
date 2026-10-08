@@ -1356,6 +1356,26 @@ model CaseStageHistory {
   @@schema("clinic_prosthetics")
 }
 
+// ── أحداث الحالة (كل حفظ/تعديل/حذف/توقيع/تصدير ناجح) — يكتبها CaseEventsInterceptor ──
+// جدول مستقل بربط منطقي (caseId) — لا يغيّر أي جدول موجود.
+model CaseEvent {
+  id        String   @id @default(uuid())
+  caseId    String
+  type      String   // مشتق من المسار، مثل ASSESSMENT_LOWER, COMMITTEE_OPINION, COMPONENTS
+  action    String   // CREATE | UPDATE | DELETE | SIGN | ARCHIVE | APPROVE | RESPOND | EXPORT
+  stage     String?  // مرحلة الحالة بعد العملية
+  actorId   String?  // users.users.id
+  method    String
+  path      String
+  fields    String[] @default([]) // أسماء الحقول المرسلة (بدون القيم)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([caseId, createdAt])
+  @@map("case_events")
+  @@schema("clinic_prosthetics")
+}
+
 // ── Gait Analysis Form Pro-016 (متعدد لكل حالة) ──────────────────────────
 
 model GaitAnalysisForm {

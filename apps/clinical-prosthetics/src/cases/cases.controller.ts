@@ -6,6 +6,7 @@ import type { Response } from 'express';
 import { createReadStream, existsSync } from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CasesService } from './cases.service';
+import { CaseEventsInterceptor } from '../common/interceptors/case-events.interceptor';
 import { caseAttachmentMulterOptions } from './case-files.config';
 import { PdfService } from './pdf.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto } from './dto/case.dto';
@@ -63,6 +64,7 @@ export class CasesInternalController {
 
 @Controller('prosthetics/cases')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseInterceptors(CaseEventsInterceptor)
 export class CasesController {
   constructor(
     private readonly service: CasesService,
