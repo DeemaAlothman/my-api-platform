@@ -1339,6 +1339,23 @@ model CaseTreatmentProgram {
   @@schema("clinic_prosthetics")
 }
 
+// ── تاريخ مراحل الحالة (للسجل الزمني ومدة كل مرحلة) ─────────────────────
+// جدول مستقل بربط منطقي (caseId) — لا يغيّر جدول الحالات. يُكتب عند الإنشاء وكل تغيير مرحلة.
+model CaseStageHistory {
+  id         String   @id @default(uuid())
+  caseId     String
+  fromStatus String?  // null = إنشاء الحالة
+  toStatus   String
+  source     String   // CREATE | MANUAL | AUTO
+  reason     String?  @db.Text
+  changedBy  String?  // users.users.id (null للتقدّم التلقائي)
+  changedAt  DateTime @default(now())
+
+  @@index([caseId, changedAt])
+  @@map("case_stage_history")
+  @@schema("clinic_prosthetics")
+}
+
 // ── Gait Analysis Form Pro-016 (متعدد لكل حالة) ──────────────────────────
 
 model GaitAnalysisForm {

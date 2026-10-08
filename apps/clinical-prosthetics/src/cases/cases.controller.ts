@@ -8,7 +8,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { CasesService } from './cases.service';
 import { caseAttachmentMulterOptions } from './case-files.config';
 import { PdfService } from './pdf.service';
-import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
+import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto } from './dto/case.dto';
 import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto, TransradialAssessmentDto, ElbowDisarticulationAssessmentDto, TranshumeralAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
@@ -109,8 +109,8 @@ export class CasesController {
 
   @Put(':id/status')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto) {
-    return this.service.updateStatus(id, dto);
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto, @User() user: any) {
+    return this.service.updateStatus(id, dto, user?.userId);
   }
 
   // ── Assessments ───────────────────────────────────────────────────────────
@@ -608,8 +608,8 @@ export class CasesController {
 
   @Get(':id/timeline')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
-  getTimeline(@Param('id') id: string) {
-    return this.service.getTimeline(id);
+  getTimeline(@Param('id') id: string, @Query() query: TimelineQueryDto) {
+    return this.service.getTimeline(id, query);
   }
 
   // ── Attachments (صور البتر وغيرها — واحدة أو أكثر، كل صورة برفع منفصل) ─────────

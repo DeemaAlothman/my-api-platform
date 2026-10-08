@@ -3,7 +3,7 @@ import {
   InternalServerErrorException, ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto } from './dto/case.dto';
+import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto } from './dto/case.dto';
 import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto, TransradialAssessmentDto, ElbowDisarticulationAssessmentDto, TranshumeralAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
@@ -132,7 +132,19 @@ export class CasesService {
         where: { id: caseId },
         data: { status: targetStatus as any },
       });
+      await this.recordStageChange(caseId, c.status as string, targetStatus, 'AUTO');
     } catch { /* لا يوقف العملية الأصلية */ }
+  }
+
+  // تسجيل دخول مرحلة بتاريخ المراحل — فشله لا يوقف العملية الأصلية
+  private async recordStageChange(
+    caseId: string, fromStatus: string | null, toStatus: string,
+    source: 'CREATE' | 'MANUAL' | 'AUTO', changedBy?: string | null, reason?: string | null,
+  ): Promise<void> {
+    if (fromStatus === toStatus) return;
+    await this.prisma.caseStageHistory.create({
+      data: { caseId, fromStatus, toStatus, source, changedBy: changedBy ?? null, reason: reason ?? null },
+    }).catch(() => {});
   }
 
   private async generateCaseNumber(): Promise<string> {
@@ -184,7 +196,7 @@ export class CasesService {
 
   async create(dto: CreateCaseDto, userId: string) {
     const caseNumber = await this.generateCaseNumber();
-    return this.prisma.prostheticsCase.create({
+    const created = await this.prisma.prostheticsCase.create({
       data: {
         caseNumber,
         patientId: dto.patientId,
@@ -220,6 +232,8 @@ export class CasesService {
         createdBy: userId,
       },
     });
+    await this.recordStageChange(created.id, null, created.status as string, 'CREATE', userId);
+    return created;
   }
 
   async findAll(query: ListCasesQueryDto) {
@@ -419,12 +433,14 @@ export class CasesService {
     });
   }
 
-  async updateStatus(id: string, dto: UpdateStatusDto) {
-    await this.findCaseOrThrow(id);
-    return this.prisma.prostheticsCase.update({
+  async updateStatus(id: string, dto: UpdateStatusDto, userId?: string) {
+    const before = await this.findCaseOrThrow(id);
+    const updated = await this.prisma.prostheticsCase.update({
       where: { id },
       data: { status: dto.status as any },
     });
+    await this.recordStageChange(id, before.status as string, dto.status, 'MANUAL', userId, dto.reason ?? dto.note);
+    return updated;
   }
 
   async findByPatient(patientId: string) {
@@ -2086,7 +2102,7 @@ export class CasesService {
 
   // ── Timeline ──────────────────────────────────────────────────────────────
 
-  async getTimeline(caseId: string) {
+  async getTimeline(caseId: string, query: TimelineQueryDto = {}) {
     const c = await this.prisma.prostheticsCase.findFirst({
       where: { id: caseId, deletedAt: null },
       include: {
@@ -2183,7 +2199,138 @@ export class CasesService {
       add(fu.visitDate, 'follow_up', 'متابعة', fu.findings);
 
     events.sort((a, b) => a.date.getTime() - b.date.getTime());
-    return { caseId, caseNumber: c.caseNumber, timeline: events };
+
+    // ── الشكل الجديد (stages + items) — يُضاف بجانب timeline القديم بدون تغييره ──
+    const history = await this.prisma.caseStageHistory.findMany({
+      where: { caseId },
+      orderBy: { changedAt: 'asc' },
+    }).catch(() => [] as Array<{ id: string; fromStatus: string | null; toStatus: string; source: string; reason: string | null; changedBy: string | null; changedAt: Date }>);
+
+    const actors = await this.resolveActors(history.map((h) => h.changedBy));
+    const actorName = (id: string | null) => (id && actors[id] ? actors[id].name : null);
+
+    const stages = this.buildStages(history, c.status as string, actorName);
+
+    type Item = {
+      id: string; caseId: string; type: string; stage: string | null; action: string;
+      title: string; description: string | null; date: Date;
+      actorId: string | null; actorName: string | null; actorRole: string | null;
+      changes: Array<{ field: string; oldValue: any; newValue: any }>; metadata: Record<string, any>;
+    };
+    const items: Item[] = [];
+
+    // أحداث مشتقة من السجلات الفرعية (نفس timeline القديم)
+    events.forEach((e, i) => {
+      const type = e.type.toUpperCase();
+      items.push({
+        id: `${type}:${e.date.toISOString()}:${i}`, caseId, type, stage: null,
+        action: type.endsWith('_SIGNED') ? 'SIGN' : 'CREATE',
+        title: e.title, description: e.description ?? null, date: e.date,
+        actorId: null, actorName: null, actorRole: null, changes: [], metadata: {},
+      });
+    });
+
+    // تغييرات المرحلة من تاريخ المراحل (حدث الإنشاء موجود أصلاً كـ CASE_CREATED)
+    for (const h of history) {
+      if (h.source === 'CREATE') continue;
+      items.push({
+        id: h.id, caseId, type: 'STATUS_CHANGED', stage: h.toStatus, action: 'STATUS_CHANGE',
+        title: 'تغيير المرحلة', description: `${h.fromStatus ?? '—'} → ${h.toStatus}`, date: h.changedAt,
+        actorId: h.changedBy, actorName: actorName(h.changedBy),
+        actorRole: h.changedBy && actors[h.changedBy] ? actors[h.changedBy].role : null,
+        changes: [],
+        metadata: { fromStatus: h.fromStatus, toStatus: h.toStatus, reason: h.reason, source: h.source },
+      });
+    }
+
+    // فلاتر اختيارية
+    const fromDate = this.parseTimelineBound(query.from, false);
+    const toDate   = this.parseTimelineBound(query.to, true);
+    let filtered = items.filter((it) =>
+      (!query.stage   || it.stage === query.stage) &&
+      (!query.type    || it.type === query.type) &&
+      (!query.actorId || it.actorId === query.actorId) &&
+      (!fromDate      || it.date >= fromDate) &&
+      (!toDate        || it.date < toDate),
+    );
+    filtered.sort((a, b) => b.date.getTime() - a.date.getTime()); // الأحدث أولاً
+
+    const page  = query.page  ?? 1;
+    const limit = query.limit ?? 50;
+    const total = filtered.length;
+    filtered = filtered.slice((page - 1) * limit, page * limit);
+
+    return {
+      caseId, caseNumber: c.caseNumber,
+      timeline: events,   // الشكل القديم — بدون تغيير
+      stages, items: filtered, total, page, limit,
+    };
+  }
+
+  // ملخص المراحل من تاريخ المراحل. enteredAt = null يعني دخول قبل بدء التتبع (غير معروف).
+  private buildStages(
+    history: Array<{ fromStatus: string | null; toStatus: string; changedBy: string | null; changedAt: Date }>,
+    currentStatus: string,
+    actorName: (id: string | null) => string | null,
+  ) {
+    type Stage = {
+      stage: string; enteredAt: Date | null; exitedAt: Date | null; durationMinutes: number | null;
+      enteredBy: string | null; enteredByName: string | null; exitedBy: string | null; exitedByName: string | null;
+    };
+    const seg = (stage: string, enteredAt: Date | null, enteredBy: string | null): Stage => ({
+      stage, enteredAt, exitedAt: null, durationMinutes: null,
+      enteredBy, enteredByName: actorName(enteredBy), exitedBy: null, exitedByName: null,
+    });
+    const close = (s: Stage, at: Date, by: string | null) => {
+      s.exitedAt = at; s.exitedBy = by; s.exitedByName = actorName(by);
+      s.durationMinutes = s.enteredAt ? Math.round((at.getTime() - s.enteredAt.getTime()) / 60000) : null;
+    };
+
+    const stages: Stage[] = [];
+    for (const h of history) {
+      const prev = stages[stages.length - 1];
+      if (prev) close(prev, h.changedAt, h.changedBy);
+      else if (h.fromStatus) {
+        // أول تغيير مسجّل لحالة قديمة — المرحلة السابقة دخلت قبل بدء التتبع
+        const before = seg(h.fromStatus, null, null);
+        close(before, h.changedAt, h.changedBy);
+        stages.push(before);
+      }
+      stages.push(seg(h.toStatus, h.changedAt, h.changedBy));
+    }
+    // لا تاريخ، أو المرحلة الحالية تغيّرت خارج التطبيق → مرحلة حالية بدخول غير معروف
+    const last = stages[stages.length - 1];
+    if (!last || last.stage !== currentStatus) stages.push(seg(currentStatus, null, null));
+    return stages;
+  }
+
+  // YYYY-MM-DD = حدود اليوم بتوقيت سوريا؛ غير ذلك يُقرأ كتاريخ ISO
+  private parseTimelineBound(v: string | undefined, isEnd: boolean): Date | null {
+    if (!v) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      const d = new Date(`${v}T00:00:00+03:00`);
+      if (isEnd) d.setUTCDate(d.getUTCDate() + 1);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // اسم الموظف ومسمّاه الوظيفي من رقم المستخدم
+  private async resolveActors(userIds: Array<string | null | undefined>) {
+    const ids = [...new Set(userIds.filter(Boolean) as string[])];
+    const map: Record<string, { name: string; role: string | null }> = {};
+    if (ids.length === 0) return map;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string; firstNameAr: string; lastNameAr: string; role: string | null }>>(
+      `SELECT u.id as "userId", e."firstNameAr", e."lastNameAr", jt."nameAr" as role
+       FROM users.users u
+       JOIN users.employees e ON e."userId" = u.id
+       LEFT JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+       WHERE u.id = ANY($1::text[])`,
+      ids,
+    ).catch(() => []);
+    for (const r of rows) map[r.userId] = { name: `${r.firstNameAr ?? ''} ${r.lastNameAr ?? ''}`.trim(), role: r.role };
+    return map;
   }
 
   // ── Attachments (صور البتر وغيرها — واحدة أو أكثر) ──────────────────────────

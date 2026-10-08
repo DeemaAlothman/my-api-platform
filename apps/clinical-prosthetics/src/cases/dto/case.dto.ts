@@ -242,6 +242,36 @@ export class UpdateStatusDto {
 
   @IsOptional() @IsString()
   note?: string;
+
+  /** سبب تغيير المرحلة (خاصة عند الرجوع لمرحلة سابقة) — يُحفظ بتاريخ المراحل */
+  @IsOptional() @IsString()
+  reason?: string;
+}
+
+/** فلاتر السجل الزمني — كلها اختيارية */
+export class TimelineQueryDto {
+  @IsOptional() @IsString()
+  stage?: string;
+
+  @IsOptional() @IsString()
+  type?: string;
+
+  @IsOptional() @IsString()
+  actorId?: string;
+
+  /** YYYY-MM-DD (بداية اليوم بتوقيت سوريا) أو تاريخ ISO كامل */
+  @IsOptional() @IsString()
+  from?: string;
+
+  /** YYYY-MM-DD (شاملاً آخر اليوم بتوقيت سوريا) أو تاريخ ISO كامل */
+  @IsOptional() @IsString()
+  to?: string;
+
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1)
+  page?: number = 1;
+
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200)
+  limit?: number = 50;
 }
 
 export class ListCasesQueryDto {
