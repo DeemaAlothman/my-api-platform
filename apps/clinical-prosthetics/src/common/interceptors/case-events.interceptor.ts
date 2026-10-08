@@ -1,5 +1,5 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
+import { Observable, from, switchMap, tap } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -13,10 +13,18 @@ const METHOD_ACTIONS: Record<string, string> = { POST: 'CREATE', PUT: 'UPDATE', 
 // قيم صغيرة مفيدة للعرض تُنسخ من جسم الطلب (الصنف والكمية…)
 const META_KEYS = ['partName', 'partCode', 'quantity', 'consumableName', 'role', 'decision'];
 const SENSITIVE = /password|token|secret|otp|signature|base64/i;
+const IGNORED_DIFF_KEYS = new Set(['id', 'caseId', 'createdAt', 'updatedAt', 'limbSavedAt', 'romSavedAt']);
+const MAX_VALUE_LEN = 1000;
+
+type Route = {
+  caseId: string; parts: string[]; side?: string; subId?: string;
+  type: string; action: string; isPdf: boolean;
+};
 
 /**
  * يسجّل حدثاً بجدول case_events بعد نجاح أي عملية كتابة على حالة أطراف (وتصدير PDF).
- * لا يغيّر الطلب ولا الرد، وفشل التسجيل لا يؤثر على العملية.
+ * عند التعديل يقرأ السجل قبل وبعد (قراءة فقط) ويحفظ الحقول التي تغيّرت (القيمة القديمة ← الجديدة).
+ * لا يغيّر الطلب ولا الرد، وأي فشل هنا لا يؤثر على العملية.
  */
 @Injectable()
 export class CaseEventsInterceptor implements NestInterceptor {
@@ -27,51 +35,89 @@ export class CaseEventsInterceptor implements NestInterceptor {
     const isPdf = req.method === 'GET' && /\/prosthetics\/cases\/[^/]+\/pdf$/.test(req.path);
     if (req.method === 'GET' && !isPdf) return next.handle();
 
-    return next.handle().pipe(
-      tap({ next: (result) => { this.record(req, result, isPdf).catch(() => {}); } }),
+    let route: Route | null = null;
+    let loader: (() => Promise<any>) | null = null;
+    try {
+      route = this.parseRoute(req, isPdf);
+      loader = route ? this.snapshotLoader(req.method, route) : null;
+    } catch { /* التسجيل لا يوقف الطلب أبداً */ }
+
+    // لقطة "قبل" للتعديلات فقط — فشلها يعني تسجيل الحدث بدون changes
+    const before$ = loader ? Promise.resolve().then(loader).catch(() => null) : Promise.resolve(null);
+
+    return from(before$).pipe(
+      switchMap((before) => next.handle().pipe(
+        tap({ next: (result) => { this.record(req, result, route, loader, before).catch(() => {}); } }),
+      )),
     );
   }
 
-  private async record(req: any, result: any, isPdf: boolean) {
+  private parseRoute(req: any, isPdf: boolean): Route | null {
     const rest = String(req.path).split('/prosthetics/cases')[1]?.split('/').filter(Boolean) ?? [];
-
-    let caseId: string | undefined;
-    let segs: string[];
     if (rest.length === 0) {
-      if (req.method !== 'POST') return;
-      caseId = result?.id;               // إنشاء حالة
-      segs = [];
-    } else {
-      caseId = rest[0];
-      segs = rest.slice(1);
+      // إنشاء حالة — رقمها يُعرف من الرد
+      return req.method === 'POST'
+        ? { caseId: '', parts: [], type: 'CASE_CREATED', action: 'CREATE', isPdf: false }
+        : null;
     }
-    if (!caseId || !UUID_RE.test(caseId)) return;   // مسارات بدون رقم حالة (internal / sessions/...)
-    if (segs[0] === 'status') return;               // تغيير المرحلة مسجّل بتاريخ المراحل
+    const caseId = rest[0];
+    if (!UUID_RE.test(caseId)) return null;          // مسارات بدون رقم حالة (internal / sessions/...)
+    const segs = rest.slice(1);
+    if (segs[0] === 'status') return null;            // تغيير المرحلة مسجّل بتاريخ المراحل
 
-    const parts: string[] = [];
-    const metadata: Record<string, any> = {};
+    const route: Route = { caseId, parts: [], type: '', action: '', isPdf };
     for (const s of segs) {
-      if (UUID_RE.test(s)) metadata.subId = s;
-      else if (SIDES.has(s.toUpperCase())) metadata.side = s.toUpperCase();
-      else parts.push(s);
+      if (UUID_RE.test(s)) route.subId = s;
+      else if (SIDES.has(s.toUpperCase())) route.side = s.toUpperCase();
+      else route.parts.push(s);
     }
-
-    const last = parts[parts.length - 1];
-    let type: string;
-    let action: string;
+    const last = route.parts[route.parts.length - 1];
     if (isPdf) {
-      type = 'CASE_PDF';
-      action = 'EXPORT';
-    } else if (parts.length === 0) {
-      type = req.method === 'POST' ? 'CASE_CREATED' : 'CASE_UPDATED';
-      action = METHOD_ACTIONS[req.method] ?? req.method;
+      route.type = 'CASE_PDF'; route.action = 'EXPORT';
+    } else if (route.parts.length === 0) {
+      route.type = 'CASE_UPDATED'; route.action = METHOD_ACTIONS[req.method] ?? req.method;
     } else {
-      type = parts.join('_').replace(/-/g, '_').toUpperCase();
-      action = VERB_ACTIONS[last] ?? METHOD_ACTIONS[req.method] ?? req.method;
+      route.type = route.parts.join('_').replace(/-/g, '_').toUpperCase();
+      route.action = VERB_ACTIONS[last] ?? METHOD_ACTIONS[req.method] ?? req.method;
     }
+    return route;
+  }
+
+  // يحدد السجل الذي يعدّله كل مسار تعديل — قراءة فقط
+  private snapshotLoader(method: string, r: Route): (() => Promise<any>) | null {
+    if (method !== 'PUT' && method !== 'PATCH') return null;
+    const p = this.prisma as any;
+    const { caseId, side, subId } = r;
+    switch (r.parts.join('/')) {
+      case '':                               return () => p.prostheticsCase.findUnique({ where: { id: caseId } });
+      case 'assessment-upper':               return side ? () => p.upperLimbAssessment.findFirst({ where: { caseId, side }, orderBy: { examinedAt: 'desc' } }) : null;
+      case 'assessment-lower':               return side ? () => p.lowerLimbAssessment.findFirst({ where: { caseId, side }, orderBy: { examinedAt: 'desc' } }) : null;
+      case 'committee/decide':
+      case 'committee/assign':               return () => p.committeeReview.findUnique({ where: { caseId } });
+      case 'gait-analysis':                  return () => p.gaitAnalysis.findUnique({ where: { caseId } });
+      case 'final-evaluation':               return () => p.finalEvaluation.findUnique({ where: { caseId } });
+      case 'final-delivery':                 return () => p.finalDeliveryForm.findUnique({ where: { caseId } });
+      case 'treatment-programs':             return subId ? () => p.caseTreatmentProgram.findFirst({ where: { id: subId, caseId } }) : null;
+      case 'balance-assessment':             return subId ? () => p.balanceAssessmentForm.findFirst({ where: { id: subId, caseId } }) : null;
+      case 'gait-analysis-forms':            return subId ? () => p.gaitAnalysisForm.findFirst({ where: { id: subId, caseId } }) : null;
+      case 'review-program':                 return subId ? () => p.patientReviewProgram.findFirst({ where: { id: subId, caseId } }) : null;
+      case 'prosthetic-delivery/items':
+      case 'prosthetic-delivery/items/approve': return subId ? () => p.prostheticDeliveryItem.findUnique({ where: { id: subId } }) : null;
+      default:                               return null;
+    }
+  }
+
+  private async record(req: any, result: any, route: Route | null, loader: (() => Promise<any>) | null, before: any) {
+    if (!route) return;
+    const caseId = route.caseId || result?.id;
+    if (!caseId || !UUID_RE.test(caseId)) return;
 
     const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
     const fields = Object.keys(body).filter((k) => !SENSITIVE.test(k));
+
+    const metadata: Record<string, any> = {};
+    if (route.side) metadata.side = route.side;
+    if (route.subId) metadata.subId = route.subId;
     for (const k of META_KEYS) {
       const v = body[k];
       if (v !== undefined && (typeof v !== 'string' || v.length <= 200)) metadata[k] = v;
@@ -79,12 +125,21 @@ export class CaseEventsInterceptor implements NestInterceptor {
     if (Array.isArray(req.body)) metadata.count = req.body.length;
     if (Array.isArray(body.items)) metadata.count = body.items.length;
 
+    // القيمة القديمة ← الجديدة (للتعديلات فقط)
+    if (loader && before) {
+      const after = await Promise.resolve().then(loader).catch(() => null);
+      if (after) {
+        const changes = this.diff(before, after, fields);
+        if (changes.length) metadata.changes = changes;
+      }
+    }
+
     const c = await this.prisma.prostheticsCase.findUnique({ where: { id: caseId }, select: { status: true } });
     if (!c) return;
 
     await this.prisma.caseEvent.create({
       data: {
-        caseId, type, action,
+        caseId, type: route.type, action: route.action,
         stage: c.status as string,
         actorId: req.user?.userId ?? null,
         method: req.method,
@@ -93,5 +148,26 @@ export class CaseEventsInterceptor implements NestInterceptor {
         metadata: Object.keys(metadata).length ? metadata : undefined,
       },
     });
+  }
+
+  // الحقول المرسلة (أو كل الحقول إن لم يُرسل شيء) التي تغيّرت فعلاً بين قبل وبعد
+  private diff(before: Record<string, any>, after: Record<string, any>, fields: string[]) {
+    const keys = (fields.length ? fields : Object.keys(after))
+      .filter((k) => k in after && !IGNORED_DIFF_KEYS.has(k) && !SENSITIVE.test(k));
+    const out: Array<{ field: string; oldValue: any; newValue: any }> = [];
+    for (const k of keys) {
+      const o = this.normalize(before[k]);
+      const n = this.normalize(after[k]);
+      if (JSON.stringify(o) !== JSON.stringify(n)) out.push({ field: k, oldValue: o, newValue: n });
+    }
+    return out;
+  }
+
+  private normalize(v: any): any {
+    if (v === undefined) return null;
+    if (v instanceof Date) return v.toISOString();
+    const s = JSON.stringify(v);
+    if (s && s.length > MAX_VALUE_LEN) return { truncated: true, length: s.length };
+    return v;
   }
 }

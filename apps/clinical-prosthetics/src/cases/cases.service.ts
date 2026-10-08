@@ -2261,8 +2261,8 @@ export class CasesService {
         title: ev.type, description: null, date: ev.createdAt,
         actorId: ev.actorId, actorName: actorName(ev.actorId),
         actorRole: ev.actorId && actors[ev.actorId] ? actors[ev.actorId].role : null,
-        changes: [],
-        metadata: { ...(ev.metadata ?? {}), fields: ev.fields },
+        changes: Array.isArray(ev.metadata?.changes) ? ev.metadata.changes : [],
+        metadata: { ...(ev.metadata ?? {}), changes: undefined, fields: ev.fields },
       });
     }
 
