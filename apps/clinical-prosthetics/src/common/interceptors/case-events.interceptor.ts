@@ -2,7 +2,7 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nes
 import { Observable, from, switchMap, tap } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SIDES = new Set(['LEFT', 'RIGHT', 'BILATERAL']);
 // آخر جزء من المسار يحدد نوع العملية إن كان فعلاً
 const VERB_ACTIONS: Record<string, string> = {
@@ -11,15 +11,50 @@ const VERB_ACTIONS: Record<string, string> = {
 };
 const METHOD_ACTIONS: Record<string, string> = { POST: 'CREATE', PUT: 'UPDATE', PATCH: 'UPDATE', DELETE: 'DELETE' };
 // قيم صغيرة مفيدة للعرض تُنسخ من جسم الطلب (الصنف والكمية…)
-const META_KEYS = ['partName', 'partCode', 'quantity', 'consumableName', 'role', 'decision'];
-const SENSITIVE = /password|token|secret|otp|signature|base64/i;
+export const META_KEYS = ['partName', 'partCode', 'quantity', 'consumableName', 'role', 'decision'];
+export const SENSITIVE = /password|token|secret|otp|signature|base64/i;
 const IGNORED_DIFF_KEYS = new Set(['id', 'caseId', 'createdAt', 'updatedAt', 'limbSavedAt', 'romSavedAt']);
 const MAX_VALUE_LEN = 1000;
 
-type Route = {
+export type Route = {
   caseId: string; parts: string[]; side?: string; subId?: string;
   type: string; action: string; isPdf: boolean;
 };
+
+/**
+ * يحوّل مسار طلب على حالة أطراف إلى نوع حدث + عملية (مشترك بين الحارس وسكربت تعبئة الحالات القديمة).
+ * يرجع null للمسارات التي لا تُسجَّل (بدون رقم حالة، أو تغيير المرحلة المسجّل بتاريخ المراحل).
+ */
+export function parseCaseRoute(method: string, path: string, isPdf: boolean): Route | null {
+  const rest = String(path).split('/prosthetics/cases')[1]?.split('/').filter(Boolean) ?? [];
+  if (rest.length === 0) {
+    // إنشاء حالة — رقمها يُعرف من الرد
+    return method === 'POST'
+      ? { caseId: '', parts: [], type: 'CASE_CREATED', action: 'CREATE', isPdf: false }
+      : null;
+  }
+  const caseId = rest[0];
+  if (!UUID_RE.test(caseId)) return null;          // مسارات بدون رقم حالة (internal / sessions/...)
+  const segs = rest.slice(1);
+  if (segs[0] === 'status') return null;            // تغيير المرحلة مسجّل بتاريخ المراحل
+
+  const route: Route = { caseId, parts: [], type: '', action: '', isPdf };
+  for (const s of segs) {
+    if (UUID_RE.test(s)) route.subId = s;
+    else if (SIDES.has(s.toUpperCase())) route.side = s.toUpperCase();
+    else route.parts.push(s);
+  }
+  const last = route.parts[route.parts.length - 1];
+  if (isPdf) {
+    route.type = 'CASE_PDF'; route.action = 'EXPORT';
+  } else if (route.parts.length === 0) {
+    route.type = 'CASE_UPDATED'; route.action = METHOD_ACTIONS[method] ?? method;
+  } else {
+    route.type = route.parts.join('_').replace(/-/g, '_').toUpperCase();
+    route.action = VERB_ACTIONS[last] ?? METHOD_ACTIONS[method] ?? method;
+  }
+  return route;
+}
 
 /**
  * يسجّل حدثاً بجدول case_events بعد نجاح أي عملية كتابة على حالة أطراف (وتصدير PDF).
@@ -38,7 +73,7 @@ export class CaseEventsInterceptor implements NestInterceptor {
     let route: Route | null = null;
     let loader: (() => Promise<any>) | null = null;
     try {
-      route = this.parseRoute(req, isPdf);
+      route = parseCaseRoute(req.method, req.path, isPdf);
       loader = route ? this.snapshotLoader(req.method, route) : null;
     } catch { /* التسجيل لا يوقف الطلب أبداً */ }
 
@@ -50,37 +85,6 @@ export class CaseEventsInterceptor implements NestInterceptor {
         tap({ next: (result) => { this.record(req, result, route, loader, before).catch(() => {}); } }),
       )),
     );
-  }
-
-  private parseRoute(req: any, isPdf: boolean): Route | null {
-    const rest = String(req.path).split('/prosthetics/cases')[1]?.split('/').filter(Boolean) ?? [];
-    if (rest.length === 0) {
-      // إنشاء حالة — رقمها يُعرف من الرد
-      return req.method === 'POST'
-        ? { caseId: '', parts: [], type: 'CASE_CREATED', action: 'CREATE', isPdf: false }
-        : null;
-    }
-    const caseId = rest[0];
-    if (!UUID_RE.test(caseId)) return null;          // مسارات بدون رقم حالة (internal / sessions/...)
-    const segs = rest.slice(1);
-    if (segs[0] === 'status') return null;            // تغيير المرحلة مسجّل بتاريخ المراحل
-
-    const route: Route = { caseId, parts: [], type: '', action: '', isPdf };
-    for (const s of segs) {
-      if (UUID_RE.test(s)) route.subId = s;
-      else if (SIDES.has(s.toUpperCase())) route.side = s.toUpperCase();
-      else route.parts.push(s);
-    }
-    const last = route.parts[route.parts.length - 1];
-    if (isPdf) {
-      route.type = 'CASE_PDF'; route.action = 'EXPORT';
-    } else if (route.parts.length === 0) {
-      route.type = 'CASE_UPDATED'; route.action = METHOD_ACTIONS[req.method] ?? req.method;
-    } else {
-      route.type = route.parts.join('_').replace(/-/g, '_').toUpperCase();
-      route.action = VERB_ACTIONS[last] ?? METHOD_ACTIONS[req.method] ?? req.method;
-    }
-    return route;
   }
 
   // يحدد السجل الذي يعدّله كل مسار تعديل — قراءة فقط
