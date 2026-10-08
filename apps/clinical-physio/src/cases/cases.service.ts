@@ -15,9 +15,13 @@ import {
 // الترتيب: استقبال → شكوى → خريطة الألم → التاريخ الطبي → أهداف العلاج →
 // خطة العلاج (Assessment) → خطة العلاج (Treatment) → التقييم → الجلسات العلاجية →
 // رأي رئيس القسم → مكتمل. (أُلغي التوقيع/DOCTOR_SIGN نهائياً.)
+// معاينة الطبيب: الشكوى ← خريطة الألم ← التاريخ الطبي، ويمكن إنهاؤها أو إلغاؤها من أي مرحلة.
+// (التحويل لعلاج فيزيائي convert-to-physio لا يعتمد على المرحلة)
 const DOCTOR_EXAM_TRANSITIONS: Record<string, string[]> = {
-  INTAKE:    ['COMPLAINT', 'CANCELLED'],
-  COMPLAINT: ['COMPLETED', 'CANCELLED'],
+  INTAKE:          ['COMPLAINT', 'CANCELLED'],
+  COMPLAINT:       ['PAIN_MAP', 'COMPLETED', 'CANCELLED'],
+  PAIN_MAP:        ['MEDICAL_HISTORY', 'COMPLETED', 'CANCELLED'],
+  MEDICAL_HISTORY: ['COMPLETED', 'CANCELLED'],
   COMPLETED: [],
   CANCELLED: [],
 };
