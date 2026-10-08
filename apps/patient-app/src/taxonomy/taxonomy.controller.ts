@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
 import { Permission } from '@shared/decorators/permission.decorator';
@@ -85,5 +85,30 @@ export class TaxonomyController {
   @Permission(PERMISSIONS.CLINIC_PATIENT_APP.TAXONOMY_MANAGE)
   updateGoal(@Param('id') id: string, @Body() dto: UpdateExerciseGoalDto) {
     return this.service.updateGoal(id, dto);
+  }
+
+  // ── الحذف — يُرفض (409) إذا كان العنصر مرتبطاً بتمارين أو تصنيفات أخرى ──
+  @Delete('body-regions/:id')
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.TAXONOMY_MANAGE)
+  deleteBodyRegion(@Param('id') id: string) {
+    return this.service.deleteBodyRegion(id);
+  }
+
+  @Delete('target-regions/:id')
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.TAXONOMY_MANAGE)
+  deleteTargetRegion(@Param('id') id: string) {
+    return this.service.deleteTargetRegion(id);
+  }
+
+  @Delete('sub-target-regions/:id')
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.TAXONOMY_MANAGE)
+  deleteSubTargetRegion(@Param('id') id: string) {
+    return this.service.deleteSubTargetRegion(id);
+  }
+
+  @Delete('goals/:id')
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.TAXONOMY_MANAGE)
+  deleteGoal(@Param('id') id: string) {
+    return this.service.deleteGoal(id);
   }
 }

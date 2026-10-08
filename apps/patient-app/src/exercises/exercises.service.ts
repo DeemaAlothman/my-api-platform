@@ -77,6 +77,16 @@ export class ExercisesService {
     return withThumbnailFallback(updated);
   }
 
+  // حذف ناعم: يختفي التمرين من المكتبة والقوائم، ويبقى محفوظاً حتى لا تنكسر الإسنادات وسجلات التنفيذ السابقة
+  async remove(id: string, userId: string) {
+    await this.findOne(id);
+    await this.prisma.exercise.update({
+      where: { id },
+      data: { deletedAt: new Date(), updatedByUserId: userId },
+    });
+    return { id, message: 'تم حذف التمرين' };
+  }
+
   // رفع ملف الوسائط (فيديو/صورة) للتمرين — يُخزَّن على Backblaze B2 (S3-compatible) عبر StorageService.
   // ترتيب الخطوات مقصود: رفع أولاً → تحديث DB → حذف القديم فقط بعد نجاح كل شي (صفر خطر فقدان وسائط).
   async uploadMedia(id: string, file: Express.Multer.File, userId: string) {

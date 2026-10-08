@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateBodyRegionDto, UpdateBodyRegionDto,
@@ -65,6 +65,56 @@ export class TaxonomyService {
   async updateGoal(id: string, dto: UpdateExerciseGoalDto) {
     await this.mustExist('exerciseGoal', id);
     return this.prisma.exerciseGoal.update({ where: { id }, data: dto });
+  }
+
+  // ── الحذف — نهائي، لكن يُرفض إذا كان العنصر مرتبطاً بأي شيء (حتى لا تضيع تمارين أو تصنيفات) ──
+  // عدد التمارين يشمل المحذوفة حذفاً ناعماً لأنها ما زالت مرتبطة بالمنطقة في قاعدة البيانات
+  async deleteBodyRegion(id: string) {
+    await this.mustExist('bodyRegion', id);
+    const [targets, exercises] = await Promise.all([
+      this.prisma.targetRegion.count({ where: { bodyRegionId: id } }),
+      this.prisma.exercise.count({ where: { bodyRegionId: id } }),
+    ]);
+    this.assertUnlinked({ 'منطقة مستهدفة': targets, 'تمرين': exercises });
+    await this.prisma.bodyRegion.delete({ where: { id } });
+    return { id, message: 'تم حذف المنطقة الجسدية' };
+  }
+
+  async deleteTargetRegion(id: string) {
+    await this.mustExist('targetRegion', id);
+    const [subs, exercises] = await Promise.all([
+      this.prisma.subTargetRegion.count({ where: { targetRegionId: id } }),
+      this.prisma.exercise.count({ where: { targetRegionId: id } }),
+    ]);
+    this.assertUnlinked({ 'منطقة فرعية': subs, 'تمرين': exercises });
+    await this.prisma.targetRegion.delete({ where: { id } });
+    return { id, message: 'تم حذف المنطقة المستهدفة' };
+  }
+
+  async deleteSubTargetRegion(id: string) {
+    await this.mustExist('subTargetRegion', id);
+    const exercises = await this.prisma.exercise.count({ where: { subTargetRegionId: id } });
+    this.assertUnlinked({ 'تمرين': exercises });
+    await this.prisma.subTargetRegion.delete({ where: { id } });
+    return { id, message: 'تم حذف المنطقة الفرعية' };
+  }
+
+  async deleteGoal(id: string) {
+    await this.mustExist('exerciseGoal', id);
+    const links = await this.prisma.exerciseGoalLink.count({ where: { goalId: id } });
+    this.assertUnlinked({ 'تمرين': links });
+    await this.prisma.exerciseGoal.delete({ where: { id } });
+    return { id, message: 'تم حذف الهدف' };
+  }
+
+  private assertUnlinked(counts: Record<string, number>) {
+    const linked = Object.entries(counts).filter(([, n]) => n > 0);
+    if (!linked.length) return;
+    throw new ConflictException({
+      code: 'TAXONOMY_IN_USE',
+      message: `لا يمكن الحذف: مرتبط بـ ${linked.map(([label, n]) => `${n} ${label}`).join(' و ')}. انقل أو احذف المرتبط أولاً.`,
+      details: Object.fromEntries(linked),
+    });
   }
 
   private async mustExist(model: 'bodyRegion' | 'targetRegion' | 'subTargetRegion' | 'exerciseGoal', id: string) {

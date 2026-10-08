@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { createReadStream, existsSync } from 'fs';
@@ -44,6 +44,12 @@ export class ExercisesController {
   @Permission(PERMISSIONS.CLINIC_PATIENT_APP.EXERCISE_LIBRARY_MANAGE)
   update(@Param('id') id: string, @Body() dto: UpdateExerciseDto, @User() user: any) {
     return this.service.update(id, dto, user.userId);
+  }
+
+  @Delete(':id')
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.EXERCISE_LIBRARY_MANAGE)
+  remove(@Param('id') id: string, @User() user: any) {
+    return this.service.remove(id, user.userId);
   }
 
   // رفع فيديو/صورة التمرين — يُرفع مباشرة لـBackblaze B2 (بدون حفظ مؤقت على قرص السيرفر)
