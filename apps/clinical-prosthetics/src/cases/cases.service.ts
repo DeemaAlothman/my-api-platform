@@ -1693,9 +1693,8 @@ export class CasesService {
   // ── Case Treatment Program Pro-004 (مرتبط بالحالة مباشرة) ──────────────
 
   async addCaseTreatmentProgram(caseId: string, dto: CaseTreatmentProgramDto) {
-    await this.findCaseOrThrow(caseId);
-    const finalDelivery = await this.prisma.finalDeliveryForm.findUnique({ where: { caseId } });
-    if (finalDelivery) throw new BadRequestException('لا يمكن إضافة جلسات بعد إتمام التسليم النهائي');
+    const c = await this.findCaseOrThrow(caseId);
+    if (c.status === 'DELIVERED') throw new BadRequestException('لا يمكن إضافة جلسات بعد إتمام التسليم النهائي');
     return this.prisma.caseTreatmentProgram.create({
       data: {
         caseId,
