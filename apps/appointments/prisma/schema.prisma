@@ -162,6 +162,7 @@ model PotentialClient {
   arrivalMethod     ArrivalMethod?
   interestedService String
   contactNumber     String
+  residence         String?  // مكان الإقامة
   notes             String? @db.Text
 
   // null = لم يُحدَّد بعد

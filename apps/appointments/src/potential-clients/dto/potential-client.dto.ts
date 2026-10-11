@@ -23,6 +23,10 @@ export class CreatePotentialClientDto {
   @IsString() @IsNotEmpty()
   contactNumber: string;
 
+  /** مكان الإقامة */
+  @IsOptional() @IsString()
+  residence?: string;
+
   @IsOptional() @IsString()
   notes?: string;
 
@@ -53,6 +57,10 @@ export class UpdatePotentialClientDto {
 
   @IsOptional() @IsString() @IsNotEmpty()
   contactNumber?: string;
+
+  /** مكان الإقامة */
+  @IsOptional() @IsString()
+  residence?: string;
 
   @IsOptional() @IsString()
   notes?: string;

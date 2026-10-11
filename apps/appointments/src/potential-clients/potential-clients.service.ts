@@ -27,6 +27,7 @@ export class PotentialClientsService {
         arrivalMethod:     dto.arrivalMethod as any,
         interestedService: dto.interestedService,
         contactNumber:     dto.contactNumber,
+        residence:         dto.residence,
         notes:             dto.notes,
         visitedCenter:     dto.visitedCenter ?? null,
         paidVisit:         dto.paidVisit ?? null,
@@ -105,6 +106,7 @@ export class PotentialClientsService {
       e.arrivalMethod ? (ARRIVAL_AR[e.arrivalMethod] ?? e.arrivalMethod) : '',
       e.interestedService ?? '',
       e.contactNumber ?? '',
+      e.residence ?? '',
       YES_NO_AR(e.visitedCenter),
       YES_NO_AR(e.paidVisit),
       e.notes ?? '',
@@ -112,7 +114,7 @@ export class PotentialClientsService {
     await sendExcel(
       res,
       'العملاء المحتملين',
-      ['اسم المريض', 'الجنس', 'العمر', 'تاريخ التسجيل', 'طريقة الوصول', 'خدمة مهتم بها', 'رقم التواصل', 'زار المركز', 'استفاد بدفع فعلي', 'الملاحظات'],
+      ['اسم المريض', 'الجنس', 'العمر', 'تاريخ التسجيل', 'طريقة الوصول', 'خدمة مهتم بها', 'رقم التواصل', 'مكان الإقامة', 'زار المركز', 'استفاد بدفع فعلي', 'الملاحظات'],
       rows,
     );
   }
@@ -134,6 +136,7 @@ export class PotentialClientsService {
         arrivalMethod:     dto.arrivalMethod as any,
         interestedService: dto.interestedService,
         contactNumber:     dto.contactNumber,
+        residence:         dto.residence,
         notes:             dto.notes,
         visitedCenter:     dto.visitedCenter,
         paidVisit:         dto.paidVisit,
