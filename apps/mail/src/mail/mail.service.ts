@@ -296,25 +296,91 @@ export class MailService {
       ? original.subject
       : `Fwd: ${original.subject}`;
 
-    const separator = '\n\n---------- رسالة محوَّلة ----------\n';
-    const forwardBody = dto.body?.trim()
-      ? dto.body + separator + original.body
-      : original.body;
+    // المحادثة كاملة بدل الرسالة الأخيرة وحدها — بنفس فلتر صلاحية getThread بالضبط:
+    // المحوِّل يرى فقط الرسائل التي هو مُرسِلها أو أحد مستقبليها
+    const rootId = original.threadRootId ?? original.id;
+    const visibleThread = await (this.prisma as any).mailMessage.findMany({
+      where: {
+        OR: [{ id: rootId }, { threadRootId: rootId }],
+        deletedAt: null,
+        AND: [
+          {
+            OR: [
+              { senderId },
+              { recipients: { some: { recipientId: senderId } } },
+            ],
+          },
+        ],
+      },
+      include: { attachments: true },
+      orderBy: { createdAt: 'asc' },
+    });
 
-    // انسخ مرفقات الرسالة الأصلية كمرفقات يتيمة جديدة (لنفس الملف على القرص) لتُربط بالرسالة المُحوَّلة
-    const carriedAttachmentIds: string[] = [];
-    for (const att of original.attachments ?? []) {
-      const copy = await (this.prisma as any).mailAttachment.create({
-        data: {
-          messageId: null,
-          uploadedBy: senderId,
-          fileUrl: att.fileUrl,
-          fileName: att.fileName,
-          fileSize: att.fileSize,
-          mimeType: att.mimeType,
-        },
+    // احتياط توافقي: لو تعذّر جلب المحادثة لأي سبب، نرجع لسلوك التحويل القديم (الرسالة وحدها)
+    const threadMessages = visibleThread.length > 0 ? visibleThread : [original];
+
+    const nameMap = await resolveUserIdsToNames(
+      [...new Set(threadMessages.map((m: any) => m.senderId).filter(Boolean))] as string[],
+    );
+    const senderLabel = (userId: string): string => {
+      const info = nameMap[userId];
+      const name = `${info?.firstNameAr ?? ''} ${info?.lastNameAr ?? ''}`.trim();
+      return name || 'غير معروف';
+    };
+    // أوقات العمل محلية (UTC+3) بينما الحاوية تعمل بتوقيت UTC — نعرض التاريخ بتوقيت العمل
+    const formatDateTime = (value: Date): string => {
+      const t = new Date(new Date(value).getTime() + 3 * 60 * 60 * 1000);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())} ${pad(t.getUTCHours())}:${pad(t.getUTCMinutes())}`;
+    };
+
+    const conversation = threadMessages
+      .map((m: any) => [
+        '────────────────────',
+        `من: ${senderLabel(m.senderId)}`,
+        `الموضوع: ${m.subject ?? ''}`,
+        `التاريخ: ${formatDateTime(m.createdAt)}`,
+        '',
+        m.body ?? '',
+      ].join('\n'))
+      .join('\n\n');
+
+    // ملاحظة المحوِّل (body القادم من الفرونت) تبقى بأعلى الرسالة، فوق المحادثة
+    const separator = '\n\n---------- محادثة محوَّلة ----------\n\n';
+    const forwardBody = dto.body?.trim()
+      ? dto.body + separator + conversation
+      : conversation;
+
+    // مرفقات كل رسائل المحادثة المرئية (مش الأخيرة وحدها)، بدون تكرار لنفس الملف.
+    // تُنسخ كمرفقات يتيمة جديدة تشير لنفس الملف على القرص لتُربط بالرسالة المُحوَّلة.
+    const seenFileUrls = new Set<string>();
+    // استثناء الملفات التي سيربطها send() أصلاً من dto.attachmentIds (اليتيمة المملوكة للمُرسِل فقط،
+    // وهو نفس شرط الربط داخل sendWithUserIds) حتى لا تتكرر
+    if (dto.attachmentIds?.length) {
+      const alreadyAttached = await (this.prisma as any).mailAttachment.findMany({
+        where: { id: { in: dto.attachmentIds }, uploadedBy: senderId, messageId: null },
+        select: { fileUrl: true },
       });
-      carriedAttachmentIds.push(copy.id);
+      for (const a of alreadyAttached) seenFileUrls.add(a.fileUrl);
+    }
+
+    const carriedAttachmentIds: string[] = [];
+    for (const m of threadMessages) {
+      for (const att of m.attachments ?? []) {
+        if (seenFileUrls.has(att.fileUrl)) continue;
+        seenFileUrls.add(att.fileUrl);
+        const copy = await (this.prisma as any).mailAttachment.create({
+          data: {
+            messageId: null,
+            uploadedBy: senderId,
+            fileUrl: att.fileUrl,
+            fileName: att.fileName,
+            fileSize: att.fileSize,
+            mimeType: att.mimeType,
+          },
+        });
+        carriedAttachmentIds.push(copy.id);
+      }
     }
 
     return this.send(senderId, {
