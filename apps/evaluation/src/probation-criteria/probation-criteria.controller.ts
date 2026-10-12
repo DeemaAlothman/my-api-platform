@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Query, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ProbationCriteriaService } from './probation-criteria.service';
 import { CreateProbationCriteriaDto, JobTitleCriteriaDto, SetJobTitleCriteriaEnabledDto } from './dto/create-probation-criteria.dto';
@@ -12,7 +12,7 @@ export class ProbationCriteriaController {
   constructor(private readonly service: ProbationCriteriaService) {}
 
   @Get()
-  findAll() { return this.service.findAll(); }
+  findAll(@Query('employeeId') employeeId?: string) { return this.service.findAll(employeeId); }
 
   @Post()
   create(@Body() dto: CreateProbationCriteriaDto) { return this.service.create(dto); }

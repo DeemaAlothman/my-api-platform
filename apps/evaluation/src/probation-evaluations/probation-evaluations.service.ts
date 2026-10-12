@@ -46,36 +46,9 @@ export class ProbationEvaluationsService {
       },
     });
 
-    // الأسئلة العامة (تظهر للكل افتراضياً) + أي سؤال مخصص باسم هالموظف تحديداً (الأسلوب القديم)
-    let allCriteria = await this.prisma.probationCriteria.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { targetEmployeeId: null },
-          { targetEmployeeId: dto.employeeId },
-        ],
-      },
-      orderBy: { displayOrder: 'asc' },
-    });
-
-    // تخصيص حسب المسمى الوظيفي: استثناء أسئلة عامة معطّلة لهالمسمى + إضافة أسئلة خاصة به
+    // سؤال غير أساسي ينضاف فقط لو: عام فعلاً (بدون مسمى مرتبط) أو مستهدف هالموظف أو مربوط بمسماه الوظيفي
     const jobTitleId = await this.resolveEmployeeJobTitleId(dto.employeeId);
-    if (jobTitleId) {
-      const jobTitleLinks = await this.prisma.jobTitleCriteria.findMany({
-        where: { jobTitleId },
-        include: { criteria: true },
-      });
-      const disabledIds = new Set(jobTitleLinks.filter(l => !l.isEnabled).map(l => l.criteriaId));
-      const enabledExtra = jobTitleLinks
-        .filter(l => l.isEnabled && l.criteria.isActive)
-        .map(l => l.criteria);
-
-      const merged = [...allCriteria.filter(c => !disabledIds.has(c.id)), ...enabledExtra];
-      const seen = new Set<string>();
-      allCriteria = merged
-        .filter(c => (seen.has(c.id) ? false : (seen.add(c.id), true)))
-        .sort((a, b) => a.displayOrder - b.displayOrder);
-    }
+    const allCriteria = await this.selectCriteriaForEmployee(dto.employeeId, jobTitleId);
 
     if (allCriteria.length > 0) {
       await this.prisma.probationCriteriaScore.createMany({
@@ -135,12 +108,18 @@ export class ProbationEvaluationsService {
     const evaluation = await this.prisma.probationEvaluation.findUnique({
       where: { id },
       include: {
-        scores: { include: { criteria: true } },
+        scores: { include: { criteria: { include: { jobTitleOverrides: true } } } },
         history: { orderBy: { createdAt: 'asc' } },
       },
     });
     if (!evaluation) throw new NotFoundException('التقييم غير موجود');
-    return evaluation;
+    return { ...evaluation, scores: evaluation.scores.map(this.withCriteriaJobTitleIds) };
+  }
+
+  // يستبدل jobTitleOverrides الخام بقائمة jobTitleIds نظيفة ضمن criteria
+  private withCriteriaJobTitleIds<T extends { criteria: { jobTitleOverrides: { jobTitleId: string }[] } & Record<string, any> }>(score: T) {
+    const { jobTitleOverrides, ...criteriaRest } = score.criteria;
+    return { ...score, criteria: { ...criteriaRest, jobTitleIds: jobTitleOverrides.map((o) => o.jobTitleId) } };
   }
 
   async findByEmployee(employeeId: string) {
@@ -1048,6 +1027,24 @@ export class ProbationEvaluationsService {
     for (const uid of userIds) {
       await this.sendNotification(uid, type, titleAr, titleEn, messageAr, messageEn, data);
     }
+  }
+
+  // سؤال غير أساسي ينضاف فقط لو: عام فعلاً (بدون أي مسمى مرتبط) أو مستهدف هالموظف بالاسم
+  // أو مربوط بمسماه الوظيفي ومفعّل له. سؤال مربوط بمسمى غير مسمى الموظف لا ينضاف إطلاقاً.
+  private async selectCriteriaForEmployee(employeeId: string, jobTitleId: string | null) {
+    const allActive = await this.prisma.probationCriteria.findMany({
+      where: { isActive: true },
+      include: { jobTitleOverrides: true },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    return allActive.filter((c) => {
+      if (c.targetEmployeeId === employeeId) return true;
+      if (c.targetEmployeeId) return false;
+      if (c.jobTitleOverrides.length === 0) return true;
+      const myLink = jobTitleId ? c.jobTitleOverrides.find((l) => l.jobTitleId === jobTitleId) : undefined;
+      return !!myLink && myLink.isEnabled;
+    });
   }
 
   // جلب المسمى الوظيفي للموظف من خدمة users

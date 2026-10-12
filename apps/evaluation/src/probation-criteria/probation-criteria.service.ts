@@ -6,22 +6,39 @@ import { CreateProbationCriteriaDto } from './dto/create-probation-criteria.dto'
 export class ProbationCriteriaService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // بدون employeeId: كل الأسئلة (شاشة إدارة الأسئلة). مع employeeId: فقط ما ينطبق فعلياً على هالموظف
+  // (عام بدون مسمى مرتبط، أو مستهدف باسمه، أو مربوط بمسماه الوظيفي ومفعّل له)
   async findAll(employeeId?: string) {
+    const jobTitleId = employeeId ? await this.resolveEmployeeJobTitleId(employeeId) : null;
+
     const items = await this.prisma.probationCriteria.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { targetEmployeeId: null },
-          ...(employeeId ? [{ targetEmployeeId: employeeId }] : []),
-        ],
-      },
-      include: { jobTitleOverrides: { where: { isEnabled: true }, select: { jobTitleId: true } } },
+      where: { isActive: true },
+      include: { jobTitleOverrides: { select: { jobTitleId: true, isEnabled: true } } },
       orderBy: { displayOrder: 'asc' },
     });
-    return items.map(({ jobTitleOverrides, ...c }) => ({
+
+    const visible = employeeId
+      ? items.filter((c) => {
+          if (c.targetEmployeeId) return c.targetEmployeeId === employeeId;
+          if (c.jobTitleOverrides.length === 0) return true;
+          const myLink = jobTitleId ? c.jobTitleOverrides.find((l) => l.jobTitleId === jobTitleId) : undefined;
+          return !!myLink && myLink.isEnabled;
+        })
+      : items;
+
+    return visible.map(({ jobTitleOverrides, ...c }) => ({
       ...c,
-      jobTitleIds: jobTitleOverrides.map(o => o.jobTitleId),
+      jobTitleIds: jobTitleOverrides.filter((o) => o.isEnabled).map((o) => o.jobTitleId),
     }));
+  }
+
+  // جلب المسمى الوظيفي للموظف من خدمة users
+  private async resolveEmployeeJobTitleId(employeeId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ jobTitleId: string | null }>>(
+      `SELECT "jobTitleId" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      employeeId,
+    );
+    return rows[0]?.jobTitleId ?? null;
   }
 
   // يجمع jobTitleId المفرد (توافق عكسي) مع jobTitleIds بدون تكرار
