@@ -267,18 +267,21 @@ export class PayrollService {
           continue;
         }
         const minutes = Math.round((leave.durationHours || 0) * 60);
-        // إجازة يدوية من نوع HOURLY تحديداً (نفس النوع اللي منه رصيد التأخير/الخروج المبكر
-        // المشترك)، وبمنتصف الدوام (لا تلامس بداية أو نهاية الدوام): تُجمَّع هون فقط، وتُستهلك
-        // لاحقاً من نفس الرصيد المشترك بترتيب زمني موحّد (أدناه) بدل رصيد مستقل مضاعَف — بس فقط
-        // إذا كان رصيد التأخير/الخروج المبكر المشترك سيُحسب أصلاً لهذا الموظف (نفس شرط الكتلة
-        // الموحّدة تماماً). أما الإجازة اللي تلامس بداية/نهاية الدوام فهي أصلاً مُعالجة كـ"تغطية"
-        // مباشرة (تُلغي التأخير/الخروج المبكر لنفس يومها بالضبط) بمكان آخر بالكتلة الموحّدة —
-        // فتبقى بمسارها القديم المستقل هون، حتى لا تُحسب مرتين (مؤكَّد بحالة حقيقية سليمة:
-        // موظفة إجازتها 10:00-12:00 تطابق بداية دوامها 10:00 بالضبط، وتغطي تأخيرها لنفس اليوم)
-        const touchesShiftBoundary = !!leave.startTime && !!leave.endTime && !!scheduleWorkStartTime && !!scheduleWorkEndTime &&
-          (leave.startTime <= scheduleWorkStartTime || leave.endTime >= scheduleWorkEndTime);
+        // كل إجازة يدوية من نوع HOURLY (نفس النوع اللي منه رصيد التأخير/الخروج المبكر) — سواء
+        // بأول الدوام أو آخره أو منتصفه — تُجمَّع هون فقط، وتُستهلك لاحقاً من **رصيد واحد مشترك**
+        // بترتيب زمني موحّد (أدناه) مع التأخير والخروج المبكر. الحد الشهري (ساعتان) واحد للجميع.
+        //
+        // ملاحظة: لا يوجد حساب مزدوج مع "التغطية" (إلغاء تأخير/خروج اليوم نفسه بإجازة تلامس حدود
+        // الدوام)، لأن التغطية لا تستهلك الرصيد — هي فقط تُصفّر دقائق الحادثة الخام، والإجازة
+        // تستهلك مدتها من الرصيد مرة واحدة. مثال: إجازة 60 دقيقة بنهاية الدوام + خروج فعلي قبل
+        // 100 دقيقة ⇒ تغطية تترك 40 دقيقة خروج مبكر، والرصيد يتحمّل 60 + 40 = 100 دقيقة، وهي
+        // بالضبط مدة الغياب الفعلية.
+        //
+        // الشرط الوحيد: أن يكون رصيد التأخير/الخروج المبكر المشترك سيُحسب أصلاً لهذا الموظف
+        // (نفس شرط الكتلة الموحّدة تماماً)؛ غير ذلك (وردية مرنة أو موظف غير مرتبط براتب) تبقى
+        // الإجازة على المسار القديم المستقل أدناه حتى لا تُفقد معالجتها.
         if (
-          leave.typeCode === 'HOURLY' && leave.isPaid && !touchesShiftBoundary &&
+          leave.typeCode === 'HOURLY' && leave.isPaid &&
           salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime
         ) {
           manualHourlyPoolEvents.push({ date: new Date(leave.startDate), minutes });
@@ -376,16 +379,42 @@ export class PayrollService {
             AND lr."startDate" >= $2 AND lr."startDate" <= $3
             AND lr."startTime" IS NOT NULL AND lr."endTime" IS NOT NULL
         `, employeeId, startDate, endDate);
+      // تُدمج شرائح نفس اليوم المتتالية (بدون فجوة) كوحدة واحدة قبل مقارنتها بحدود الدوام —
+      // لأن الموظف قد يقدّم الفترة نفسها على أكثر من طلب. مؤكَّد بحالة حقيقية: طلبان 16:00-17:00
+      // و17:00-18:00 لدوام ينتهي 18:00؛ الأول وحده لا يلامس النهاية فكان يُهمَل من التغطية،
+      // بينما مجموعهما 16:00-18:00 يغطّي نهاية الدوام بالكامل.
       const morningCoverageByDate = new Map<string, number>();
       const eveningCoverageByDate = new Map<string, number>();
+      const slotsByDate = new Map<string, Array<{ start: string; end: string; minutes: number }>>();
       for (const leave of manualHourlyLeaveRows) {
         const dk = new Date(leave.date).toISOString().split('T')[0];
-        const minutes = Math.round((leave.durationHours || 0) * 60);
-        if (leave.startTime <= scheduleWorkStartTime) {
-          morningCoverageByDate.set(dk, (morningCoverageByDate.get(dk) ?? 0) + minutes);
+        if (!slotsByDate.has(dk)) slotsByDate.set(dk, []);
+        slotsByDate.get(dk)!.push({
+          start: leave.startTime,
+          end: leave.endTime,
+          minutes: Math.round((leave.durationHours || 0) * 60),
+        });
+      }
+      for (const [dk, slots] of slotsByDate) {
+        const sorted = [...slots].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+        const blocks: Array<{ start: string; end: string; minutes: number }> = [];
+        for (const slot of sorted) {
+          const current = blocks[blocks.length - 1];
+          // متتالية أو متداخلة ⇒ تُضَم للكتلة الحالية
+          if (current && slot.start <= current.end) {
+            if (slot.end > current.end) current.end = slot.end;
+            current.minutes += slot.minutes;
+          } else {
+            blocks.push({ ...slot });
+          }
         }
-        if (leave.endTime >= scheduleWorkEndTime) {
-          eveningCoverageByDate.set(dk, (eveningCoverageByDate.get(dk) ?? 0) + minutes);
+        for (const block of blocks) {
+          if (block.start <= scheduleWorkStartTime) {
+            morningCoverageByDate.set(dk, (morningCoverageByDate.get(dk) ?? 0) + block.minutes);
+          }
+          if (block.end >= scheduleWorkEndTime) {
+            eveningCoverageByDate.set(dk, (eveningCoverageByDate.get(dk) ?? 0) + block.minutes);
+          }
         }
       }
 
