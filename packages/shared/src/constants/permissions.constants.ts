@@ -298,6 +298,8 @@ export const PERMISSIONS = {
     CANCEL:           'clinic.appointments.cancel',
     VIEW_ALL_PATIENTS: 'clinic.appointments.view-all-patients',
     STATISTICS_VIEW:  'clinic.appointments.statistics_view',
+    INTERNAL_MEETINGS_CREATE: 'clinic.appointments.internal_meetings.create',
+    INTERNAL_MEETINGS_VIEW:   'clinic.appointments.internal_meetings.view',
   },
   CLINIC_WAITING_LIST: {
     VIEW:   'clinic.waiting_list.view',

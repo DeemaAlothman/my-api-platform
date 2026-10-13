@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateAppointmentDto, UpdateAppointmentDto, UpdateStatusDto,
   RescheduleDto, ListAppointmentsQueryDto, CalendarQueryDto, SlotsQueryDto,
-  StatisticsQueryDto,
+  StatisticsQueryDto, CreateInternalMeetingDto,
 } from './dto/appointment.dto';
 import { sendExcel } from '../common/utils/excel.util';
 
@@ -755,5 +755,109 @@ export class AppointmentsService implements OnModuleInit {
     }
 
     return updated;
+  }
+
+  // ── الاجتماعات/التدريبات الداخلية ──────────────────────────────────────────
+  // attendeeIds هون userId (نفس اتفاقية practitionerId/therapistIds بهاي الخدمة).
+  // التحقق من التعارض بتم على مصدرين: جدول المواعيد نفسه (أطراف/فيزيائي/عام)،
+  // وجلسات طب الأقدام (خدمة منفصلة كلياً بلا تكامل حالي، عبر employeeId).
+
+  async createInternalMeeting(dto: CreateInternalMeetingDto, userId: string) {
+    const startTime = new Date(dto.startTime);
+    const endTime = new Date(dto.endTime);
+    if (endTime <= startTime) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'وقت النهاية يجب أن يكون بعد وقت البداية' });
+    }
+
+    const attendeeIds = [...new Set(dto.attendeeIds)];
+
+    const employees = await this.prisma.$queryRawUnsafe<Array<{ userId: string; id: string; firstNameAr: string; lastNameAr: string }>>(
+      `SELECT "userId", id, "firstNameAr", "lastNameAr" FROM users.employees WHERE "userId" = ANY($1::text[])`,
+      attendeeIds,
+    );
+    const nameByUserId = new Map(employees.map((e) => [e.userId, `${e.firstNameAr} ${e.lastNameAr}`]));
+    const employeeIdByUserId = new Map(employees.map((e) => [e.userId, e.id]));
+
+    const clashingAppointments = await this.prisma.appointment.findMany({
+      where: {
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] as any[] },
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
+        OR: [
+          { practitionerId: { in: attendeeIds } },
+          { physiotherapistId: { in: attendeeIds } },
+          { therapistIds: { hasSome: attendeeIds } },
+        ],
+      },
+      select: { practitionerId: true, physiotherapistId: true, therapistIds: true },
+    });
+
+    const conflictedUserIds = new Set<string>();
+    for (const a of clashingAppointments) {
+      for (const id of [a.practitionerId, a.physiotherapistId, ...(a.therapistIds ?? [])]) {
+        if (id && attendeeIds.includes(id)) conflictedUserIds.add(id);
+      }
+    }
+
+    const attendeeEmployeeIds = attendeeIds.map((uid) => employeeIdByUserId.get(uid)).filter((v): v is string => !!v);
+    if (attendeeEmployeeIds.length) {
+      const podiatryClashes = await this.prisma.$queryRawUnsafe<Array<{ practitionerIds: string[] }>>(
+        `SELECT r."practitionerIds"
+         FROM clinic_podiatry."podiatry_receptions" r
+         JOIN clinic_podiatry."podiatry_sessions" s ON s."receptionId" = r.id
+         WHERE s."sessionDate" >= $1 AND s."sessionDate" < $2
+           AND r."practitionerIds" && $3::text[]`,
+        startTime, endTime, attendeeEmployeeIds,
+      ).catch(() => [] as Array<{ practitionerIds: string[] }>);
+
+      for (const row of podiatryClashes) {
+        for (const empId of row.practitionerIds ?? []) {
+          const uid = attendeeIds.find((u) => employeeIdByUserId.get(u) === empId);
+          if (uid) conflictedUserIds.add(uid);
+        }
+      }
+    }
+
+    if (conflictedUserIds.size > 0) {
+      const names = [...conflictedUserIds].map((uid) => nameByUserId.get(uid) ?? uid);
+      throw new BadRequestException({
+        code: 'ATTENDEE_NOT_AVAILABLE',
+        message: `الموعد غير متاح — لدى ${names.join('، ')} جلسة علاج بنفس هذا الوقت`,
+        details: { conflictedUserIds: [...conflictedUserIds] },
+      });
+    }
+
+    const meeting = await this.prisma.internalMeeting.create({
+      data: {
+        title: dto.title,
+        meetingType: dto.meetingType as any,
+        attendeeIds,
+        startTime,
+        endTime,
+        notes: dto.notes,
+        createdBy: userId,
+      },
+    });
+
+    const timeStr = startTime.toLocaleTimeString('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' });
+    const typeAr = dto.meetingType === 'TRAINING' ? 'تدريب' : 'اجتماع';
+    for (const uid of attendeeIds) {
+      if (uid === userId) continue;
+      await this.insertNotif(uid, { internalMeetingId: meeting.id }, `${typeAr} جديد: ${dto.title}`, `لديك ${typeAr} بعنوان "${dto.title}" الساعة ${timeStr}`);
+    }
+
+    return meeting;
+  }
+
+  async listInternalMeetings(query: { dateFrom?: string; dateTo?: string; attendeeId?: string }) {
+    const where: any = {};
+    if (query.dateFrom || query.dateTo) {
+      where.startTime = {};
+      if (query.dateFrom) where.startTime.gte = new Date(query.dateFrom);
+      if (query.dateTo) where.startTime.lte = new Date(query.dateTo);
+    }
+    if (query.attendeeId) where.attendeeIds = { has: query.attendeeId };
+
+    return this.prisma.internalMeeting.findMany({ where, orderBy: { startTime: 'asc' } });
   }
 }

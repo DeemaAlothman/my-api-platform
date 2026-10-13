@@ -85,6 +85,18 @@ enum WaitingListStatus {
   @@schema("clinic_appointments")
 }
 
+enum InternalMeetingType {
+  MEETING
+  TRAINING
+  @@schema("clinic_appointments")
+}
+
+enum InternalMeetingStatus {
+  SCHEDULED
+  CANCELLED
+  @@schema("clinic_appointments")
+}
+
 // ── Model ─────────────────────────────────────────────────────────────────
 
 model Appointment {
@@ -176,4 +188,26 @@ model PotentialClient {
   @@map("potential_clients")
   @@schema("clinic_appointments")
   @@index([registrationDate])
+}
+
+// اجتماع/تدريب داخلي — مستقل تماماً عن مواعيد علاج المرضى، لكل الحضور (userId) يُتحقَّق أولاً
+// من عدم وجود جلسة علاج (أطراف/طب أقدام/فيزيائي) لنفس الوقت قبل الإنشاء
+model InternalMeeting {
+  id          String                @id @default(uuid())
+  title       String
+  meetingType InternalMeetingType
+  attendeeIds String[]              // userId[] — نفس نوع practitionerId/therapistIds بجدول Appointment
+  startTime   DateTime
+  endTime     DateTime
+  notes       String?               @db.Text
+  status      InternalMeetingStatus @default(SCHEDULED)
+  cancelledReason String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String
+
+  @@map("internal_meetings")
+  @@schema("clinic_appointments")
+  @@index([startTime])
 }

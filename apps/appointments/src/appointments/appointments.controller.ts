@@ -7,6 +7,7 @@ import {
   CreateAppointmentDto, UpdateAppointmentDto, UpdateStatusDto,
   RescheduleDto, ListAppointmentsQueryDto, CalendarQueryDto, SlotsQueryDto,
   PractitionerPatientsQueryDto, MyAppointmentsQueryDto, StatisticsQueryDto,
+  CreateInternalMeetingDto,
 } from './dto/appointment.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -89,6 +90,18 @@ export class AppointmentsController {
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW_OWN, PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
   getMyAppointments(@Query() query: MyAppointmentsQueryDto, @User() user: any) {
     return this.service.findMyAppointments(user.userId, query);
+  }
+
+  @Post('internal-meetings')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_CREATE)
+  createInternalMeeting(@Body() dto: CreateInternalMeetingDto, @User() user: any) {
+    return this.service.createInternalMeeting(dto, user.userId);
+  }
+
+  @Get('internal-meetings')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW)
+  listInternalMeetings(@Query('dateFrom') dateFrom?: string, @Query('dateTo') dateTo?: string, @Query('attendeeId') attendeeId?: string) {
+    return this.service.listInternalMeetings({ dateFrom, dateTo, attendeeId });
   }
 
   @Get(':id')

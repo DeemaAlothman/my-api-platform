@@ -142,6 +142,28 @@ export class RescheduleDto {
   notes?: string;
 }
 
+export enum InternalMeetingTypeEnum { MEETING = 'MEETING', TRAINING = 'TRAINING' }
+
+export class CreateInternalMeetingDto {
+  @IsString() @IsNotEmpty()
+  title: string;
+
+  @IsEnum(InternalMeetingTypeEnum)
+  meetingType: string;
+
+  @IsArray() @IsString({ each: true }) @IsNotEmpty({ each: true })
+  attendeeIds: string[];
+
+  @IsDateString()
+  startTime: string;
+
+  @IsDateString()
+  endTime: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
+
 export class ListAppointmentsQueryDto {
   @IsOptional() @IsString()
   patientId?: string;
