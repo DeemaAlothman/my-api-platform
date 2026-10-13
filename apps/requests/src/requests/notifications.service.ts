@@ -23,13 +23,16 @@ export class RequestNotificationsService {
       // Requester (HR/manager who submitted)
       notifyEmployeeIds.add(params.employeeId);
 
-      // Target employees from details
-      if (params.requestType === 'PENALTY_PROPOSAL' && params.details?.targetEmployeeId) {
-        notifyEmployeeIds.add(params.details.targetEmployeeId);
-      }
-      if (params.requestType === 'REWARD' && Array.isArray(params.details?.employees)) {
-        for (const emp of params.details.employees) {
-          if (emp.employeeId) notifyEmployeeIds.add(emp.employeeId);
+      // الموظفون المستهدَفون بالمكافأة/العقوبة — ما يُعلَمون إلا بعد اعتماد الطلب بالكامل فعلياً
+      // (مش عند التقديم أو أي خطوة وسيطة)، حتى لا يظهر لهم اقتراح قد يُرفض لاحقاً
+      if (params.action === 'APPROVED') {
+        if (params.requestType === 'PENALTY_PROPOSAL' && params.details?.targetEmployeeId) {
+          notifyEmployeeIds.add(params.details.targetEmployeeId);
+        }
+        if (params.requestType === 'REWARD' && Array.isArray(params.details?.employees)) {
+          for (const emp of params.details.employees) {
+            if (emp.employeeId) notifyEmployeeIds.add(emp.employeeId);
+          }
         }
       }
 
