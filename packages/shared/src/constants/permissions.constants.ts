@@ -261,6 +261,8 @@ export const PERMISSIONS = {
     VIEW_CONSENTS:    'clinic.patients.view_consents',
     CREATE_CONSENTS:  'clinic.patients.create_consents',
     CREATE_NOTES:     'clinic.patients.create_notes',
+    SURVEYS_CREATE:   'clinic.patients.surveys.create',
+    SURVEYS_VIEW:     'clinic.patients.surveys.view',
   },
   CLINIC_PROSTHETICS: {
     CASE_VIEW:         'clinic.prosthetics.case.view',

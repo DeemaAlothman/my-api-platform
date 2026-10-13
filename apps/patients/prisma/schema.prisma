@@ -76,6 +76,37 @@ enum ConsentType {
   MEDIA_APPEARANCE
 }
 
+enum SurveyDepartment {
+  PROSTHETICS
+  PODIATRY
+  PHYSIO
+}
+
+enum SurveyAgeGroup {
+  UNDER_18
+  FROM_18_25
+  FROM_26_30
+  FROM_31_40
+  FROM_41_50
+  FROM_51_60
+  OVER_60
+}
+
+// مرحلة الشكوى — خاص باستبيان الأطراف الصناعية فقط (سؤال اختياري)
+enum SurveyComplaintStage {
+  ASSESSMENT
+  MEASUREMENT
+  TRAINING_REHAB
+  SOCKET_FITTING
+  NONE
+}
+
+// نوع خدمة طب الأقدام — خاص باستبيان طب الأقدام فقط
+enum PodiatryServiceType {
+  ANALYSIS_ONLY
+  ANALYSIS_AND_FITTING
+}
+
 enum ConsentDecision {
   FUNDER_ONLY
   FUNDER_AND_SOCIAL
@@ -160,6 +191,7 @@ model Patient {
   consents  Consent[]
   notes     PatientNote[]
   links     PatientLink[]
+  surveys   PatientSurvey[]
 
   @@index([idNumber])
   @@index([patientNumber])
@@ -223,4 +255,51 @@ model PatientNote {
 
   @@index([patientId])
   @@map("patient_notes")
+}
+
+// استبيان تقييم رضا العملاء — مريض ممكن يكون عنده عدة استبيانات بمرور الوقت.
+// قائمة المعالجين (practitionerIds) تُجمَّد وقت الإنشاء (من حالة المريض الحالية بهداك
+// القسم وقتها بالضبط) ولا تتغيّر لاحقاً حتى لو تغيّر المعالج المسؤول عن الحالة.
+// لو ما في حالة مسجّلة للمريض بهداك القسم، تُحفظ القائمة فاضية بدون أي منع للإنشاء.
+model PatientSurvey {
+  id         String   @id @default(uuid())
+  patientId  String
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  department SurveyDepartment
+  caseId     String?           // مرجع خارجي لحالة الأطراف/الفيزيائي/الأقدام — بلا FK (خدمة منفصلة)
+  practitionerIds String[]     // مجمَّدة وقت الإنشاء — employeeId[]
+
+  customerName String
+  gender       Gender
+  ageGroup     SurveyAgeGroup
+
+  // أسئلة مشتركة بين الأقسام الثلاثة
+  staffExplanationRating   Int?
+  specialistCareRating     Int?
+  waitingAreaRating        Int?
+  waitingDurationRating    Int?
+  overallCompanyRating     Int
+
+  // خاص بالأطراف الصناعية
+  measurementAccuracyRating Int?
+  movementEaseRating        Int?
+  complaintStage            SurveyComplaintStage?
+
+  // خاص بطب الأقدام
+  podiatryServiceType          PodiatryServiceType?
+  medicalRecommendationRating  Int?
+
+  // خاص بالعلاج الفيزيائي
+  exerciseQualityRating      Int?
+  mobilityImprovementRating  Int?
+
+  additionalNotes String? @db.Text
+
+  createdAt       DateTime @default(now())
+  createdByUserId String
+
+  @@index([patientId])
+  @@index([department])
+  @@map("patient_surveys")
 }

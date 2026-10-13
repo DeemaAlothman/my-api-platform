@@ -6,6 +6,7 @@ import { PrismaService } from './prisma/prisma.service';
 import { PatientsModule } from './patients/patients.module';
 import { CitiesModule } from './cities/cities.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
+import { SurveysModule } from './surveys/surveys.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -19,6 +20,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     PatientsModule,
     CitiesModule,
     DashboardDataModule,
+    SurveysModule,
   ],
   providers: [
     PrismaService,
