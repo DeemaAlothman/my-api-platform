@@ -107,6 +107,13 @@ enum PodiatryServiceType {
   ANALYSIS_AND_FITTING
 }
 
+// سبب عدم التركيب — يُرسل فقط مع ANALYSIS_ONLY
+enum PodiatryNoFittingReason {
+  TIMING
+  PRICE
+  OTHER
+}
+
 enum ConsentDecision {
   FUNDER_ONLY
   FUNDER_AND_SOCIAL
@@ -289,6 +296,8 @@ model PatientSurvey {
   // خاص بطب الأقدام
   podiatryServiceType          PodiatryServiceType?
   medicalRecommendationRating  Int?
+  noFittingReason              PodiatryNoFittingReason? // فقط مع ANALYSIS_ONLY
+  insoleComfortRating          Int?                      // فقط مع ANALYSIS_AND_FITTING (1-5)
 
   // خاص بالعلاج الفيزيائي
   exerciseQualityRating      Int?

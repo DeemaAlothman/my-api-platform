@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSurveyDto } from './dto/create-survey.dto';
 
@@ -66,6 +66,13 @@ export class SurveysService {
     const patient = await this.prisma.patient.findFirst({ where: { id: dto.patientId } });
     if (!patient) throw new NotFoundException({ code: 'PATIENT_NOT_FOUND', message: 'المريض غير موجود' });
 
+    if (dto.podiatryServiceType === 'ANALYSIS_AND_FITTING' && dto.noFittingReason !== undefined) {
+      throw new BadRequestException({ code: 'INVALID_FIELD', message: 'noFittingReason لا يُرسل مع ANALYSIS_AND_FITTING' });
+    }
+    if (dto.podiatryServiceType === 'ANALYSIS_ONLY' && dto.insoleComfortRating !== undefined) {
+      throw new BadRequestException({ code: 'INVALID_FIELD', message: 'insoleComfortRating لا يُرسل مع ANALYSIS_ONLY' });
+    }
+
     const { caseId, practitionerIds } = await this.resolveCaseAndPractitioners(dto.patientId, dto.department);
 
     return this.prisma.patientSurvey.create({
@@ -87,6 +94,8 @@ export class SurveysService {
         complaintStage: dto.complaintStage as any,
         podiatryServiceType: dto.podiatryServiceType as any,
         medicalRecommendationRating: dto.medicalRecommendationRating,
+        noFittingReason: dto.noFittingReason as any,
+        insoleComfortRating: dto.insoleComfortRating,
         exerciseQualityRating: dto.exerciseQualityRating,
         mobilityImprovementRating: dto.mobilityImprovementRating,
         additionalNotes: dto.additionalNotes,

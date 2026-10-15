@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsInt, Min, Max, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum SurveyDepartmentEnum { PROSTHETICS = 'PROSTHETICS', PODIATRY = 'PODIATRY', PHYSIO = 'PHYSIO' }
@@ -12,6 +12,7 @@ export enum SurveyComplaintStageEnum {
   SOCKET_FITTING = 'SOCKET_FITTING', NONE = 'NONE',
 }
 export enum PodiatryServiceTypeEnum { ANALYSIS_ONLY = 'ANALYSIS_ONLY', ANALYSIS_AND_FITTING = 'ANALYSIS_AND_FITTING' }
+export enum PodiatryNoFittingReasonEnum { TIMING = 'TIMING', PRICE = 'PRICE', OTHER = 'OTHER' }
 
 export class CreateSurveyDto {
   @IsString() @IsNotEmpty()
@@ -61,6 +62,16 @@ export class CreateSurveyDto {
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5)
   medicalRecommendationRating?: number;
+
+  // إجباري فقط لما podiatryServiceType = ANALYSIS_ONLY، وما بينبعت مع التركيب
+  @ValidateIf((o) => o.podiatryServiceType === PodiatryServiceTypeEnum.ANALYSIS_ONLY)
+  @IsEnum(PodiatryNoFittingReasonEnum)
+  noFittingReason?: string;
+
+  // إجباري فقط لما podiatryServiceType = ANALYSIS_AND_FITTING، وما بينبعت مع تحليل فقط
+  @ValidateIf((o) => o.podiatryServiceType === PodiatryServiceTypeEnum.ANALYSIS_AND_FITTING)
+  @Type(() => Number) @IsInt() @Min(1) @Max(5)
+  insoleComfortRating?: number;
 
   // ── خاص بالعلاج الفيزيائي ──
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(5)
