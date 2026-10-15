@@ -92,13 +92,13 @@ export class AppointmentsController {
     return this.service.findMyAppointments(user.userId, query);
   }
 
-  @Post('internal-meetings')
+  @Post('staff-meetings')
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_CREATE)
   createInternalMeeting(@Body() dto: CreateInternalMeetingDto, @User() user: any) {
     return this.service.createInternalMeeting(dto, user.userId);
   }
 
-  @Get('internal-meetings')
+  @Get('staff-meetings')
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW)
   listInternalMeetings(@Query('dateFrom') dateFrom?: string, @Query('dateTo') dateTo?: string, @Query('attendeeId') attendeeId?: string) {
     return this.service.listInternalMeetings({ dateFrom, dateTo, attendeeId });
