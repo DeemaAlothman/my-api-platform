@@ -51,7 +51,7 @@ export class EmployeeSchedulesService {
          e."firstNameAr", e."lastNameAr",
          e."firstNameEn", e."lastNameEn",
          e."email", e."phone", e."mobile",
-         e."hireDate", e."employmentStatus",
+         e."hireDate", e."employmentStatus", e."separationDate",
          e."jobTitleId",
          e."departmentId",
          d."nameAr"  AS "departmentNameAr",
@@ -76,6 +76,7 @@ export class EmployeeSchedulesService {
       mobile:         e.mobile,
       hireDate:       e.hireDate,
       employmentStatus: e.employmentStatus,
+      separationDate: e.separationDate ?? null, // تاريخ الانفكاك (تاريخ الاستقالة الفعلي)
       department: e.departmentId ? { id: e.departmentId, nameAr: e.departmentNameAr, nameEn: e.departmentNameEn } : null,
       jobTitle:   e.jobTitleId   ? { id: e.jobTitleId,   nameAr: e.jobTitleNameAr,   nameEn: e.jobTitleNameEn   } : null,
     }]));
