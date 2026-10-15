@@ -185,9 +185,29 @@ model PotentialClient {
   updatedAt         DateTime @updatedAt
   createdBy         String
 
+  attachments PotentialClientAttachment[]
+
   @@map("potential_clients")
   @@schema("clinic_appointments")
   @@index([registrationDate])
+}
+
+model PotentialClientAttachment {
+  id                String          @id @default(uuid())
+  potentialClientId String
+  potentialClient   PotentialClient @relation(fields: [potentialClientId], references: [id], onDelete: Cascade)
+
+  fileUrl    String
+  fileName   String
+  fileSize   Int
+  mimeType   String
+
+  uploadedAt DateTime @default(now())
+  uploadedBy String
+
+  @@index([potentialClientId])
+  @@map("potential_client_attachments")
+  @@schema("clinic_appointments")
 }
 
 // اجتماع/تدريب داخلي — مستقل تماماً عن مواعيد علاج المرضى، لكل الحضور (userId) يُتحقَّق أولاً

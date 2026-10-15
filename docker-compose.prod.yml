@@ -264,6 +264,8 @@ services:
       ATTENDANCE_SERVICE_URL: http://attendance:4004
       PATIENT_APP_SERVICE_URL: http://patient-app:4017
       NODE_ENV: production
+    volumes:
+      - /var/data/appointments_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

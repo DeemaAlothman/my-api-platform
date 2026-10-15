@@ -149,4 +149,47 @@ export class PotentialClientsService {
     await this.prisma.potentialClient.delete({ where: { id } });
     return { message: 'تم حذف العميل المحتمل' };
   }
+
+  // ── Attachments ──────────────────────────────────────────────────────
+
+  async addAttachment(potentialClientId: string, file: Express.Multer.File, userId: string) {
+    if (!file) throw new BadRequestException('لم يتم رفع أي ملف');
+    await this.findOne(potentialClientId);
+
+    return this.prisma.potentialClientAttachment.create({
+      data: {
+        potentialClientId,
+        fileUrl: (file as any).path, // المسار الفعلي على القرص من diskStorage
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        uploadedBy: userId,
+      },
+    });
+  }
+
+  async getAttachments(potentialClientId: string) {
+    await this.findOne(potentialClientId);
+    return this.prisma.potentialClientAttachment.findMany({
+      where: { potentialClientId },
+      orderBy: { uploadedAt: 'desc' },
+    });
+  }
+
+  async getAttachmentForDownload(potentialClientId: string, attachmentId: string) {
+    const att = await this.prisma.potentialClientAttachment.findFirst({
+      where: { id: attachmentId, potentialClientId },
+    });
+    if (!att) throw new NotFoundException('المرفق غير موجود');
+    return att;
+  }
+
+  async deleteAttachment(potentialClientId: string, attachmentId: string) {
+    const att = await this.prisma.potentialClientAttachment.findFirst({
+      where: { id: attachmentId, potentialClientId },
+    });
+    if (!att) throw new NotFoundException('المرفق غير موجود');
+    await this.prisma.potentialClientAttachment.delete({ where: { id: attachmentId } });
+    return { message: 'تم حذف المرفق' };
+  }
 }

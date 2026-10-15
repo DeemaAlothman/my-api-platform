@@ -315,6 +315,8 @@ export const PERMISSIONS = {
     CREATE: 'clinic.potential_clients.create',
     EDIT:   'clinic.potential_clients.edit',
     DELETE: 'clinic.potential_clients.delete',
+    VIEW_ATTACHMENTS:   'clinic.potential_clients.view_attachments',
+    UPLOAD_ATTACHMENTS: 'clinic.potential_clients.upload_attachments',
   },
   CLINIC_INVENTORY: {
     VIEW:   'clinic.inventory.view',

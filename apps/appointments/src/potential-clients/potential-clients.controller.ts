@@ -1,8 +1,12 @@
 import {
   Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Res,
+  UploadedFile, UseInterceptors, NotFoundException,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { existsSync, createReadStream } from 'fs';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { PotentialClientsService } from './potential-clients.service';
+import { potentialClientAttachmentMulterOptions } from './potential-client-files.config';
 import {
   CreatePotentialClientDto, UpdatePotentialClientDto, ListPotentialClientsQueryDto,
   ExportPotentialClientsQueryDto,
@@ -59,5 +63,48 @@ export class PotentialClientsController {
   @Permission(PERMISSIONS.CLINIC_POTENTIAL_CLIENTS.DELETE)
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  // ── Attachments ────────────────────────────────────────────────────
+
+  @Post(':id/attachments')
+  @Permission(PERMISSIONS.CLINIC_POTENTIAL_CLIENTS.UPLOAD_ATTACHMENTS)
+  @UseInterceptors(FileInterceptor('file', potentialClientAttachmentMulterOptions))
+  uploadAttachment(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @User() user: any,
+  ) {
+    return this.service.addAttachment(id, file, user.userId);
+  }
+
+  @Get(':id/attachments')
+  @Permission(PERMISSIONS.CLINIC_POTENTIAL_CLIENTS.VIEW_ATTACHMENTS)
+  getAttachments(@Param('id') id: string) {
+    return this.service.getAttachments(id);
+  }
+
+  @Get(':id/attachments/:attachmentId/download')
+  @Permission(PERMISSIONS.CLINIC_POTENTIAL_CLIENTS.VIEW_ATTACHMENTS)
+  async downloadAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res() res: Response,
+  ) {
+    const att = await this.service.getAttachmentForDownload(id, attachmentId);
+    if (!existsSync(att.fileUrl)) {
+      throw new NotFoundException('الملف غير موجود على الخادم');
+    }
+    res.set({
+      'Content-Type': att.mimeType || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(att.fileName)}"`,
+    });
+    createReadStream(att.fileUrl).pipe(res);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @Permission(PERMISSIONS.CLINIC_POTENTIAL_CLIENTS.UPLOAD_ATTACHMENTS)
+  deleteAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string) {
+    return this.service.deleteAttachment(id, attachmentId);
   }
 }
