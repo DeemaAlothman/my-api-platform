@@ -292,6 +292,15 @@ export const PERMISSIONS = {
     SESSION_EDIT:     'clinic.podiatry.session.edit',
     SESSION_ARCHIVE:  'clinic.podiatry.session.archive',
   },
+  CLINIC_ORTHOTICS: {
+    VIEW:   'clinic.orthotics.view',
+    CREATE: 'clinic.orthotics.create',
+    EDIT:   'clinic.orthotics.edit',
+    DELETE: 'clinic.orthotics.delete',
+    DOCTOR_ASSESSMENT_EDIT:   'clinic.orthotics.doctor_assessment.edit',
+    PHYSIO_ASSESSMENT_EDIT:   'clinic.orthotics.physio_assessment.edit',
+    PROSTHETIST_OPINION_EDIT: 'clinic.orthotics.prosthetist_opinion.edit',
+  },
   CLINIC_APPOINTMENTS: {
     VIEW:             'clinic.appointments.view',
     VIEW_OWN:         'clinic.appointments.view_own',

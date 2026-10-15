@@ -1,0 +1,105 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["clinic_orthotics"]
+}
+
+// استقبال قسم المقومات — سجل واحد لكل مريض يُعبَّى تدريجياً من 3 أدوار:
+// طبيب العظمية، أخصائي العلاج الفيزيائي، أخصائي الأطراف الصناعية.
+model OrthoticsReception {
+  id        String @id @default(uuid())
+  patientId String
+
+  // معلومات ولي الأمر / المرافق (في حال الأطفال)
+  guardianName     String?
+  guardianRelation String?
+  guardianPhone    String?
+
+  // ── تقييم طبيب العظمية ──────────────────────────────────────────────
+  // diagnosisTypes: POLIO | CEREBRAL_PALSY | SPINA_BIFIDA | FOOT_DROP | OTHER
+  diagnosisTypes    String[]
+  // cerebralPalsyType: SPASTIC | HYPOTONIC | ATAXIC
+  cerebralPalsyType String?
+  footDropCause     String?
+  diagnosisOther    String?
+  injuryStartDate   String?
+  surgicalHistory   String?  @db.Text
+  familyHistory     String?  @db.Text
+  chiefComplaint    String?  @db.Text
+
+  // muscleTone: NORMAL | SPASTIC | HYPOTONIC
+  muscleTone      String?
+  spasticityLevel String?
+  // sensation: INTACT | REDUCED | ABSENT
+  sensation       String?
+  // thighMuscleStrength / legFootMuscleStrength: EXCELLENT | MODERATE | WEAK
+  thighMuscleStrength   String?
+  legFootMuscleStrength String?
+  // skinConditions: INTACT | PRESSURE_POINTS | EDEMA
+  skinConditions         String[]
+  pressurePointsLocation String?
+
+  doctorAssessmentUpdatedAt DateTime?
+  doctorAssessmentUpdatedBy String?
+
+  // ── تقييم أخصائي العلاج الفيزيائي ───────────────────────────────────
+  // mobilityLevel: INDEPENDENT | WALKS_WITH_AIDS | WHEELCHAIR_USER
+  mobilityLevel    String?
+  // assistiveDevices: CRUTCHES | WALKER | CANE | NONE
+  assistiveDevices String[]
+  // gaitProblems: TOE_DRAG | KNEE_INSTABILITY | PELVIS_TRUNK_TILT | SCISSORING_GAIT
+  gaitProblems     String[]
+
+  // hipROM: FREE | LIMITED | DISLOCATED_SUBLUXED
+  hipROM   String?
+  // kneeROM: NORMAL | FLEXION_CONTRACTURE | VALGUS_VARUS | GENU_RECURVATUM
+  kneeROM  String?
+  // ankleROM: FREE | EQUINUS | VARUS_VALGUS
+  ankleROM String?
+
+  // muscleStrengthMovements: HIP_FLEXION | HIP_EXTENSION | HIP_ABDUCTION | HIP_ADDUCTION |
+  // KNEE_FLEXION | KNEE_EXTENSION | ANKLE_DORSIFLEXION | ANKLE_PLANTARFLEXION |
+  // ANKLE_EVERSION | ANKLE_INVERSION | GREAT_TOE_FLEXION
+  muscleStrengthMovements String[]
+  // deformityFlexibility: FLEXIBLE | RIGID
+  deformityFlexibility    String?
+  // deformityStatus: ACTIVE | DORMANT
+  deformityStatus         String?
+
+  // trunkStrengthMovements: TRUNK_FLEXION | TRUNK_EXTENSION | RIGHT_LATERAL_TILT |
+  // LEFT_LATERAL_TILT | ROTATION_RIGHT | ROTATION_LEFT
+  trunkStrengthMovements String[]
+  // trunk*: GOOD | MODERATE | WEAK | ABSENT
+  trunkControlSitting         String?
+  trunkBalanceDynamicSitting  String?
+  trunkControlStanding        String?
+  trunkBalanceStaticStanding  String?
+  trunkBalanceDynamicStanding String?
+
+  // activityLevel: K0 | K1 | K2 | K3 | K4
+  activityLevel String?
+
+  physioAssessmentUpdatedAt DateTime?
+  physioAssessmentUpdatedBy String?
+
+  // ── الرأي النهائي لكل اختصاصي ────────────────────────────────────────
+  doctorOpinion      String? @db.Text
+  physioOpinion      String? @db.Text
+  prosthetistOpinion String? @db.Text
+
+  // المعالجون المسؤولون عن الحالة (employeeId) — يُرسل إشعار لكل معالج يُضاف حديثاً
+  practitionerIds String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String
+
+  @@index([patientId])
+  @@map("orthotics_receptions")
+  @@schema("clinic_orthotics")
+}

@@ -106,6 +106,11 @@ export class ProxyService {
       url: process.env.WAREHOUSE_SERVICE_URL || 'http://localhost:4018',
       prefix: '/warehouse',
     });
+
+    this.services.set('orthotics', {
+      url: process.env.ORTHOTICS_SERVICE_URL || 'http://localhost:4019',
+      prefix: '/orthotics',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

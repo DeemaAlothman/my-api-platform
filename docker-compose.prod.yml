@@ -371,6 +371,24 @@ services:
     networks:
       - app-network
 
+  orthotics:
+    build:
+      context: .
+      dockerfile: apps/orthotics/Dockerfile
+    container_name: myapiplatform-orthotics
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=clinic_orthotics
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+      PATIENTS_SERVICE_URL: http://patients:4010
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -396,6 +414,7 @@ services:
       REFERRALS_SERVICE_URL: http://referrals:4016
       PATIENT_APP_SERVICE_URL: http://patient-app:4017
       WAREHOUSE_SERVICE_URL: http://warehouse:4018
+      ORTHOTICS_SERVICE_URL: http://orthotics:4019
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012,http://159.198.37.52:3012,http://159.198.37.52:3000
@@ -440,6 +459,8 @@ services:
       patient-app:
         condition: service_started
       warehouse:
+        condition: service_started
+      orthotics:
         condition: service_started
     networks:
       - app-network
