@@ -104,6 +104,13 @@ export class AppointmentsController {
     return this.service.listInternalMeetings({ dateFrom, dateTo, attendeeId });
   }
 
+  // اجتماعاتي/تدريباتي أنا بس (يلي أنا مدعو فيها) — نفس فكرة my-appointments لمواعيد المرضى
+  @Get('staff-meetings/my')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW_OWN, PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW)
+  getMyInternalMeetings(@Query('dateFrom') dateFrom?: string, @Query('dateTo') dateTo?: string, @User() user?: any) {
+    return this.service.listInternalMeetings({ dateFrom, dateTo, attendeeId: user.userId });
+  }
+
   @Get(':id')
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
   findOne(@Param('id') id: string) {
