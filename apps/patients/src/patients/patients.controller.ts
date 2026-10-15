@@ -6,6 +6,8 @@ import type { Response } from 'express';
 import { createReadStream, existsSync } from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { PatientsService } from './patients.service';
+import { SurveysService } from '../surveys/surveys.service';
+import { CreateSurveyDto } from '../surveys/dto/create-survey.dto';
 import { patientDocumentMulterOptions } from './patient-files.config';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -52,7 +54,10 @@ export class PatientsInternalController {
 @Controller('patients')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class PatientsController {
-  constructor(private readonly service: PatientsService) {}
+  constructor(
+    private readonly service: PatientsService,
+    private readonly surveys: SurveysService,
+  ) {}
 
   // ── Patients ──────────────────────────────────────────────────────
 
@@ -83,6 +88,34 @@ export class PatientsController {
   @Permission(PERMISSIONS.CLINIC_PATIENTS.CREATE)
   create(@Body() dto: CreatePatientDto, @User() user: any) {
     return this.service.create(dto, user.userId);
+  }
+
+  // ── Surveys (لازم تنحط قبل :id عشان ما تنبلع كمعرّف مريض) ────────────
+  @Post('surveys')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.SURVEYS_CREATE)
+  createSurvey(@Body() dto: CreateSurveyDto, @User() user: any) {
+    return this.surveys.create(dto, user.userId);
+  }
+
+  @Get('surveys')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.SURVEYS_VIEW)
+  findAllSurveys(
+    @Query('patientId') patientId?: string,
+    @Query('department') department?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.surveys.findAll({
+      patientId, department,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
+  @Get('surveys/:id')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.SURVEYS_VIEW)
+  findOneSurvey(@Param('id') id: string) {
+    return this.surveys.findOne(id);
   }
 
   @Get(':id')
