@@ -523,10 +523,22 @@ export class ApprovalService {
       }
 
       if (request.type === 'RESIGNATION') {
-        // بعد إتمام مقابلة الخروج: الموظف يصير غير نشط + تسجيل تاريخ الانفكاك
+        // بعد إتمام مقابلة الخروج: تاريخ الانفكاك = تاريخ الاستقالة الفعلي (effectiveDate بالطلب).
+        // إذا التاريخ اليوم أو قبل → غير نشط فوراً. إذا بالمستقبل → يبقى نشطاً، والمهمة اليومية
+        // بخدمة users (ResignationSeparationService) تجعله غير نشط عند وصول التاريخ.
+        // طلب بدون تاريخ صالح → كما كان سابقاً: غير نشط اليوم.
+        const effective = typeof details?.effectiveDate === 'string' ? details.effectiveDate.slice(0, 10) : '';
+        const separationDate = /^\d{4}-\d{2}-\d{2}$/.test(effective) && !isNaN(Date.parse(effective)) ? effective : null;
         await this.prisma.$queryRawUnsafe(
-          `UPDATE users.employees SET "employmentStatus" = 'INACTIVE', "separationDate" = CURRENT_DATE, "updatedAt" = NOW() WHERE id = $1`,
+          `UPDATE users.employees
+           SET "separationDate" = COALESCE($2::date, (NOW() AT TIME ZONE 'Asia/Riyadh')::date),
+               "employmentStatus" = CASE
+                 WHEN COALESCE($2::date, (NOW() AT TIME ZONE 'Asia/Riyadh')::date) <= (NOW() AT TIME ZONE 'Asia/Riyadh')::date
+                 THEN 'INACTIVE' ELSE "employmentStatus" END,
+               "updatedAt" = NOW()
+           WHERE id = $1`,
           request.employeeId,
+          separationDate,
         );
       }
 
