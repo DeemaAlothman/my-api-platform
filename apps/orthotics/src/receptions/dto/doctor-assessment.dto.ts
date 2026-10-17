@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean, ArrayMaxSize } from 'class-validator';
+import { Type } from 'class-transformer';
 
 // تقييم طبيب العظمية — القصة المرضية والفحص السريري
 export class DoctorAssessmentDto {
@@ -24,6 +25,20 @@ export class DoctorAssessmentDto {
   // skinConditions: INTACT | PRESSURE_POINTS | EDEMA
   @IsOptional() @IsArray() @IsString({ each: true }) skinConditions?: string[];
   @IsOptional() @IsString() pressurePointsLocation?: string;
+
+  // قصة الولادة / عوامل الخطورة
+  @IsOptional() @IsString() birthHistory?: string;
+  // الاستخدام السابق للأجهزة التقويمية
+  @IsOptional() @IsBoolean() @Type(() => Boolean) previousOrthosisUse?: boolean;
+  @IsOptional() @IsString() previousOrthosisDetails?: string;
+  // التاريخ المرضي / الأدوية
+  @IsOptional() @IsString() medicalHistory?: string;
+
+  // الأهداف الوظيفية — حتى 3 أهداف نصية
+  @IsOptional() @IsArray() @ArrayMaxSize(3) @IsString({ each: true }) functionalGoals?: string[];
+  // dailyUseSettings: HOME | SCHOOL | SPORTS | OTHER
+  @IsOptional() @IsArray() @IsString({ each: true }) dailyUseSettings?: string[];
+  @IsOptional() @IsString() dailyUseOther?: string;
 
   // رأي طبيب العظمية النهائي
   @IsOptional() @IsString() doctorOpinion?: string;

@@ -32,6 +32,20 @@ model OrthoticsReception {
   familyHistory     String?  @db.Text
   chiefComplaint    String?  @db.Text
 
+  // قصة الولادة / عوامل الخطورة
+  birthHistory             String?  @db.Text
+  // الاستخدام السابق للأجهزة التقويمية
+  previousOrthosisUse      Boolean?
+  previousOrthosisDetails  String?  @db.Text
+  // التاريخ المرضي / الأدوية (يختلف عن familyHistory — التاريخ العائلي)
+  medicalHistory           String?  @db.Text
+
+  // الأهداف الوظيفية — حتى 3 أهداف نصية
+  functionalGoals String[]
+  // dailyUseSettings: HOME | SCHOOL | SPORTS | OTHER
+  dailyUseSettings String[]
+  dailyUseOther    String?
+
   // muscleTone: NORMAL | SPASTIC | HYPOTONIC
   muscleTone      String?
   spasticityLevel String?
@@ -86,6 +100,13 @@ model OrthoticsReception {
 
   physioAssessmentUpdatedAt DateTime?
   physioAssessmentUpdatedBy String?
+
+  // ── تقييم الجهاز والتوصيات (أخصائي الأطراف الصناعية) ──────────────────
+  // recommendedDeviceTypes: AFO | KAFO | ORTHOSIS_WITH_FES | OTHER
+  recommendedDeviceTypes String[]
+  recommendedDeviceOther String?
+  dailyWearHours         Float?
+  additionalNotes        String? @db.Text
 
   // ── الرأي النهائي لكل اختصاصي ────────────────────────────────────────
   doctorOpinion      String? @db.Text

@@ -98,6 +98,8 @@ export class ReceptionsService {
       'muscleTone', 'spasticityLevel', 'sensation',
       'thighMuscleStrength', 'legFootMuscleStrength',
       'skinConditions', 'pressurePointsLocation',
+      'birthHistory', 'previousOrthosisUse', 'previousOrthosisDetails', 'medicalHistory',
+      'functionalGoals', 'dailyUseSettings', 'dailyUseOther',
       'doctorOpinion',
     ];
     for (const field of fields) {
@@ -132,7 +134,13 @@ export class ReceptionsService {
   async upsertProsthetistOpinion(id: string, dto: ProsthetistOpinionDto) {
     await this.findOne(id);
     const data: any = {};
-    if (dto.prosthetistOpinion !== undefined) data.prosthetistOpinion = dto.prosthetistOpinion;
+    const fields: (keyof ProsthetistOpinionDto)[] = [
+      'recommendedDeviceTypes', 'recommendedDeviceOther', 'dailyWearHours', 'additionalNotes',
+      'prosthetistOpinion',
+    ];
+    for (const field of fields) {
+      if (dto[field] !== undefined) data[field] = dto[field];
+    }
     return this.prisma.orthoticsReception.update({ where: { id }, data });
   }
 
