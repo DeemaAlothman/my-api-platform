@@ -133,6 +133,38 @@ export class LeaveBalancesService {
     const entitled = balance ? balance.totalDays : 0;
     const used = balance ? balance.usedDays : 0;
 
+    // تفصيل كل أنواع الإجازات لنفس السنة — الحقول الأصلية أعلاه تبقى كما هي (سنوية فقط) حتى لا
+    // ينكسر أي عرض قائم، وهذا التفصيل إضافة بجانبها ليُظهر بقية الأنواع (مرضية، غير مدفوعة…)
+    // التي لها أرصدة مستقلة ولا تدخل ضمن المستحق السنوي
+    const allBalances = await this.prisma.leaveBalance.findMany({
+      where: { employeeId, year: currentYear },
+      include: { leaveType: true },
+    });
+
+    const byType = allBalances
+      .map((b: any) => {
+        const typeEntitled = b.totalDays ?? 0;
+        const typeUsed = b.usedDays ?? 0;
+        const typePending = b.pendingDays ?? 0;
+        return {
+          leaveTypeId: b.leaveTypeId,
+          code: b.leaveType?.code ?? null,
+          nameAr: b.leaveType?.nameAr ?? null,
+          nameEn: b.leaveType?.nameEn ?? null,
+          isUnlimited: b.leaveType?.isUnlimited ?? false,
+          entitled: typeEntitled,
+          used: typeUsed,
+          pending: typePending,
+          remaining: typeEntitled - typeUsed - typePending,
+          carriedOverDays: b.carriedOverDays ?? 0,
+          // للإجازة الساعية: الساعات هي الوحدة الحقيقية، والأيام مجرد مكافئ محسوب
+          usedHours: b.usedHours ?? 0,
+          pendingHours: b.pendingHours ?? 0,
+          maxHoursPerMonth: b.leaveType?.maxHoursPerMonth ?? null,
+        };
+      })
+      .sort((a, b) => (b.used - a.used) || String(a.nameAr ?? '').localeCompare(String(b.nameAr ?? ''), 'ar'));
+
     return {
       employeeId,
       employee: employeeMap.get(employeeId) || null,
@@ -140,6 +172,7 @@ export class LeaveBalancesService {
       entitled,
       used,
       remaining: entitled - used - (balance?.pendingDays ?? 0),
+      byType,
     };
   }
 
