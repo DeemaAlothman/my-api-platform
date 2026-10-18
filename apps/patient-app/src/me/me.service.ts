@@ -62,8 +62,9 @@ export class MeService {
     ]);
 
     const sessionById = new Map(sessions.map((s) => [s.id, s]));
-    // تمرين تابع لجلسة حالتها محذوفة أو مش PHYSIO ما رح يرجع أصلاً (بدل ما يرجع بـsession: null)
-    const visible = assignments.filter((a) => sessionById.has(a.erpSessionId));
+    // تمرين عام (erpSessionId = null) يظل ظاهراً دوماً — فقط تمرين تابع لجلسة حالتها محذوفة
+    // أو مش PHYSIO هو يلي ما رح يرجع (بدل ما يرجع بـsession: null)
+    const visible = assignments.filter((a) => a.erpSessionId === null || sessionById.has(a.erpSessionId));
 
     const todayCountByAssignment = await this.todayCompletedCountMap(visible.map((a) => a.id), patientAccountId);
 
@@ -72,7 +73,7 @@ export class MeService {
       exercise: withThumbnailFallback(a.exercise),
       execution: a.executions[0] ?? null,
       executions: undefined,
-      session: sessionById.get(a.erpSessionId),
+      session: a.erpSessionId ? (sessionById.get(a.erpSessionId) ?? null) : null,
       todayCompletedCount: todayCountByAssignment.get(a.id) ?? 0,
     }));
   }
