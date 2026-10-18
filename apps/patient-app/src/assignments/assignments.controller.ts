@@ -30,6 +30,25 @@ export class AssignmentsController {
     return this.service.listBySession(erpSessionId);
   }
 
+  // تمارين عامة للمريض — غير مرتبطة بجلسة محددة
+  @Get('patients/:erpPatientId/exercises')
+  @Permission(...READ_PERMS)
+  listPatientExercises(@Param('erpPatientId') erpPatientId: string) {
+    return this.service.listPatientExercises(erpPatientId);
+  }
+
+  @Post('patients/:erpPatientId/exercises')
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.ASSIGNMENT_CREATE)
+  createForPatient(@Param('erpPatientId') erpPatientId: string, @Body() dto: CreateAssignmentDto, @User() user: any) {
+    return this.service.createForPatient(erpPatientId, dto, user.userId);
+  }
+
+  @Patch('patients/:erpPatientId/exercises/reorder')
+  @Permission(PERMISSIONS.CLINIC_PATIENT_APP.ASSIGNMENT_EDIT)
+  reorderPatientExercises(@Param('erpPatientId') erpPatientId: string, @Body() dto: ReorderAssignmentsDto) {
+    return this.service.reorderPatientExercises(erpPatientId, dto);
+  }
+
   @Post('sessions/:erpSessionId/exercises')
   @Permission(PERMISSIONS.CLINIC_PATIENT_APP.ASSIGNMENT_CREATE)
   create(@Param('erpSessionId') erpSessionId: string, @Body() dto: CreateAssignmentDto, @User() user: any) {

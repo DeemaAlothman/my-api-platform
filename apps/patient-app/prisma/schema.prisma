@@ -216,7 +216,7 @@ enum AssignmentStatus {
 model SessionExerciseAssignment {
   id                  String   @id @default(uuid())
   erpPatientId        String
-  erpSessionId        String
+  erpSessionId        String?  // فاضي = تمرين عام للمريض، غير مرتبط بجلسة محددة
   exerciseId          String
   exercise            Exercise @relation(fields: [exerciseId], references: [id])
 

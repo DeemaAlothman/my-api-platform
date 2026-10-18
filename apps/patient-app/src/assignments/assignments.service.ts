@@ -177,6 +177,104 @@ export class AssignmentsService {
     return this.listBySession(erpSessionId);
   }
 
+  // ── تمارين عامة للمريض — غير مرتبطة بجلسة محددة (erpSessionId = NULL) ──────
+
+  async listPatientExercises(erpPatientId: string) {
+    const assignments = await this.prisma.sessionExerciseAssignment.findMany({
+      where: { erpPatientId, erpSessionId: null },
+      include: { exercise: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    return assignments.map((a) => ({ ...a, exercise: withThumbnailFallback(a.exercise) }));
+  }
+
+  async createForPatient(erpPatientId: string, dto: CreateAssignmentDto, assignedByUserId: string) {
+    const exists = await this.erp.patientExists(erpPatientId);
+    if (!exists) throw new NotFoundException({ code: 'PATIENT_NOT_FOUND', message: 'المريض غير موجود في النظام' });
+
+    const exercise = await this.prisma.exercise.findFirst({ where: { id: dto.exerciseId, deletedAt: null } });
+    if (!exercise) throw new BadRequestException({ code: 'EXERCISE_NOT_FOUND', message: 'التمرين غير موجود' });
+
+    let sortOrder = dto.sortOrder;
+    if (sortOrder === undefined) {
+      const last = await this.prisma.sessionExerciseAssignment.findFirst({
+        where: { erpPatientId, erpSessionId: null, status: 'ACTIVE' },
+        orderBy: { sortOrder: 'desc' },
+        select: { sortOrder: true },
+      });
+      sortOrder = (last?.sortOrder ?? 0) + 1;
+    }
+
+    const therapist = await this.erp.getResponsibleTherapist(erpPatientId).catch(() => ({ exists: false }) as any);
+
+    const created = await this.prisma.sessionExerciseAssignment.create({
+      data: {
+        erpPatientId,
+        erpSessionId: null,
+        exerciseId: dto.exerciseId,
+        assignedByUserId,
+        erpTherapistId: therapist?.erpTherapistId ?? null,
+        sortOrder,
+        durationSeconds: dto.durationSeconds ?? exercise.defaultDurationSeconds ?? undefined,
+        sets: dto.sets ?? exercise.defaultSets ?? undefined,
+        reps: dto.reps ?? exercise.defaultReps ?? undefined,
+        holdSeconds: dto.holdSeconds ?? exercise.defaultHoldSeconds ?? undefined,
+        restSeconds: dto.restSeconds ?? exercise.defaultRestSeconds ?? undefined,
+        frequencyTextAr: dto.frequencyTextAr,
+        frequencyTextEn: dto.frequencyTextEn,
+        timesPerDay: dto.timesPerDay,
+        daysPerWeek: dto.daysPerWeek,
+        customInstructionAr: dto.customInstructionAr,
+        customInstructionEn: dto.customInstructionEn,
+      },
+      include: { exercise: true },
+    });
+    created.exercise = withThumbnailFallback(created.exercise);
+
+    this.notifications
+      .notifyByErpPatientId(
+        erpPatientId,
+        'PROGRAM_ASSIGNED',
+        'تمرين جديد بالبرنامج',
+        'New exercise in your program',
+        `تمت إضافة تمرين "${created.exercise.nameAr}" إلى برنامجك.`,
+        `The exercise "${created.exercise.nameEn}" was added to your program.`,
+        created.id,
+      )
+      .catch(() => {});
+
+    return created;
+  }
+
+  async reorderPatientExercises(erpPatientId: string, dto: ReorderAssignmentsDto) {
+    const ids = dto.items.map((i) => i.id);
+    const existing = await this.prisma.sessionExerciseAssignment.findMany({
+      where: { id: { in: ids }, erpPatientId, erpSessionId: null },
+      select: { id: true },
+    });
+    if (existing.length !== ids.length) {
+      throw new BadRequestException({ code: 'INVALID_ASSIGNMENT_IDS', message: 'بعض التمارين لا تنتمي لتمارين هذا المريض العامة' });
+    }
+    await this.prisma.$transaction(
+      dto.items.map((item) =>
+        this.prisma.sessionExerciseAssignment.update({ where: { id: item.id }, data: { sortOrder: item.sortOrder } }),
+      ),
+    );
+
+    this.notifications
+      .notifyByErpPatientId(
+        erpPatientId,
+        'PROGRAM_REORDERED',
+        'تم تعديل ترتيب برنامجك',
+        'Your program order was updated',
+        'تم إعادة ترتيب تمارين برنامجك العلاجي.',
+        'The order of exercises in your program was updated.',
+      )
+      .catch(() => {});
+
+    return this.listPatientExercises(erpPatientId);
+  }
+
   // عرض تنفيذ المريض بالداشبورد (بند 8 بالتوصيف)
   async listExecutionsByPatient(erpPatientId: string) {
     const assignments = await this.prisma.sessionExerciseAssignment.findMany({
