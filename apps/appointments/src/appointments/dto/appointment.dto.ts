@@ -142,7 +142,16 @@ export class RescheduleDto {
   notes?: string;
 }
 
-export enum InternalMeetingTypeEnum { MEETING = 'MEETING', TRAINING = 'TRAINING' }
+export enum InternalMeetingTypeEnum {
+  MEETING = 'MEETING',
+  TRAINING = 'TRAINING',
+  PHOTOGRAPHY = 'PHOTOGRAPHY',
+  LECTURE = 'LECTURE',
+  EVENT = 'EVENT',
+  EXTERNAL_MISSION = 'EXTERNAL_MISSION',
+  VISIT = 'VISIT',
+  OTHER = 'OTHER',
+}
 
 export class CreateInternalMeetingDto {
   @IsString() @IsNotEmpty()
@@ -150,6 +159,10 @@ export class CreateInternalMeetingDto {
 
   @IsEnum(InternalMeetingTypeEnum)
   meetingType: string;
+
+  // نص حر اختياري لنوع النشاط — فقط مع meetingType = OTHER
+  @IsOptional() @IsString()
+  meetingTypeOther?: string;
 
   @IsArray() @IsString({ each: true }) @IsNotEmpty({ each: true })
   attendeeIds: string[];

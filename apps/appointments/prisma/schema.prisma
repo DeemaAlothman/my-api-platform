@@ -88,6 +88,12 @@ enum WaitingListStatus {
 enum InternalMeetingType {
   MEETING
   TRAINING
+  PHOTOGRAPHY
+  LECTURE
+  EVENT
+  EXTERNAL_MISSION
+  VISIT
+  OTHER
   @@schema("clinic_appointments")
 }
 
@@ -216,6 +222,7 @@ model InternalMeeting {
   id          String                @id @default(uuid())
   title       String
   meetingType InternalMeetingType
+  meetingTypeOther String?          // نص حر فقط لما meetingType = OTHER
   attendeeIds String[]              // userId[] — نفس نوع practitionerId/therapistIds بجدول Appointment
   startTime   DateTime
   endTime     DateTime

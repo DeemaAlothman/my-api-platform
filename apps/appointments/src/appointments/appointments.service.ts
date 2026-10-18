@@ -831,6 +831,7 @@ export class AppointmentsService implements OnModuleInit {
       data: {
         title: dto.title,
         meetingType: dto.meetingType as any,
+        meetingTypeOther: dto.meetingTypeOther,
         attendeeIds,
         startTime,
         endTime,
@@ -840,7 +841,17 @@ export class AppointmentsService implements OnModuleInit {
     });
 
     const timeStr = startTime.toLocaleTimeString('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' });
-    const typeAr = dto.meetingType === 'TRAINING' ? 'تدريب' : 'اجتماع';
+    const MEETING_TYPE_AR: Record<string, string> = {
+      MEETING: 'اجتماع',
+      TRAINING: 'تدريب',
+      PHOTOGRAPHY: 'تصوير',
+      LECTURE: 'محاضرة',
+      EVENT: 'فعالية',
+      EXTERNAL_MISSION: 'مهمة خارجية',
+      VISIT: 'زيارة',
+      OTHER: dto.meetingTypeOther || 'نشاط آخر',
+    };
+    const typeAr = MEETING_TYPE_AR[dto.meetingType] ?? 'اجتماع';
     for (const uid of attendeeIds) {
       if (uid === userId) continue;
       await this.insertNotif(uid, { internalMeetingId: meeting.id }, `${typeAr} جديد: ${dto.title}`, `لديك ${typeAr} بعنوان "${dto.title}" الساعة ${timeStr}`);
