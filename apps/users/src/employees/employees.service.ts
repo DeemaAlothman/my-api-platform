@@ -859,12 +859,14 @@ export class EmployeesService {
       }
     }
 
-    // التحقق من الراتب ضمن حدود الدرجة الوظيفية
-    const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
-    const gradeId = dto.jobGradeId ?? employee?.jobGradeId;
-    const salary = dto.basicSalary ?? (employee?.basicSalary ? Number(employee.basicSalary) : undefined);
-    if (gradeId && salary !== undefined) {
-      await this.validateSalaryRange(gradeId, salary);
+    // التحقق من الراتب ضمن حدود الدرجة الوظيفية — فقط إذا الطلب فيه تعديل فعلي على الراتب أو الدرجة
+    if (dto.basicSalary !== undefined || dto.jobGradeId !== undefined) {
+      const employee = await this.prisma.employee.findFirst({ where: { id, deletedAt: null } });
+      const gradeId = dto.jobGradeId ?? employee?.jobGradeId;
+      const salary = dto.basicSalary ?? (employee?.basicSalary ? Number(employee.basicSalary) : undefined);
+      if (gradeId && salary !== undefined) {
+        await this.validateSalaryRange(gradeId, salary);
+      }
     }
 
     const { attachments, trainingCertificates, allowances, commissions, ...employeeData } = dto;
@@ -1106,14 +1108,14 @@ export class EmployeesService {
     if (grade.minSalary !== null && salary < Number(grade.minSalary)) {
       throw new BadRequestException({
         code: 'SALARY_OUT_OF_RANGE',
-        message: `Salary ${salary} is below the minimum ${grade.minSalary} for job grade "${grade.nameAr}"`,
+        message: `الراتب ${salary} أقل من الحد الأدنى ${grade.minSalary} لدرجة "${grade.nameAr}"`,
         details: [{ field: 'basicSalary', min: grade.minSalary, max: grade.maxSalary }],
       });
     }
     if (grade.maxSalary !== null && salary > Number(grade.maxSalary)) {
       throw new BadRequestException({
         code: 'SALARY_OUT_OF_RANGE',
-        message: `Salary ${salary} exceeds the maximum ${grade.maxSalary} for job grade "${grade.nameAr}"`,
+        message: `الراتب ${salary} أعلى من الحد الأقصى ${grade.maxSalary} لدرجة "${grade.nameAr}"`,
         details: [{ field: 'basicSalary', min: grade.minSalary, max: grade.maxSalary }],
       });
     }
