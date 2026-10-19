@@ -5,6 +5,7 @@ import {
   CreateCategoryDto, UpdateCategoryDto,
   CreateSupplierDto, UpdateSupplierDto,
   CreateItemDto, UpdateItemDto,
+  CreateManufacturerDto, UpdateManufacturerDto,
 } from './dto/catalog.dto';
 
 @Injectable()
@@ -60,7 +61,43 @@ export class CatalogService {
     return this.prisma.supplier.update({ where: { id }, data: dto });
   }
 
+  // ── Manufacturers ─────────────────────────────────────────────────────
+  listManufacturers() {
+    return this.prisma.manufacturer.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  createManufacturer(dto: CreateManufacturerDto) {
+    return this.prisma.manufacturer.create({ data: dto });
+  }
+
+  async updateManufacturer(id: string, dto: UpdateManufacturerDto) {
+    const manufacturer = await this.prisma.manufacturer.findUnique({ where: { id } });
+    if (!manufacturer) throw new NotFoundException({ code: 'MANUFACTURER_NOT_FOUND', message: 'الشركة المصنّعة غير موجودة' });
+    return this.prisma.manufacturer.update({ where: { id }, data: dto });
+  }
+
+  async deleteManufacturer(id: string) {
+    const manufacturer = await this.prisma.manufacturer.findUnique({ where: { id } });
+    if (!manufacturer) throw new NotFoundException({ code: 'MANUFACTURER_NOT_FOUND', message: 'الشركة المصنّعة غير موجودة' });
+    const inUse = await this.prisma.item.count({ where: { manufacturerId: id, deletedAt: null } });
+    if (inUse > 0) {
+      throw new BadRequestException({ code: 'MANUFACTURER_IN_USE', message: 'لا يمكن حذف شركة مصنّعة مرتبطة بأصناف موجودة' });
+    }
+    await this.prisma.manufacturer.delete({ where: { id } });
+    return { deleted: true };
+  }
+
   // ── Items ─────────────────────────────────────────────────────────────
+  private async generateSku(): Promise<string> {
+    const last = await this.prisma.item.findFirst({
+      where: { sku: { startsWith: 'VTX-ITM-' } },
+      orderBy: { sku: 'desc' },
+      select: { sku: true },
+    });
+    const n = last ? parseInt(last.sku.replace('VTX-ITM-', ''), 10) : 0;
+    return `VTX-ITM-${String(n + 1).padStart(6, '0')}`;
+  }
+
   async listItems(query: { search?: string; itemType?: string; categoryId?: string }) {
     const where: any = { deletedAt: null };
     if (query.itemType) where.itemType = query.itemType;
@@ -75,7 +112,7 @@ export class CatalogService {
     }
     return this.prisma.item.findMany({
       where,
-      include: { category: true, unit: true },
+      include: { category: true, unit: true, manufacturer: true },
       orderBy: { name: 'asc' },
     });
   }
@@ -83,29 +120,41 @@ export class CatalogService {
   async findItem(id: string) {
     const item = await this.prisma.item.findFirst({
       where: { id, deletedAt: null },
-      include: { category: true, unit: true },
+      include: { category: true, unit: true, manufacturer: true },
     });
     if (!item) throw new NotFoundException({ code: 'ITEM_NOT_FOUND', message: 'الصنف غير موجود' });
     return item;
   }
 
   async createItem(dto: CreateItemDto) {
-    const dupSku = await this.prisma.item.findUnique({ where: { sku: dto.sku } });
+    if (!dto.name && !dto.nameAr) {
+      throw new BadRequestException({ code: 'NAME_REQUIRED', message: 'أدخل الاسم بالعربي أو بالإنكليزي' });
+    }
+    const sku = dto.sku || await this.generateSku();
+    const dupSku = await this.prisma.item.findUnique({ where: { sku } });
     if (dupSku) throw new BadRequestException({ code: 'DUPLICATE_SKU', message: 'يوجد صنف بنفس الـSKU مسبقاً' });
     if (dto.partCode) {
       const dupPart = await this.prisma.item.findUnique({ where: { partCode: dto.partCode } });
       if (dupPart) throw new BadRequestException({ code: 'DUPLICATE_PART_CODE', message: 'يوجد صنف بنفس رمز القطعة مسبقاً' });
     }
-    return this.prisma.item.create({ data: dto as any, include: { category: true, unit: true } });
+    return this.prisma.item.create({ data: { ...dto, sku } as any, include: { category: true, unit: true, manufacturer: true } });
   }
 
   async updateItem(id: string, dto: UpdateItemDto) {
-    await this.findItem(id);
+    const existing = await this.findItem(id);
+    if (dto.name === null && dto.nameAr === null) {
+      throw new BadRequestException({ code: 'NAME_REQUIRED', message: 'أدخل الاسم بالعربي أو بالإنكليزي' });
+    }
+    const nextName = dto.name !== undefined ? dto.name : existing.name;
+    const nextNameAr = dto.nameAr !== undefined ? dto.nameAr : existing.nameAr;
+    if (!nextName && !nextNameAr) {
+      throw new BadRequestException({ code: 'NAME_REQUIRED', message: 'أدخل الاسم بالعربي أو بالإنكليزي' });
+    }
     if (dto.partCode) {
       const dupPart = await this.prisma.item.findFirst({ where: { partCode: dto.partCode, id: { not: id } } });
       if (dupPart) throw new BadRequestException({ code: 'DUPLICATE_PART_CODE', message: 'يوجد صنف بنفس رمز القطعة مسبقاً' });
     }
-    return this.prisma.item.update({ where: { id }, data: dto as any, include: { category: true, unit: true } });
+    return this.prisma.item.update({ where: { id }, data: dto as any, include: { category: true, unit: true, manufacturer: true } });
   }
 
   async deleteItem(id: string) {

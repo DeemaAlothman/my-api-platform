@@ -5,6 +5,7 @@ import {
   CreateCategoryDto, UpdateCategoryDto,
   CreateSupplierDto, UpdateSupplierDto,
   CreateItemDto, UpdateItemDto,
+  CreateManufacturerDto, UpdateManufacturerDto,
 } from './dto/catalog.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
@@ -80,6 +81,36 @@ export class SuppliersController {
   @Permission(PERMISSIONS.WAREHOUSE.SUPPLIERS_UPDATE)
   update(@Param('id') id: string, @Body() dto: UpdateSupplierDto) {
     return this.service.updateSupplier(id, dto);
+  }
+}
+
+@Controller('warehouse/manufacturers')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+export class ManufacturersController {
+  constructor(private readonly service: CatalogService) {}
+
+  @Get()
+  @Permission(PERMISSIONS.WAREHOUSE.MANUFACTURERS_READ)
+  list() {
+    return this.service.listManufacturers();
+  }
+
+  @Post()
+  @Permission(PERMISSIONS.WAREHOUSE.MANUFACTURERS_CREATE)
+  create(@Body() dto: CreateManufacturerDto) {
+    return this.service.createManufacturer(dto);
+  }
+
+  @Put(':id')
+  @Permission(PERMISSIONS.WAREHOUSE.MANUFACTURERS_UPDATE)
+  update(@Param('id') id: string, @Body() dto: UpdateManufacturerDto) {
+    return this.service.updateManufacturer(id, dto);
+  }
+
+  @Delete(':id')
+  @Permission(PERMISSIONS.WAREHOUSE.MANUFACTURERS_DELETE)
+  remove(@Param('id') id: string) {
+    return this.service.deleteManufacturer(id);
   }
 }
 

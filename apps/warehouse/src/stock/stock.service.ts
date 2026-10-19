@@ -126,7 +126,8 @@ export class StockService {
        FROM warehouse.stock_balances b
        JOIN warehouse.items i ON i.id = b."itemId"
        LEFT JOIN warehouse.item_warehouse_settings s ON s."itemId" = b."itemId" AND s."warehouseId" = b."warehouseId"
-       WHERE COALESCE(s."minStock", i."minStock") IS NOT NULL
+       WHERE i."stockAlert" = true
+         AND COALESCE(s."minStock", i."minStock") IS NOT NULL
          AND b."onHandQty" <= COALESCE(s."minStock", i."minStock")
          ${warehouseId ? 'AND b."warehouseId" = $1' : ''}
        ORDER BY (b."onHandQty" / NULLIF(COALESCE(s."minStock", i."minStock"), 0)) ASC`,

@@ -78,6 +78,16 @@ model ItemCategory {
   @@schema("warehouse")
 }
 
+model Manufacturer {
+  id     String  @id @default(uuid())
+  name   String
+  nameAr String?
+  items  Item[]
+
+  @@map("manufacturers")
+  @@schema("warehouse")
+}
+
 model Supplier {
   id       String  @id @default(uuid())
   name     String
@@ -146,14 +156,16 @@ model Item {
   sku          String        @unique
   partCode     String?       @unique // مفتاح الربط مع مكوّنات الأطراف الصناعية (partCode)
   barcode      String?
-  name         String
+  name         String?
   nameAr       String?
   itemType     ItemType      @default(CONSUMABLE)
   categoryId   String?
   category     ItemCategory? @relation(fields: [categoryId], references: [id])
   unitId       String
   unit         Unit          @relation(fields: [unitId], references: [id])
-  manufacturer String?
+  manufacturerId String?
+  manufacturer   Manufacturer? @relation(fields: [manufacturerId], references: [id])
+  stockAlert   Boolean       @default(false)
   minStock     Decimal?      @db.Decimal(18, 3)
   costingMethod CostingMethod @default(AVERAGE_PRICE)
   isActive     Boolean       @default(true)
@@ -174,6 +186,7 @@ model Item {
 
   @@index([categoryId])
   @@index([unitId])
+  @@index([manufacturerId])
   @@map("items")
   @@schema("warehouse")
 }
