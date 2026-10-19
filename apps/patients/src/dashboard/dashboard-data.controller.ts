@@ -35,6 +35,9 @@ export class DashboardDataController {
       waitingListCount,
       appointmentsThisMonth,
       appointmentsNoShowThisMonth,
+      podiatryReceptionsTotal,
+      podiatryInsolesFittedTotal,
+      podiatryInsolesFittedThisMonth,
     ] = await Promise.all([
       this.prisma.patient.count({ where: { deletedAt: null, createdAt: { gte: thisMonthStart } } }),
       this.prisma.patient.count({ where: { deletedAt: null, createdAt: { gte: prevMonthStart, lt: thisMonthStart } } }),
@@ -79,6 +82,21 @@ export class DashboardDataController {
          WHERE "startTime" >= $1 AND "startTime" < $2 AND status::text = 'NO_SHOW'`,
         thisMonthStart, nextMonthStart,
       ),
+      // طب الأقدام — نعال: الحالة "مركّبة" إذا عندها جلسة واحدة ع الأقل installedAt مش فاضي
+      this.count(
+        `SELECT COUNT(*)::int AS count FROM clinic_podiatry.podiatry_receptions`,
+      ),
+      this.count(
+        `SELECT COUNT(DISTINCT r.id)::int AS count
+         FROM clinic_podiatry.podiatry_receptions r
+         JOIN clinic_podiatry.podiatry_sessions s ON s."receptionId" = r.id
+         WHERE s."installedAt" IS NOT NULL`,
+      ),
+      this.count(
+        `SELECT COUNT(*)::int AS count FROM clinic_podiatry.podiatry_sessions
+         WHERE "installedAt" >= $1 AND "installedAt" < $2`,
+        thisMonthStart, nextMonthStart,
+      ),
     ]);
 
     const avg = avgRows?.[0]?.avg;
@@ -96,6 +114,12 @@ export class DashboardDataController {
         waitingListCount,
         appointmentsThisMonth,
         appointmentsNoShowThisMonth,
+        podiatryReceptionsTotal,
+        podiatryInsolesFittedTotal,
+        podiatryNotFittedTotal: (podiatryReceptionsTotal == null || podiatryInsolesFittedTotal == null)
+          ? null
+          : podiatryReceptionsTotal - podiatryInsolesFittedTotal,
+        podiatryInsolesFittedThisMonth,
       },
     };
   }
