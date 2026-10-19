@@ -6,8 +6,10 @@ import { BadRequestException } from '@nestjs/common';
 
 // مسار دائم مربوط بـ volume ثابت على السيرفر (/var/data/appointments_uploads) — نفس نمط خدمة patients بالضبط
 export const FILE_STORAGE_ROOT = process.env.FILE_STORAGE_ROOT || '/app/uploads';
-const ALLOWED_MIME = ['image/jpeg', 'image/png', 'application/pdf'];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB — يكفي صورة كاميرا موبايل (عادة 3-8MB)
+// صيغ الصور المسموحة بالامتداد — يُستخدم فقط لما نوع الملف (mimetype) يصل فاضي أو
+// application/octet-stream (بيصير مع بعض متصفحات الموبايل عند الرفع من الكاميرا/المعرض)
+const ALLOWED_IMAGE_EXT = /\.(jpe?g|png|heic|heif|webp|gif|bmp|tiff?|avif)$/i;
 
 export const potentialClientAttachmentMulterOptions = {
   storage: diskStorage({
@@ -27,12 +29,19 @@ export const potentialClientAttachmentMulterOptions = {
   }),
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: (req: any, file: any, cb: any) => {
-    if (!ALLOWED_MIME.includes(file.mimetype)) {
-      return cb(new BadRequestException('نوع الملف غير مسموح — يُقبل JPEG/PNG/PDF فقط'), false);
+    const mimetype = file.mimetype || '';
+    const isImageMime = mimetype.startsWith('image/');
+    const isPdfMime = mimetype === 'application/pdf';
+    const mimeUnknown = !mimetype || mimetype === 'application/octet-stream';
+    const ext = extname(file.originalname).toLowerCase();
+    const allowedByExt = mimeUnknown && (ALLOWED_IMAGE_EXT.test(ext) || ext === '.pdf');
+
+    if (!isImageMime && !isPdfMime && !allowedByExt) {
+      return cb(new BadRequestException('نوع الملف غير مسموح — يُقبل الصور بكل صيغها أو PDF فقط'), false);
     }
     const contentLength = parseInt(req.headers['content-length'] || '0', 10);
     if (contentLength > MAX_FILE_SIZE) {
-      return cb(new BadRequestException('حجم الملف يتجاوز 10MB'), false);
+      return cb(new BadRequestException('حجم الملف يتجاوز 15MB'), false);
     }
     cb(null, true);
   },

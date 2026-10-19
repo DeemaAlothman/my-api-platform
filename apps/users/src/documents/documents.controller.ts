@@ -16,13 +16,14 @@ import { DocumentsService } from './documents.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 
-const ALLOWED_MIMES = [
+const ALLOWED_DOC_MIMES = [
   'application/pdf',
-  'image/jpeg', 'image/png', 'image/gif',
-  'image/heic', 'image/heif',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
+// صيغ الصور المسموحة بالامتداد — يُستخدم فقط لما نوع الملف (mimetype) يصل فاضي أو
+// application/octet-stream (بيصير مع بعض متصفحات الموبايل عند الرفع من الكاميرا/المعرض)
+const ALLOWED_IMAGE_EXT = /\.(jpe?g|png|heic|heif|webp|gif|bmp|tiff?|avif)$/i;
 
 const storage = diskStorage({
   destination: '/app/uploads/documents',
@@ -61,10 +62,17 @@ export class DocumentsController {
     storage,
     limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
     fileFilter: (_req, file, cb) => {
-      if (ALLOWED_MIMES.includes(file.mimetype)) {
+      const mimetype = file.mimetype || '';
+      const isImageMime = mimetype.startsWith('image/');
+      const isDocMime = ALLOWED_DOC_MIMES.includes(mimetype);
+      const mimeUnknown = !mimetype || mimetype === 'application/octet-stream';
+      const ext = extname(file.originalname).toLowerCase();
+      const allowedByExt = mimeUnknown && (ALLOWED_IMAGE_EXT.test(ext) || ext === '.pdf');
+
+      if (isImageMime || isDocMime || allowedByExt) {
         cb(null, true);
       } else {
-        cb(new BadRequestException('نوع الملف غير مسموح به. المسموح: PDF, JPG, PNG, HEIC, DOC, DOCX'), false);
+        cb(new BadRequestException('نوع الملف غير مسموح به. المسموح: صور بكل صيغها، PDF، DOC/DOCX'), false);
       }
     },
   }))
