@@ -149,6 +149,7 @@ model PodiatrySession {
   shoeWearPattern   Json?
   footMeasurements  Json?
   insoleType        String[]
+  shoeSize          Int?     // نمرة الضبان — من 28 إلى 52 بزيادة 2
   doctorDecision    String?  @db.Text
   notes             String?  @db.Text
 

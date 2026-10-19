@@ -17,6 +17,7 @@ export class SessionsService {
       ...(dto.shoeWearPattern   !== undefined && { shoeWearPattern:   dto.shoeWearPattern }),
       ...(dto.footMeasurements  !== undefined && { footMeasurements:  dto.footMeasurements }),
       ...(dto.insoleType        !== undefined && { insoleType:        dto.insoleType }),
+      ...(dto.shoeSize          !== undefined && { shoeSize:          dto.shoeSize }),
       ...(dto.notes             !== undefined && { notes:             dto.notes }),
       ...(dto.clinicianName     !== undefined && { clinicianName:     dto.clinicianName }),
       ...(dto.clinicianSignature !== undefined && { clinicianSignature: dto.clinicianSignature }),

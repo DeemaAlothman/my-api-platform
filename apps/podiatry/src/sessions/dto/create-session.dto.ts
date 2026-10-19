@@ -1,4 +1,8 @@
-import { IsString, IsOptional, IsArray, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsObject, IsIn } from 'class-validator';
+import { Type } from 'class-transformer';
+
+// نمرة الضبان المسموحة: 28 إلى 52 بزيادة 2
+const SHOE_SIZES = [28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52];
 
 /**
  * استمارة تقييم القدم والكاحل (FOOT & ANKLE ASSESSMENT FORM)
@@ -81,6 +85,9 @@ export class CreateSessionDto {
   @IsOptional() @IsObject() footMeasurements?: Record<string, any>;
 
   @IsOptional() @IsArray() @IsString({ each: true }) insoleType?: string[];
+
+  // نمرة الضبان — 28 إلى 52 بزيادة 2
+  @IsOptional() @Type(() => Number) @IsIn(SHOE_SIZES) shoeSize?: number;
 
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsString() clinicianName?: string;
