@@ -626,12 +626,15 @@ export class LeaveRequestsService {
     );
 
     if (hasSubstitute) {
-      const empRows = await this.prisma.$queryRawUnsafe<Array<{ fullName: string }>>(
-        `SELECT "fullName" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
-        employeeId,
-      );
-      const requesterName = empRows[0]?.fullName ?? 'الموظف';
-      await this.notifySubstituteOfRequest(request.substituteId!, requesterName, id);
+      // إشعار البديل غير حرج — أي خطأ هون ما لازم يفشّل تقديم الطلب نفسه (الطلب أصلاً انحفظ فوق)
+      try {
+        const empRows = await this.prisma.$queryRawUnsafe<Array<{ fullName: string }>>(
+          `SELECT CONCAT("firstNameAr", ' ', "lastNameAr") AS "fullName" FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+          employeeId,
+        );
+        const requesterName = empRows[0]?.fullName ?? 'الموظف';
+        await this.notifySubstituteOfRequest(request.substituteId!, requesterName, id);
+      } catch { /* silent — notification is non-critical */ }
     } else {
       if (dmIsHR) {
         await this.notifyHROfLeave(id, (request as any).leaveType?.nameAr ?? 'إجازة');
@@ -1051,7 +1054,7 @@ export class LeaveRequestsService {
       );
       if (!mgr[0]?.userId) return;
       const empName = await this.prisma.$queryRawUnsafe<Array<{ name: string }>>(
-        `SELECT "fullName" as name FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        `SELECT CONCAT("firstNameAr", ' ', "lastNameAr") AS name FROM users.employees WHERE id = $1 AND "deletedAt" IS NULL LIMIT 1`,
         employeeId,
       );
       const name = empName[0]?.name ?? 'الموظف';
