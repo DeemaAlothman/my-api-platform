@@ -467,6 +467,13 @@ export class PayrollService {
         if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
 
         const dateKey = recDate.toISOString().split('T')[0];
+        // يوم عليه إجازة يومية كاملة معتمدة (غير ساعية وغير نصف يوم): لا تأخير ولا انصراف مبكر
+        // إطلاقاً، فالموظف أصلاً غير مطالَب بالدوام. يُفحص بالإجازة نفسها لا بحالة السجل، لأن
+        // البصمة الفعلية تحوّل الحالة إلى PARTIAL_LEAVE بدل ON_LEAVE فتفلت من قائمة الاستثناء.
+        // مؤكَّد بحالة حقيقية: موظف بإجازة سنوية يوم كامل داوم جزءاً من اليوم ثم غادر، فاحتُسبت
+        // عليه 106 دقائق انصراف مبكر. نصف اليوم يبقى على معالجته (منتصف الدوام) أدناه.
+        if (approvedLeaveDates.has(dateKey) && !halfDayLeaveByDate.has(dateKey)) continue;
+
         const halfDayPeriod = halfDayLeaveByDate.get(dateKey);
         if (halfDayPeriod === 'AFTERNOON') {
           // إجازة بعد الظهر معتمدة: الدوام المطلوب ينتهي عند منتصف الدوام

@@ -435,6 +435,29 @@ export class AttendanceRecordsService {
       }
     }
 
+    // أيام عليها إجازة يومية كاملة معتمدة (غير ساعية وغير نصف يوم): لا تأخير ولا انصراف مبكر —
+    // نفس منطق تصحيح الراتب بالضبط. يُفحص بالإجازة نفسها لا بحالة السجل، لأن البصمة الفعلية
+    // تحوّل الحالة إلى PARTIAL_LEAVE بدل ON_LEAVE فتفلت من قائمة الاستثناء أدناه.
+    const fullDayLeaveByEmployeeDate = new Set<string>();
+    if (employeeIds.length > 0) {
+      const fullDayLeaveRows: Array<{ employeeId: string; startDate: Date; endDate: Date }> =
+        await this.prisma.$queryRawUnsafe(`
+          SELECT lr."employeeId", lr."startDate", lr."endDate"
+          FROM leaves.leave_requests lr
+          WHERE lr."employeeId" = ANY($1::text[]) AND lr.status = 'APPROVED'
+            AND lr."isHourlyLeave" = false AND lr."isHalfDay" = false
+            AND lr."deletedAt" IS NULL
+        `, employeeIds);
+      for (const leave of fullDayLeaveRows) {
+        const cursor = new Date(leave.startDate);
+        const end = new Date(leave.endDate);
+        while (cursor <= end) {
+          fullDayLeaveByEmployeeDate.add(`${leave.employeeId}|${cursor.toISOString().split('T')[0]}`);
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+      }
+    }
+
     const excludedStatusesForDisplay = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
 
     const items = records.map((record: any) => {
@@ -443,9 +466,19 @@ export class AttendanceRecordsService {
       let displayStatus = record.status;
 
       const sched = scheduleByEmployee.get(record.employeeId);
+      const onFullDayLeave = fullDayLeaveByEmployeeDate.has(
+        `${record.employeeId}|${new Date(record.date).toISOString().split('T')[0]}`,
+      );
       const canRecompute =
         record.clockInTime && sched?.workStartTime && sched?.workEndTime &&
-        sched.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status);
+        sched.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status) &&
+        !onFullDayLeave;
+
+      // يوم بإجازة كاملة معتمدة: تُصفَّر الدقائق صراحةً لا تُترك على القيمة الخام المخزَّنة
+      if (onFullDayLeave) {
+        displayLateMinutes = 0;
+        displayEarlyLeaveMinutes = 0;
+      }
 
       if (canRecompute) {
         const [startH, startM] = sched!.workStartTime!.split(':').map(Number);
