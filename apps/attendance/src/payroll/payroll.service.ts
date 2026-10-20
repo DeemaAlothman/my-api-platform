@@ -882,7 +882,11 @@ export class PayrollService {
          FROM users.employee_rewards_penalties
          WHERE "employeeId" = $1
            AND kind = 'REWARD' AND category = 'MATERIAL' AND status = 'ACTIVE'
-           AND "effectiveDate" >= $2 AND "effectiveDate" <= $3`,
+           -- المقارنة بالتاريخ المحلي (UTC+3) لا بالتوقيت الخام: حدّا الفترة هما منتصف ليل اليوم
+           -- الأول ومنتصف ليل اليوم الأخير بـUTC، فكانت مكافأة اليوم الأخير بعد منتصف الليل تسقط
+           -- من الشهرين معاً. مؤكَّد بحالة حقيقية: مكافأة 50 مخزَّنة 2026-09-30 23:19 UTC (أي
+           -- 1 تشرين الأول محلياً كما تعرضها الواجهة) لم تُحتسب لا في أيلول ولا في تشرين الأول
+           AND ("effectiveDate" + interval '3 hours')::date BETWEEN $2::date AND $3::date`,
         employeeId, startDate, endDate,
       ) as Array<{ id: string; amount: string | null; reason: string | null; requestId: string | null }>;
 
@@ -899,7 +903,8 @@ export class PayrollService {
          FROM users.employee_rewards_penalties
          WHERE "employeeId" = $1
            AND kind = 'PENALTY' AND category = 'MATERIAL' AND status = 'ACTIVE'
-           AND "effectiveDate" >= $2 AND "effectiveDate" <= $3`,
+           -- نفس تصحيح المكافآت أعلاه: المقارنة بالتاريخ المحلي (UTC+3)
+           AND ("effectiveDate" + interval '3 hours')::date BETWEEN $2::date AND $3::date`,
         employeeId, startDate, endDate,
       ) as Array<{ id: string; penaltyDays: string | null; reason: string | null; requestId: string | null }>;
 
