@@ -438,12 +438,14 @@ export class AttendanceRecordsService {
     // أيام عليها إجازة يومية كاملة معتمدة (غير ساعية وغير نصف يوم): لا تأخير ولا انصراف مبكر —
     // نفس منطق تصحيح الراتب بالضبط. يُفحص بالإجازة نفسها لا بحالة السجل، لأن البصمة الفعلية
     // تحوّل الحالة إلى PARTIAL_LEAVE بدل ON_LEAVE فتفلت من قائمة الاستثناء أدناه.
-    const fullDayLeaveByEmployeeDate = new Set<string>();
+    // تُحفظ مع اسم نوع الإجازة ليعرضه السجل (إجازة سنوية/مرضية…) بدل "إجازة ساعية" المضلِّلة
+    const fullDayLeaveByEmployeeDate = new Map<string, string>();
     if (employeeIds.length > 0) {
-      const fullDayLeaveRows: Array<{ employeeId: string; startDate: Date; endDate: Date }> =
+      const fullDayLeaveRows: Array<{ employeeId: string; startDate: Date; endDate: Date; typeName: string | null }> =
         await this.prisma.$queryRawUnsafe(`
-          SELECT lr."employeeId", lr."startDate", lr."endDate"
+          SELECT lr."employeeId", lr."startDate", lr."endDate", lt."nameAr" AS "typeName"
           FROM leaves.leave_requests lr
+          JOIN leaves.leave_types lt ON lt.id = lr."leaveTypeId"
           WHERE lr."employeeId" = ANY($1::text[]) AND lr.status = 'APPROVED'
             AND lr."isHourlyLeave" = false AND lr."isHalfDay" = false
             AND lr."deletedAt" IS NULL
@@ -452,7 +454,10 @@ export class AttendanceRecordsService {
         const cursor = new Date(leave.startDate);
         const end = new Date(leave.endDate);
         while (cursor <= end) {
-          fullDayLeaveByEmployeeDate.add(`${leave.employeeId}|${cursor.toISOString().split('T')[0]}`);
+          fullDayLeaveByEmployeeDate.set(
+            `${leave.employeeId}|${cursor.toISOString().split('T')[0]}`,
+            leave.typeName ?? 'إجازة',
+          );
           cursor.setUTCDate(cursor.getUTCDate() + 1);
         }
       }
@@ -466,18 +471,22 @@ export class AttendanceRecordsService {
       let displayStatus = record.status;
 
       const sched = scheduleByEmployee.get(record.employeeId);
-      const onFullDayLeave = fullDayLeaveByEmployeeDate.has(
+      const fullDayLeaveTypeAr = fullDayLeaveByEmployeeDate.get(
         `${record.employeeId}|${new Date(record.date).toISOString().split('T')[0]}`,
       );
+      const onFullDayLeave = !!fullDayLeaveTypeAr;
       const canRecompute =
         record.clockInTime && sched?.workStartTime && sched?.workEndTime &&
         sched.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status) &&
         !onFullDayLeave;
 
-      // يوم بإجازة كاملة معتمدة: تُصفَّر الدقائق صراحةً لا تُترك على القيمة الخام المخزَّنة
+      // يوم بإجازة كاملة معتمدة: تُصفَّر الدقائق صراحةً لا تُترك على القيمة الخام المخزَّنة،
+      // وتُعرض الحالة كـ"بإجازة" مع اسم نوعها — لأن البصمة تجعل الحالة المخزَّنة PARTIAL_LEAVE
+      // فتظهر بالواجهة "إجازة ساعية" رغم أن الإجازة سنوية/مرضية ليوم كامل
       if (onFullDayLeave) {
         displayLateMinutes = 0;
         displayEarlyLeaveMinutes = 0;
+        displayStatus = 'ON_LEAVE';
       }
 
       if (canRecompute) {
@@ -561,6 +570,8 @@ export class AttendanceRecordsService {
         lateMinutes: displayLateMinutes,
         earlyLeaveMinutes: displayEarlyLeaveMinutes,
         status: displayStatus,
+        // اسم نوع الإجازة اليومية المعتمدة لهذا اليوم (إجازة سنوية/مرضية…) أو null
+        leaveTypeAr: fullDayLeaveTypeAr ?? null,
         employee: employeeMap.get(record.employeeId) || null,
       };
     });
