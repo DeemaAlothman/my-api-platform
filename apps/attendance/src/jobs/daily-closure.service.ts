@@ -1924,7 +1924,8 @@ export class DailyClosureService implements OnModuleInit {
                 COALESCE(ws."workStartTime", '') AS "workStartTime",
                 COALESCE(ws."workEndTime", '')   AS "workEndTime",
                 COALESCE(ws."shiftType", 'DAY')  AS "shiftType",
-                ws."minimumWorkMinutes"
+                ws."minimumWorkMinutes",
+                ws."workDays"
          FROM attendance.attendance_records ar
          LEFT JOIN attendance.employee_schedules es ON es."employeeId" = ar."employeeId"
            AND $1::date BETWEEN es."effectiveFrom"::date
@@ -1941,11 +1942,22 @@ export class DailyClosureService implements OnModuleInit {
         clockInTime: Date; clockOutTime: Date; workedMinutes: number | null;
         workStartTime: string; workEndTime: string;
         shiftType: string; minimumWorkMinutes: number | null;
+        workDays: string | null;
       }>;
 
       const holiday = await this.getHolidayForDate(dateStr);
       const dow = new Date(dateStr + 'T00:00:00Z').getUTCDay();
-      const isOffDay = !!holiday || dow === 5 || dow === 6;
+      // يوم العطلة يُحدَّد من أيام دوام الموظف نفسه (workDays بجدوله)، لا بافتراض ثابت أن الجمعة
+      // والسبت عطلة — فالسبت يوم دوام رسمي هنا. مؤكَّد بحالة حقيقية: موظف دوامه [0,1,2,3,4,6]
+      // اشتغل إضافي يوم سبت، فاحتُسب "إضافي عطلة" بضعف الأجر وبدوامه الكامل كأساس بدل الساعات
+      // خارج الدوام فقط. العطل الرسمية من جدول العطل تبقى كما هي.
+      const isOffDayFor = (workDaysJson: string | null): boolean => {
+        if (holiday) return true;
+        let workDays: number[] = [0, 1, 2, 3, 4];
+        try { if (workDaysJson) workDays = JSON.parse(workDaysJson); } catch { /* القيمة الافتراضية */ }
+        if (!Array.isArray(workDays) || workDays.length === 0) return dow === 5 || dow === 6;
+        return !workDays.includes(dow);
+      };
 
       for (const rec of records) {
         try {
@@ -1981,7 +1993,7 @@ export class DailyClosureService implements OnModuleInit {
           let overtimeWorkday = 0;
           let overtimeHoliday = 0;
 
-          if (isOffDay) {
+          if (isOffDayFor(rec.workDays)) {
             overtimeHoliday = Math.min(rec.workedMinutes ?? 0, totalCapMin);
           } else if (rec.shiftType === 'FLEXIBLE') {
             const aboveMin = Math.max(0, (rec.workedMinutes ?? 0) - (rec.minimumWorkMinutes ?? 480));
