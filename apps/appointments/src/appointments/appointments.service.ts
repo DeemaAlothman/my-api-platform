@@ -36,6 +36,20 @@ const SERVICE_TYPE_AR: Record<string, string> = {
   LIMB_PATIENT_EXAMINATION: 'معاينة مريض طرف',
 };
 
+// توقيت العيادة — Asia/Damascus ثابت بدون توقيت صيفي حالياً (قابل للتهيئة لو تغيّر لاحقاً)
+const CLINIC_TZ_OFFSET_HOURS = parseInt(process.env.CLINIC_TZ_OFFSET_HOURS || '3', 10);
+
+// حدود يوم تقويمي كامل بتوقيت العيادة لـ"YYYY-MM-DD"، معبّرة كـ UTC instants
+// مثال: '2026-10-22' → من 2026-10-21T21:00:00Z لـ 2026-10-22T21:00:00Z
+function clinicDayRange(dateStr: string): { start: Date; end: Date } {
+  const start = new Date(`${dateStr}T00:00:00.000Z`);
+  start.setUTCHours(start.getUTCHours() - CLINIC_TZ_OFFSET_HOURS);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
+const BARE_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 // أنواع المواعيد المسموح بها لكل قسم
 const DEPT_ALLOWED_TYPES: Record<string, string[]> = {
   '5ca66156-0a88-423f-adc9-aa915901c160': [ // قسم الأطراف الصناعية وطب الأقدام
@@ -261,6 +275,30 @@ export class AppointmentsService implements OnModuleInit {
     });
   }
 
+  // يرفض أي موعد بداية أو نهاية تبعه برّا ساعات الدوام (10:00–18:00 بتوقيت العيادة)، أو بيمتد ليوم تقويمي تاني
+  private assertWithinWorkingHours(startTime: Date, endTime: Date) {
+    const shift = (d: Date) => new Date(d.getTime() + CLINIC_TZ_OFFSET_HOURS * 60 * 60 * 1000);
+    const s = shift(startTime);
+    const e = shift(endTime);
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+    const minutesOfDay = (d: Date) => d.getUTCHours() * 60 + d.getUTCMinutes();
+
+    const WORK_START = 10 * 60;
+    const WORK_END = 18 * 60;
+
+    const outside =
+      dayKey(s) !== dayKey(e) ||
+      minutesOfDay(s) < WORK_START || minutesOfDay(s) > WORK_END ||
+      minutesOfDay(e) < WORK_START || minutesOfDay(e) > WORK_END;
+
+    if (outside) {
+      throw new BadRequestException({
+        code: 'OUTSIDE_WORKING_HOURS',
+        message: 'الموعد خارج ساعات الدوام (10:00 – 18:00)',
+      });
+    }
+  }
+
   // فحص تعارض المريض: نفس المريض لا يمكن أن يكون في موعدين متزامنين
   private async checkPatientConflict(
     patientId: string,
@@ -296,6 +334,7 @@ export class AppointmentsService implements OnModuleInit {
       : new Date(dto.endTime!);
 
     if (!dto.isOpenEnded && endTime <= startTime) throw new BadRequestException('endTime must be after startTime');
+    this.assertWithinWorkingHours(startTime, endTime);
 
     const conflict = await this.checkConflict(dto.practitionerId, startTime, endTime, undefined, dto.therapistIds, dto.physiotherapistId);
     if (conflict) throw await this.buildConflictError(conflict as any);
@@ -392,9 +431,8 @@ export class AppointmentsService implements OnModuleInit {
 
   // بناء صفوف تقرير الإحصائيات (مواعيد + أسماء مرضى/فنيين/أقسام + أعمدة الحالة)
   private async buildStatisticsRows(query: StatisticsQueryDto) {
-    const from = new Date(query.dateFrom);
-    const to = new Date(query.dateTo);
-    to.setDate(to.getDate() + 1); // نهاية شاملة لليوم الأخير
+    const from = BARE_DATE.test(query.dateFrom) ? clinicDayRange(query.dateFrom).start : new Date(query.dateFrom);
+    const to = BARE_DATE.test(query.dateTo) ? clinicDayRange(query.dateTo).end : new Date(query.dateTo);
 
     const where: any = { startTime: { gte: from, lt: to } };
     if (query.departmentId) where.departmentId = query.departmentId;
@@ -492,10 +530,15 @@ export class AppointmentsService implements OnModuleInit {
     if (departmentId) where.departmentId = departmentId;
     if (status) where.status = status;
     if (date) {
-      const d = new Date(date);
-      const next = new Date(d);
-      next.setDate(next.getDate() + 1);
-      where.startTime = { gte: d, lt: next };
+      if (BARE_DATE.test(date)) {
+        const { start, end } = clinicDayRange(date);
+        where.startTime = { gte: start, lt: end };
+      } else {
+        const d = new Date(date);
+        const next = new Date(d);
+        next.setDate(next.getDate() + 1);
+        where.startTime = { gte: d, lt: next };
+      }
     }
 
     const [raw, total] = await Promise.all([
@@ -507,8 +550,8 @@ export class AppointmentsService implements OnModuleInit {
   }
 
   async getCalendar(query: CalendarQueryDto) {
-    const from = new Date(query.from);
-    const to = new Date(query.to);
+    const from = BARE_DATE.test(query.from) ? clinicDayRange(query.from).start : new Date(query.from);
+    const to = BARE_DATE.test(query.to) ? clinicDayRange(query.to).end : new Date(query.to);
     const where: any = {
       startTime: { gte: from },
       endTime: { lte: to },
@@ -609,10 +652,15 @@ export class AppointmentsService implements OnModuleInit {
     };
     if (status) where.status = status;
     if (date) {
-      const d = new Date(date);
-      const next = new Date(d);
-      next.setDate(next.getDate() + 1);
-      where.startTime = { gte: d, lt: next };
+      if (BARE_DATE.test(date)) {
+        const { start, end } = clinicDayRange(date);
+        where.startTime = { gte: start, lt: end };
+      } else {
+        const d = new Date(date);
+        const next = new Date(d);
+        next.setDate(next.getDate() + 1);
+        where.startTime = { gte: d, lt: next };
+      }
     }
     const [raw, total] = await Promise.all([
       this.prisma.appointment.findMany({ where, skip, take: limit, orderBy: { startTime: 'asc' } }),
@@ -635,6 +683,7 @@ export class AppointmentsService implements OnModuleInit {
     if (dto.startTime && dto.endTime) {
       const startTime = new Date(dto.startTime);
       const endTime = new Date(dto.endTime);
+      this.assertWithinWorkingHours(startTime, endTime);
       const conflict = await this.checkConflict(
         existing.practitionerId, startTime, endTime, id,
         dto.therapistIds ?? (existing as any).therapistIds,
@@ -734,6 +783,7 @@ export class AppointmentsService implements OnModuleInit {
     const endTime = dto.isOpenEnded
       ? new Date(startTime.getTime() + 15 * 60 * 1000)
       : new Date(dto.endTime!);
+    this.assertWithinWorkingHours(startTime, endTime);
     const conflict = await this.checkConflict(appt.practitionerId, startTime, endTime, id, (appt as any).therapistIds, (appt as any).physiotherapistId);
     if (conflict) throw await this.buildConflictError(conflict as any);
     if (appt.patientId) {
