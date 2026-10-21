@@ -113,7 +113,14 @@ export class ProbationEvaluationsService {
       },
     });
     if (!evaluation) throw new NotFoundException('التقييم غير موجود');
-    return { ...evaluation, scores: evaluation.scores.map(this.withCriteriaJobTitleIds) };
+    const meetingSkippedByName = (evaluation as any).meetingSkippedBy
+      ? await this.resolveUserName((evaluation as any).meetingSkippedBy)
+      : null;
+    return {
+      ...evaluation,
+      meetingSkippedByName,
+      scores: evaluation.scores.map(this.withCriteriaJobTitleIds),
+    };
   }
 
   // يستبدل jobTitleOverrides الخام بقائمة jobTitleIds نظيفة ضمن criteria

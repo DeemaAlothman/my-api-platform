@@ -24,7 +24,7 @@ const SERVICE_TYPE_AR: Record<string, string> = {
   TRIAL_DELIVERY: 'تسليم تجريبي',
   FINAL_DELIVERY: 'تسليم نهائي',
   REVIEW: 'مراجعة',
-  IMPRESSION_TAKING: 'أخذ انطباع',
+  IMPRESSION_TAKING: 'أخذ طبعة',
   MEASUREMENT_TAKING: 'أخذ قياس',
   WHEELCHAIR_DELIVERY: 'تسليم كرسي متحرك',
   WARRANTY_DELIVERY: 'تسليم كفالة',
@@ -38,8 +38,14 @@ const SERVICE_TYPE_AR: Record<string, string> = {
 
 // "مراجعة" و"معاينة" بحاجة شرط إضافي (نوع الحالة المرتبطة / القسم) لتحديد الاسم الدقيق،
 // بعكس باقي الأنواع اللي اسمها ثابت دايماً — راجع resolveServiceTypeAr أدناه
-function resolveServiceTypeAr(appointmentType: string, caseType: string | null | undefined, departmentNameAr: string | undefined): string {
+function resolveServiceTypeAr(
+  appointmentType: string,
+  caseType: string | null | undefined,
+  departmentNameAr: string | undefined,
+  isPodiatryLinked: boolean,
+): string {
   if (appointmentType === 'REVIEW' && caseType === 'PROSTHETICS') return 'مراجعة أطراف صناعية';
+  if (appointmentType === 'REVIEW' && isPodiatryLinked) return 'مراجعة طب أقدام';
   if (appointmentType === 'EXAMINATION' && departmentNameAr === 'الإدارة الطبية') return 'معاينة تحليل قدم';
   return SERVICE_TYPE_AR[appointmentType] ?? appointmentType;
 }
@@ -455,8 +461,13 @@ export class AppointmentsService implements OnModuleInit {
       a.therapistIds?.length ? a.therapistIds : (a.physiotherapistId ? [a.physiotherapistId] : (a.practitionerId ? [a.practitionerId] : []));
     const practitionerIds = [...new Set(raw.flatMap(responsibleIds))];
     const departmentIds = [...new Set(raw.map(a => a.departmentId).filter((id): id is string => !!id))];
+    // مواعيد "مراجعة" يلي ربما مرتبطة بطب الأقدام — عبر caseId (استقبال طب أقدام) أو عبر
+    // المعالج المسؤول (ظهر قبل كمعالج بأي استقبال طب أقدام)، لأن caseType ما فيه قيمة لطب الأقدام
+    const reviewCaseIds = [...new Set(
+      raw.filter(a => a.appointmentType === 'REVIEW' && (a as any).caseId).map(a => (a as any).caseId as string),
+    )];
 
-    const [employees, departments] = await Promise.all([
+    const [employees, departments, podiatryCaseRows, podiatryPractitionerRows] = await Promise.all([
       practitionerIds.length
         ? this.prisma.$queryRawUnsafe<Array<{ userId: string; firstNameAr: string; lastNameAr: string }>>(
             `SELECT "userId", "firstNameAr", "lastNameAr" FROM users.employees WHERE "userId" = ANY($1::text[])`,
@@ -469,17 +480,37 @@ export class AppointmentsService implements OnModuleInit {
             departmentIds,
           )
         : Promise.resolve([]),
+      reviewCaseIds.length
+        ? this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+            `SELECT id FROM clinic_podiatry.podiatry_receptions WHERE id = ANY($1::text[])`,
+            reviewCaseIds,
+          ).catch(() => [] as Array<{ id: string }>)
+        : Promise.resolve([] as Array<{ id: string }>),
+      practitionerIds.length
+        ? this.prisma.$queryRawUnsafe<Array<{ practitionerIds: string[] }>>(
+            `SELECT "practitionerIds" FROM clinic_podiatry.podiatry_receptions WHERE "practitionerIds" && $1::text[]`,
+            practitionerIds,
+          ).catch(() => [] as Array<{ practitionerIds: string[] }>)
+        : Promise.resolve([] as Array<{ practitionerIds: string[] }>),
     ]);
     const employeeMap = new Map(employees.map(e => [e.userId, `${e.firstNameAr} ${e.lastNameAr}`]));
     const departmentMap = new Map(departments.map(d => [d.id, d.nameAr]));
+    const podiatryCaseIdSet = new Set(podiatryCaseRows.map(r => r.id));
+    const podiatryPractitionerIdSet = new Set(podiatryPractitionerRows.flatMap(r => r.practitionerIds ?? []));
 
-    const rows = raw.map((a, idx) => ({
+    const rows = raw.map((a, idx) => {
+      const isPodiatryLinked = a.appointmentType === 'REVIEW' && (
+        ((a as any).caseId && podiatryCaseIdSet.has((a as any).caseId)) ||
+        responsibleIds(a).some(id => podiatryPractitionerIdSet.has(id))
+      );
+      return {
       patientName: patientNameByIndex[idx] ?? '',
       department: a.departmentId ? (departmentMap.get(a.departmentId) ?? '') : '',
       serviceType: resolveServiceTypeAr(
         a.appointmentType as string,
         (a as any).caseType,
         a.departmentId ? departmentMap.get(a.departmentId) : undefined,
+        isPodiatryLinked,
       ),
       practitionerName: responsibleIds(a).map(id => employeeMap.get(id)).filter(Boolean).join('، '),
       visitDate: a.startTime,
@@ -488,7 +519,8 @@ export class AppointmentsService implements OnModuleInit {
       postponed: a.status === 'RESCHEDULED',
       noShow: a.status === 'NO_SHOW',
       cancelledReason: a.cancelledReason ?? '',
-    }));
+      };
+    });
 
     const totals = rows.reduce(
       (acc, r) => ({
