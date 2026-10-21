@@ -32,8 +32,12 @@ export class WaitingListController {
   // قبل :id حتى ما ينفهم export-xlsx كمعرّف
   @Get('export-xlsx')
   @Permission(PERMISSIONS.CLINIC_WAITING_LIST.VIEW)
-  exportXlsx(@Query('status') status: string | undefined, @Res() res: Response) {
-    return this.service.exportXlsx(status, res);
+  exportXlsx(
+    @Query('status') status: string | undefined,
+    @Query('search') search: string | undefined,
+    @Res() res: Response,
+  ) {
+    return this.service.exportXlsx(status, res, search);
   }
 
   @Get(':id')

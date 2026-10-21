@@ -82,6 +82,9 @@ export class ListWaitingListQueryDto {
   @IsOptional() @IsEnum(WaitingListStatusEnum)
   status?: string;
 
+  @IsOptional() @IsString()
+  search?: string;
+
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   page?: number = 1;
 

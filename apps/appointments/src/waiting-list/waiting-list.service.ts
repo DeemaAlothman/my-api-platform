@@ -33,13 +33,26 @@ export class WaitingListService {
     });
   }
 
+  // فلاتر مشتركة للقائمة والتصدير
+  private buildWhere(status?: string, search?: string) {
+    const where: any = {};
+    if (status) where.status = status;
+    const term = search?.trim();
+    if (term) {
+      where.OR = [
+        { patientName:  { contains: term, mode: 'insensitive' } },
+        { contactNumber: { contains: term, mode: 'insensitive' } },
+        { serviceType:  { contains: term, mode: 'insensitive' } },
+      ];
+    }
+    return where;
+  }
+
   async findAll(query: ListWaitingListQueryDto) {
     const page  = query.page  ?? 1;
     const limit = query.limit ?? 50;
     const skip  = (page - 1) * limit;
-
-    const where: any = {};
-    if (query.status) where.status = query.status;
+    const where = this.buildWhere(query.status, query.search);
 
     const [items, total] = await Promise.all([
       this.prisma.waitingListEntry.findMany({
@@ -49,13 +62,12 @@ export class WaitingListService {
       this.prisma.waitingListEntry.count({ where }),
     ]);
 
-    return { items, total, page, limit };
+    return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
-  // تصدير Excel — الحالة المختارة فقط، أو كل الحالات إن لم تُحدَّد. بدون صفحات.
-  async exportXlsx(status: string | undefined, res: Response) {
-    const where: any = {};
-    if (status) where.status = status;
+  // تصدير Excel — بنفس فلاتر القائمة (حالة + بحث)، بدون صفحات.
+  async exportXlsx(status: string | undefined, res: Response, search?: string) {
+    const where = this.buildWhere(status, search);
 
     const items = await this.prisma.waitingListEntry.findMany({
       where,
