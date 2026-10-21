@@ -791,6 +791,57 @@ export class ProbationEvaluationsService {
     return this.findOne(id);
   }
 
+  // تخطّي مرحلة جدولة الاجتماع بالكامل من قِبل HR — بديل عن schedule-meeting + confirm-meeting
+  async skipMeeting(id: string, performedBy: string, reason: string) {
+    const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
+    if (!evaluation) throw new NotFoundException('التقييم غير موجود');
+    if (evaluation.status !== 'PENDING_MEETING_SCHEDULE') {
+      throw new BadRequestException({ code: 'INVALID_STATUS', message: 'التقييم ليس في مرحلة جدولة الاجتماع' });
+    }
+
+    const hadProposedMeeting = !!(evaluation as any).meetingProposedAt;
+
+    await this.prisma.probationEvaluation.update({
+      where: { id },
+      data: {
+        status: 'PENDING_HR',
+        meetingProposedAt: null,
+        meetingConfirmedByEmployee: false,
+        meetingConfirmedByManager: false,
+        meetingConfirmedByCeo: false,
+        meetingConfirmedAt: null,
+        meetingRescheduleNote: null,
+        meetingSkipped: true,
+        meetingSkippedAt: new Date(),
+        meetingSkippedBy: performedBy,
+        meetingSkipReason: reason,
+      } as any,
+    });
+
+    const hrName = await this.resolveUserName(performedBy);
+    await this.logHistory(id, 'MEETING_SKIPPED', performedBy, `تم تخطي جدولة الاجتماع بواسطة ${hrName ?? 'HR'} — السبب: ${reason}`);
+
+    // إشعار الموظف والمدير المباشر فقط إذا كان أصلاً انبعتلهم موعد لإلغائه
+    if (hadProposedMeeting) {
+      await this.notifyMeetingApprovers(evaluation, 'PROBATION_REMINDER',
+        'تم تخطي اجتماع تقييم فترة التجربة',
+        'Probation Meeting Skipped',
+        `تم تخطي موعد اجتماع تقييم فترة التجربة. السبب: ${reason}`,
+        `The probation evaluation meeting has been skipped. Reason: ${reason}`,
+        { evaluationId: id });
+    }
+
+    return this.findOne(id);
+  }
+
+  private async resolveUserName(userId: string): Promise<string | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ firstNameAr: string; lastNameAr: string }>>(
+      `SELECT e."firstNameAr", e."lastNameAr" FROM users.employees e WHERE e."userId" = $1 AND e."deletedAt" IS NULL LIMIT 1`,
+      userId,
+    );
+    return rows.length > 0 ? `${rows[0].firstNameAr} ${rows[0].lastNameAr}` : null;
+  }
+
   async employeeAcknowledge(id: string, performedBy: string, dto: WorkflowActionDto) {
     const evaluation = await this.prisma.probationEvaluation.findUnique({ where: { id } });
     if (!evaluation) throw new NotFoundException('التقييم غير موجود');

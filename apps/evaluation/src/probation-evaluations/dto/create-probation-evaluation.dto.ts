@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsDateString, IsBoolean, IsArray, ValidateNested, IsEnum, IsInt, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsBoolean, IsArray, ValidateNested, IsEnum, IsInt, IsNumber, Min, Max, IsNotEmpty } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 
@@ -64,4 +64,9 @@ export class WorkflowActionDto {
 
   @ApiPropertyOptional({ description: 'رابط المرفق المرفوع مسبقاً (يُرفع الملف بشكل منفصل ويُمرَّر رابطه هون)' })
   @IsOptional() @IsString() achievementFileUrl?: string;
+}
+
+export class SkipMeetingDto {
+  @ApiProperty({ description: 'سبب تخطي مرحلة جدولة الاجتماع' })
+  @IsString() @IsNotEmpty() reason: string;
 }

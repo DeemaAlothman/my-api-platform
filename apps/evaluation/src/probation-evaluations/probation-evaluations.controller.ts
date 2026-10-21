@@ -8,7 +8,7 @@ import type { Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ProbationEvaluationsService } from './probation-evaluations.service';
-import { CreateProbationEvaluationDto, WorkflowActionDto } from './dto/create-probation-evaluation.dto';
+import { CreateProbationEvaluationDto, WorkflowActionDto, SkipMeetingDto } from './dto/create-probation-evaluation.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard, Permission } from '@shared';
 
@@ -146,6 +146,12 @@ export class ProbationEvaluationsController {
   @Post(':id/suggest-meeting-change')
   suggestMeetingChange(@Param('id') id: string, @Body() body: { note: string }, @Request() req: any) {
     return this.service.suggestMeetingChange(id, req.user?.userId ?? 'system', body.note);
+  }
+
+  @Permission('probation:hr-review')
+  @Post(':id/skip-meeting')
+  skipMeeting(@Param('id') id: string, @Body() dto: SkipMeetingDto, @Request() req: any) {
+    return this.service.skipMeeting(id, req.user?.userId ?? 'system', dto.reason);
   }
 
   @Post(':id/close-evaluation')

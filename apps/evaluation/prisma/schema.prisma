@@ -344,6 +344,10 @@ model ProbationEvaluation {
   meetingConfirmedAt         DateTime?
   meetingRescheduleNote      String?
   decisionDocumentUrl        String?
+  meetingSkipped             Boolean   @default(false)
+  meetingSkippedAt           DateTime?
+  meetingSkippedBy           String?
+  meetingSkipReason          String?
 
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
