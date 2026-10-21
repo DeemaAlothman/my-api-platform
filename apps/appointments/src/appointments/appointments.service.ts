@@ -27,14 +27,22 @@ const SERVICE_TYPE_AR: Record<string, string> = {
   IMPRESSION_TAKING: 'أخذ انطباع',
   MEASUREMENT_TAKING: 'أخذ قياس',
   WHEELCHAIR_DELIVERY: 'تسليم كرسي متحرك',
-  WARRANTY_DELIVERY: 'تسليم ضمان',
+  WARRANTY_DELIVERY: 'تسليم كفالة',
   COSMETIC_DELIVERY: 'تسليم تجميلي',
-  ANALYSIS: 'تحليل',
-  INSTALLATION: 'تنصيب',
+  ANALYSIS: 'تحليل قدم',
+  INSTALLATION: 'تركيب ضبان',
   ORTHOPEDIC_EXAMINATION: 'معاينة عظمية',
   FOOT_ANALYSIS_EXAMINATION: 'تحليل قدم',
   LIMB_PATIENT_EXAMINATION: 'معاينة مريض طرف',
 };
+
+// "مراجعة" و"معاينة" بحاجة شرط إضافي (نوع الحالة المرتبطة / القسم) لتحديد الاسم الدقيق،
+// بعكس باقي الأنواع اللي اسمها ثابت دايماً — راجع resolveServiceTypeAr أدناه
+function resolveServiceTypeAr(appointmentType: string, caseType: string | null | undefined, departmentNameAr: string | undefined): string {
+  if (appointmentType === 'REVIEW' && caseType === 'PROSTHETICS') return 'مراجعة أطراف صناعية';
+  if (appointmentType === 'EXAMINATION' && departmentNameAr === 'الإدارة الطبية') return 'معاينة تحليل قدم';
+  return SERVICE_TYPE_AR[appointmentType] ?? appointmentType;
+}
 
 // توقيت العيادة — Asia/Damascus ثابت بدون توقيت صيفي حالياً (قابل للتهيئة لو تغيّر لاحقاً)
 const CLINIC_TZ_OFFSET_HOURS = parseInt(process.env.CLINIC_TZ_OFFSET_HOURS || '3', 10);
@@ -468,7 +476,11 @@ export class AppointmentsService implements OnModuleInit {
     const rows = raw.map((a, idx) => ({
       patientName: patientNameByIndex[idx] ?? '',
       department: a.departmentId ? (departmentMap.get(a.departmentId) ?? '') : '',
-      serviceType: SERVICE_TYPE_AR[a.appointmentType as string] ?? a.appointmentType,
+      serviceType: resolveServiceTypeAr(
+        a.appointmentType as string,
+        (a as any).caseType,
+        a.departmentId ? departmentMap.get(a.departmentId) : undefined,
+      ),
       practitionerName: responsibleIds(a).map(id => employeeMap.get(id)).filter(Boolean).join('، '),
       visitDate: a.startTime,
       attended: a.status === 'COMPLETED',
