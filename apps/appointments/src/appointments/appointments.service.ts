@@ -201,6 +201,7 @@ export class AppointmentsService implements OnModuleInit {
     endTime: Date,
     excludeId?: string,
     therapistIds?: string[],
+    physiotherapistId?: string | null,
   ) {
     const timeWhere: any = {
       status: { notIn: ['CANCELLED', 'NO_SHOW'] },
@@ -211,14 +212,52 @@ export class AppointmentsService implements OnModuleInit {
     };
     if (excludeId) timeWhere.id = { not: excludeId };
 
+    // المعالجون الفعليون أولاً (therapistIds ثم physiotherapistId) — practitionerId هو حساب
+    // موظف الاستقبال اللي سجّل الموعد، مش المعالج بالضرورة، فبيُستخدم فقط إذا ما في معالج محدد
     if (therapistIds && therapistIds.length > 0) {
       return this.prisma.appointment.findFirst({
         where: { ...timeWhere, therapistIds: { hasSome: therapistIds } },
       });
     }
+    if (physiotherapistId) {
+      return this.prisma.appointment.findFirst({
+        where: { ...timeWhere, OR: [{ physiotherapistId }, { therapistIds: { has: physiotherapistId } }] },
+      });
+    }
 
     return this.prisma.appointment.findFirst({
       where: { ...timeWhere, practitionerId },
+    });
+  }
+
+  // بناء رسالة خطأ تفصيلية عند تعارض موعد — بالاسم والوقت ومعرّف الموعد المتعارض، للسماح
+  // للواجهة بتلوين/تحديد الموعد المتعارض مباشرة بدون أي تخمين
+  private async buildConflictError(conflict: {
+    id: string; practitionerId: string; physiotherapistId: string | null; therapistIds: string[];
+    startTime: Date; endTime: Date;
+  }): Promise<BadRequestException> {
+    const ids = [...new Set([conflict.practitionerId, conflict.physiotherapistId, ...(conflict.therapistIds ?? [])].filter((v): v is string => !!v))];
+    const employees = ids.length
+      ? await this.prisma.$queryRawUnsafe<Array<{ userId: string; firstNameAr: string; lastNameAr: string }>>(
+          `SELECT "userId", "firstNameAr", "lastNameAr" FROM users.employees WHERE "userId" = ANY($1::text[])`,
+          ids,
+        ).catch(() => [] as Array<{ userId: string; firstNameAr: string; lastNameAr: string }>)
+      : [];
+    const nameByUserId = new Map(employees.map((e) => [e.userId, `${e.firstNameAr} ${e.lastNameAr}`]));
+    const responsibleIds = conflict.therapistIds?.length
+      ? conflict.therapistIds
+      : [conflict.physiotherapistId ?? conflict.practitionerId];
+    const names = responsibleIds.filter(Boolean).map((id) => nameByUserId.get(id as string) ?? id);
+
+    const tz = { timeZone: 'Asia/Damascus' };
+    const dateStr = new Date(conflict.startTime).toLocaleDateString('en-GB', tz);
+    const startStr = new Date(conflict.startTime).toLocaleTimeString('en-GB', { ...tz, hour: '2-digit', minute: '2-digit' });
+    const endStr = new Date(conflict.endTime).toLocaleTimeString('en-GB', { ...tz, hour: '2-digit', minute: '2-digit' });
+
+    return new BadRequestException({
+      code: 'CONFLICTING_APPOINTMENT',
+      message: `يوجد تعارض مع موعد آخر لـ${names.join('، ')} بتاريخ ${dateStr} من ${startStr} إلى ${endStr}`,
+      details: { conflictingAppointmentIds: [conflict.id] },
     });
   }
 
@@ -258,8 +297,8 @@ export class AppointmentsService implements OnModuleInit {
 
     if (!dto.isOpenEnded && endTime <= startTime) throw new BadRequestException('endTime must be after startTime');
 
-    const conflict = await this.checkConflict(dto.practitionerId, startTime, endTime, undefined, dto.therapistIds);
-    if (conflict) throw new BadRequestException('Practitioner has a conflicting appointment at this time');
+    const conflict = await this.checkConflict(dto.practitionerId, startTime, endTime, undefined, dto.therapistIds, dto.physiotherapistId);
+    if (conflict) throw await this.buildConflictError(conflict as any);
 
     if (dto.patientId) {
       const patientConflict = await this.checkPatientConflict(dto.patientId, startTime, endTime);
@@ -596,8 +635,12 @@ export class AppointmentsService implements OnModuleInit {
     if (dto.startTime && dto.endTime) {
       const startTime = new Date(dto.startTime);
       const endTime = new Date(dto.endTime);
-      const conflict = await this.checkConflict(existing.practitionerId, startTime, endTime, id, dto.therapistIds ?? (existing as any).therapistIds);
-      if (conflict) throw new BadRequestException('Conflicting appointment exists');
+      const conflict = await this.checkConflict(
+        existing.practitionerId, startTime, endTime, id,
+        dto.therapistIds ?? (existing as any).therapistIds,
+        dto.physiotherapistId ?? (existing as any).physiotherapistId,
+      );
+      if (conflict) throw await this.buildConflictError(conflict as any);
       if (existing.patientId) {
         const patientConflict2 = await this.checkPatientConflict(existing.patientId, startTime, endTime, id);
         if (patientConflict2) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
@@ -691,8 +734,8 @@ export class AppointmentsService implements OnModuleInit {
     const endTime = dto.isOpenEnded
       ? new Date(startTime.getTime() + 15 * 60 * 1000)
       : new Date(dto.endTime!);
-    const conflict = await this.checkConflict(appt.practitionerId, startTime, endTime, id, (appt as any).therapistIds);
-    if (conflict) throw new BadRequestException('Conflicting appointment exists');
+    const conflict = await this.checkConflict(appt.practitionerId, startTime, endTime, id, (appt as any).therapistIds, (appt as any).physiotherapistId);
+    if (conflict) throw await this.buildConflictError(conflict as any);
     if (appt.patientId) {
       const patientConflict3 = await this.checkPatientConflict(appt.patientId, startTime, endTime, id);
       if (patientConflict3) throw new BadRequestException('المريض لديه موعد آخر خلال هذا الوقت — لا يمكن حجز موعدين متزامنين لنفس المريض');
