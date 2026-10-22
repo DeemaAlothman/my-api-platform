@@ -32,6 +32,15 @@ model OrthoticsReception {
   familyHistory     String?  @db.Text
   chiefComplaint    String?  @db.Text
 
+  // عدد المقومات (الأجهزة التقويمية) المطلوبة
+  appliancesCount   Int?
+  // affectedLimbType: UPPER | LOWER
+  affectedLimbType  String?
+  // affectedSide: RIGHT | LEFT
+  affectedSide      String?
+  // وصف اختياري عن الطرف السليم
+  soundLimbDescription String? @db.Text
+
   // قصة الولادة / عوامل الخطورة
   birthHistory             String?  @db.Text
   // الاستخدام السابق للأجهزة التقويمية

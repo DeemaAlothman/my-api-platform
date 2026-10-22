@@ -95,6 +95,7 @@ export class ReceptionsService {
     const fields: (keyof DoctorAssessmentDto)[] = [
       'diagnosisTypes', 'cerebralPalsyType', 'footDropCause', 'diagnosisOther',
       'injuryStartDate', 'surgicalHistory', 'familyHistory', 'chiefComplaint',
+      'appliancesCount', 'affectedLimbType', 'affectedSide', 'soundLimbDescription',
       'muscleTone', 'spasticityLevel', 'sensation',
       'thighMuscleStrength', 'legFootMuscleStrength',
       'skinConditions', 'pressurePointsLocation',

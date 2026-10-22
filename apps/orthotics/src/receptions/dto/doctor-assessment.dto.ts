@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsBoolean, ArrayMaxSize } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsBoolean, ArrayMaxSize, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // تقييم طبيب العظمية — القصة المرضية والفحص السريري
@@ -13,6 +13,15 @@ export class DoctorAssessmentDto {
   @IsOptional() @IsString() surgicalHistory?: string;
   @IsOptional() @IsString() familyHistory?: string;
   @IsOptional() @IsString() chiefComplaint?: string;
+
+  // عدد المقومات (الأجهزة التقويمية) المطلوبة
+  @IsOptional() @Type(() => Number) @IsInt() appliancesCount?: number;
+  // affectedLimbType: UPPER | LOWER
+  @IsOptional() @IsString() affectedLimbType?: string;
+  // affectedSide: RIGHT | LEFT
+  @IsOptional() @IsString() affectedSide?: string;
+  // وصف اختياري عن الطرف السليم
+  @IsOptional() @IsString() soundLimbDescription?: string;
 
   // muscleTone: NORMAL | SPASTIC | HYPOTONIC
   @IsOptional() @IsString() muscleTone?: string;
