@@ -68,6 +68,10 @@ export class CreateSurveyDto {
   @IsEnum(PodiatryNoFittingReasonEnum)
   noFittingReason?: string;
 
+  // توضيح نصي اختياري — يُستخدم فقط عند اختيار OTHER، بدون إجبار
+  @IsOptional() @IsString()
+  noFittingReasonOther?: string;
+
   // إجباري فقط لما podiatryServiceType = ANALYSIS_AND_FITTING، وما بينبعت مع تحليل فقط
   @ValidateIf((o) => o.podiatryServiceType === PodiatryServiceTypeEnum.ANALYSIS_AND_FITTING)
   @Type(() => Number) @IsInt() @Min(1) @Max(5)

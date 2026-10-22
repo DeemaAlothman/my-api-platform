@@ -95,6 +95,7 @@ export class SurveysService {
         podiatryServiceType: dto.podiatryServiceType as any,
         medicalRecommendationRating: dto.medicalRecommendationRating,
         noFittingReason: dto.noFittingReason as any,
+        noFittingReasonOther: dto.noFittingReasonOther,
         insoleComfortRating: dto.insoleComfortRating,
         exerciseQualityRating: dto.exerciseQualityRating,
         mobilityImprovementRating: dto.mobilityImprovementRating,

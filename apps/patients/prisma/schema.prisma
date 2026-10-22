@@ -297,6 +297,7 @@ model PatientSurvey {
   podiatryServiceType          PodiatryServiceType?
   medicalRecommendationRating  Int?
   noFittingReason              PodiatryNoFittingReason? // فقط مع ANALYSIS_ONLY
+  noFittingReasonOther         String?                   // توضيح نصي اختياري — يُستخدم عند اختيار OTHER
   insoleComfortRating          Int?                      // فقط مع ANALYSIS_AND_FITTING (1-5)
 
   // خاص بالعلاج الفيزيائي
