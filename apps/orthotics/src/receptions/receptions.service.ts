@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
@@ -196,5 +196,48 @@ export class ReceptionsService {
     });
     const patientMap = await this.resolvePatients(receptions.map((r) => r.patientId));
     return receptions.map((r) => ({ ...r, patient: patientMap[r.patientId] ?? null }));
+  }
+
+  // ── Attachments ──────────────────────────────────────────────────────
+
+  async addAttachment(receptionId: string, file: Express.Multer.File, userId: string) {
+    if (!file) throw new BadRequestException('لم يتم رفع أي ملف');
+    await this.findOne(receptionId);
+
+    return this.prisma.orthoticsAttachment.create({
+      data: {
+        receptionId,
+        fileUrl: (file as any).path,
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        uploadedBy: userId,
+      },
+    });
+  }
+
+  async getAttachments(receptionId: string) {
+    await this.findOne(receptionId);
+    return this.prisma.orthoticsAttachment.findMany({
+      where: { receptionId },
+      orderBy: { uploadedAt: 'desc' },
+    });
+  }
+
+  async getAttachmentForDownload(receptionId: string, attachmentId: string) {
+    const att = await this.prisma.orthoticsAttachment.findFirst({
+      where: { id: attachmentId, receptionId },
+    });
+    if (!att) throw new NotFoundException('المرفق غير موجود');
+    return att;
+  }
+
+  async deleteAttachment(receptionId: string, attachmentId: string) {
+    const att = await this.prisma.orthoticsAttachment.findFirst({
+      where: { id: attachmentId, receptionId },
+    });
+    if (!att) throw new NotFoundException('المرفق غير موجود');
+    await this.prisma.orthoticsAttachment.delete({ where: { id: attachmentId } });
+    return { message: 'تم حذف المرفق' };
   }
 }

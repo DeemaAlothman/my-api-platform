@@ -383,6 +383,8 @@ services:
       NODE_ENV: production
       PATIENTS_SERVICE_URL: http://patients:4010
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
+    volumes:
+      - /var/data/orthotics_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

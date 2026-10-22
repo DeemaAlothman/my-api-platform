@@ -300,6 +300,8 @@ export const PERMISSIONS = {
     DOCTOR_ASSESSMENT_EDIT:   'clinic.orthotics.doctor_assessment.edit',
     PHYSIO_ASSESSMENT_EDIT:   'clinic.orthotics.physio_assessment.edit',
     PROSTHETIST_OPINION_EDIT: 'clinic.orthotics.prosthetist_opinion.edit',
+    VIEW_ATTACHMENTS:   'clinic.orthotics.view_attachments',
+    UPLOAD_ATTACHMENTS: 'clinic.orthotics.upload_attachments',
   },
   CLINIC_APPOINTMENTS: {
     VIEW:             'clinic.appointments.view',

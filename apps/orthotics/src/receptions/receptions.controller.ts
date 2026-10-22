@@ -1,4 +1,10 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, Res,
+  UploadedFile, UseInterceptors, NotFoundException,
+} from '@nestjs/common';
+import type { Response } from 'express';
+import { existsSync, createReadStream } from 'fs';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ReceptionsService } from './receptions.service';
 import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
@@ -6,6 +12,7 @@ import { DoctorAssessmentDto } from './dto/doctor-assessment.dto';
 import { PhysioAssessmentDto } from './dto/physio-assessment.dto';
 import { ProsthetistOpinionDto } from './dto/prosthetist-opinion.dto';
 import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
+import { orthoticsAttachmentMulterOptions } from './orthotics-files.config';
 import { JwtAuthGuard, User } from '@shared/auth';
 import { PermissionsGuard, Permission, PERMISSIONS } from '@shared';
 
@@ -63,6 +70,49 @@ export class ReceptionsController {
   @Patch(':id/prosthetist-opinion')
   upsertProsthetistOpinion(@Param('id') id: string, @Body() dto: ProsthetistOpinionDto) {
     return this.service.upsertProsthetistOpinion(id, dto);
+  }
+
+  // ── Attachments ────────────────────────────────────────────────────
+
+  @Post(':id/attachments')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.UPLOAD_ATTACHMENTS)
+  @UseInterceptors(FileInterceptor('file', orthoticsAttachmentMulterOptions))
+  uploadAttachment(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @User() user: any,
+  ) {
+    return this.service.addAttachment(id, file, user.userId);
+  }
+
+  @Get(':id/attachments')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.VIEW_ATTACHMENTS)
+  getAttachments(@Param('id') id: string) {
+    return this.service.getAttachments(id);
+  }
+
+  @Get(':id/attachments/:attachmentId/download')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.VIEW_ATTACHMENTS)
+  async downloadAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res() res: Response,
+  ) {
+    const att = await this.service.getAttachmentForDownload(id, attachmentId);
+    if (!existsSync(att.fileUrl)) {
+      throw new NotFoundException('الملف غير موجود على الخادم');
+    }
+    res.set({
+      'Content-Type': att.mimeType || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(att.fileName)}"`,
+    });
+    createReadStream(att.fileUrl).pipe(res);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.UPLOAD_ATTACHMENTS)
+  deleteAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string) {
+    return this.service.deleteAttachment(id, attachmentId);
   }
 
   @Permission(PERMISSIONS.CLINIC_ORTHOTICS.EDIT)

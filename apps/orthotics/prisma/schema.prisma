@@ -129,7 +129,27 @@ model OrthoticsReception {
   updatedAt DateTime @updatedAt
   createdBy String
 
+  attachments OrthoticsAttachment[]
+
   @@index([patientId])
   @@map("orthotics_receptions")
+  @@schema("clinic_orthotics")
+}
+
+model OrthoticsAttachment {
+  id          String   @id @default(uuid())
+  receptionId String
+  reception   OrthoticsReception @relation(fields: [receptionId], references: [id], onDelete: Cascade)
+
+  fileUrl  String
+  fileName String
+  fileSize Int
+  mimeType String
+
+  uploadedAt DateTime @default(now())
+  uploadedBy String
+
+  @@index([receptionId])
+  @@map("orthotics_attachments")
   @@schema("clinic_orthotics")
 }
