@@ -133,8 +133,10 @@ export class ReceptionsService {
 
   // ── رأي أخصائي الأطراف الصناعية ──────────────────────────────────────
 
+  private static readonly DEVICE_TYPES = ['AFO', 'KAFO', 'ORTHOSIS_WITH_FES', 'OTHER'];
+
   async upsertProsthetistOpinion(id: string, dto: ProsthetistOpinionDto) {
-    const existing = await this.findOne(id);
+    await this.findOne(id);
     const data: any = {};
     const fields: (keyof ProsthetistOpinionDto)[] = [
       'recommendedDeviceTypes', 'recommendedDeviceOther', 'additionalNotes',
@@ -144,11 +146,17 @@ export class ReceptionsService {
       if (dto[field] !== undefined) data[field] = dto[field];
     }
 
-    // عدّاد مرات استخدام كل نوع جهاز — يزيد واحد لكل نوع موجود بهاد الحفظة، محصور بهاد الاستقبال
-    if (dto.recommendedDeviceTypes !== undefined) {
-      const counts: Record<string, number> = { ...(existing as any).deviceUsageCounts };
-      for (const deviceType of dto.recommendedDeviceTypes) {
-        counts[deviceType] = (counts[deviceType] ?? 0) + 1;
+    // عدد الأجهزة المطلوبة من كل نوع — قيمة يحددها المستخدم، تستبدل الكائن القديم بالكامل
+    if (dto.deviceUsageCounts !== undefined) {
+      const counts: Record<string, number> = {};
+      for (const [deviceType, count] of Object.entries(dto.deviceUsageCounts)) {
+        if (!ReceptionsService.DEVICE_TYPES.includes(deviceType)) {
+          throw new BadRequestException(`نوع جهاز غير معروف: ${deviceType}`);
+        }
+        if (!Number.isInteger(count) || count < 0) {
+          throw new BadRequestException(`قيمة غير صالحة لـ ${deviceType} — يجب أن تكون عدداً صحيحاً ≥ 0`);
+        }
+        counts[deviceType] = count;
       }
       data.deviceUsageCounts = counts;
     }
