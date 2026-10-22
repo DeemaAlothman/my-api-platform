@@ -116,6 +116,9 @@ model OrthoticsReception {
   recommendedDeviceOther String?
   dailyWearHours         Float?
   additionalNotes        String? @db.Text
+  // عدّاد مرات استخدام كل نوع جهاز بهاد الاستقبال — { "AFO": 2, "KAFO": 1 }، يزيد تلقائياً
+  // بكل حفظ يتضمن النوع، محصور بهاد الاستقبال فقط
+  deviceUsageCounts Json @default("{}")
 
   // ── الرأي النهائي لكل اختصاصي ────────────────────────────────────────
   doctorOpinion      String? @db.Text

@@ -134,7 +134,7 @@ export class ReceptionsService {
   // ── رأي أخصائي الأطراف الصناعية ──────────────────────────────────────
 
   async upsertProsthetistOpinion(id: string, dto: ProsthetistOpinionDto) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
     const data: any = {};
     const fields: (keyof ProsthetistOpinionDto)[] = [
       'recommendedDeviceTypes', 'recommendedDeviceOther', 'additionalNotes',
@@ -143,6 +143,16 @@ export class ReceptionsService {
     for (const field of fields) {
       if (dto[field] !== undefined) data[field] = dto[field];
     }
+
+    // عدّاد مرات استخدام كل نوع جهاز — يزيد واحد لكل نوع موجود بهاد الحفظة، محصور بهاد الاستقبال
+    if (dto.recommendedDeviceTypes !== undefined) {
+      const counts: Record<string, number> = { ...(existing as any).deviceUsageCounts };
+      for (const deviceType of dto.recommendedDeviceTypes) {
+        counts[deviceType] = (counts[deviceType] ?? 0) + 1;
+      }
+      data.deviceUsageCounts = counts;
+    }
+
     return this.prisma.orthoticsReception.update({ where: { id }, data });
   }
 
