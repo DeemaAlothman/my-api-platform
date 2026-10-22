@@ -159,6 +159,7 @@ model PodiatrySession {
 
   installedAt DateTime?
   installedBy String?
+  surveyNotifiedAt DateTime? // تاريخ إرسال إشعار استبيان الرضا لمندوبي المبيعات (مرة واحدة فقط، 10 أيام بعد التركيب)
 
   archivedAt DateTime?
   archivedBy String?

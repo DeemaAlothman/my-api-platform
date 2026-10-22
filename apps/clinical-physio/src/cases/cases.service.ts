@@ -822,7 +822,7 @@ export class CasesService {
   async addSession(caseId: string, dto: PhysioSessionDto) {
     const physioCase = await this.findCaseOrThrow(caseId);
     // رقم الجلسة تلقائي تسلسلي لكل حالة (داخل transaction لمنع التكرار عند التزامن)
-    return this.prisma.$transaction(async (tx) => {
+    const session = await this.prisma.$transaction(async (tx) => {
       const last = await tx.physioSession.findFirst({
         where: { caseId },
         orderBy: { sessionNumber: 'desc' },
@@ -844,6 +844,13 @@ export class CasesService {
         },
       });
     });
+
+    // عند بلوغ الجلسة الثانية بالضبط — إشعار مندوبي المبيعات لتعبئة استبيان الرضا (مرة واحدة فقط)
+    if (session.sessionNumber === 2) {
+      this.notifySalesRepsForSurvey(physioCase.patientId, caseId).catch(() => {});
+    }
+
+    return session;
   }
 
   async getSessions(caseId: string) {
@@ -889,6 +896,32 @@ export class CasesService {
   }
 
   // ── Convert Doctor Exam → Physio ─────────────────────────────────────────
+
+  // إشعار مندوبي المبيعات (مسمى وظيفي VTX-JTL-000024) لتعبئة استبيان رضا العميل
+  private async notifySalesRepsForSurvey(patientId: string, caseId: string) {
+    try {
+      const reps = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT e."userId" FROM users.employees e
+         JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+         WHERE jt.code = 'VTX-JTL-000024' AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL`,
+      );
+      if (reps.length === 0) return;
+      const patientRows = await this.prisma.$queryRawUnsafe<Array<{ firstName: string; lastName: string }>>(
+        `SELECT "firstName", "lastName" FROM clinic_patients.patients WHERE id = $1`,
+        patientId,
+      );
+      const patientName = patientRows[0] ? `${patientRows[0].firstName} ${patientRows[0].lastName}` : 'المريض';
+      const msgAr = `يرجى تعبئة استبيان رضا العميل للمريض ${patientName} (قسم العلاج الفيزيائي)`;
+      const data = JSON.stringify({ patientId, department: 'PHYSIO', caseId });
+      for (const rep of reps) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, 'PATIENT_SURVEY_REQUIRED'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+          rep.userId, 'استبيان رضا مطلوب', msgAr, data,
+        ).catch(() => {});
+      }
+    } catch (_) {}
+  }
 
   private async sendNotifToEmployee(employeeId: string, titleAr: string, messageAr: string, data: object) {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(

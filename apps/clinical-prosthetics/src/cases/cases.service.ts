@@ -175,6 +175,35 @@ export class CasesService {
     '0aa5dc3e-d1e1-4b11-ac92-b4a6648556cc',
   ];
 
+  // إشعار مندوبي المبيعات (مسمى وظيفي VTX-JTL-000024) لتعبئة استبيان رضا العميل
+  private async notifySalesRepsForSurvey(patientId: string, department: 'PROSTHETICS' | 'PODIATRY' | 'PHYSIO', caseId: string) {
+    try {
+      const reps = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT e."userId" FROM users.employees e
+         JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+         WHERE jt.code = 'VTX-JTL-000024' AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL`,
+      );
+      if (reps.length === 0) return;
+      const patientRows = await this.prisma.$queryRawUnsafe<Array<{ firstName: string; lastName: string }>>(
+        `SELECT "firstName", "lastName" FROM clinic_patients.patients WHERE id = $1`,
+        patientId,
+      );
+      const patientName = patientRows[0] ? `${patientRows[0].firstName} ${patientRows[0].lastName}` : 'المريض';
+      const deptAr = department === 'PROSTHETICS' ? 'الأطراف الصناعية' : department === 'PODIATRY' ? 'طب الأقدام' : 'العلاج الفيزيائي';
+      const msgAr = `يرجى تعبئة استبيان رضا العميل للمريض ${patientName} (قسم ${deptAr})`;
+      const data = JSON.stringify({ patientId, department, caseId });
+      for (const rep of reps) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications
+             (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "data", "createdAt")
+           VALUES
+             (gen_random_uuid(), $1, 'PATIENT_SURVEY_REQUIRED', 'استبيان رضا مطلوب', 'Patient survey required', $2, $2, false, $3::jsonb, NOW())`,
+          rep.userId, msgAr, data,
+        ).catch(() => {});
+      }
+    } catch (_) {}
+  }
+
   private async notifyInventoryManagers(partCode: string, partName: string, caseId: string, requestId: string | null) {
     const msgAr = `طلب قطعة جديد: ${partName} (${partCode})`;
     const data = JSON.stringify({ requestId, caseId, partCode, partName });
@@ -1552,7 +1581,7 @@ export class CasesService {
   // ── التسليم النهائي (FINAL) — entity مستقلة ─────────────────────────────
 
   async createFinalDelivery(caseId: string, dto: FinalDeliveryFormDto, userId?: string, userName?: string) {
-    await this.findCaseOrThrow(caseId);
+    const prosthCase = await this.findCaseOrThrow(caseId);
     await this.autoAdvanceStatus(caseId, 'DELIVERED'); // تم التسليم
     const existing = await this.prisma.finalDeliveryForm.findUnique({ where: { caseId } });
     if (existing) throw new BadRequestException('التسليم النهائي موجود مسبقاً — استخدم PATCH للتعديل');
@@ -1590,10 +1619,16 @@ export class CasesService {
         : undefined,
     };
 
-    return this.prisma.finalDeliveryForm.create({
+    const created = await this.prisma.finalDeliveryForm.create({
       data: formData,
       include: { items: { orderBy: { createdAt: 'asc' } } },
     });
+
+    if (prosthCase.patientId) {
+      this.notifySalesRepsForSurvey(prosthCase.patientId, 'PROSTHETICS', caseId).catch(() => {});
+    }
+
+    return created;
   }
 
   async getFinalDelivery(caseId: string) {

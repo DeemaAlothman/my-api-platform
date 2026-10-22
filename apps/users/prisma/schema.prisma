@@ -626,6 +626,7 @@ enum NotificationType {
   REWARD_DECISION
   INVENTORY_REQUEST
   INVENTORY_REQUEST_UPDATE
+  PATIENT_SURVEY_REQUIRED
 }
 
 // ─── Onboarding / Offboarding ───────────────────────────────────────────────
