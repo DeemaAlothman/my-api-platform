@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
 
 // تقييم أخصائي العلاج الفيزيائي — المشية والمدى الحركي والقوة العضلية وتقييم الجذع
 export class PhysioAssessmentDto {
@@ -37,6 +38,9 @@ export class PhysioAssessmentDto {
 
   // activityLevel: K0 | K1 | K2 | K3 | K4
   @IsOptional() @IsString() activityLevel?: string;
+
+  // مدة الاستخدام اليومية بالساعات — انتقلت هنا من نموذج أخصائي الأطراف الصناعية
+  @IsOptional() @IsNumber() @Type(() => Number) dailyWearHours?: number;
 
   // رأي أخصائي العلاج الفيزيائي النهائي
   @IsOptional() @IsString() physioOpinion?: string;

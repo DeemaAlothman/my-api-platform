@@ -122,6 +122,7 @@ export class ReceptionsService {
       'trunkControlSitting', 'trunkBalanceDynamicSitting',
       'trunkControlStanding', 'trunkBalanceStaticStanding', 'trunkBalanceDynamicStanding',
       'activityLevel',
+      'dailyWearHours',
       'physioOpinion',
     ];
     for (const field of fields) {
@@ -136,7 +137,7 @@ export class ReceptionsService {
     await this.findOne(id);
     const data: any = {};
     const fields: (keyof ProsthetistOpinionDto)[] = [
-      'recommendedDeviceTypes', 'recommendedDeviceOther', 'dailyWearHours', 'additionalNotes',
+      'recommendedDeviceTypes', 'recommendedDeviceOther', 'additionalNotes',
       'prosthetistOpinion',
     ];
     for (const field of fields) {
