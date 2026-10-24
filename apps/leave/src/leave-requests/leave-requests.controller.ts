@@ -51,6 +51,15 @@ export class LeaveRequestsController {
     );
   }
 
+  // إرسال طلب موظف للاعتماد (للموارد البشرية) — يكمّل مسار التقديم نيابةً عنه، وينفّذ نفس
+  // تحققات الإرسال العادية لأن صاحب الطلب هو من يُمرَّر للخدمة
+  @Post(':id/submit-on-behalf')
+  @Permission('leave_requests:approve_hr')
+  async submitOnBehalf(@Param('id') id: string) {
+    const request = await this.leaveRequestsService.findOne(id);
+    return this.leaveRequestsService.submit(id, (request as any).employeeId);
+  }
+
   @Post('hourly')
   @Permission('leave_requests:create')
   createHourlyLeave(@Body() dto: CreateHourlyLeaveDto, @EmployeeId() employeeId: string) {
