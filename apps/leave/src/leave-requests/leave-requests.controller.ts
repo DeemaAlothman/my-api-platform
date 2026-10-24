@@ -11,7 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { LeaveRequestsService } from './leave-requests.service';
-import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
+import { CreateLeaveRequestDto, CreateLeaveRequestOnBehalfDto } from './dto/create-leave-request.dto';
 import { CreateHourlyLeaveDto } from './dto/create-hourly-leave.dto';
 import { UpdateLeaveRequestDto } from './dto/update-leave-request.dto';
 import { ApproveLeaveRequestDto, RejectLeaveRequestDto } from './dto/approve-leave-request.dto';
@@ -38,6 +38,15 @@ export class LeaveRequestsController {
   }
 
   // إنشاء طلب إجازة بالساعة
+  // إنشاء طلب إجازة نيابةً عن موظف (للموارد البشرية) — نفس مسار الإنشاء العادي بالكامل:
+  // يخصم الرصيد ويحدّث سجل الحضور ويرسل الإشعارات، لكن الموظف يُحدَّد صراحةً بدل أخذه من التوكن
+  @Post('on-behalf')
+  @Permission('leave_requests:approve_hr')
+  createOnBehalf(@Body() dto: CreateLeaveRequestOnBehalfDto) {
+    const { employeeId, ...createDto } = dto;
+    return this.leaveRequestsService.create(createDto as CreateLeaveRequestDto, employeeId);
+  }
+
   @Post('hourly')
   @Permission('leave_requests:create')
   createHourlyLeave(@Body() dto: CreateHourlyLeaveDto, @EmployeeId() employeeId: string) {

@@ -41,3 +41,10 @@ export class CreateLeaveRequestDto {
   @IsOptional()
   deceasedRelation?: 'FIRST_DEGREE' | 'SECOND_DEGREE';
 }
+
+/** طلب تقدّمه الموارد البشرية نيابةً عن موظف — نفس حقول الطلب العادي مع تحديد الموظف صراحةً */
+export class CreateLeaveRequestOnBehalfDto extends CreateLeaveRequestDto {
+  @IsString()
+  @IsNotEmpty()
+  employeeId: string;
+}
