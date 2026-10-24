@@ -422,6 +422,8 @@ export class MailService {
       subject: dto.subject,
       body: dto.body,
       parentMessageId: parentId,
+      importance: dto.importance,
+      attachmentIds: dto.attachmentIds,
     });
   }
 
