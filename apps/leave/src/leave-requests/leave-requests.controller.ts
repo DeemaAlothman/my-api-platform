@@ -43,8 +43,12 @@ export class LeaveRequestsController {
   @Post('on-behalf')
   @Permission('leave_requests:approve_hr')
   createOnBehalf(@Body() dto: CreateLeaveRequestOnBehalfDto) {
-    const { employeeId, ...createDto } = dto;
-    return this.leaveRequestsService.create(createDto as CreateLeaveRequestDto, employeeId);
+    const { employeeId, bypassNoticeWindow, ...createDto } = dto;
+    return this.leaveRequestsService.create(
+      createDto as CreateLeaveRequestDto,
+      employeeId,
+      { bypassNoticeWindow: bypassNoticeWindow === true },
+    );
   }
 
   @Post('hourly')

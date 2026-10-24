@@ -336,7 +336,11 @@ export class LeaveRequestsService {
   }
 
   // إنشاء طلب إجازة (مسودة)
-  async create(createDto: CreateLeaveRequestDto, employeeId: string) {
+  async create(
+    createDto: CreateLeaveRequestDto,
+    employeeId: string,
+    options?: { bypassNoticeWindow?: boolean },
+  ) {
     if (!employeeId) {
       throw new BadRequestException({
         code: 'EMPLOYEE_NOT_FOUND',
@@ -397,7 +401,10 @@ export class LeaveRequestsService {
     }
 
     // ── التحقق من نافذة التقديم ──────────────────────────────────────────
-    {
+    // تُتجاوَز هذه القيود الزمنية وحدها عند التقديم من الموارد البشرية نيابةً عن الموظف
+    // (موظف نسي تقديم طلبه بالوقت المطلوب). كل الشروط الأخرى — الرصيد والحد الأقصى للأيام
+    // وشروط الاستحقاق — تبقى سارية كما هي.
+    if (!options?.bypassNoticeWindow) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const start = new Date(startDate);

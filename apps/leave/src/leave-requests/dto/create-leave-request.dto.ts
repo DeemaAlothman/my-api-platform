@@ -47,4 +47,9 @@ export class CreateLeaveRequestOnBehalfDto extends CreateLeaveRequestDto {
   @IsString()
   @IsNotEmpty()
   employeeId: string;
+
+  /** تجاوز قيود مهلة التقديم المسبق/المتأخر وحدها — لحالات نسيان الموظف تقديم طلبه بالوقت */
+  @IsBoolean()
+  @IsOptional()
+  bypassNoticeWindow?: boolean;
 }
