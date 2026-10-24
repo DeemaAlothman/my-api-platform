@@ -6,6 +6,7 @@ import { DoctorAssessmentDto } from './dto/doctor-assessment.dto';
 import { PhysioAssessmentDto } from './dto/physio-assessment.dto';
 import { ProsthetistOpinionDto } from './dto/prosthetist-opinion.dto';
 import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
+import { CreateMeasurementSheetDto } from './dto/create-measurement-sheet.dto';
 
 const PATIENTS_URL   = process.env.PATIENTS_SERVICE_URL   || 'http://patients:4010';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
@@ -258,5 +259,63 @@ export class ReceptionsService {
     if (!att) throw new NotFoundException('المرفق غير موجود');
     await this.prisma.orthoticsAttachment.delete({ where: { id: attachmentId } });
     return { message: 'تم حذف المرفق' };
+  }
+
+  // ── أوراق قياس المقومات ──────────────────────────────────────────────
+  // أسماء الخانات مأخوذة من الرسمات (SVG) عند الفرونت — لا تتغير بدون تنسيق معهم
+
+  private static readonly MEASUREMENT_SHEET_FIELDS: Record<string, string[]> = {
+    BELOW_KNEE: [
+      'circ_01', 'circ_02', 'circ_03', 'circ_04', 'circ_05', 'circ_06', 'circ_07',
+      'len_01', 'len_02', 'len_03', 'len_04', 'len_05', 'len_06', 'len_07',
+      'len_08', 'len_09', 'len_10', 'len_11', 'len_12', 'len_13',
+    ],
+    FULL_LEG: [
+      'circ_01', 'circ_02', 'circ_03', 'circ_04', 'circ_05', 'circ_06',
+      'len_01', 'len_02', 'len_03', 'len_04', 'len_05', 'len_06', 'len_07', 'len_08', 'len_09',
+      'len_10', 'len_11', 'len_12', 'len_13', 'len_14', 'len_15', 'len_16', 'len_17', 'len_18',
+    ],
+    FOOT_ACCESSORIES: ['len_01', 'len_02', 'len_03', 'len_04', 'len_05'],
+  };
+
+  async addMeasurementSheet(receptionId: string, dto: CreateMeasurementSheetDto, userId: string) {
+    await this.findOne(receptionId);
+
+    const allowedKeys = ReceptionsService.MEASUREMENT_SHEET_FIELDS[dto.sheet];
+    if (!allowedKeys) {
+      throw new BadRequestException(`نموذج غير معروف: ${dto.sheet}`);
+    }
+
+    const entries = Object.entries(dto.values ?? {});
+    if (entries.length === 0) {
+      throw new BadRequestException('يجب إدخال خانة واحدة على الأقل');
+    }
+    for (const [key, value] of entries) {
+      if (!allowedKeys.includes(key)) {
+        throw new BadRequestException(`الخانة "${key}" غير موجودة بنموذج ${dto.sheet}`);
+      }
+      if (typeof value !== 'string') {
+        throw new BadRequestException(`قيمة الخانة "${key}" يجب أن تكون نصاً`);
+      }
+    }
+
+    return this.prisma.orthoticsMeasurementSheet.create({
+      data: {
+        receptionId,
+        sheet: dto.sheet,
+        side: dto.side,
+        notes: dto.notes ?? null,
+        values: dto.values,
+        createdBy: userId,
+      },
+    });
+  }
+
+  async getMeasurementSheets(receptionId: string, sheet?: string) {
+    await this.findOne(receptionId);
+    return this.prisma.orthoticsMeasurementSheet.findMany({
+      where: { receptionId, ...(sheet ? { sheet } : {}) },
+      orderBy: { examinedAt: 'desc' },
+    });
   }
 }

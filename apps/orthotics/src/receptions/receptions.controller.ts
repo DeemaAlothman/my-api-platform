@@ -12,6 +12,7 @@ import { DoctorAssessmentDto } from './dto/doctor-assessment.dto';
 import { PhysioAssessmentDto } from './dto/physio-assessment.dto';
 import { ProsthetistOpinionDto } from './dto/prosthetist-opinion.dto';
 import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
+import { CreateMeasurementSheetDto } from './dto/create-measurement-sheet.dto';
 import { orthoticsAttachmentMulterOptions } from './orthotics-files.config';
 import { JwtAuthGuard, User } from '@shared/auth';
 import { PermissionsGuard, Permission, PERMISSIONS } from '@shared';
@@ -113,6 +114,24 @@ export class ReceptionsController {
   @Permission(PERMISSIONS.CLINIC_ORTHOTICS.UPLOAD_ATTACHMENTS)
   deleteAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string) {
     return this.service.deleteAttachment(id, attachmentId);
+  }
+
+  // ── أوراق قياس المقومات ──────────────────────────────────────────────
+
+  @Post(':id/measurements')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.MEASUREMENT_CREATE)
+  addMeasurementSheet(
+    @Param('id') id: string,
+    @Body() dto: CreateMeasurementSheetDto,
+    @User() user: any,
+  ) {
+    return this.service.addMeasurementSheet(id, dto, user.userId);
+  }
+
+  @Get(':id/measurements')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.VIEW)
+  getMeasurementSheets(@Param('id') id: string, @Query('sheet') sheet?: string) {
+    return this.service.getMeasurementSheets(id, sheet);
   }
 
   @Permission(PERMISSIONS.CLINIC_ORTHOTICS.EDIT)

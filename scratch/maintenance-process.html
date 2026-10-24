@@ -1,0 +1,608 @@
+<title>مسار طلب الصيانة</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap');
+
+  :root{
+    --ink:#1b2430;
+    --muted:#586170;
+    --paper:#f2f4f6;
+    --surface:#ffffff;
+    --line:#dee3e8;
+    --accent:#0e6f64;
+    --accent-ink:#ffffff;
+    --accent-soft:#e2f2ef;
+    --accent-line:#bfe3dc;
+    --warn:#8a5d10;
+    --warn-soft:#faf0dc;
+    --warn-line:#ecd8a8;
+    --danger:#9c3f2b;
+    --danger-soft:#faeae5;
+    --danger-line:#eecabd;
+    --rail:#c9d0d8;
+    --shadow: 0 1px 2px rgba(20,30,40,.04), 0 8px 24px -12px rgba(20,30,40,.12);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#e7eaee;
+      --muted:#98a2b0;
+      --paper:#11151b;
+      --surface:#181e26;
+      --line:#2a323c;
+      --accent:#4fbfae;
+      --accent-ink:#06201c;
+      --accent-soft:rgba(79,191,174,.12);
+      --accent-line:rgba(79,191,174,.32);
+      --warn:#d7a44a;
+      --warn-soft:rgba(215,164,74,.12);
+      --warn-line:rgba(215,164,74,.32);
+      --danger:#e0806a;
+      --danger-soft:rgba(224,128,106,.12);
+      --danger-line:rgba(224,128,106,.32);
+      --rail:#333c47;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#e7eaee;
+    --muted:#98a2b0;
+    --paper:#11151b;
+    --surface:#181e26;
+    --line:#2a323c;
+    --accent:#4fbfae;
+    --accent-ink:#06201c;
+    --accent-soft:rgba(79,191,174,.12);
+    --accent-line:rgba(79,191,174,.32);
+    --warn:#d7a44a;
+    --warn-soft:rgba(215,164,74,.12);
+    --warn-line:rgba(215,164,74,.32);
+    --danger:#e0806a;
+    --danger-soft:rgba(224,128,106,.12);
+    --danger-line:rgba(224,128,106,.32);
+    --rail:#333c47;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    margin:0;
+    font-family:'IBM Plex Sans Arabic', Tahoma, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .page{
+    direction:rtl;
+    max-width:820px;
+    margin:0 auto;
+    padding:28px 20px 64px;
+  }
+  h1,h2,h3{
+    font-family:'Almarai', Tahoma, Arial, sans-serif;
+    text-wrap:balance;
+    margin:0;
+  }
+  .mono{
+    font-family:'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    direction:ltr;
+    unicode-bidi:isolate;
+    display:inline-block;
+  }
+
+  /* ── Header ─────────────────────────────────────────────── */
+  header{
+    animation:rise .5s ease-out both;
+  }
+  @keyframes rise{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;} }
+  @media (prefers-reduced-motion: reduce){ header{ animation:none; } }
+
+  .eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--accent);
+    letter-spacing:.02em;
+    background:var(--accent-soft);
+    border:1px solid var(--accent-line);
+    padding:5px 12px;
+    border-radius:999px;
+  }
+  h1{
+    font-size:clamp(26px, 4vw, 34px);
+    font-weight:800;
+    margin-top:14px;
+    line-height:1.25;
+  }
+  .lede{
+    color:var(--muted);
+    font-size:16px;
+    line-height:1.75;
+    margin-top:10px;
+    max-width:62ch;
+  }
+  .meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px 20px;
+    margin-top:18px;
+    font-size:13px;
+    color:var(--muted);
+  }
+  .meta b{ color:var(--ink); font-weight:600; }
+
+  /* ── Intake note ────────────────────────────────────────── */
+  .intake{
+    margin-top:24px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    padding:18px 20px;
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+  }
+  .intake .icon{
+    flex:none;
+    width:38px; height:38px;
+    border-radius:10px;
+    background:var(--accent-soft);
+    border:1px solid var(--accent-line);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--accent);
+  }
+  .intake .icon svg{ width:20px; height:20px; }
+  .intake h3{ font-size:15px; font-weight:700; margin-bottom:4px; }
+  .intake p{ margin:0; color:var(--muted); font-size:14.5px; line-height:1.7; }
+
+  /* ── Section headings ───────────────────────────────────── */
+  section{ margin-top:44px; }
+  .section-head{
+    display:flex; align-items:baseline; gap:10px;
+    margin-bottom:22px;
+  }
+  .section-head h2{ font-size:20px; font-weight:800; }
+  .section-head .count{ font-size:13px; color:var(--muted); }
+
+  /* ── Stepper ────────────────────────────────────────────── */
+  .stepper{ position:relative; }
+  .step{
+    position:relative;
+    display:flex;
+    gap:18px;
+    padding-bottom:28px;
+  }
+  .step:last-child{ padding-bottom:0; }
+  .step-rail{
+    flex:none;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    width:38px;
+  }
+  .step-dot{
+    width:38px; height:38px;
+    border-radius:50%;
+    background:var(--surface);
+    border:2px solid var(--accent);
+    color:var(--accent);
+    font-family:'Almarai', sans-serif;
+    font-weight:800;
+    font-size:15px;
+    display:flex; align-items:center; justify-content:center;
+    flex:none;
+    z-index:1;
+  }
+  .step-dot.end{ background:var(--accent); color:var(--accent-ink); }
+  .step-line{
+    flex:1;
+    width:2px;
+    background:var(--rail);
+    margin-top:2px;
+  }
+  .step:last-child .step-line{ display:none; }
+
+  .step-body{ flex:1; min-width:0; padding-top:2px; }
+  .step-top{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .step-top h3{ font-size:17px; font-weight:700; }
+  .code-badge{
+    font-size:12px;
+    padding:3px 10px;
+    border-radius:7px;
+    background:var(--accent-soft);
+    border:1px solid var(--accent-line);
+    color:var(--accent);
+    font-weight:500;
+  }
+  .who-row{
+    display:flex; align-items:center; gap:8px;
+    font-size:14px; color:var(--muted);
+    margin-bottom:10px;
+  }
+  .who-row .role{
+    color:var(--ink); font-weight:600;
+  }
+  .step-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    padding:16px 18px;
+  }
+  .step-card p{ margin:0 0 10px; font-size:14.5px; line-height:1.75; color:var(--ink); }
+  .step-card p:last-child{ margin-bottom:0; }
+  .step-note{
+    margin-top:12px;
+    font-size:13.5px;
+    color:var(--muted);
+    background:var(--paper);
+    border:1px dashed var(--line);
+    border-radius:9px;
+    padding:10px 12px;
+    line-height:1.7;
+  }
+
+  .outcomes{
+    display:flex; flex-direction:column; gap:8px;
+    margin-top:12px;
+  }
+  .outcome{
+    display:flex; align-items:center; gap:10px;
+    font-size:14px;
+  }
+  .outcome .arrow{ color:var(--muted); font-size:13px; }
+  .pill{
+    font-size:12.5px;
+    font-weight:600;
+    padding:4px 11px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+  .pill.go{ background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent-line); }
+  .pill.stop{ background:var(--danger-soft); color:var(--danger); border:1px solid var(--danger-line); }
+  .pill.wait{ background:var(--warn-soft); color:var(--warn); border:1px solid var(--warn-line); }
+  .pill.done{ background:var(--accent); color:var(--accent-ink); }
+
+  /* ── Branch diagram ─────────────────────────────────────── */
+  .branch-box{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    padding:16px 18px;
+  }
+  .branch-box > p.lead{
+    margin:0 0 14px; font-size:14.5px; color:var(--ink); line-height:1.75;
+  }
+  .branch-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+  }
+  @media (max-width:560px){ .branch-grid{ grid-template-columns:1fr; } }
+  .branch-card{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:13px 14px;
+    background:var(--paper);
+  }
+  .branch-card h4{
+    font-family:'IBM Plex Sans Arabic', sans-serif;
+    font-size:14px; font-weight:600; margin:0 0 6px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .branch-card .dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .branch-card p{ margin:0; font-size:13.5px; color:var(--muted); line-height:1.7; }
+  .branch-card .result{
+    margin-top:9px; display:flex; align-items:center; gap:6px; font-size:13px;
+  }
+  .cond-list{ margin-top:10px; padding-inline-start:18px; }
+  .cond-list li{ font-size:13.5px; color:var(--muted); line-height:1.8; }
+  .cond-list b{ color:var(--ink); font-weight:600; }
+
+  /* ── Reject callouts (attached) ─────────────────────────── */
+  .reject-branch{
+    margin-top:10px;
+    display:flex; align-items:center; gap:10px;
+    font-size:13.5px; color:var(--danger);
+    padding-inline-start:2px;
+  }
+  .reject-branch svg{ width:15px; height:15px; flex:none; }
+
+  /* ── Summary table ──────────────────────────────────────── */
+  .table-wrap{
+    overflow-x:auto;
+    border:1px solid var(--line);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+  }
+  table{
+    width:100%;
+    min-width:640px;
+    border-collapse:collapse;
+    background:var(--surface);
+    font-size:14px;
+  }
+  thead th{
+    text-align:right;
+    font-family:'Almarai', sans-serif;
+    font-weight:700;
+    font-size:13px;
+    color:var(--muted);
+    background:var(--paper);
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:13px 14px;
+    border-bottom:1px solid var(--line);
+    vertical-align:top;
+    line-height:1.6;
+  }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background:var(--paper); }
+  td .role-name{ font-weight:600; }
+  td .sub{ color:var(--muted); font-size:12.5px; margin-top:2px; }
+
+  footer{
+    margin-top:48px;
+    padding-top:20px;
+    border-top:1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .print-btn{
+    border:1px solid var(--line);
+    background:var(--surface);
+    color:var(--ink);
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    padding:8px 16px;
+    border-radius:9px;
+    cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  .print-btn:hover{ border-color:var(--accent); color:var(--accent); }
+  .print-btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  @media print{
+    body{ background:#fff; }
+    .print-btn{ display:none; }
+    .step-card, .branch-box, .table-wrap, .intake{ box-shadow:none; }
+  }
+</style>
+
+<div class="page" dir="rtl" lang="ar">
+
+  <header>
+    <span class="eyebrow">🛠️ نظام VitaXir — إدارة الطلبات</span>
+    <h1>مسار اعتماد طلب الصيانة</h1>
+    <p class="lede">من لحظة تقديم الطلب حتى إغلاقه: كل مرحلة، الشخص أو الصلاحية المسؤولة عن القرار فيها، والحالات (Status) الكاملة التي يمر بها الطلب بالنظام.</p>
+    <div class="meta">
+      <span>إعداد: <b>ديمة العثمان</b></span>
+      <span>التاريخ: <b>15 سبتمبر 2026</b></span>
+      <span>المسار: <b>Requests / Maintenance</b></span>
+    </div>
+  </header>
+
+  <div class="intake">
+    <div class="icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </div>
+    <div>
+      <h3>من يقدّم الطلب؟</h3>
+      <p><b style="color:var(--ink)">أي موظف</b> لديه حساب دخول مرتبط بسجل موظف بالنظام — بدون أي صلاحية خاصة. يعبّي: مكان العمل، نوع الأصل، وصف العطل، ومستوى الأولوية (عاجل / متوسط / عادي).</p>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-head">
+      <h2>مراحل الاعتماد</h2>
+      <span class="count">5 مراحل رئيسية</span>
+    </div>
+
+    <div class="stepper">
+
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-rail">
+          <div class="step-dot">١</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <div class="step-top">
+            <h3>موافقة المدير المباشر</h3>
+            <span class="code-badge mono">PENDING_MANAGER</span>
+          </div>
+          <div class="who-row">يقرر فيها: <span class="role">المدير المباشر لمقدّم الطلب</span></div>
+          <div class="step-card">
+            <p>يصل إشعار للمدير المباشر (يُحدَّد تلقائياً من شجرة الإدارة بالنظام — لا حاجة لصلاحية خاصة)، ويوافق أو يرفض الطلب.</p>
+            <div class="outcomes">
+              <div class="outcome"><span class="arrow">←</span> عند الموافقة <span class="pill go">PENDING_LOGISTICS</span></div>
+              <div class="outcome"><span class="arrow">←</span> عند الرفض <span class="pill stop">REJECTED</span> (نهاية المسار)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-rail">
+          <div class="step-dot">٢</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <div class="step-top">
+            <h3>قرار المسؤول اللوجستي</h3>
+            <span class="code-badge mono">PENDING_LOGISTICS</span>
+          </div>
+          <div class="who-row">يقرر فيها: <span class="role">أي حامل صلاحية</span> <span class="mono" style="font-size:13px">requests:lo-approve</span></div>
+          <div class="step-card">
+            <p>بقرار واحد، المسؤول اللوجستي: يوصّف الحالة، يختار نوع الإصلاح المناسب، ويعيّن الموظف المكلَّف بالتنفيذ (+ المبلغ المتوقع إن وُجد).</p>
+            <div class="step-note">دمج تلقائي: إذا كان المدير المباشر لم يوافق بعد، وصاحب صلاحية اللوجستي هو نفسه المدير المباشر لمقدّم الطلب، يوافق النظام عن المرحلة الأولى تلقائياً بنفس الخطوة.</div>
+          </div>
+
+          <div style="margin-top:14px" class="branch-box">
+            <p class="lead">نوع الإصلاح المختار يحدّد المسار التالي مباشرة:</p>
+            <div class="branch-grid">
+              <div class="branch-card">
+                <h4><span class="dot" style="background:var(--accent)"></span>إصلاح داخلي</h4>
+                <p class="mono" style="font-size:12px">INTERNAL</p>
+                <div class="result">← <span class="pill go">ASSIGNED</span> مباشرة</div>
+              </div>
+              <div class="branch-card">
+                <h4><span class="dot" style="background:var(--warn)"></span>قطع خارجية / ورشة خارجية</h4>
+                <p class="mono" style="font-size:12px">INTERNAL_PARTS · EXTERNAL_WORKSHOP</p>
+                <div class="result">← يعتمد على <b>قيمة المبلغ</b></div>
+              </div>
+            </div>
+            <ul class="cond-list">
+              <li><b>المبلغ ≤ 100$</b> (أو بدون مبلغ)، أو <b>المدير المباشر هو نفسه المدير التنفيذي</b> ← تخطٍّ تلقائي إلى <span class="pill go" style="font-size:11.5px">ASSIGNED</span></li>
+              <li><b>المبلغ &gt; 100$</b> ← ينتقل الطلب إلى <span class="pill wait" style="font-size:11.5px">PENDING_EXECUTIVE</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step">
+        <div class="step-rail">
+          <div class="step-dot">٣</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <div class="step-top">
+            <h3>موافقة المدير التنفيذي</h3>
+            <span class="code-badge mono">PENDING_EXECUTIVE</span>
+            <span class="pill wait" style="font-size:11px">مشروطة</span>
+          </div>
+          <div class="who-row">يقرر فيها: <span class="role">أي حامل صلاحية</span> <span class="mono" style="font-size:13px">requests:ceo-approve</span></div>
+          <div class="step-card">
+            <p>تظهر هذه المرحلة <b>فقط</b> عندما يحتاج الإصلاح قطعاً أو ورشة خارجية بمبلغ يتجاوز 100$. المدير التنفيذي يوافق أو يرفض.</p>
+            <div class="outcomes">
+              <div class="outcome"><span class="arrow">←</span> عند الموافقة <span class="pill go">ASSIGNED</span> + إشعار تلقائي للمدير المالي <span class="mono" style="font-size:12px">(requests:cfo-approve)</span></div>
+              <div class="outcome"><span class="arrow">←</span> عند الرفض <span class="pill stop">REJECTED</span> (نهاية المسار)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step">
+        <div class="step-rail">
+          <div class="step-dot">٤</div>
+          <div class="step-line"></div>
+        </div>
+        <div class="step-body">
+          <div class="step-top">
+            <h3>قيد التنفيذ</h3>
+            <span class="code-badge mono">ASSIGNED</span>
+          </div>
+          <div class="who-row">ينفّذ فيها: <span class="role">الموظف المكلَّف</span> (المعيَّن بالمرحلة الثانية)</div>
+          <div class="step-card">
+            <p>الموظف المكلَّف ينفّذ أعمال الصيانة، ثم يضغط "تم التنفيذ" لإغلاق الطلب. لا يستطيع أي شخص آخر إغلاق المهمة نيابةً عنه.</p>
+            <div class="outcomes">
+              <div class="outcome"><span class="arrow">←</span> عند الإنجاز <span class="pill go">DONE</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="step">
+        <div class="step-rail">
+          <div class="step-dot end">٥</div>
+        </div>
+        <div class="step-body">
+          <div class="step-top">
+            <h3>الطلب منجَز</h3>
+            <span class="code-badge mono">DONE</span>
+          </div>
+          <div class="step-card">
+            <p>نهاية المسار الناجحة. يصل إشعار تلقائي لمقدّم الطلب الأصلي بأن الصيانة تمّت.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>جدول كل الحالات (Status)</h2>
+      <span class="count">6 حالات ممكنة</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>الحالة</th>
+            <th>بالعربي</th>
+            <th>من يتحكم بها</th>
+            <th>الإجراء الممكن</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">PENDING_MANAGER</span></td>
+            <td>بانتظار المدير المباشر</td>
+            <td><div class="role-name">المدير المباشر لمقدّم الطلب</div><div class="sub">تلقائي حسب شجرة الإدارة</div></td>
+            <td>موافقة → اللوجستي / رفض → مرفوض</td>
+          </tr>
+          <tr>
+            <td><span class="mono">PENDING_LOGISTICS</span></td>
+            <td>بانتظار المسؤول اللوجستي</td>
+            <td><div class="role-name">requests:lo-approve</div></td>
+            <td>يحدد نوع الإصلاح ويعيّن المنفّذ (بدون خيار رفض)</td>
+          </tr>
+          <tr>
+            <td><span class="mono">PENDING_EXECUTIVE</span></td>
+            <td>بانتظار المدير التنفيذي</td>
+            <td><div class="role-name">requests:ceo-approve</div><div class="sub">فقط للقطع/الورشة &gt; 100$</div></td>
+            <td>موافقة → قيد التنفيذ / رفض → مرفوض</td>
+          </tr>
+          <tr>
+            <td><span class="mono">ASSIGNED</span></td>
+            <td>قيد التنفيذ</td>
+            <td><div class="role-name">الموظف المكلَّف</div></td>
+            <td>تنفيذ ثم "تم التنفيذ" → منجَز</td>
+          </tr>
+          <tr>
+            <td><span class="mono">DONE</span></td>
+            <td>منجَز</td>
+            <td>—</td>
+            <td>نهاية الطلب</td>
+          </tr>
+          <tr>
+            <td><span class="mono">REJECTED</span></td>
+            <td>مرفوض</td>
+            <td>—</td>
+            <td>نهاية الطلب — لا يمكن الرفض إلا من المدير المباشر أو المدير التنفيذي</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <span>مصدر المعلومات: كود نظام VitaXir — خدمة الطلبات (Requests Service)</span>
+    <button class="print-btn" onclick="window.print()">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      طباعة / حفظ PDF
+    </button>
+  </footer>
+
+</div>

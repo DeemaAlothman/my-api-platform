@@ -132,7 +132,8 @@ model OrthoticsReception {
   updatedAt DateTime @updatedAt
   createdBy String
 
-  attachments OrthoticsAttachment[]
+  attachments       OrthoticsAttachment[]
+  measurementSheets OrthoticsMeasurementSheet[]
 
   @@index([patientId])
   @@map("orthotics_receptions")
@@ -154,5 +155,28 @@ model OrthoticsAttachment {
 
   @@index([receptionId])
   @@map("orthotics_attachments")
+  @@schema("clinic_orthotics")
+}
+
+// أوراق قياس المقومات — سجل لا يُعدَّل ولا يُحذف، كل حفظة = ورقة جديدة.
+// sheet يحدد أي رسمة (نموذج) استُخدمت، لأن أسماء الخانات بـ values تتكرر بين النماذج بمعنى مختلف.
+model OrthoticsMeasurementSheet {
+  id          String             @id @default(uuid())
+  receptionId String
+  reception   OrthoticsReception @relation(fields: [receptionId], references: [id], onDelete: Cascade)
+
+  // sheet: BELOW_KNEE | FULL_LEG | FOOT_ACCESSORIES
+  sheet  String
+  // side: RIGHT | LEFT
+  side   String
+  notes  String? @db.Text
+  // قيم الخانات كما كُتبت بالرسمة — المفتاح اسم الخانة (مثل circ_01، len_03)، القيمة نص بدون تحويل
+  values Json
+
+  examinedAt DateTime @default(now())
+  createdBy  String
+
+  @@index([receptionId])
+  @@map("orthotics_measurement_sheets")
   @@schema("clinic_orthotics")
 }
