@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsNotEmpty, IsEnum, IsNumber, Min } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNotEmpty, IsNumber, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateUnitDto {
@@ -39,19 +39,12 @@ export class UpdateSupplierDto {
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
-export enum ItemTypeEnum {
-  COMPONENT = 'COMPONENT',
-  CONSUMABLE = 'CONSUMABLE',
-  SERVICE = 'SERVICE',
-}
-
 export class CreateItemDto {
   @IsOptional() @IsString() sku?: string;
   @IsOptional() @IsString() partCode?: string;
   @IsOptional() @IsString() barcode?: string;
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() nameAr?: string;
-  @IsOptional() @IsEnum(ItemTypeEnum) itemType?: ItemTypeEnum;
   @IsOptional() @IsString() categoryId?: string;
   @IsString() @IsNotEmpty() unitId: string;
   @IsOptional() @IsString() manufacturerId?: string;
@@ -64,7 +57,6 @@ export class UpdateItemDto {
   @IsOptional() @IsString() barcode?: string;
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() nameAr?: string;
-  @IsOptional() @IsEnum(ItemTypeEnum) itemType?: ItemTypeEnum;
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() unitId?: string;
   @IsOptional() @IsString() manufacturerId?: string;

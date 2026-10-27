@@ -98,9 +98,8 @@ export class CatalogService {
     return `VTX-ITM-${String(n + 1).padStart(6, '0')}`;
   }
 
-  async listItems(query: { search?: string; itemType?: string; categoryId?: string }) {
+  async listItems(query: { search?: string; categoryId?: string }) {
     const where: any = { deletedAt: null };
-    if (query.itemType) where.itemType = query.itemType;
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.search) {
       where.OR = [

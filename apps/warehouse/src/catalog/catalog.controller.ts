@@ -123,10 +123,9 @@ export class ItemsController {
   @Permission(PERMISSIONS.WAREHOUSE.ITEMS_READ)
   list(
     @Query('search') search?: string,
-    @Query('itemType') itemType?: string,
     @Query('categoryId') categoryId?: string,
   ) {
-    return this.service.listItems({ search, itemType, categoryId });
+    return this.service.listItems({ search, categoryId });
   }
 
   @Get(':id')
