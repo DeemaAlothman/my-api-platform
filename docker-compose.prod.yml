@@ -222,6 +222,8 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       INVENTORY_SERVICE_URL: http://clinic-inventory:4014
       PATIENTS_SERVICE_URL: http://patients:4010
+      WAREHOUSE_SERVICE_URL: http://warehouse:4018
+      WAREHOUSE_ENABLED: ${WAREHOUSE_ENABLED:-false}
       NODE_ENV: production
     volumes:
       - /var/data/clinical_prosthetics_uploads:/app/uploads

@@ -2,15 +2,27 @@ import { IsString, IsOptional, IsBoolean, IsNumber, IsArray, IsObject, IsInt, Mi
 import { Type } from 'class-transformer';
 
 export class AddComponentDto {
-  // اختياري — إذا غير موجود، يبحث النظام تلقائياً عن صنف بهذا الكود بالمخزون
+  // اختياري — إذا غير موجود، يبحث النظام تلقائياً عن صنف بهذا الكود بالمخزون القديم
   @IsOptional() @IsString()
   inventoryItemId?: string;
 
-  @IsString()
-  partCode: string;
+  // المسار الجديد — صنف من خدمة warehouse، مُختار مباشرة بالواجهة. إذا موجود، partCode/partName
+  // تُعبَّى تلقائياً من الصنف ولا حاجة لإرسالهم
+  @IsOptional() @IsString()
+  warehouseItemId?: string;
 
-  @IsString()
-  partName: string;
+  // اختياري — أي مستودع يُفتح منه طلب المواد التلقائي. إذا غير موجود، يُستخدم المستودع
+  // الرئيسي (WH-MAIN) افتراضياً
+  @IsOptional() @IsString()
+  warehouseId?: string;
+
+  // إجباري فقط إذا warehouseItemId غير موجود (المسار القديم)
+  @IsOptional() @IsString()
+  partCode?: string;
+
+  // إجباري فقط إذا warehouseItemId غير موجود (المسار القديم)
+  @IsOptional() @IsString()
+  partName?: string;
 
   @IsString()
   supplier: string;

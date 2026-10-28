@@ -1005,9 +1005,91 @@ export class CasesService {
     return rows[0]?.id ?? null;
   }
 
+  // يجيب id المستودع الرئيسي الافتراضي (WH-MAIN) — قراءة فقط، عبر استعلام عابر للـ schema
+  private async resolveDefaultWarehouseId(): Promise<string | undefined> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM warehouse.warehouses WHERE code = 'WH-MAIN' AND "isActive" = true LIMIT 1`,
+    ).catch(() => [] as Array<{ id: string }>);
+    return rows[0]?.id;
+  }
+
+  // ── المسار الجديد: القطعة مُختارة مباشرة من أصناف خدمة warehouse ─────────
+  // القطع الجديدة من هلأ ورايح بتستخدم هاد المسار، بينما القطع القديمة (inventoryItemId)
+  // بتضل كما هي بدون أي تعديل — المسارين منفصلين تماماً بجدول prosthesis_components
+  private async addComponentFromWarehouse(caseId: string, dto: AddComponentDto, userId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      partCode: string | null; sku: string; name: string | null; nameAr: string | null;
+    }>>(
+      `SELECT "partCode", sku, name, "nameAr" FROM warehouse.items
+       WHERE id = $1 AND "isActive" = true AND "deletedAt" IS NULL LIMIT 1`,
+      dto.warehouseItemId,
+    ).catch(() => [] as any[]);
+    const item = rows[0];
+    if (!item) throw new BadRequestException({ code: 'WAREHOUSE_ITEM_NOT_FOUND', message: 'صنف المستودع غير موجود' });
+
+    const partCode = item.partCode || item.sku;
+    const partName = item.name || item.nameAr || dto.partName || partCode;
+
+    const component = await this.prisma.prosthesisComponent.create({
+      data: {
+        caseId,
+        partCode,
+        partName,
+        supplier: dto.supplier,
+        sourceLocation: dto.sourceLocation as any,
+        reason: dto.reason,
+        addedBy: userId,
+        warehouseItemId: dto.warehouseItemId,
+      },
+    });
+
+    // طلب مواد بالمستودع — اختياري وغير حاجب، فشله لا يكسر حفظ القطعة إطلاقاً
+    // warehouseId: الفني يقدر يختاره صراحة بالطلب، وإلا يُستخدم المستودع الرئيسي (WH-MAIN) افتراضياً
+    let materialRequest: { materialRequestId: string; status: string } | null = null;
+    try {
+      const warehouseId = dto.warehouseId ?? await this.resolveDefaultWarehouseId();
+      const res = await fetch(`${WAREHOUSE_URL}/api/v1/warehouse/material-requests/internal/from-part-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+        body: JSON.stringify({
+          partCode,
+          quantity: 1,
+          warehouseId,
+          referenceType: 'PROSTHETICS_CASE',
+          referenceId: caseId,
+          requestedByUserId: userId,
+        }),
+      });
+      const json: any = await res.json().catch(() => null);
+      if (json?.data?.matched) {
+        await this.prisma.prosthesisComponent.update({
+          where: { id: component.id },
+          data: { materialRequestId: json.data.materialRequestId },
+        });
+        (component as any).materialRequestId = json.data.materialRequestId;
+        materialRequest = { materialRequestId: json.data.materialRequestId, status: json.data.status };
+      }
+    } catch { /* طلب المواد اختياري — فشله لا يكسر حفظ القطعة */ }
+
+    return {
+      ...component,
+      warehouseItem: { name: item.name, nameAr: item.nameAr, partCode },
+      matchedInInventory: true,
+      inventoryRequest: null,
+      materialRequest,
+    };
+  }
+
   async addComponent(caseId: string, dto: AddComponentDto, userId: string) {
     await this.findCaseOrThrow(caseId);
     await this.autoAdvanceStatus(caseId, 'ASSESSMENT');
+
+    if (dto.warehouseItemId) {
+      return this.addComponentFromWarehouse(caseId, dto, userId);
+    }
+    if (!dto.partCode || !dto.partName) {
+      throw new BadRequestException({ code: 'PART_CODE_NAME_REQUIRED', message: 'أدخل كود القطعة واسمها، أو اختر صنفاً من المستودع' });
+    }
 
     // إذا ما انبعت inventoryItemId، نبحث تلقائياً بالكود. إذا ما لقينا تطابق، نحفظ بدون خصم من المخزون
     let inventoryItemId = dto.inventoryItemId ?? null;
@@ -1139,22 +1221,34 @@ export class CasesService {
       orderBy: { addedAt: 'desc' },
     });
 
-    // جلب حالة طلب المخزون لكل مكون مرتبط بـ inventoryItemId
+    // جلب حالة طلب المخزون لكل مكون مرتبط بـ inventoryItemId (المسار القديم)
     const itemIds = components.map((c: any) => c.inventoryItemId).filter(Boolean);
-    if (!itemIds.length) return components;
-
-    // كل مكون يشير مباشرة لطلبه (status IS NOT NULL) أو للصنف الحقيقي (status IS NULL)
-    const items = await this.prisma.$queryRawUnsafe<Array<{
-      id: string; status: string | null; notes: string | null;
-    }>>(
-      `SELECT id, status::text AS status, notes
-       FROM clinic_inventory.inventory_items
-       WHERE id = ANY($1::text[])`,
-      itemIds,
-    ).catch(() => [] as any[]);
-
     const itemMap = new Map<string, { status: string | null; notes: string | null }>();
-    for (const i of items) itemMap.set(i.id, i);
+    if (itemIds.length) {
+      // كل مكون يشير مباشرة لطلبه (status IS NOT NULL) أو للصنف الحقيقي (status IS NULL)
+      const items = await this.prisma.$queryRawUnsafe<Array<{
+        id: string; status: string | null; notes: string | null;
+      }>>(
+        `SELECT id, status::text AS status, notes
+         FROM clinic_inventory.inventory_items
+         WHERE id = ANY($1::text[])`,
+        itemIds,
+      ).catch(() => [] as any[]);
+      for (const i of items) itemMap.set(i.id, i);
+    }
+
+    // جلب بيانات العرض لكل مكون مرتبط بصنف مستودع (المسار الجديد)
+    const warehouseItemIds = [...new Set(components.map((c: any) => c.warehouseItemId).filter(Boolean))];
+    const warehouseMap = new Map<string, { name: string | null; nameAr: string | null; partCode: string | null }>();
+    if (warehouseItemIds.length) {
+      const whItems = await this.prisma.$queryRawUnsafe<Array<{
+        id: string; name: string | null; nameAr: string | null; partCode: string | null;
+      }>>(
+        `SELECT id, name, "nameAr", "partCode" FROM warehouse.items WHERE id = ANY($1::text[])`,
+        warehouseItemIds,
+      ).catch(() => [] as any[]);
+      for (const w of whItems) warehouseMap.set(w.id, w);
+    }
 
     return components.map((c: any) => {
       const inv = c.inventoryItemId ? itemMap.get(c.inventoryItemId) : null;
@@ -1166,6 +1260,7 @@ export class CasesService {
           status: inv.status,
           notes: inv.notes,
         } : null,
+        warehouseItem: c.warehouseItemId ? (warehouseMap.get(c.warehouseItemId) ?? null) : null,
       };
     });
   }
