@@ -18,6 +18,39 @@ export class DashboardDataController {
     return rows[0]?.id ?? null;
   }
 
+  // طلبات المدير المباشر المعلّقة — تُحسب بغض النظر عن الدور المرسَل، لأن مستخدم ممكن
+  // يكون CEO/HR ومدير مباشر لموظفين بنفس الوقت، والدور المرسَل بيكون واحد بس (CEO له
+  // أولوية بـderiveRole بالـgateway)
+  private async getManagerPendingRequests(employeeId: string) {
+    const subordinateIds = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM users.employees WHERE "managerId" = ${employeeId} AND "deletedAt" IS NULL
+    `;
+    const ids = subordinateIds.map(r => r.id);
+
+    // REWARD/PENALTY_PROPOSAL: خطوة DM تخص مدير الموظف المستهدف بالتفاصيل لا مدير مقدّم الطلب
+    // (نفس القاعدة المعتمدة بـapprove() و getPendingMyApproval) — فنجيب كل الخطوات المعلّقة ونفلتر بالكود
+    const subordinateSet = new Set(ids);
+    const pendingDmSteps = ids.length
+      ? await this.prisma.approvalStep.findMany({
+          where: { status: 'PENDING', approverRole: 'DIRECT_MANAGER' },
+          include: {
+            request: { select: { id: true, type: true, status: true, employeeId: true, details: true, createdAt: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+      : [];
+    const pendingApprovals = pendingDmSteps.filter((s) => {
+      const req = s.request as any;
+      const details = req.details as any;
+      const targetEmployeeId =
+        req.type === 'REWARD' ? details?.employees?.[0]?.employeeId
+        : req.type === 'PENALTY_PROPOSAL' ? details?.targetEmployeeId
+        : req.employeeId;
+      return targetEmployeeId && subordinateSet.has(targetEmployeeId);
+    });
+    return { pendingRequestApprovals: pendingApprovals };
+  }
+
   @Get('data')
   async getData(@Req() req: Request, @Query('role') role: string) {
     const username: string = (req as any).user?.username;
@@ -39,35 +72,7 @@ export class DashboardDataController {
     }
 
     if (role === 'MANAGER') {
-      const subordinateIds = employeeId
-        ? await this.prisma.$queryRaw<{ id: string }[]>`
-            SELECT id FROM users.employees WHERE "managerId" = ${employeeId} AND "deletedAt" IS NULL
-          `
-        : [];
-      const ids = subordinateIds.map(r => r.id);
-
-      // REWARD/PENALTY_PROPOSAL: خطوة DM تخص مدير الموظف المستهدف بالتفاصيل لا مدير مقدّم الطلب
-      // (نفس القاعدة المعتمدة بـapprove() و getPendingMyApproval) — فنجيب كل الخطوات المعلّقة ونفلتر بالكود
-      const subordinateSet = new Set(ids);
-      const pendingDmSteps = ids.length
-        ? await this.prisma.approvalStep.findMany({
-            where: { status: 'PENDING', approverRole: 'DIRECT_MANAGER' },
-            include: {
-              request: { select: { id: true, type: true, status: true, employeeId: true, details: true, createdAt: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-          })
-        : [];
-      const pendingApprovals = pendingDmSteps.filter((s) => {
-        const req = s.request as any;
-        const details = req.details as any;
-        const targetEmployeeId =
-          req.type === 'REWARD' ? details?.employees?.[0]?.employeeId
-          : req.type === 'PENALTY_PROPOSAL' ? details?.targetEmployeeId
-          : req.employeeId;
-        return targetEmployeeId && subordinateSet.has(targetEmployeeId);
-      });
-      return { pendingRequestApprovals: pendingApprovals };
+      return employeeId ? this.getManagerPendingRequests(employeeId) : { pendingRequestApprovals: [] };
     }
 
     if (role === 'CEO') {
@@ -78,7 +83,8 @@ export class DashboardDataController {
         },
         orderBy: { createdAt: 'desc' },
       });
-      return { pendingCeoRequestApprovals: pendingCeoApprovals };
+      const managerData = employeeId ? await this.getManagerPendingRequests(employeeId) : null;
+      return { pendingCeoRequestApprovals: pendingCeoApprovals, ...managerData };
     }
 
     if (role === 'CFO') {
@@ -91,7 +97,8 @@ export class DashboardDataController {
           createdAt: { gte: firstDay },
         },
       });
-      return { approvedOvertimeThisMonth: overtimeApproved };
+      const managerData = employeeId ? await this.getManagerPendingRequests(employeeId) : null;
+      return { approvedOvertimeThisMonth: overtimeApproved, ...managerData };
     }
 
     return {};

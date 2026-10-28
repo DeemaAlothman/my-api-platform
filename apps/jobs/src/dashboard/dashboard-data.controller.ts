@@ -23,7 +23,40 @@ export class DashboardDataController {
         where: { status: 'OPEN' },
       });
 
-      return { candidatesByStage: byStage, activePositions };
+      // المقابلات: qualifiedTotal = مرشحون لسا بمرحلة "مؤهل للمقابلة" (ELIGIBLE_FOR_INTERVIEW)
+      // ولسا ما تحرّكوا لمرحلة تالية. conductedThisMonth = من جدول تقييم المقابلة المحلي
+      // (evaluatedAt)، بغض النظر عن مرحلة المرشح الحالية الآن — هيك ما بتضيع مقابلة انعملت
+      // هالشهر حتى لو المرشح انتقل بعدها لمرحلة تانية (نجح أو رُفض)
+      const qualifiedTotal = await this.prisma.candidate.count({
+        where: { deletedAt: null, currentStage: 'ELIGIBLE_FOR_INTERVIEW' },
+      });
+
+      const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const conductedThisMonthItems = await this.prisma.interviewEvaluation.findMany({
+        where: { evaluatedAt: { gte: thisMonthStart, lt: nextMonthStart } },
+        select: {
+          jobApplicationId: true,
+          candidateName: true,
+          evaluatedAt: true,
+          position: { select: { jobTitle: true } },
+        },
+        orderBy: { evaluatedAt: 'desc' },
+      });
+
+      const interviews = {
+        qualifiedTotal,
+        conductedThisMonth: conductedThisMonthItems.length,
+        conductedThisMonthItems: conductedThisMonthItems.map((e) => ({
+          applicationId: e.jobApplicationId,
+          candidateName: e.candidateName,
+          jobTitle: e.position?.jobTitle ?? null,
+          interviewDate: e.evaluatedAt ? e.evaluatedAt.toISOString().slice(0, 10) : null,
+        })),
+      };
+
+      return { candidatesByStage: byStage, activePositions, interviews };
     }
 
     if (role === 'CEO') {

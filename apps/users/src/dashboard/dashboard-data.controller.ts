@@ -8,6 +8,89 @@ import { PrismaService } from '../prisma/prisma.service';
 export class DashboardDataController {
   constructor(private readonly prisma: PrismaService) {}
 
+  // المباشرات والانفكاكات بالشهر الحالي. الانفكاك = نفس تعريف تقرير الدوران الوظيفي
+  // المعتمد أصلاً (hr-reports turnover()): employmentStatus IN (INACTIVE, TERMINATED)،
+  // وتاريخه separationDate، أو تاريخ إنهاء فترة التجربة كبديل لو كان إنهاء تجربة (ما
+  // بيكتب separationDate). reason: PROBATION_TERMINATION لإنهاء التجربة، RESIGNATION
+  // لو في طلب استقالة معتمد، وإلا TERMINATION كحالة عامة.
+  private async getWorkforceThisMonth() {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const employeesTotal = await this.prisma.employee.count({
+      where: { deletedAt: null, employmentStatus: 'ACTIVE' },
+    });
+
+    const joined = await this.prisma.employee.findMany({
+      where: { deletedAt: null, hireDate: { gte: thisMonthStart, lt: nextMonthStart } },
+      select: {
+        id: true, firstNameAr: true, lastNameAr: true, hireDate: true,
+        jobTitle: { select: { nameAr: true } },
+        department: { select: { nameAr: true } },
+      },
+      orderBy: { hireDate: 'desc' },
+    });
+
+    const separated = await this.prisma.$queryRawUnsafe<Array<{
+      id: string; firstNameAr: string; lastNameAr: string;
+      jobTitle: string | null; department: string | null;
+      separated_at: Date; reason: string;
+    }>>(
+      `WITH sep AS (
+         SELECT
+           e.id, e."firstNameAr", e."lastNameAr", e."jobTitleId", e."departmentId",
+           COALESCE(
+             e."separationDate"::timestamp,
+             CASE WHEN e."employmentStatus" = 'TERMINATED' AND e."probationResult" = 'TERMINATE'
+                  THEN e."probationCompletedAt" END
+           ) AS separated_at,
+           (e."employmentStatus" = 'TERMINATED' AND e."probationResult" = 'TERMINATE') AS is_probation
+         FROM users.employees e
+         WHERE e."deletedAt" IS NULL AND e."employmentStatus" IN ('INACTIVE', 'TERMINATED')
+       )
+       SELECT
+         sep.id, sep."firstNameAr", sep."lastNameAr",
+         jt."nameAr" AS "jobTitle", d."nameAr" AS department,
+         sep.separated_at,
+         CASE
+           WHEN sep.is_probation THEN 'PROBATION_TERMINATION'
+           WHEN EXISTS (
+             SELECT 1 FROM requests.requests r
+             WHERE r."employeeId" = sep.id AND r.type::text = 'RESIGNATION' AND r.status::text = 'APPROVED'
+           ) THEN 'RESIGNATION'
+           ELSE 'TERMINATION'
+         END AS reason
+       FROM sep
+       LEFT JOIN users.job_titles jt ON jt.id = sep."jobTitleId"
+       LEFT JOIN users.departments d ON d.id = sep."departmentId"
+       WHERE sep.separated_at >= $1 AND sep.separated_at < $2
+       ORDER BY sep.separated_at DESC`,
+      thisMonthStart, nextMonthStart,
+    ).catch(() => [] as any[]);
+
+    return {
+      employeesTotal,
+      joinedThisMonth: joined.length,
+      joinedThisMonthItems: joined.map((e) => ({
+        employeeId: e.id,
+        name: `${e.firstNameAr} ${e.lastNameAr}`,
+        jobTitle: e.jobTitle?.nameAr ?? null,
+        department: e.department?.nameAr ?? null,
+        hireDate: e.hireDate.toISOString().slice(0, 10),
+      })),
+      separatedThisMonth: separated.length,
+      separatedThisMonthItems: separated.map((e) => ({
+        employeeId: e.id,
+        name: `${e.firstNameAr} ${e.lastNameAr}`,
+        jobTitle: e.jobTitle,
+        department: e.department,
+        separationDate: new Date(e.separated_at).toISOString().slice(0, 10),
+        reason: e.reason,
+      })),
+    };
+  }
+
   @Get('data')
   async getData(@Req() req: Request, @Query('role') role: string) {
     const userId: string = (req as any).user?.userId;
@@ -93,7 +176,13 @@ export class DashboardDataController {
         },
       });
 
-      return { employee: employeeProfile, notifications, totalEmployees, expiringDocsCount: expiringDocs, expiringContractsCount: expiringContracts };
+      const workforce = await this.getWorkforceThisMonth();
+
+      return {
+        employee: employeeProfile, notifications, totalEmployees,
+        expiringDocsCount: expiringDocs, expiringContractsCount: expiringContracts,
+        workforce,
+      };
     }
 
     if (role === 'CEO') {

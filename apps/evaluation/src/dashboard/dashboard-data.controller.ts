@@ -18,6 +18,25 @@ export class DashboardDataController {
     return rows[0]?.id ?? null;
   }
 
+  // طلبات المدير المباشر المعلّقة (تقييمات + فترات تجربة) — تُحسب بغض النظر عن الدور
+  // المرسَل، لأن مستخدم ممكن يكون CEO/HR ومدير مباشر لموظفين بنفس الوقت، والدور المرسَل
+  // بيكون واحد بس (CEO له أولوية بـderiveRole بالـgateway)
+  private async getManagerPendingData(employeeId: string) {
+    const pendingEvaluations = await this.prisma.evaluationForm.findMany({
+      where: { evaluatorId: employeeId, status: 'PENDING_MANAGER' },
+      select: { id: true, employeeId: true, status: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const pendingProbations = await this.prisma.probationEvaluation.findMany({
+      where: { evaluatorId: employeeId, status: 'DRAFT' },
+      select: { id: true, employeeId: true, status: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return { pendingEvaluations, pendingProbations };
+  }
+
   @Get('data')
   async getData(@Req() req: Request, @Query('role') role: string) {
     const username: string = (req as any).user?.username;
@@ -35,23 +54,7 @@ export class DashboardDataController {
     }
 
     if (role === 'MANAGER') {
-      const pendingEvaluations = employeeId
-        ? await this.prisma.evaluationForm.findMany({
-            where: { evaluatorId: employeeId, status: 'PENDING_MANAGER' },
-            select: { id: true, employeeId: true, status: true, createdAt: true },
-            orderBy: { createdAt: 'desc' },
-          })
-        : [];
-
-      const pendingProbations = employeeId
-        ? await this.prisma.probationEvaluation.findMany({
-            where: { evaluatorId: employeeId, status: 'DRAFT' },
-            select: { id: true, employeeId: true, status: true, createdAt: true },
-            orderBy: { createdAt: 'desc' },
-          })
-        : [];
-
-      return { pendingEvaluations, pendingProbations };
+      return employeeId ? this.getManagerPendingData(employeeId) : { pendingEvaluations: [], pendingProbations: [] };
     }
 
     if (role === 'HR') {
@@ -61,7 +64,8 @@ export class DashboardDataController {
       const evaluationsPendingHR = await this.prisma.evaluationForm.count({
         where: { status: 'PENDING_HR_REVIEW' },
       });
-      return { probationsPendingHR, evaluationsPendingHR };
+      const managerData = employeeId ? await this.getManagerPendingData(employeeId) : null;
+      return { probationsPendingHR, evaluationsPendingHR, ...managerData };
     }
 
     if (role === 'CEO') {
@@ -70,7 +74,8 @@ export class DashboardDataController {
         select: { id: true, employeeId: true, status: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
       });
-      return { probationsPendingCEO };
+      const managerData = employeeId ? await this.getManagerPendingData(employeeId) : null;
+      return { probationsPendingCEO, ...managerData };
     }
 
     return {};
