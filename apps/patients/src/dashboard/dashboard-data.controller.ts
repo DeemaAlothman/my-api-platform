@@ -44,6 +44,8 @@ export class DashboardDataController {
       podiatryReceptionsTotal,
       podiatryInsolesFittedTotal,
       podiatryInsolesFittedThisMonth,
+      podiatryReceptionsThisMonth,
+      podiatryNotFittedThisMonth,
       newPatientsThisMonthProsthetics,
       newPatientsThisMonthPhysio,
       newPatientsThisMonthOrthotics,
@@ -110,9 +112,31 @@ export class DashboardDataController {
          JOIN clinic_podiatry.podiatry_sessions s ON s."receptionId" = r.id
          WHERE s."installedAt" IS NOT NULL`,
       ),
+      // عدد الحالات (استقبالات) المركَّبة هالشهر — DISTINCT على الاستقبال نفس منطق الإجمالي
+      // أعلاه بالضبط. قبل كان يعدّ سطور الجلسات (podiatry_sessions) مباشرة بدون DISTINCT،
+      // فلو استقبال واحد عنده أكثر من جلسة تركيب (إعادة تركيب) بنفس الشهر كان يُحسب أكتر من مرة
       this.count(
-        `SELECT COUNT(*)::int AS count FROM clinic_podiatry.podiatry_sessions
-         WHERE "installedAt" >= $1 AND "installedAt" < $2`,
+        `SELECT COUNT(DISTINCT r.id)::int AS count
+         FROM clinic_podiatry.podiatry_receptions r
+         JOIN clinic_podiatry.podiatry_sessions s ON s."receptionId" = r.id
+         WHERE s."installedAt" >= $1 AND s."installedAt" < $2`,
+        thisMonthStart, nextMonthStart,
+      ),
+      // استقبالات طب الأقدام يلي انفتحت هالشهر
+      this.count(
+        `SELECT COUNT(*)::int AS count FROM clinic_podiatry.podiatry_receptions
+         WHERE "createdAt" >= $1 AND "createdAt" < $2`,
+        thisMonthStart, nextMonthStart,
+      ),
+      // من استقبالات هالشهر، يلي لسا ما انركّب فيها ضبان لحد الآن (مش محصور بوقت التركيب)
+      this.count(
+        `SELECT COUNT(*)::int AS count
+         FROM clinic_podiatry.podiatry_receptions r
+         WHERE r."createdAt" >= $1 AND r."createdAt" < $2
+           AND NOT EXISTS (
+             SELECT 1 FROM clinic_podiatry.podiatry_sessions s
+             WHERE s."receptionId" = r.id AND s."installedAt" IS NOT NULL
+           )`,
         thisMonthStart, nextMonthStart,
       ),
       // توزيع مرضى هذا الشهر حسب القسم — كل عدّاد مستقل (نفس المريض ممكن يظهر بأكثر من قسم)
@@ -223,6 +247,8 @@ export class DashboardDataController {
           ? null
           : podiatryReceptionsTotal - podiatryInsolesFittedTotal,
         podiatryInsolesFittedThisMonth,
+        podiatryReceptionsThisMonth,
+        podiatryNotFittedThisMonth,
       },
     };
   }
