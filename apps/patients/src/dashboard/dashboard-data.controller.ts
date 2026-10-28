@@ -146,10 +146,17 @@ export class DashboardDataController {
          WHERE "deletedAt" IS NULL AND "patientId" = ANY($1::text[])`,
         newPatientsThisMonthIds,
       ),
+      // حالات علاج فيزيائي حقيقية فقط — نستثني حالات "معاينة طبيب" غير المحوَّلة لحتى ما
+      // تنعدّ هون وبـdoctorExamination مع بعض (لو تحوّلت فعلياً، بتترافق بحالة PHYSIO جديدة
+      // منفصلة أصلاً فبتنعدّ هون بشكل صحيح بدون أي استثناء إضافي)
       newPatientsThisMonthIds.length === 0 ? 0 : this.count(
         `SELECT COUNT(DISTINCT "patientId")::int AS count
          FROM clinic_physio.physio_cases
-         WHERE "deletedAt" IS NULL AND "patientId" = ANY($1::text[])`,
+         WHERE "deletedAt" IS NULL AND "patientId" = ANY($1::text[])
+           AND NOT (
+             ("caseType" = 'DOCTOR_EXAM'::"clinic_physio"."CaseType" OR ("caseType" IS NULL AND "caseNumber" LIKE 'DE-%'))
+             AND "convertedToCaseId" IS NULL
+           )`,
         newPatientsThisMonthIds,
       ),
       newPatientsThisMonthIds.length === 0 ? 0 : this.count(
@@ -164,10 +171,15 @@ export class DashboardDataController {
          WHERE "patientId" = ANY($1::text[])`,
         newPatientsThisMonthIds,
       ),
+      // معاينة الطبيب عندنا حالة علاج فيزيائي (caseType=DOCTOR_EXAM)، مش موعد — نفس تعريف
+      // GET /physio/cases/doctor-exam بالضبط (نستثني يلي تحوّلت فعلياً لحالة علاج، لأنها
+      // بتتعدّ تحت physio حينها)
       newPatientsThisMonthIds.length === 0 ? 0 : this.count(
         `SELECT COUNT(DISTINCT "patientId")::int AS count
-         FROM clinic_appointments.appointments
-         WHERE "appointmentType"::text = 'EXAMINATION' AND "patientId" = ANY($1::text[])`,
+         FROM clinic_physio.physio_cases
+         WHERE "deletedAt" IS NULL AND "patientId" = ANY($1::text[])
+           AND ("caseType" = 'DOCTOR_EXAM'::"clinic_physio"."CaseType" OR ("caseType" IS NULL AND "caseNumber" LIKE 'DE-%'))
+           AND "convertedToCaseId" IS NULL`,
         newPatientsThisMonthIds,
       ),
       // توزيع مواعيد هذا الشهر حسب الحالة — خام هون، نجمّعها بالدلاء بالأسفل
