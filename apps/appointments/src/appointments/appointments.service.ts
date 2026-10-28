@@ -150,7 +150,7 @@ export class AppointmentsService implements OnModuleInit {
       await this.notifyPractitioner(
         appt as any,
         'تحديث حالة الموعد مطلوب',
-        `انتهى الموعد مع المريض — يرجى تحديث الحالة (مكتمل أو لم يحضر)`,
+        `انتهى الموعد مع المريض — يرجى تحديث الحالة (مكتمل أو تغيّب)`,
       );
     }
   }
@@ -232,7 +232,7 @@ export class AppointmentsService implements OnModuleInit {
     physiotherapistId?: string | null,
   ) {
     const timeWhere: any = {
-      status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+      status: { notIn: ['CANCELLED', 'NO_SHOW', 'APOLOGIZED'] },
       AND: [
         { startTime: { lt: endTime } },
         { endTime: { gt: startTime } },
@@ -322,7 +322,7 @@ export class AppointmentsService implements OnModuleInit {
   ) {
     const where: any = {
       patientId,
-      status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+      status: { notIn: ['CANCELLED', 'NO_SHOW', 'APOLOGIZED'] },
       AND: [
         { startTime: { lt: endTime } },
         { endTime: { gt: startTime } },
@@ -518,6 +518,7 @@ export class AppointmentsService implements OnModuleInit {
       cancelled: a.status === 'CANCELLED',
       postponed: a.status === 'RESCHEDULED',
       noShow: a.status === 'NO_SHOW',
+      apologized: a.status === 'APOLOGIZED',
       cancelledReason: a.cancelledReason ?? '',
       };
     });
@@ -528,8 +529,9 @@ export class AppointmentsService implements OnModuleInit {
         cancelled: acc.cancelled + (r.cancelled ? 1 : 0),
         postponed: acc.postponed + (r.postponed ? 1 : 0),
         noShow: acc.noShow + (r.noShow ? 1 : 0),
+        apologized: acc.apologized + (r.apologized ? 1 : 0),
       }),
-      { attended: 0, cancelled: 0, postponed: 0, noShow: 0 },
+      { attended: 0, cancelled: 0, postponed: 0, noShow: 0, apologized: 0 },
     );
 
     return { rows, totals, total: rows.length };
@@ -553,14 +555,15 @@ export class AppointmentsService implements OnModuleInit {
       check(r.cancelled),
       check(r.postponed),
       check(r.noShow),
+      check(r.apologized),
       r.cancelledReason,
     ]);
-    excelRows.push(['العدد الكلي', '', '', '', '', totals.attended, totals.cancelled, totals.postponed, totals.noShow, '']);
+    excelRows.push(['العدد الكلي', '', '', '', '', totals.attended, totals.cancelled, totals.postponed, totals.noShow, totals.apologized, '']);
 
     await sendExcel(
       res,
       'إحصائيات المواعيد',
-      ['اسم المريض', 'القسم', 'نوع الخدمة', 'اسم الفني', 'تاريخ الزيارة', 'تم الحضور', 'ملغاة', 'تم التأجيل', 'غياب', 'سبب الإلغاء'],
+      ['اسم المريض', 'القسم', 'نوع الخدمة', 'اسم الفني', 'تاريخ الزيارة', 'تم الحضور', 'ملغاة', 'تم التأجيل', 'تغيّب', 'اعتذر', 'سبب الإلغاء'],
       excelRows as any,
     );
   }
@@ -663,7 +666,7 @@ export class AppointmentsService implements OnModuleInit {
     const booked = await this.prisma.appointment.findMany({
       where: {
         practitionerId,
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        status: { notIn: ['CANCELLED', 'NO_SHOW', 'APOLOGIZED'] },
         startTime: { gte: dayStart, lt: dayEnd },
       },
       select: { startTime: true, endTime: true },
@@ -917,7 +920,7 @@ export class AppointmentsService implements OnModuleInit {
 
     const clashingAppointments = await this.prisma.appointment.findMany({
       where: {
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] as any[] },
+        status: { notIn: ['CANCELLED', 'NO_SHOW', 'APOLOGIZED'] as any[] },
         startTime: { lt: endTime },
         endTime: { gt: startTime },
         OR: [

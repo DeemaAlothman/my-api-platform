@@ -49,6 +49,8 @@ export class DashboardDataController {
       newPatientsThisMonthOrthotics,
       newPatientsThisMonthPodiatry,
       newPatientsThisMonthDoctorExamination,
+      appointmentsThisMonthByStatusRaw,
+      committeeReviewByDecisionRaw,
     ] = await Promise.all([
       this.prisma.patient.count({ where: { deletedAt: null, createdAt: { gte: thisMonthStart } } }),
       this.prisma.patient.count({ where: { deletedAt: null, createdAt: { gte: prevMonthStart, lt: thisMonthStart } } }),
@@ -67,10 +69,15 @@ export class DashboardDataController {
          WHERE c."deletedAt" IS NULL AND fd."createdAt" >= $1 AND fd."createdAt" < $2`,
         thisMonthStart, nextMonthStart,
       ),
-      // إجمالي الحالات المسلّمة (كل الفترات)
+      // إجمالي الحالات المسلّمة (كل الفترات) — بنفس تعريف الرقم الشهري أعلاه بالضبط:
+      // عندها نموذج تسليم نهائي، بغض النظر عن مرحلتها الحالية (حتى لو صارت متابعة لاحقاً).
+      // قبل كان يعدّ status='DELIVERED' فقط، فكانت الحالات اللي انتقلت لـFOLLOW_UP تختفي من
+      // العدد الكلي بينما تبقى محسوبة بعدد "هذا الشهر" — ما كان يصير الكلي أصغر من الشهري بالغلط
       this.count(
-        `SELECT COUNT(*)::int AS count FROM clinic_prosthetics.prosthetics_cases
-         WHERE "deletedAt" IS NULL AND status::text = 'DELIVERED'`,
+        `SELECT COUNT(*)::int AS count
+         FROM clinic_prosthetics.prosthetics_cases c
+         JOIN clinic_prosthetics.final_delivery_forms fd ON fd."caseId" = c.id
+         WHERE c."deletedAt" IS NULL`,
       ),
       this.prisma.$queryRawUnsafe<Array<{ avg: number | null }>>(
         `SELECT AVG(EXTRACT(EPOCH FROM (fd."createdAt" - c."createdAt")) / 86400)::float AS avg
@@ -139,9 +146,53 @@ export class DashboardDataController {
          WHERE "appointmentType"::text = 'EXAMINATION' AND "patientId" = ANY($1::text[])`,
         newPatientsThisMonthIds,
       ),
+      // توزيع مواعيد هذا الشهر حسب الحالة — خام هون، نجمّعها بالدلاء بالأسفل
+      this.prisma.$queryRawUnsafe<Array<{ status: string; count: number }>>(
+        `SELECT status::text AS status, COUNT(*)::int AS count
+         FROM clinic_appointments.appointments
+         WHERE "startTime" >= $1 AND "startTime" < $2
+         GROUP BY status`,
+        thisMonthStart, nextMonthStart,
+      ).catch(() => null),
+      // تقسيم حالات "تمت المعاينة" (COMMITTEE_REVIEW) حسب قرار اللجنة — NEEDS_ADJUSTMENT وبدون
+      // قرار بعد يُحسبان "pending" (لسا ما تحسم الحالة نهائياً)
+      this.prisma.$queryRawUnsafe<Array<{ bucket: string; count: number }>>(
+        `SELECT
+           CASE
+             WHEN cr."finalDecision"::text = 'APPROVED' THEN 'suitable'
+             WHEN cr."finalDecision"::text = 'REJECTED' THEN 'notSuitable'
+             ELSE 'pending'
+           END AS bucket,
+           COUNT(*)::int AS count
+         FROM clinic_prosthetics.prosthetics_cases c
+         LEFT JOIN clinic_prosthetics.committee_reviews cr ON cr."caseId" = c.id
+         WHERE c."deletedAt" IS NULL AND c.status::text = 'COMMITTEE_REVIEW'
+         GROUP BY bucket`,
+      ).catch(() => null),
     ]);
 
     const avg = avgRows?.[0]?.avg;
+
+    // تجميع حالات المواعيد بالدلاء المطلوبة — upcoming يشمل RESCHEDULED لأنه موعد مؤجَّل
+    // لمستقبل لسا ما صار، مش نتيجة نهائية متل الحضور/الغياب/الإلغاء/الاعتذار
+    const apptStatusCount = (status: string) =>
+      appointmentsThisMonthByStatusRaw?.find((r) => r.status === status)?.count ?? 0;
+    const appointmentsThisMonthByStatus = appointmentsThisMonthByStatusRaw ? {
+      completed: apptStatusCount('COMPLETED'),
+      noShow: apptStatusCount('NO_SHOW'),
+      cancelled: apptStatusCount('CANCELLED'),
+      apologized: apptStatusCount('APOLOGIZED'),
+      upcoming: apptStatusCount('SCHEDULED') + apptStatusCount('CONFIRMED')
+        + apptStatusCount('LATE') + apptStatusCount('RESCHEDULED'),
+    } : null;
+
+    const committeeBucketCount = (bucket: string) =>
+      committeeReviewByDecisionRaw?.find((r) => r.bucket === bucket)?.count ?? 0;
+    const committeeReviewByDecision = committeeReviewByDecisionRaw ? {
+      suitable: committeeBucketCount('suitable'),
+      notSuitable: committeeBucketCount('notSuitable'),
+      pending: committeeBucketCount('pending'),
+    } : null;
 
     return {
       clinic: {
@@ -164,6 +215,8 @@ export class DashboardDataController {
         waitingListCount,
         appointmentsThisMonth,
         appointmentsNoShowThisMonth,
+        appointmentsThisMonthByStatus,
+        committeeReviewByDecision,
         podiatryReceptionsTotal,
         podiatryInsolesFittedTotal,
         podiatryNotFittedTotal: (podiatryReceptionsTotal == null || podiatryInsolesFittedTotal == null)

@@ -53,6 +53,7 @@ enum AppointmentStatus {
   NO_SHOW
   RESCHEDULED
   LATE
+  APOLOGIZED
   @@schema("clinic_appointments")
 }
 
