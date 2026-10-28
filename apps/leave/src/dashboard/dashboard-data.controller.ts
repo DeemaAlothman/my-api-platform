@@ -88,10 +88,17 @@ export class DashboardDataController {
     if (role === 'CEO') {
       const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      const leaveCount = await this.prisma.leaveRequest.count({
+      // نفس فلتر approvedLeavesThisMonth الحالي بالضبط (تاريخ بداية الإجازة نفسها، مش تاريخ
+      // الاعتماد) — totalDays عند الإجازة الساعية مخزّن أصلاً كمعادلها بالأيام (نفس الحقل
+      // المستخدم بحساب unpaidLeaveDaysTotal بالأسفل لدور CFO)
+      const approvedLeaves = await this.prisma.leaveRequest.findMany({
         where: { status: 'APPROVED', startDate: { gte: firstDay }, deletedAt: null },
+        select: { totalDays: true },
       });
-      return { approvedLeavesThisMonth: leaveCount };
+      return {
+        approvedLeavesThisMonth: approvedLeaves.length,
+        approvedLeaveDaysThisMonth: approvedLeaves.reduce((s, r) => s + r.totalDays, 0),
+      };
     }
 
     if (role === 'CFO') {
