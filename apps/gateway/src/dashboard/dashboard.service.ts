@@ -118,4 +118,13 @@ export class DashboardService {
 
     return { role, ...this.merge(parts) };
   }
+
+  async getPodiatryMonthly(token: string, months?: string): Promise<any> {
+    const { permissions } = this.decodeJwt(token);
+    const role = this.deriveRole(permissions);
+    const q = `role=${role}${months ? `&months=${encodeURIComponent(months)}` : ''}`;
+    const url = `${this.urls.patients}/api/v1/dashboard/podiatry-monthly?${q}`;
+    const data = await this.fetch(url, token);
+    return data ?? [];
+  }
 }

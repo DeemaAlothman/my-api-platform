@@ -53,6 +53,10 @@ export class DashboardDataController {
       newPatientsThisMonthDoctorExamination,
       appointmentsThisMonthByStatusRaw,
       committeeReviewByDecisionRaw,
+      physioSessionsTotal,
+      physioSessionsThisMonth,
+      physioSessionsPatientsTotal,
+      physioSessionsPatientsThisMonth,
     ] = await Promise.all([
       this.prisma.patient.count({ where: { deletedAt: null, createdAt: { gte: thisMonthStart } } }),
       this.prisma.patient.count({ where: { deletedAt: null, createdAt: { gte: prevMonthStart, lt: thisMonthStart } } }),
@@ -205,6 +209,35 @@ export class DashboardDataController {
          WHERE c."deletedAt" IS NULL AND c.status::text = 'COMMITTEE_REVIEW'
          GROUP BY bucket`,
       ).catch(() => null),
+      // إحصائيات جلسات العلاج الفيزيائي — تعدّ كل سطر جلسة مُسجَّل (بغض النظر عن
+      // attendanceConfirmed، لأنه ما في تقرير معتمد بقسم الفيزيو حالياً يحدد هالتعريف رسمياً؛
+      // الحقل موجود بالجدول لو احتجنا لاحقاً نستثني الجلسات غير المؤكَّدة)
+      this.count(
+        `SELECT COUNT(*)::int AS count
+         FROM clinic_physio.physio_sessions s
+         JOIN clinic_physio.physio_cases c ON c.id = s."caseId"
+         WHERE c."deletedAt" IS NULL`,
+      ),
+      this.count(
+        `SELECT COUNT(*)::int AS count
+         FROM clinic_physio.physio_sessions s
+         JOIN clinic_physio.physio_cases c ON c.id = s."caseId"
+         WHERE c."deletedAt" IS NULL AND s."sessionDate" >= $1 AND s."sessionDate" < $2`,
+        thisMonthStart, nextMonthStart,
+      ),
+      this.count(
+        `SELECT COUNT(DISTINCT c."patientId")::int AS count
+         FROM clinic_physio.physio_sessions s
+         JOIN clinic_physio.physio_cases c ON c.id = s."caseId"
+         WHERE c."deletedAt" IS NULL`,
+      ),
+      this.count(
+        `SELECT COUNT(DISTINCT c."patientId")::int AS count
+         FROM clinic_physio.physio_sessions s
+         JOIN clinic_physio.physio_cases c ON c.id = s."caseId"
+         WHERE c."deletedAt" IS NULL AND s."sessionDate" >= $1 AND s."sessionDate" < $2`,
+        thisMonthStart, nextMonthStart,
+      ),
     ]);
 
     const avg = avgRows?.[0]?.avg;
@@ -261,7 +294,76 @@ export class DashboardDataController {
         podiatryInsolesFittedThisMonth,
         podiatryReceptionsThisMonth,
         podiatryNotFittedThisMonth,
+        physioSessionsTotal,
+        physioSessionsThisMonth,
+        physioSessionsPatientsTotal,
+        physioSessionsPatientsThisMonth,
       },
     };
+  }
+
+  // مخطط شهري لطب الأقدام — نفس صلاحية بلوك العيادة بالداشبورد الرئيسي (role=CEO)
+  @Get('podiatry-monthly')
+  async getPodiatryMonthly(@Query('role') role: string, @Query('months') monthsQuery?: string) {
+    if (role !== 'CEO') return [];
+
+    const months = Math.min(24, Math.max(1, parseInt(monthsQuery ?? '12', 10) || 12));
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const rangeStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const rangeEndExclusive = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      month: string; receptions: number; fitted: number; notFitted: number;
+    }>>(
+      `WITH months AS (
+         SELECT generate_series(
+           date_trunc('month', $1::timestamp),
+           date_trunc('month', $2::timestamp),
+           interval '1 month'
+         ) AS month_start
+       ),
+       receptions_by_month AS (
+         SELECT date_trunc('month', r."createdAt") AS month_start, COUNT(*)::int AS cnt
+         FROM clinic_podiatry.podiatry_receptions r
+         WHERE r."createdAt" >= $1 AND r."createdAt" < $3
+         GROUP BY 1
+       ),
+       fitted_by_month AS (
+         SELECT date_trunc('month', s."installedAt") AS month_start, COUNT(DISTINCT r.id)::int AS cnt
+         FROM clinic_podiatry.podiatry_receptions r
+         JOIN clinic_podiatry.podiatry_sessions s ON s."receptionId" = r.id
+         WHERE s."installedAt" >= $1 AND s."installedAt" < $3
+         GROUP BY 1
+       ),
+       notfitted_by_month AS (
+         SELECT date_trunc('month', r."createdAt") AS month_start, COUNT(*)::int AS cnt
+         FROM clinic_podiatry.podiatry_receptions r
+         WHERE r."createdAt" >= $1 AND r."createdAt" < $3
+           AND NOT EXISTS (
+             SELECT 1 FROM clinic_podiatry.podiatry_sessions s
+             WHERE s."receptionId" = r.id AND s."installedAt" IS NOT NULL
+           )
+         GROUP BY 1
+       )
+       SELECT
+         to_char(m.month_start, 'YYYY-MM') AS month,
+         COALESCE(rb.cnt, 0) AS receptions,
+         COALESCE(fb.cnt, 0) AS fitted,
+         COALESCE(nb.cnt, 0) AS "notFitted"
+       FROM months m
+       LEFT JOIN receptions_by_month rb ON rb.month_start = m.month_start
+       LEFT JOIN fitted_by_month fb ON fb.month_start = m.month_start
+       LEFT JOIN notfitted_by_month nb ON nb.month_start = m.month_start
+       ORDER BY m.month_start ASC`,
+      rangeStart, thisMonthStart, rangeEndExclusive,
+    ).catch(() => []);
+
+    return rows.map((r) => ({
+      month: r.month,
+      receptions: Number(r.receptions),
+      fitted: Number(r.fitted),
+      notFitted: Number(r.notFitted),
+    }));
   }
 }

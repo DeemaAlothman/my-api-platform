@@ -1,4 +1,4 @@
-import { Controller, Get, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { DashboardService } from './dashboard.service';
 
@@ -21,6 +21,24 @@ export class DashboardController {
     }
 
     const data = await this.dashboardService.getDashboard(token);
+    return res.json({ success: true, data });
+  }
+
+  @Get('podiatry-monthly')
+  async getPodiatryMonthly(@Req() req: Request, @Res() res: Response, @Query('months') months?: string) {
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+    if (!token) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Missing token', details: [] } });
+    }
+
+    const { userId } = this.dashboardService.decodeJwt(token);
+    if (!userId) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token', details: [] } });
+    }
+
+    const data = await this.dashboardService.getPodiatryMonthly(token, months);
     return res.json({ success: true, data });
   }
 }
