@@ -25,6 +25,12 @@ export class DashboardDataController {
     const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 86_400_000);
 
+    // مرضى جداد هذا الشهر — لازم معرّفاتهم لتوزيعهم حسب القسم تحتهم
+    const newPatientsThisMonthIds = await this.prisma.patient.findMany({
+      where: { deletedAt: null, createdAt: { gte: thisMonthStart } },
+      select: { id: true },
+    }).then((rows) => rows.map((r) => r.id));
+
     const [
       newPatientsThisMonth,
       newPatientsPreviousMonth,
@@ -38,6 +44,11 @@ export class DashboardDataController {
       podiatryReceptionsTotal,
       podiatryInsolesFittedTotal,
       podiatryInsolesFittedThisMonth,
+      newPatientsThisMonthProsthetics,
+      newPatientsThisMonthPhysio,
+      newPatientsThisMonthOrthotics,
+      newPatientsThisMonthPodiatry,
+      newPatientsThisMonthDoctorExamination,
     ] = await Promise.all([
       this.prisma.patient.count({ where: { deletedAt: null, createdAt: { gte: thisMonthStart } } }),
       this.prisma.patient.count({ where: { deletedAt: null, createdAt: { gte: prevMonthStart, lt: thisMonthStart } } }),
@@ -97,6 +108,37 @@ export class DashboardDataController {
          WHERE "installedAt" >= $1 AND "installedAt" < $2`,
         thisMonthStart, nextMonthStart,
       ),
+      // توزيع مرضى هذا الشهر حسب القسم — كل عدّاد مستقل (نفس المريض ممكن يظهر بأكثر من قسم)
+      newPatientsThisMonthIds.length === 0 ? 0 : this.count(
+        `SELECT COUNT(DISTINCT "patientId")::int AS count
+         FROM clinic_prosthetics.prosthetics_cases
+         WHERE "deletedAt" IS NULL AND "patientId" = ANY($1::text[])`,
+        newPatientsThisMonthIds,
+      ),
+      newPatientsThisMonthIds.length === 0 ? 0 : this.count(
+        `SELECT COUNT(DISTINCT "patientId")::int AS count
+         FROM clinic_physio.physio_cases
+         WHERE "deletedAt" IS NULL AND "patientId" = ANY($1::text[])`,
+        newPatientsThisMonthIds,
+      ),
+      newPatientsThisMonthIds.length === 0 ? 0 : this.count(
+        `SELECT COUNT(DISTINCT "patientId")::int AS count
+         FROM clinic_orthotics.orthotics_receptions
+         WHERE "patientId" = ANY($1::text[])`,
+        newPatientsThisMonthIds,
+      ),
+      newPatientsThisMonthIds.length === 0 ? 0 : this.count(
+        `SELECT COUNT(DISTINCT "patientId")::int AS count
+         FROM clinic_podiatry.podiatry_receptions
+         WHERE "patientId" = ANY($1::text[])`,
+        newPatientsThisMonthIds,
+      ),
+      newPatientsThisMonthIds.length === 0 ? 0 : this.count(
+        `SELECT COUNT(DISTINCT "patientId")::int AS count
+         FROM clinic_appointments.appointments
+         WHERE "appointmentType"::text = 'EXAMINATION' AND "patientId" = ANY($1::text[])`,
+        newPatientsThisMonthIds,
+      ),
     ]);
 
     const avg = avgRows?.[0]?.avg;
@@ -105,6 +147,14 @@ export class DashboardDataController {
       clinic: {
         newPatientsThisMonth,
         newPatientsPreviousMonth,
+        // توزيع مرضى هذا الشهر حسب القسم — عدّادات مستقلة، ممكن تتقاطع (نفس المريض بأكثر من قسم)
+        newPatientsThisMonthByDepartment: {
+          prosthetics: newPatientsThisMonthProsthetics,
+          physio: newPatientsThisMonthPhysio,
+          orthotics: newPatientsThisMonthOrthotics,
+          podiatry: newPatientsThisMonthPodiatry,
+          doctorExamination: newPatientsThisMonthDoctorExamination,
+        },
         openProstheticsCasesByStatus: openByStatus
           ? openByStatus.map((r) => ({ status: r.status, count: Number(r.count) }))
           : null,
