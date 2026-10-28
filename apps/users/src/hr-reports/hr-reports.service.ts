@@ -122,7 +122,45 @@ export class HrReportsService {
         count: Number(r.count),
       }));
 
-    return { year, hired: fmt(hired), terminated: fmt(terminated) };
+    // معدّل الدوران الوظيفي للسنة — نفس تعريف separated_at أعلاه بالضبط (separationDate، أو
+    // تاريخ انتهاء فترة التجربة كبديل)، بإعادة بناء القوة الفعلية بتاريخين: بداية السنة
+    // (1 كانون الثاني) ونهايتها (31 كانون الأول، أو الآن لو السنة لسا ما خلصت)
+    const yearStart = new Date(Date.UTC(year, 0, 1));
+    const yearEnd = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    const now = new Date();
+    const asOfEnd = yearEnd < now ? yearEnd : now;
+
+    const headcountRows = await this.prisma.$queryRaw<Array<{ headcount_start: bigint; headcount_end: bigint }>>`
+      WITH emp AS (
+        SELECT e."hireDate",
+          COALESCE(
+            e."separationDate"::timestamp,
+            CASE WHEN e."employmentStatus" = 'TERMINATED' AND e."probationResult" = 'TERMINATE'
+                 THEN e."probationCompletedAt" END
+          ) AS separated_at
+        FROM users.employees e
+        WHERE e."deletedAt" IS NULL
+      )
+      SELECT
+        COUNT(*) FILTER (
+          WHERE "hireDate" <= ${yearStart} AND (separated_at IS NULL OR separated_at >= ${yearStart})
+        )::bigint AS headcount_start,
+        COUNT(*) FILTER (
+          WHERE "hireDate" <= ${asOfEnd} AND (separated_at IS NULL OR separated_at > ${asOfEnd})
+        )::bigint AS headcount_end
+      FROM emp
+    `;
+
+    const headcountStart = Number(headcountRows[0]?.headcount_start ?? 0);
+    const headcountEnd = Number(headcountRows[0]?.headcount_end ?? 0);
+    const separations = terminated.reduce((s, r) => s + Number(r.count), 0);
+    const avgHeadcount = (headcountStart + headcountEnd) / 2;
+    const turnoverRate = avgHeadcount > 0 ? Math.round((separations / avgHeadcount) * 1000) / 10 : 0;
+
+    return {
+      year, hired: fmt(hired), terminated: fmt(terminated),
+      turnoverRate, headcountStart, headcountEnd, separations,
+    };
   }
 
   // ─── 3. تقرير الرواتب ─────────────────────────────────────────────────────
