@@ -209,33 +209,34 @@ export class DashboardDataController {
          WHERE c."deletedAt" IS NULL AND c.status::text = 'COMMITTEE_REVIEW'
          GROUP BY bucket`,
       ).catch(() => null),
-      // إحصائيات جلسات العلاج الفيزيائي — تعدّ كل سطر جلسة مُسجَّل (بغض النظر عن
-      // attendanceConfirmed، لأنه ما في تقرير معتمد بقسم الفيزيو حالياً يحدد هالتعريف رسمياً؛
-      // الحقل موجود بالجدول لو احتجنا لاحقاً نستثني الجلسات غير المؤكَّدة)
+      // إحصائيات جلسات العلاج الفيزيائي — محصورة بالجلسات المؤكَّد حضورها فقط
+      // (attendanceConfirmed = true)، حسب طلب قسم الفيزيو، لتطابق شاشتهم بالضبط
       this.count(
         `SELECT COUNT(*)::int AS count
          FROM clinic_physio.physio_sessions s
          JOIN clinic_physio.physio_cases c ON c.id = s."caseId"
-         WHERE c."deletedAt" IS NULL`,
+         WHERE c."deletedAt" IS NULL AND s."attendanceConfirmed" = true`,
       ),
       this.count(
         `SELECT COUNT(*)::int AS count
          FROM clinic_physio.physio_sessions s
          JOIN clinic_physio.physio_cases c ON c.id = s."caseId"
-         WHERE c."deletedAt" IS NULL AND s."sessionDate" >= $1 AND s."sessionDate" < $2`,
+         WHERE c."deletedAt" IS NULL AND s."attendanceConfirmed" = true
+           AND s."sessionDate" >= $1 AND s."sessionDate" < $2`,
         thisMonthStart, nextMonthStart,
       ),
       this.count(
         `SELECT COUNT(DISTINCT c."patientId")::int AS count
          FROM clinic_physio.physio_sessions s
          JOIN clinic_physio.physio_cases c ON c.id = s."caseId"
-         WHERE c."deletedAt" IS NULL`,
+         WHERE c."deletedAt" IS NULL AND s."attendanceConfirmed" = true`,
       ),
       this.count(
         `SELECT COUNT(DISTINCT c."patientId")::int AS count
          FROM clinic_physio.physio_sessions s
          JOIN clinic_physio.physio_cases c ON c.id = s."caseId"
-         WHERE c."deletedAt" IS NULL AND s."sessionDate" >= $1 AND s."sessionDate" < $2`,
+         WHERE c."deletedAt" IS NULL AND s."attendanceConfirmed" = true
+           AND s."sessionDate" >= $1 AND s."sessionDate" < $2`,
         thisMonthStart, nextMonthStart,
       ),
     ]);
