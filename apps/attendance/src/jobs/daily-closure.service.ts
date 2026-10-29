@@ -1868,6 +1868,24 @@ export class DailyClosureService implements OnModuleInit {
         const stampSet = new Set(withStamps.map(r => r.employeeId));
         const leaveSet = new Set(withLeave.map(r => r.employeeId));
 
+        // المدير التنفيذي (صلاحية requests:ceo-approve) ما بده يستلم إشعار تنبيه غياب البصمة
+        // شخصياً — السجل بجدول attendance_alerts بيضل يُنشأ عادي (يبقى ظاهر لـHR بتقاريرهم)،
+        // بس الإشعار المباشر لصندوقه بتم تخطّيه فقط
+        const userIds = scheduledEmployees.map(e => e.userId).filter((id): id is string => !!id);
+        const ceoUserIds = userIds.length
+          ? new Set(
+              (await this.prisma.$queryRawUnsafe(
+                `SELECT DISTINCT ur."userId"
+                 FROM users.user_roles ur
+                 JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+                 JOIN users.permissions p ON p.id = rp."permissionId"
+                 WHERE p.name = 'requests:ceo-approve'
+                   AND ur."userId" = ANY($1::text[])`,
+                userIds,
+              ) as Array<{ userId: string }>).map(r => r.userId),
+            )
+          : new Set<string>();
+
         for (const emp of empIds) {
           if (!stampSet.has(emp) && !leaveSet.has(emp)) {
             if (this.isEmployeeDeviceOffline(emp, employeeDeviceMap, offlineDeviceIds)) continue;
@@ -1885,7 +1903,7 @@ export class DailyClosureService implements OnModuleInit {
             ).catch(() => {});
 
             const notifyUserId = userIdByEmployee.get(emp);
-            if (notifyUserId) {
+            if (notifyUserId && !ceoUserIds.has(notifyUserId)) {
               await this.prisma.$queryRawUnsafe(
                 `INSERT INTO users.notifications
                    (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", "isRead", "data", "createdAt")
