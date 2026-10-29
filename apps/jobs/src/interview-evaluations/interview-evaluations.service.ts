@@ -131,7 +131,29 @@ export class InterviewEvaluationsService {
       },
     });
 
+    this.markApplicationInterviewed(evaluation.jobApplicationId);
+
     return evaluation;
+  }
+
+  /**
+   * بمجرد تعبئة التقييم تنتقل حالة الطلب إلى "تمت المقابلة" (INTERVIEW_READY) — كانت تبقى
+   * "قيد الانتظار" رغم إتمام المقابلة وتسجيل درجاتها.
+   * fire-and-forget عمداً: الطلب محفوظ بنظام خارجي، وتعذّر الاتصال به يجب ألّا يُفشل حفظ التقييم.
+   */
+  private markApplicationInterviewed(jobApplicationId: string | null | undefined): void {
+    if (!jobApplicationId) return;
+    const baseUrl = process.env.VITASYR_API_URL || 'https://vitaxirpro.com/api/external';
+    const apiKey = process.env.VITASYR_API_KEY || '';
+    if (!apiKey) return;
+
+    this.http
+      .put(
+        `${baseUrl}/job-applications/${jobApplicationId}`,
+        { status: 'INTERVIEW_READY' },
+        { headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' } },
+      )
+      .subscribe({ error: () => { /* لا يُفشل حفظ التقييم */ } });
   }
 
   async findAll(query: { positionId?: string; decision?: string; page?: string; limit?: string }) {
