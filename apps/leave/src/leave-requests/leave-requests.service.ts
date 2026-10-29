@@ -6,6 +6,9 @@ import { ApproveLeaveRequestDto, RejectLeaveRequestDto } from './dto/approve-lea
 import { CancelLeaveRequestDto } from './dto/cancel-leave-request.dto';
 import { CreateHourlyLeaveDto } from './dto/create-hourly-leave.dto';
 
+/** أنماط الدوام التي لا تستحق إجازات مدفوعة — يُسمح لها بالأنواع غير المدفوعة فقط */
+const UNPAID_ONLY_WORK_TYPES = ['PART_TIME', 'REMOTE'];
+
 @Injectable()
 export class LeaveRequestsService {
   constructor(private prisma: PrismaService) {}
@@ -219,6 +222,10 @@ export class LeaveRequestsService {
     if (!leaveType || !leaveType.isActive) {
       throw new BadRequestException('نوع الإجازة غير صالح أو غير نشط');
     }
+    // نفس قاعدة الدوام الجزئي/عن بُعد: لا إجازات ساعية مدفوعة
+    if (leaveType.isPaid) {
+      await this.assertPaidLeaveAllowed(employeeId);
+    }
     await this.validateMinServiceMonths(employeeId, leaveType);
     await this.validateMaxLifetimeUsage(employeeId, leaveType);
     const overLimitHours = await this.validateMaxHoursPerMonth(employeeId, leaveType, dto.date, durationHours);
@@ -336,6 +343,23 @@ export class LeaveRequestsService {
   }
 
   // إنشاء طلب إجازة (مسودة)
+  /** يرفض الإجازات المدفوعة لأنماط الدوام غير المستحقّة لها (جزئي / عن بُعد) */
+  private assertWorkTypeAllowsPaidLeave(workType: string | null | undefined): void {
+    if (!UNPAID_ONLY_WORK_TYPES.includes(workType ?? '')) return;
+    throw new BadRequestException(
+      `الموظفون بنمط دوام ${workType === 'PART_TIME' ? 'جزئي' : 'عن بُعد'} لا يستحقون إجازات مدفوعة — يُسمح فقط بالإجازات غير المدفوعة`,
+    );
+  }
+
+  /** نفس القاعدة عند عدم توفّر نمط الدوام مسبقاً — يُقرأ من سجل الموظف */
+  private async assertPaidLeaveAllowed(employeeId: string): Promise<void> {
+    const rows = await this.prisma.$queryRaw<Array<{ workType: string | null }>>`
+      SELECT "workType"::text AS "workType"
+      FROM users.employees WHERE id = ${employeeId} AND "deletedAt" IS NULL LIMIT 1
+    `;
+    this.assertWorkTypeAllowsPaidLeave(rows[0]?.workType);
+  }
+
   async create(
     createDto: CreateLeaveRequestDto,
     employeeId: string,
@@ -351,8 +375,9 @@ export class LeaveRequestsService {
     const { leaveTypeId, startDate, endDate, isHalfDay = false, ...rest } = createDto;
 
     // التحقق من أن الموظف غير محذوف
-    const empCheck = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM users.employees WHERE id = ${employeeId} AND "deletedAt" IS NULL LIMIT 1
+    const empCheck = await this.prisma.$queryRaw<Array<{ id: string; workType: string | null }>>`
+      SELECT id, "workType"::text AS "workType"
+      FROM users.employees WHERE id = ${employeeId} AND "deletedAt" IS NULL LIMIT 1
     `;
     if (!empCheck[0]) {
       throw new BadRequestException('الموظف غير موجود أو تم حذفه');
@@ -381,6 +406,12 @@ export class LeaveRequestsService {
 
     if (!leaveType || !leaveType.isActive) {
       throw new BadRequestException('Invalid or inactive leave type');
+    }
+
+    // الدوام الجزئي والعمل عن بُعد: لا رصيد إجازات مدفوعة — يُسمح فقط بالأنواع غير المدفوعة
+    // (يوم/نصف يوم بلا راتب وما شابهها)
+    if (leaveType.isPaid) {
+      this.assertWorkTypeAllowsPaidLeave(empCheck[0].workType);
     }
 
     // التحقق من شروط الأهلية

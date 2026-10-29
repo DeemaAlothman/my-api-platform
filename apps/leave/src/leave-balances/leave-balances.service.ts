@@ -79,9 +79,23 @@ export class LeaveBalancesService {
     };
   }
 
+  /** أنماط الدوام التي لا تستحق إجازات مدفوعة، فلا يُعرض لها رصيد */
+  private static readonly UNPAID_ONLY_WORK_TYPES = ['PART_TIME', 'REMOTE'];
+
+  private async hasPaidLeaveEntitlement(employeeId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<Array<{ workType: string | null }>>`
+      SELECT "workType"::text AS "workType"
+      FROM users.employees WHERE id = ${employeeId} AND "deletedAt" IS NULL LIMIT 1
+    `;
+    return !LeaveBalancesService.UNPAID_ONLY_WORK_TYPES.includes(rows[0]?.workType ?? '');
+  }
+
   // الحصول على رصيد موظف معين
   async findByEmployee(employeeId: string, year?: number) {
     const currentYear = year || new Date().getFullYear();
+
+    // الدوام الجزئي/عن بُعد لا يستحق إجازات مدفوعة، فلا يُعرض له رصيد إطلاقاً
+    if (!(await this.hasPaidLeaveEntitlement(employeeId))) return [];
 
     const balances = await this.prisma.leaveBalance.findMany({
       where: {
@@ -130,8 +144,10 @@ export class LeaveBalancesService {
     });
 
     const employeeMap = await this.getEmployeeNames([employeeId]);
-    const entitled = balance ? balance.totalDays : 0;
-    const used = balance ? balance.usedDays : 0;
+    // الدوام الجزئي/عن بُعد: لا استحقاق مدفوع — تُعرض أصفار بدل رصيد لا يملكه
+    const entitledToPaidLeave = await this.hasPaidLeaveEntitlement(employeeId);
+    const entitled = entitledToPaidLeave && balance ? balance.totalDays : 0;
+    const used = entitledToPaidLeave && balance ? balance.usedDays : 0;
 
     // تفصيل كل أنواع الإجازات لنفس السنة — الحقول الأصلية أعلاه تبقى كما هي (سنوية فقط) حتى لا
     // ينكسر أي عرض قائم، وهذا التفصيل إضافة بجانبها ليُظهر بقية الأنواع (مرضية، غير مدفوعة…)
@@ -171,8 +187,8 @@ export class LeaveBalancesService {
       year: currentYear,
       entitled,
       used,
-      remaining: entitled - used - (balance?.pendingDays ?? 0),
-      byType,
+      remaining: entitledToPaidLeave ? entitled - used - (balance?.pendingDays ?? 0) : 0,
+      byType: entitledToPaidLeave ? byType : [],
     };
   }
 
