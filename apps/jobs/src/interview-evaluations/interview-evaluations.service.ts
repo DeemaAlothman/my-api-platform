@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInterviewEvaluationDto, CriteriaScoreDto, TechnicalScoreDto } from './dto/create-interview-evaluation.dto';
 
@@ -137,8 +138,15 @@ export class InterviewEvaluationsService {
   }
 
   /**
-   * بمجرد تعبئة التقييم تنتقل حالة الطلب إلى "تمت المقابلة" (INTERVIEW_READY) — كانت تبقى
-   * "قيد الانتظار" رغم إتمام المقابلة وتسجيل درجاتها.
+   * بمجرد تعبئة التقييم تنتقل حالة الطلب إلى ACCEPTED (تُعرض بالواجهة "تمت المقابلة") — كانت
+   * تبقى "معلّق" رغم إتمام المقابلة وتسجيل درجاتها.
+   *
+   * مسار الحالات المعتمد: PENDING (معلّق) ← يضعها HR يدوياً INTERVIEW_READY (مؤهل للمقابلة)
+   * ← بعد حفظ التقييم تصبح ACCEPTED تلقائياً ← ثم HIRED أو REJECTED.
+   *
+   * التحويل يتم فقط إذا كانت الحالة الحالية PENDING أو INTERVIEW_READY؛ أما REJECTED أو HIRED
+   * فلا تُلمس، حتى لا يعيد تقييمٌ لاحق فتحَ طلبٍ أُغلق أو أُنجز توظيفه.
+   *
    * fire-and-forget عمداً: الطلب محفوظ بنظام خارجي، وتعذّر الاتصال به يجب ألّا يُفشل حفظ التقييم.
    */
   private markApplicationInterviewed(jobApplicationId: string | null | undefined): void {
@@ -147,13 +155,28 @@ export class InterviewEvaluationsService {
     const apiKey = process.env.VITASYR_API_KEY || '';
     if (!apiKey) return;
 
-    this.http
-      .put(
-        `${baseUrl}/job-applications/${jobApplicationId}`,
-        { status: 'INTERVIEW_READY' },
-        { headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' } },
-      )
-      .subscribe({ error: () => { /* لا يُفشل حفظ التقييم */ } });
+    const headers = { 'x-api-key': apiKey, 'Content-Type': 'application/json' };
+    const TRANSITIONABLE = ['PENDING', 'INTERVIEW_READY'];
+
+    void (async () => {
+      try {
+        const current = await firstValueFrom(
+          this.http.get(`${baseUrl}/job-applications/${jobApplicationId}`, { headers }),
+        );
+        const status = current.data?.data?.status ?? current.data?.status;
+        if (!TRANSITIONABLE.includes(status)) return;
+
+        await firstValueFrom(
+          this.http.put(
+            `${baseUrl}/job-applications/${jobApplicationId}`,
+            { status: 'ACCEPTED' },
+            { headers },
+          ),
+        );
+      } catch {
+        /* لا يُفشل حفظ التقييم */
+      }
+    })();
   }
 
   async findAll(query: { positionId?: string; decision?: string; page?: string; limit?: string }) {
