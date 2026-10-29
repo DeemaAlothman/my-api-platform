@@ -112,6 +112,12 @@ export class PatientsController {
     });
   }
 
+  @Get('surveys/stats')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.SURVEYS_VIEW)
+  getSurveysStats() {
+    return this.surveys.getStats();
+  }
+
   @Get('surveys/:id')
   @Permission(PERMISSIONS.CLINIC_PATIENTS.SURVEYS_VIEW)
   findOneSurvey(@Param('id') id: string) {

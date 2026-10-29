@@ -127,4 +127,33 @@ export class SurveysService {
     ]);
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
+
+  // عدد الاستبيانات لكل قسم + نسبة رضى عامة محسوبة من تجميع overallCompanyRating لكل الاستبيانات
+  // (مش من استبيان واحد لحاله) — overallCompanyRating من 1 إلى 5، النسبة = المعدل ÷ 5 × 100
+  async getStats() {
+    const [byDept, agg] = await Promise.all([
+      this.prisma.patientSurvey.groupBy({ by: ['department'], _count: { id: true } }),
+      this.prisma.patientSurvey.aggregate({
+        _avg: { overallCompanyRating: true },
+        _count: { id: true },
+      }),
+    ]);
+
+    const byDepartment = { prosthetics: 0, podiatry: 0, physio: 0 };
+    for (const r of byDept) {
+      if (r.department === 'PROSTHETICS') byDepartment.prosthetics = r._count.id;
+      else if (r.department === 'PODIATRY') byDepartment.podiatry = r._count.id;
+      else if (r.department === 'PHYSIO') byDepartment.physio = r._count.id;
+    }
+
+    const avgRating = agg._avg.overallCompanyRating ?? 0;
+    const satisfactionPercent = Math.round((avgRating / 5) * 1000) / 10;
+
+    return {
+      total: agg._count.id,
+      byDepartment,
+      averageRating: avgRating ? Math.round(avgRating * 10) / 10 : 0,
+      satisfactionPercent,
+    };
+  }
 }

@@ -210,31 +210,45 @@ export class SourcesService {
       sourceId,
       patientCount:     Number(totalRows[0].count),
       realPatientCount: Number(realRows[0].count),
+      // "المبيعات" — اسم بديل لنفس realPatientCount، أضفناه بدل استبداله حتى ما ينكسر أي استدعاء قديم
+      sales: Number(realRows[0].count),
     };
   }
 
   // المرضى المنسوبين لهاد المصدر — قائمة فعلية، مش عدّاد بس (مختلفة عن getPatientCount)
-  async getPatients(sourceId: string, page = 1, limit = 20) {
+  // realOnly=true: يقتصر على "المبيعات" الفعلية فقط (نفس شرط realPatientCount بالأعلى بالضبط) —
+  // هاد يلي بيُستخدم لما تكبسي على رقم "المبيعات" لتشوفي أسماءهم بالتحديد
+  async getPatients(sourceId: string, page = 1, limit = 20, realOnly = false) {
     await this.findOne(sourceId);
     const safeLimit = Math.min(100, Math.max(1, limit));
     const safePage = Math.max(1, page);
     const skip = (safePage - 1) * safeLimit;
 
+    const realCondition = realOnly ? `
+      AND (
+        EXISTS (SELECT 1 FROM clinic_physio.physio_cases pc WHERE pc."patientId" = id AND pc."deletedAt" IS NULL AND pc."caseType" = 'PHYSIO')
+        OR EXISTS (SELECT 1 FROM clinic_prosthetics.prosthetics_cases prc WHERE prc."patientId" = id AND prc."deletedAt" IS NULL)
+        OR EXISTS (SELECT 1 FROM clinic_podiatry.podiatry_receptions por WHERE por."patientId" = id)
+      )
+    ` : '';
+
     const [items, totalRows] = await Promise.all([
-      this.prisma.$queryRaw<Array<{
+      this.prisma.$queryRawUnsafe<Array<{
         id: string; patientNumber: string; firstName: string; lastName: string;
         phone: string; createdAt: Date;
-      }>>`
-        SELECT id, "patientNumber", "firstName", "lastName", phone, "createdAt"
-        FROM clinic_patients.patients
-        WHERE "referralSourceId" = ${sourceId} AND "deletedAt" IS NULL
-        ORDER BY "createdAt" DESC
-        LIMIT ${safeLimit} OFFSET ${skip}
-      `,
-      this.prisma.$queryRaw<{ count: bigint }[]>`
-        SELECT COUNT(*) as count FROM clinic_patients.patients
-        WHERE "referralSourceId" = ${sourceId} AND "deletedAt" IS NULL
-      `,
+      }>>(
+        `SELECT id, "patientNumber", "firstName", "lastName", phone, "createdAt"
+         FROM clinic_patients.patients
+         WHERE "referralSourceId" = $1 AND "deletedAt" IS NULL ${realCondition}
+         ORDER BY "createdAt" DESC
+         LIMIT $2 OFFSET $3`,
+        sourceId, safeLimit, skip,
+      ),
+      this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT COUNT(*) as count FROM clinic_patients.patients
+         WHERE "referralSourceId" = $1 AND "deletedAt" IS NULL ${realCondition}`,
+        sourceId,
+      ),
     ]);
 
     const total = Number(totalRows[0]?.count ?? 0);
@@ -306,9 +320,123 @@ export class SourcesService {
       ...s,
       patientCount:     totalMap.get(s.id) ?? 0,
       realPatientCount: realMap.get(s.id)  ?? 0,
+      sales:            realMap.get(s.id)  ?? 0, // اسم بديل لـrealPatientCount — "المبيعات"
     }));
 
-    return { byType, topSources: topSourcesWithCounts, totalVisits: totalVisitsRow };
+    // ── إضافات: ملخص عام + ترتيب لكل نوع + زيارات الفريق هذا الشهر + اتجاه شهري ──────────
+    // كل هاي الحقول إضافية جنب يلي فوق، ما بتلغي ولا توحدة منهم
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const allSources = await this.prisma.referralSource.findMany({
+      where: { deletedAt: null },
+      select: { id: true, type: true, name: true, doctorRating: true, clinicRating: true },
+    });
+    const sourceIds = allSources.map((s) => s.id);
+
+    const [monthCounts, visitCountsAll, visitCountsThisMonth] = await Promise.all([
+      sourceIds.length
+        ? this.prisma.$queryRawUnsafe<Array<{ referralSourceId: string; count: bigint }>>(
+            `SELECT "referralSourceId", COUNT(*) as count
+             FROM clinic_patients.patients
+             WHERE "referralSourceId" = ANY($1::text[]) AND "deletedAt" IS NULL
+               AND "createdAt" >= $2 AND "createdAt" < $3
+             GROUP BY "referralSourceId"`,
+            sourceIds, thisMonthStart, nextMonthStart,
+          )
+        : Promise.resolve([] as Array<{ referralSourceId: string; count: bigint }>),
+      this.prisma.referralVisit.groupBy({ by: ['sourceId'], _count: { id: true } }),
+      this.prisma.referralVisit.groupBy({
+        by: ['sourceId'],
+        where: { visitDate: { gte: thisMonthStart, lt: nextMonthStart } },
+        _count: { id: true },
+      }),
+    ]);
+
+    const monthMap = new Map(monthCounts.map((r) => [r.referralSourceId, Number(r.count)]));
+    const visitMap = new Map(visitCountsAll.map((r) => [r.sourceId, r._count.id]));
+    const teamVisitsThisMonth = visitCountsThisMonth.reduce((sum, r) => sum + r._count.id, 0);
+
+    // إجمالي مرضى كل نوع، لحساب نسبة الكثافة لكل مصدر ضمن نوعه فقط
+    const typeTotals = new Map<string, number>();
+    for (const s of allSources) {
+      typeTotals.set(s.type, (typeTotals.get(s.type) ?? 0) + (totalMap.get(s.id) ?? 0));
+    }
+
+    const enriched = allSources.map((s) => {
+      const patientCount = totalMap.get(s.id) ?? 0;
+      const typeTotal = typeTotals.get(s.type) ?? 0;
+      return {
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        rating: s.doctorRating ?? s.clinicRating ?? null,
+        patientCount,
+        densityPercent: this.densityPercent(patientCount, typeTotal),
+        referralsThisMonth: monthMap.get(s.id) ?? 0,
+        visitCount: visitMap.get(s.id) ?? 0,
+      };
+    });
+
+    const byTypeList = (type: string) => enriched.filter((e) => e.type === type);
+    const topByDensity = (type: string) =>
+      byTypeList(type).slice().sort((a, b) => b.densityPercent - a.densityPercent)[0] ?? null;
+    const top10ThisMonth = (type: string) =>
+      byTypeList(type).slice().sort((a, b) => b.referralsThisMonth - a.referralsThisMonth).slice(0, 10);
+
+    const withRating = enriched.filter((e) => e.rating != null);
+    const topRating = withRating.length
+      ? withRating.slice().sort((a, b) => (b.rating as number) - (a.rating as number))[0]
+      : null;
+    const topCases = enriched.length ? enriched.slice().sort((a, b) => b.patientCount - a.patientCount)[0] : null;
+    const topVisits = enriched.length ? enriched.slice().sort((a, b) => b.visitCount - a.visitCount)[0] : null;
+
+    // اتجاه آخر 6 أشهر (إحالات + زيارات)، بدون فجوات — الشهر يلي ما فيه شي بيرجع صفر
+    const monthKeys: string[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+    const sixMonthsAgoStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const [referralsTrendRaw, visitsTrendRaw] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
+        SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') as month, COUNT(*)::int as count
+        FROM clinic_patients.patients
+        WHERE "referralSourceId" IS NOT NULL AND "deletedAt" IS NULL AND "createdAt" >= ${sixMonthsAgoStart}
+        GROUP BY month
+      `,
+      this.prisma.$queryRaw<Array<{ month: string; count: bigint }>>`
+        SELECT to_char(date_trunc('month', "visitDate"), 'YYYY-MM') as month, COUNT(*)::int as count
+        FROM referrals.referral_visits
+        WHERE "visitDate" >= ${sixMonthsAgoStart}
+        GROUP BY month
+      `,
+    ]);
+    const referralsTrendMap = new Map(referralsTrendRaw.map((r) => [r.month, Number(r.count)]));
+    const visitsTrendMap = new Map(visitsTrendRaw.map((r) => [r.month, Number(r.count)]));
+    const monthlyTrend = monthKeys.map((m) => ({
+      month: m,
+      referrals: referralsTrendMap.get(m) ?? 0,
+      visits: visitsTrendMap.get(m) ?? 0,
+    }));
+
+    return {
+      byType, topSources: topSourcesWithCounts, totalVisits: totalVisitsRow,
+      summary: {
+        topRating: topRating ? { id: topRating.id, name: topRating.name, type: topRating.type, rating: topRating.rating } : null,
+        topCases: topCases ? { id: topCases.id, name: topCases.name, type: topCases.type, patientCount: topCases.patientCount } : null,
+        topVisits: topVisits ? { id: topVisits.id, name: topVisits.name, type: topVisits.type, visitCount: topVisits.visitCount } : null,
+      },
+      byTypeRanking: {
+        DOCTOR: { topByDensity: topByDensity('DOCTOR'), top10ThisMonth: top10ThisMonth('DOCTOR') },
+        HOSPITAL: { topByDensity: topByDensity('HOSPITAL'), top10ThisMonth: top10ThisMonth('HOSPITAL') },
+        ASSOCIATION: { topByDensity: topByDensity('ASSOCIATION'), top10ThisMonth: top10ThisMonth('ASSOCIATION') },
+        OTHER: { topByDensity: topByDensity('OTHER'), top10ThisMonth: top10ThisMonth('OTHER') },
+      },
+      teamVisitsThisMonth,
+      monthlyTrend,
+    };
   }
 
   // ── Visits ────────────────────────────────────────────────────────

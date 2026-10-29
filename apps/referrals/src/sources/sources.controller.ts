@@ -66,8 +66,14 @@ export class SourcesController {
     @Param('id') id: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('realOnly') realOnly?: string,
   ) {
-    return this.service.getPatients(id, page ? parseInt(page, 10) : 1, limit ? parseInt(limit, 10) : 20);
+    return this.service.getPatients(
+      id,
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+      realOnly === 'true',
+    );
   }
 
   @Get(':id')
