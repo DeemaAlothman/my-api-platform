@@ -74,6 +74,13 @@ export class EmployeesController {
     return this.employees.findByUsername(user.username);
   }
 
+  // موظفيّ كمدير مباشر — اسم، رقم، المسمى الوظيفي وشرحه
+  @UseGuards(JwtAuthGuard)
+  @Get('my/subordinates')
+  getMySubordinates(@User() user: CurrentUser) {
+    return this.employees.getMySubordinates(user.username);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('my/signature')
   getMySignature(@User() user: CurrentUser) {

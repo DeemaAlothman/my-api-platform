@@ -1210,6 +1210,43 @@ export class EmployeesService {
     return subordinates;
   }
 
+  // موظفيّ كمدير مباشر — اسم، رقم، المسمى الوظيفي وشرحه من جدول المسميات
+  async getMySubordinates(username: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT e.id
+      FROM users.employees e
+      INNER JOIN users.users u ON e."userId" = u.id
+      WHERE u.username = ${username} AND e."deletedAt" IS NULL
+      LIMIT 1
+    `;
+    const employeeId = rows[0]?.id;
+    if (!employeeId) return [];
+
+    const subordinates = await this.prisma.employee.findMany({
+      where: { managerId: employeeId, deletedAt: null },
+      select: {
+        id: true,
+        employeeNumber: true,
+        firstNameAr: true,
+        lastNameAr: true,
+        firstNameEn: true,
+        lastNameEn: true,
+        jobTitle: { select: { nameAr: true, nameEn: true, description: true } },
+      },
+      orderBy: { employeeNumber: 'asc' },
+    });
+
+    return subordinates.map((e) => ({
+      employeeId: e.id,
+      employeeNumber: e.employeeNumber,
+      name: `${e.firstNameAr} ${e.lastNameAr}`,
+      nameEn: e.firstNameEn && e.lastNameEn ? `${e.firstNameEn} ${e.lastNameEn}` : null,
+      jobTitle: e.jobTitle?.nameAr ?? null,
+      jobTitleEn: e.jobTitle?.nameEn ?? null,
+      jobTitleDescription: e.jobTitle?.description ?? null,
+    }));
+  }
+
   async getReportingChain(employeeId: string) {
     const chain: any[] = [];
     let currentId: string | null = employeeId;
