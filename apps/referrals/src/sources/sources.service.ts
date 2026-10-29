@@ -81,7 +81,25 @@ export class SourcesService {
       this.prisma.referralSource.count({ where }),
     ]);
 
-    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    // كثافة الحالات = عدد المرضى المنسوبين لكل مصدر فعلياً (محسوبة، مختلفة عن patientDensityRating
+    // اليدوي الموجود أصلاً بالسجل — هاد رقم حقيقي من جدول المرضى، مش تقييم شخصي من 1-5)
+    const ids = items.map((s) => s.id);
+    const countsMap = new Map<string, number>();
+    if (ids.length) {
+      const counts = await this.prisma.$queryRawUnsafe<Array<{ referralSourceId: string; count: bigint }>>(
+        `SELECT "referralSourceId", COUNT(*) as count
+         FROM clinic_patients.patients
+         WHERE "referralSourceId" = ANY($1::text[]) AND "deletedAt" IS NULL
+         GROUP BY "referralSourceId"`,
+        ids,
+      );
+      for (const c of counts) countsMap.set(c.referralSourceId, Number(c.count));
+    }
+
+    return {
+      items: items.map((s) => ({ ...s, patientCount: countsMap.get(s.id) ?? 0 })),
+      page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
   }
 
   async findOne(id: string) {
@@ -93,7 +111,13 @@ export class SourcesService {
       },
     });
     if (!source) throw new NotFoundException('مصدر الإحالة غير موجود');
-    return source;
+
+    const countRows = await this.prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) as count FROM clinic_patients.patients
+      WHERE "referralSourceId" = ${id} AND "deletedAt" IS NULL
+    `;
+
+    return { ...source, patientCount: Number(countRows[0]?.count ?? 0) };
   }
 
   async update(id: string, dto: UpdateSourceDto) {
@@ -154,6 +178,43 @@ export class SourcesService {
       sourceId,
       patientCount:     Number(totalRows[0].count),
       realPatientCount: Number(realRows[0].count),
+    };
+  }
+
+  // المرضى المنسوبين لهاد المصدر — قائمة فعلية، مش عدّاد بس (مختلفة عن getPatientCount)
+  async getPatients(sourceId: string, page = 1, limit = 20) {
+    await this.findOne(sourceId);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const safePage = Math.max(1, page);
+    const skip = (safePage - 1) * safeLimit;
+
+    const [items, totalRows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{
+        id: string; patientNumber: string; firstName: string; lastName: string;
+        phone: string; createdAt: Date;
+      }>>`
+        SELECT id, "patientNumber", "firstName", "lastName", phone, "createdAt"
+        FROM clinic_patients.patients
+        WHERE "referralSourceId" = ${sourceId} AND "deletedAt" IS NULL
+        ORDER BY "createdAt" DESC
+        LIMIT ${safeLimit} OFFSET ${skip}
+      `,
+      this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count FROM clinic_patients.patients
+        WHERE "referralSourceId" = ${sourceId} AND "deletedAt" IS NULL
+      `,
+    ]);
+
+    const total = Number(totalRows[0]?.count ?? 0);
+    return {
+      items: items.map((p) => ({
+        id: p.id,
+        patientNumber: p.patientNumber,
+        name: `${p.firstName} ${p.lastName}`,
+        phone: p.phone,
+        referredAt: p.createdAt,
+      })),
+      page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)),
     };
   }
 

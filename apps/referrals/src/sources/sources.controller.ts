@@ -60,6 +60,16 @@ export class SourcesController {
     return this.service.getPatientCount(id);
   }
 
+  @Get(':id/patients')
+  @Permission('clinic.referrals.view')
+  getPatients(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.service.getPatients(id, page ? parseInt(page, 10) : 1, limit ? parseInt(limit, 10) : 20);
+  }
+
   @Get(':id')
   @Permission('clinic.referrals.view')
   findOne(@Param('id') id: string) {
