@@ -186,7 +186,8 @@ export class DashboardDataController {
     }
 
     if (role === 'CEO') {
-      return { employee: employeeProfile, notifications };
+      const workforce = await this.getWorkforceThisMonth();
+      return { employee: employeeProfile, notifications, workforce };
     }
 
     if (role === 'CFO') {
