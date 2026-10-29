@@ -55,6 +55,25 @@ export class SourcesService {
     });
   }
 
+  // إجمالي المرضى لكل نوع مصدر (طبيب/مشفى/جمعية/أخرى) — عبر كل المصادر غير المحذوفة من هداك
+  // النوع، بغض النظر عن أي فلتر صفحة حالي، لحتى تصير نسبة كل مصدر مقارنة بكامل نوعه
+  private async getTypeTotals(): Promise<Map<string, number>> {
+    const rows = await this.prisma.$queryRaw<Array<{ type: string; count: bigint }>>`
+      SELECT rs.type, COUNT(p.id)::int AS count
+      FROM referrals.referral_sources rs
+      LEFT JOIN clinic_patients.patients p
+        ON p."referralSourceId" = rs.id AND p."deletedAt" IS NULL
+      WHERE rs."deletedAt" IS NULL
+      GROUP BY rs.type
+    `;
+    return new Map(rows.map((r) => [r.type, Number(r.count)]));
+  }
+
+  private densityPercent(count: number, typeTotal: number): number {
+    if (typeTotal <= 0) return 0;
+    return Math.round((count / typeTotal) * 1000) / 10;
+  }
+
   async findAll(query: ListSourcesQueryDto) {
     const page  = Math.max(1, query.page  || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 20));
@@ -70,7 +89,7 @@ export class SourcesService {
       ];
     }
 
-    const [items, total] = await Promise.all([
+    const [items, total, typeTotals] = await Promise.all([
       this.prisma.referralSource.findMany({
         where,
         include: { _count: { select: { visits: true } } },
@@ -79,10 +98,12 @@ export class SourcesService {
         take: limit,
       }),
       this.prisma.referralSource.count({ where }),
+      this.getTypeTotals(),
     ]);
 
     // كثافة الحالات = عدد المرضى المنسوبين لكل مصدر فعلياً (محسوبة، مختلفة عن patientDensityRating
-    // اليدوي الموجود أصلاً بالسجل — هاد رقم حقيقي من جدول المرضى، مش تقييم شخصي من 1-5)
+    // اليدوي الموجود أصلاً بالسجل — هاد رقم حقيقي من جدول المرضى، مش تقييم شخصي من 1-5).
+    // densityPercent = نسبة هالمصدر من إجمالي مرضى نوعه (طبيب مقابل باقي الأطباء، إلخ)
     const ids = items.map((s) => s.id);
     const countsMap = new Map<string, number>();
     if (ids.length) {
@@ -97,7 +118,10 @@ export class SourcesService {
     }
 
     return {
-      items: items.map((s) => ({ ...s, patientCount: countsMap.get(s.id) ?? 0 })),
+      items: items.map((s) => {
+        const count = countsMap.get(s.id) ?? 0;
+        return { ...s, patientCount: count, densityPercent: this.densityPercent(count, typeTotals.get(s.type) ?? 0) };
+      }),
       page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   }
@@ -112,12 +136,20 @@ export class SourcesService {
     });
     if (!source) throw new NotFoundException('مصدر الإحالة غير موجود');
 
-    const countRows = await this.prisma.$queryRaw<{ count: bigint }[]>`
-      SELECT COUNT(*) as count FROM clinic_patients.patients
-      WHERE "referralSourceId" = ${id} AND "deletedAt" IS NULL
-    `;
+    const [countRows, typeTotals] = await Promise.all([
+      this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(*) as count FROM clinic_patients.patients
+        WHERE "referralSourceId" = ${id} AND "deletedAt" IS NULL
+      `,
+      this.getTypeTotals(),
+    ]);
+    const patientCount = Number(countRows[0]?.count ?? 0);
 
-    return { ...source, patientCount: Number(countRows[0]?.count ?? 0) };
+    return {
+      ...source,
+      patientCount,
+      densityPercent: this.densityPercent(patientCount, typeTotals.get(source.type) ?? 0),
+    };
   }
 
   async update(id: string, dto: UpdateSourceDto) {
