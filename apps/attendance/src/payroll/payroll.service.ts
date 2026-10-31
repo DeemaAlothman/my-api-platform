@@ -15,15 +15,15 @@ export class PayrollService {
 
     // جيب كل الموظفين (بما فيهم غير الفاعلين — لإظهار سطر صفر للمستقيلين)
     const empSql = departmentId
-      ? `SELECT e.id, e."employeeNumber", e."departmentId", e."employmentStatus", e."dailyWage"
+      ? `SELECT e.id, e."employeeNumber", e."departmentId", e."employmentStatus", e."dailyWage", e."separationDate"
          FROM users.employees e
          WHERE e."deletedAt" IS NULL AND e."departmentId" = $1`
-      : `SELECT e.id, e."employeeNumber", e."departmentId", e."employmentStatus", e."dailyWage"
+      : `SELECT e.id, e."employeeNumber", e."departmentId", e."employmentStatus", e."dailyWage", e."separationDate"
          FROM users.employees e
          WHERE e."deletedAt" IS NULL`;
     const employees = (await this.prisma.$queryRawUnsafe(empSql, ...(departmentId ? [departmentId] : []))) as Array<{
       id: string; employeeNumber: string; departmentId: string;
-      employmentStatus: string; dailyWage: string | null;
+      employmentStatus: string; dailyWage: string | null; separationDate: Date | null;
     }>;
 
     // جيب السياسة المحددة أو الافتراضية
@@ -48,6 +48,19 @@ export class PayrollService {
 
     for (const emp of employees) {
       try {
+        // الموظف اللي انفكّ قبل بداية هذا الشهر ما يتولّدلو كشف أبداً. سابقاً كان يتولّدلو سطر
+        // صفري بملاحظة "مستقيل" كل شهر للأبد، فيضل يظهر بجدول الرواتب وبملف الإكسل.
+        // المستقيل خلال نفس شهر الكشف يبقى يتولّدلو كشف عادي.
+        if (emp.employmentStatus !== 'ACTIVE' && emp.separationDate) {
+          const sep = new Date(emp.separationDate);
+          const sepKey = sep.getUTCFullYear() * 100 + (sep.getUTCMonth() + 1);
+          if (sepKey < year * 100 + month) {
+            results.push({ employeeId: emp.id, status: 'skipped', message: 'منفكّ قبل بداية هذا الشهر' });
+            skipped++;
+            continue;
+          }
+        }
+
         const existing = await this.prisma.monthlyPayroll.findUnique({
           where: { employeeId_year_month: { employeeId: emp.id, year, month } },
           select: { id: true, status: true },
@@ -1320,17 +1333,51 @@ export class PayrollService {
 
   // ==================== Read ====================
 
+  /**
+   * يشيل من قائمة الكشوف أسطر الموظفين اللي انفكّوا قبل بداية شهر الكشف نفسه.
+   * الموظف اللي استقال خلال الشهر يبقى ظاهر بكشف هذا الشهر وبكل الأشهر السابقة له،
+   * ومن الشهر التالي ما يظهر. الموظف اللي ما عندو تاريخ انفكاك مسجَّل ما يتأثر نهائياً.
+   * قراءة فقط — ما بتحذف ولا بتعدّل أي سطر بقاعدة البيانات.
+   */
+  private async filterOutSeparatedBeforeMonth<T extends { employeeId: string; year: number; month: number }>(
+    rows: T[],
+  ): Promise<T[]> {
+    if (rows.length === 0) return rows;
+    const empIds = [...new Set(rows.map(r => r.employeeId))];
+    const sepRows = (await this.prisma.$queryRawUnsafe(`
+      SELECT e.id, e."separationDate"
+      FROM users.employees e
+      WHERE e.id = ANY($1::text[])
+        AND e."employmentStatus" <> 'ACTIVE'
+        AND e."separationDate" IS NOT NULL
+    `, empIds)) as Array<{ id: string; separationDate: Date }>;
+    if (sepRows.length === 0) return rows;
+    const sepKeyById = new Map<string, number>();
+    for (const r of sepRows) {
+      const d = new Date(r.separationDate);
+      sepKeyById.set(r.id, d.getUTCFullYear() * 100 + (d.getUTCMonth() + 1));
+    }
+    return rows.filter(r => {
+      const sepKey = sepKeyById.get(r.employeeId);
+      if (sepKey === undefined) return true;
+      return sepKey >= r.year * 100 + r.month;
+    });
+  }
+
   async findAll(query: { year?: number; month?: number; departmentId?: string; status?: string }) {
     const where: any = {};
     if (query.year) where.year = query.year;
     if (query.month) where.month = query.month;
     if (query.status) where.status = query.status;
 
-    const payrolls = await this.prisma.monthlyPayroll.findMany({
+    const allPayrolls = await this.prisma.monthlyPayroll.findMany({
       where,
       include: { policy: { select: { nameAr: true, nameEn: true } } },
       orderBy: [{ year: 'desc' }, { month: 'desc' }, { employeeId: 'asc' }],
     });
+
+    // المستقيل يظهر بكشف شهر انفكاكه وما قبله فقط، ومن الشهر التالي ما يظهر بالجدول
+    const payrolls = await this.filterOutSeparatedBeforeMonth(allPayrolls);
 
     if (query.departmentId) {
       const empIds = (await this.prisma.$queryRawUnsafe(
@@ -1523,10 +1570,13 @@ export class PayrollService {
   // ==================== XLSX Export ====================
 
   async exportXlsx(year: number, month: number, res: Response) {
-    const payrolls = await this.prisma.monthlyPayroll.findMany({
+    const allPayrolls = await this.prisma.monthlyPayroll.findMany({
       where: { year, month },
       orderBy: { createdAt: 'asc' },
     });
+
+    // نفس قاعدة الجدول: المستقيل يبقى بإكسل شهر انفكاكه، ومن الشهر التالي ما يطلع
+    const payrolls = await this.filterOutSeparatedBeforeMonth(allPayrolls);
 
     const empIds = payrolls.map(p => p.employeeId);
     let employees: any[] = [];
