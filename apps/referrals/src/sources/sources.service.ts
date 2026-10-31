@@ -253,11 +253,15 @@ export class SourcesService {
     const safePage = Math.max(1, page);
     const skip = (safePage - 1) * safeLimit;
 
+    // ⚠️ لازم alias "p" صريح على الجدول الخارجي — بدونه، الـid جوا كل EXISTS كان عم ينحل على
+    // id الجدول الداخلي نفسه (physio_cases.id مثلاً) بدل patients.id، فالشرط ما كان يتحقق أبداً
+    // وrealOnly=true كان يرجع صفر دايماً مهما كانت البيانات. نفس الشرط بالضبط المستخدم بباقي
+    // الأماكن (findOne, getPatientCount, getStats) — هلأ موحَّد بكل مكان.
     const realCondition = realOnly ? `
       AND (
-        EXISTS (SELECT 1 FROM clinic_physio.physio_cases pc WHERE pc."patientId" = id AND pc."deletedAt" IS NULL AND pc."caseType" = 'PHYSIO')
-        OR EXISTS (SELECT 1 FROM clinic_prosthetics.prosthetics_cases prc WHERE prc."patientId" = id AND prc."deletedAt" IS NULL)
-        OR EXISTS (SELECT 1 FROM clinic_podiatry.podiatry_receptions por WHERE por."patientId" = id)
+        EXISTS (SELECT 1 FROM clinic_physio.physio_cases pc WHERE pc."patientId" = p.id AND pc."deletedAt" IS NULL AND pc."caseType" = 'PHYSIO')
+        OR EXISTS (SELECT 1 FROM clinic_prosthetics.prosthetics_cases prc WHERE prc."patientId" = p.id AND prc."deletedAt" IS NULL)
+        OR EXISTS (SELECT 1 FROM clinic_podiatry.podiatry_receptions por WHERE por."patientId" = p.id)
       )
     ` : '';
 
@@ -269,20 +273,20 @@ export class SourcesService {
         id: string; patientNumber: string; firstName: string; lastName: string;
         phone: string; createdAt: Date;
       }>>(
-        `SELECT id, "patientNumber", "firstName", "lastName", phone, "createdAt"
-         FROM clinic_patients.patients
-         WHERE "referralSourceId" = $1 AND "deletedAt" IS NULL ${realCondition}
-           AND ($4::timestamp IS NULL OR "createdAt" >= $4)
-           AND ($5::timestamp IS NULL OR "createdAt" <= $5)
-         ORDER BY "createdAt" DESC
+        `SELECT p.id, p."patientNumber", p."firstName", p."lastName", p.phone, p."createdAt"
+         FROM clinic_patients.patients p
+         WHERE p."referralSourceId" = $1 AND p."deletedAt" IS NULL ${realCondition}
+           AND ($4::timestamp IS NULL OR p."createdAt" >= $4)
+           AND ($5::timestamp IS NULL OR p."createdAt" <= $5)
+         ORDER BY p."createdAt" DESC
          LIMIT $2 OFFSET $3`,
         sourceId, safeLimit, skip, dateFromStart, dateToEnd,
       ),
       this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
-        `SELECT COUNT(*) as count FROM clinic_patients.patients
-         WHERE "referralSourceId" = $1 AND "deletedAt" IS NULL ${realCondition}
-           AND ($2::timestamp IS NULL OR "createdAt" >= $2)
-           AND ($3::timestamp IS NULL OR "createdAt" <= $3)`,
+        `SELECT COUNT(*) as count FROM clinic_patients.patients p
+         WHERE p."referralSourceId" = $1 AND p."deletedAt" IS NULL ${realCondition}
+           AND ($2::timestamp IS NULL OR p."createdAt" >= $2)
+           AND ($3::timestamp IS NULL OR p."createdAt" <= $3)`,
         sourceId, dateFromStart, dateToEnd,
       ),
     ]);
