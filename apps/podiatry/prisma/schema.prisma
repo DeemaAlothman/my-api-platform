@@ -157,6 +157,8 @@ model PodiatrySession {
   clinicianName      String?
   clinicianSignature String? @db.Text
 
+  insoleCost  Decimal? @db.Decimal(12, 2) // تكلفة الضبان لهذا التركيب — يكتبها موظف المبيعات يدوياً
+
   installedAt DateTime?
   installedBy String?
   surveyNotifiedAt DateTime? // تاريخ إرسال إشعار استبيان الرضا لمندوبي المبيعات (مرة واحدة فقط، 10 أيام بعد التركيب)

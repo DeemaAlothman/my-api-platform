@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
@@ -219,7 +219,7 @@ export class ReceptionsService {
   // فقط ما يلزم لفريق المبيعات. يُرجع سطر لكل جلسة تركيب (مش مُجمَّع بالمريض/الاستقبال)
   // سطر واحد لكل مريض (آخر تركيب له حسب installedAt)، مع installCount = كل تركيباته غير
   // المؤرشفة عبر كل استقباله. total/totalPages بعدد المرضى، مش التركيبات.
-  async getSales(page = 1, limit = 20, search?: string) {
+  async getSales(page = 1, limit = 20, search?: string, canViewCost = false) {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(100, Math.max(1, limit));
     const skip = (safePage - 1) * safeLimit;
@@ -228,19 +228,22 @@ export class ReceptionsService {
 
     const [items, totalRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<Array<{
-        receptionId: string; patientId: string; patientNumber: string; patientName: string;
+        sessionId: string; receptionId: string; patientId: string; patientNumber: string; patientName: string;
         insoleType: string[]; shoeSize: number | null; installedAt: Date; installCount: bigint;
+        insoleCost: number | null; totalCost: number | null;
       }>>(
         `WITH ranked AS (
            SELECT s.*,
              ROW_NUMBER() OVER (PARTITION BY s."patientId" ORDER BY s."installedAt" DESC) AS rn,
-             COUNT(*) OVER (PARTITION BY s."patientId") AS install_count
+             COUNT(*) OVER (PARTITION BY s."patientId") AS install_count,
+             SUM(s."insoleCost") OVER (PARTITION BY s."patientId") AS total_cost
            FROM clinic_podiatry.podiatry_sessions s
            WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
          )
-         SELECT r."receptionId", r."patientId", p."patientNumber",
+         SELECT r.id AS "sessionId", r."receptionId", r."patientId", p."patientNumber",
                 (p."firstName" || ' ' || p."lastName") AS "patientName",
-                r."insoleType", r."shoeSize", r."installedAt", r.install_count AS "installCount"
+                r."insoleType", r."shoeSize", r."installedAt", r.install_count AS "installCount",
+                r."insoleCost"::float8 AS "insoleCost", r.total_cost::float8 AS "totalCost"
          FROM ranked r
          JOIN clinic_patients.patients p ON p.id = r."patientId" AND p."deletedAt" IS NULL
          WHERE r.rn = 1
@@ -262,6 +265,7 @@ export class ReceptionsService {
     const total = Number(totalRows[0]?.count ?? 0);
     return {
       items: items.map((r) => ({
+        sessionId: r.sessionId,
         receptionId: r.receptionId,
         patientId: r.patientId,
         patientNumber: r.patientNumber,
@@ -270,8 +274,68 @@ export class ReceptionsService {
         shoeSize: r.shoeSize,
         installedAt: r.installedAt,
         installCount: Number(r.installCount),
+        // التكلفة تُحجب (null) عن أي مستخدم ما عندو صلاحية عرض التكلفة
+        insoleCost: canViewCost && r.insoleCost !== null ? Number(r.insoleCost) : null,
+        totalCost: canViewCost && r.totalCost !== null ? Number(r.totalCost) : null,
       })),
       page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+    };
+  }
+
+  /**
+   * تعديل تكلفة الضبان لجلسة تركيب واحدة. null تمسح القيمة.
+   * ما بتلمس أي حقل تاني بالجلسة، وبتسجّل بسجل التدقيق مين عدّل والقيمة القديمة والجديدة.
+   */
+  async updateInsoleCost(
+    sessionId: string,
+    insoleCost: number | null,
+    user?: { userId?: string; username?: string },
+    req?: { ip?: string; headers?: Record<string, any> },
+  ) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      id: string; patientId: string; installedAt: Date | null; archivedAt: Date | null; insoleCost: number | null;
+    }>>(
+      `SELECT id, "patientId", "installedAt", "archivedAt", "insoleCost"::float8 AS "insoleCost"
+       FROM clinic_podiatry.podiatry_sessions WHERE id = $1`,
+      sessionId,
+    );
+    const session = rows[0];
+    if (!session) throw new NotFoundException('الجلسة غير موجودة');
+    if (!session.installedAt) throw new BadRequestException('لا يمكن تسجيل تكلفة لجلسة بدون تركيب');
+    if (session.archivedAt) throw new BadRequestException('لا يمكن تعديل تكلفة جلسة مؤرشفة');
+
+    const oldValue = session.insoleCost === null ? null : Number(session.insoleCost);
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE clinic_podiatry.podiatry_sessions
+       SET "insoleCost" = $1::numeric, "updatedAt" = NOW()
+       WHERE id = $2`,
+      insoleCost, sessionId,
+    );
+
+    // إجمالي تكاليف تركيبات هذا المريض غير المؤرشفة بعد التعديل
+    const totals = await this.prisma.$queryRawUnsafe<Array<{ totalCost: number | null }>>(
+      `SELECT SUM("insoleCost")::float8 AS "totalCost"
+       FROM clinic_podiatry.podiatry_sessions
+       WHERE "patientId" = $1 AND "installedAt" IS NOT NULL AND "archivedAt" IS NULL`,
+      session.patientId,
+    );
+    const totalCost = totals[0]?.totalCost ?? null;
+
+    const ip = (req?.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req?.ip || null;
+    const path = `/api/v1/podiatry/sales/${sessionId}/cost`;
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO public.audit_logs ("userId", username, action, resource, "resourceId", method, path, ip, metadata, "createdAt")
+       VALUES ($1, $2, $3, $4, $5, 'PATCH', $6, $7, $8::jsonb, NOW())`,
+      user?.userId ?? null, user?.username ?? null,
+      'PODIATRY_SALES_INSOLE_COST_UPDATED', 'podiatry_sessions', sessionId, path, ip,
+      JSON.stringify({ field: 'insoleCost', from: oldValue, to: insoleCost }),
+    ).catch(() => { /* فشل التدقيق ما بيوقف العملية */ });
+
+    return {
+      sessionId,
+      insoleCost: insoleCost === null ? null : Number(insoleCost),
+      totalCost: totalCost === null ? null : Number(totalCost),
     };
   }
 }

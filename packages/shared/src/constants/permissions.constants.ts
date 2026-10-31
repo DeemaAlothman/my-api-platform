@@ -291,6 +291,9 @@ export const PERMISSIONS = {
     SESSION_CREATE:   'clinic.podiatry.session.create',
     SESSION_EDIT:     'clinic.podiatry.session.edit',
     SESSION_ARCHIVE:  'clinic.podiatry.session.archive',
+    // تكلفة الضبان بصفحة مبيعات فيتافوت — قراءة وتعديل منفصلتين عن clinic.referrals.view
+    SALES_VIEW_COST:   'clinic.podiatry.sales.view-cost',
+    SALES_UPDATE_COST: 'clinic.podiatry.sales.update-cost',
   },
   CLINIC_ORTHOTICS: {
     VIEW:   'clinic.orthotics.view',
