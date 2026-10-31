@@ -371,6 +371,7 @@ export class AttendanceRecordsService {
 
     const justifiedLateRecordIds = new Set<string>();
     const justifiedEarlyLeaveRecordIds = new Set<string>();
+    const justifiedMissingClockOutRecordIds = new Set<string>();
     const recordIds = records.map((r: any) => r.id);
     if (recordIds.length > 0) {
       const justified: Array<{ attendanceRecordId: string; alertType: string }> = await this.prisma.$queryRawUnsafe(`
@@ -379,11 +380,12 @@ export class AttendanceRecordsService {
         JOIN attendance.attendance_alerts aa ON aa.id = aj."alertId"
         WHERE aj."attendanceRecordId" = ANY($1::text[])
           AND aj.status IN ('HR_APPROVED', 'MANAGER_APPROVED')
-          AND aa."alertType" IN ('LATE', 'EARLY_LEAVE')
+          AND aa."alertType" IN ('LATE', 'EARLY_LEAVE', 'MISSING_CLOCK_OUT')
       `, recordIds);
       for (const j of justified) {
         if (j.alertType === 'LATE') justifiedLateRecordIds.add(j.attendanceRecordId);
-        else justifiedEarlyLeaveRecordIds.add(j.attendanceRecordId);
+        else if (j.alertType === 'EARLY_LEAVE') justifiedEarlyLeaveRecordIds.add(j.attendanceRecordId);
+        else justifiedMissingClockOutRecordIds.add(j.attendanceRecordId);
       }
     }
 
@@ -563,6 +565,18 @@ export class AttendanceRecordsService {
           else if (displayEarlyLeaveMinutes > 0) displayStatus = 'EARLY_LEAVE';
           else displayStatus = 'PRESENT';
         }
+      }
+
+      // بصمة دخول بدون خروج، بدون إجازة تغطي اليوم، وبدون تبرير معتمد (تنبيه MISSING_CLOCK_OUT) —
+      // تُعرض "غياب" بدل "حاضر". عرض فقط (status المخزّن بقاعدة البيانات ما يتغيّر، فصفر تأثير
+      // على كشف الراتب أو أي حساب آخر يعتمد على العمود المخزَّن مباشرة) — بآخر خطوة عشان
+      // تتغلّب على أي إعادة احتساب "متأخر/حاضر" فوق، ولأنها لا تنطبق على حالات خاصة مستثناة أصلاً
+      if (
+        record.clockInTime && !record.clockOutTime && !onFullDayLeave &&
+        !excludedStatusesForDisplay.has(record.status) &&
+        !justifiedMissingClockOutRecordIds.has(record.id)
+      ) {
+        displayStatus = 'ABSENT';
       }
 
       return {
