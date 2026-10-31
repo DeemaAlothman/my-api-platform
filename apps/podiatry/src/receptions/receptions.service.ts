@@ -217,6 +217,8 @@ export class ReceptionsService {
   // ── مبيعات فيتافوت ──────────────────────────────────────────────────────
   // جلسات فيها تركيب فعلي (installedAt) وغير مؤرشفة — بدون أي بيانات طبية،
   // فقط ما يلزم لفريق المبيعات. يُرجع سطر لكل جلسة تركيب (مش مُجمَّع بالمريض/الاستقبال)
+  // سطر واحد لكل مريض (آخر تركيب له حسب installedAt)، مع installCount = كل تركيباته غير
+  // المؤرشفة عبر كل استقباله. total/totalPages بعدد المرضى، مش التركيبات.
   async getSales(page = 1, limit = 20, search?: string) {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(100, Math.max(1, limit));
@@ -227,21 +229,28 @@ export class ReceptionsService {
     const [items, totalRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<Array<{
         receptionId: string; patientId: string; patientNumber: string; patientName: string;
-        insoleType: string[]; shoeSize: number | null; installedAt: Date;
+        insoleType: string[]; shoeSize: number | null; installedAt: Date; installCount: bigint;
       }>>(
-        `SELECT s."receptionId", s."patientId", p."patientNumber",
+        `WITH ranked AS (
+           SELECT s.*,
+             ROW_NUMBER() OVER (PARTITION BY s."patientId" ORDER BY s."installedAt" DESC) AS rn,
+             COUNT(*) OVER (PARTITION BY s."patientId") AS install_count
+           FROM clinic_podiatry.podiatry_sessions s
+           WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
+         )
+         SELECT r."receptionId", r."patientId", p."patientNumber",
                 (p."firstName" || ' ' || p."lastName") AS "patientName",
-                s."insoleType", s."shoeSize", s."installedAt"
-         FROM clinic_podiatry.podiatry_sessions s
-         JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
-         WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
+                r."insoleType", r."shoeSize", r."installedAt", r.install_count AS "installCount"
+         FROM ranked r
+         JOIN clinic_patients.patients p ON p.id = r."patientId" AND p."deletedAt" IS NULL
+         WHERE r.rn = 1
            AND ($3::text IS NULL OR p."firstName" ILIKE $3 OR p."lastName" ILIKE $3 OR p."patientNumber" ILIKE $3)
-         ORDER BY s."installedAt" DESC
+         ORDER BY r."installedAt" DESC
          LIMIT $1 OFFSET $2`,
         safeLimit, skip, searchTerm,
       ),
       this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
-        `SELECT COUNT(*) as count
+        `SELECT COUNT(DISTINCT s."patientId") as count
          FROM clinic_podiatry.podiatry_sessions s
          JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
          WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
@@ -260,6 +269,7 @@ export class ReceptionsService {
         insoleType: r.insoleType,
         shoeSize: r.shoeSize,
         installedAt: r.installedAt,
+        installCount: Number(r.installCount),
       })),
       page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)),
     };
