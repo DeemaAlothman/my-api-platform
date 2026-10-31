@@ -1714,7 +1714,7 @@ export class PayrollService {
       'اسم الموظف', 'تاريخ التعيين', 'المسمى الوظيفي', 'نوع الدوام', '$ الراتب الأساسي',
       ...allowanceKeys.map(k => '$ ' + (allowanceArNames[k] ?? k)),
       '$ الأجر الساعي', 'إجازات بأجر', ...leaveHeaders, 'إجازات بلا راتب',
-      '$ قيمة الإجازات بلا راتب', 'إجازة نصف يوم',
+      '$ قيمة الإجازات بلا راتب', 'إجازة نصف يوم (بلا راتب)', '$ قيمة خصم إجازة نصف يوم',
       'إجمالي دقائق التأخير', 'إجمالي دقائق الخروج المبكر',
       'الإجازة الساعية التلقائية', '$ قيمة الإجازات الساعية', 'الإجازة الساعية اليدوية', '$ قيمة خصم الساعية اليدوية',
       'أيام الغياب', '$ قيمة استقطاع الغياب',
@@ -1769,6 +1769,10 @@ export class PayrollService {
         Number((p as any).unpaidLeaveDays ?? 0),
         Number((p as any).unpaidLeaveAmount ?? 0),
         halfDayByEmployee.get(p.employeeId) ?? 0,
+        // قيمة خصم أنصاف الأيام غير المدفوعة = عدد الأنصاف × نصف يوم × الأجر اليومي.
+        // عمود إيضاحي فقط: الإجازة النصفية غير المدفوعة محسوبة أصلاً ضمن unpaidLeaveDays
+        // بقيمة 0.5 يوم، وقيمتها داخلة بعمود "$ قيمة الإجازات بلا راتب" — مو خصم إضافي.
+        parseFloat(((halfDayByEmployee.get(p.employeeId) ?? 0) * 0.5 * Number((p as any).dailyRate ?? 0)).toFixed(2)),
         Number((p as any).totalLateMinutesEffective ?? 0),
         Number((p as any).totalEarlyLeaveMinutes ?? 0),
         parseFloat(((Number((p as any).tardinessOffsetMinutes ?? 0) + Number((p as any).lateDeductionMinutes ?? 0) + Number((p as any).earlyLeaveDeductionMinutes ?? 0) + Number(bd?.hourlyLeave?.autoOverLimitMinutes ?? 0)) / 60).toFixed(2)),
