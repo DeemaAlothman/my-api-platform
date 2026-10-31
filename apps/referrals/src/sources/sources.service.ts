@@ -136,18 +136,42 @@ export class SourcesService {
     });
     if (!source) throw new NotFoundException('مصدر الإحالة غير موجود');
 
-    const [countRows, typeTotals] = await Promise.all([
+    const [countRows, realRows, typeTotals] = await Promise.all([
       this.prisma.$queryRaw<{ count: bigint }[]>`
         SELECT COUNT(*) as count FROM clinic_patients.patients
         WHERE "referralSourceId" = ${id} AND "deletedAt" IS NULL
       `,
+      // نفس شرط "المبيعات"/المرضى الفعليين المستخدم بـgetPatientCount وgetPatients(realOnly) بالضبط
+      this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT p.id) as count
+        FROM clinic_patients.patients p
+        WHERE p."referralSourceId" = ${id}
+          AND p."deletedAt" IS NULL
+          AND (
+            EXISTS (
+              SELECT 1 FROM clinic_physio.physio_cases pc
+              WHERE pc."patientId" = p.id AND pc."deletedAt" IS NULL AND pc."caseType" = 'PHYSIO'
+            )
+            OR EXISTS (
+              SELECT 1 FROM clinic_prosthetics.prosthetics_cases prc
+              WHERE prc."patientId" = p.id AND prc."deletedAt" IS NULL
+            )
+            OR EXISTS (
+              SELECT 1 FROM clinic_podiatry.podiatry_receptions por
+              WHERE por."patientId" = p.id
+            )
+          )
+      `,
       this.getTypeTotals(),
     ]);
     const patientCount = Number(countRows[0]?.count ?? 0);
+    const realPatientCount = Number(realRows[0]?.count ?? 0);
 
     return {
       ...source,
       patientCount,
+      realPatientCount,
+      sales: realPatientCount,
       densityPercent: this.densityPercent(patientCount, typeTotals.get(source.type) ?? 0),
     };
   }
