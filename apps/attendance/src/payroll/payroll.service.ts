@@ -1334,16 +1334,14 @@ export class PayrollService {
   // ==================== Read ====================
 
   /**
-   * يشيل من قائمة الكشوف أسطر الموظفين اللي انفكّوا قبل بداية شهر الكشف نفسه.
-   * الموظف اللي استقال خلال الشهر يبقى ظاهر بكشف هذا الشهر وبكل الأشهر السابقة له،
-   * ومن الشهر التالي ما يظهر. الموظف اللي ما عندو تاريخ انفكاك مسجَّل ما يتأثر نهائياً.
+   * يرجّع شهر الانفكاك (بصيغة سنة*100+شهر) لكل موظف منفكّ عندو تاريخ انفكاك مسجَّل.
+   * الموظف الفاعل، أو المنفكّ بلا تاريخ مسجَّل، ما يرجع بالخريطة إطلاقاً فما يتأثر.
    * قراءة فقط — ما بتحذف ولا بتعدّل أي سطر بقاعدة البيانات.
    */
-  private async filterOutSeparatedBeforeMonth<T extends { employeeId: string; year: number; month: number }>(
-    rows: T[],
-  ): Promise<T[]> {
-    if (rows.length === 0) return rows;
-    const empIds = [...new Set(rows.map(r => r.employeeId))];
+  private async getSeparationMonthKeys(employeeIds: string[]): Promise<Map<string, number>> {
+    const sepKeyById = new Map<string, number>();
+    const empIds = [...new Set(employeeIds)];
+    if (empIds.length === 0) return sepKeyById;
     const sepRows = (await this.prisma.$queryRawUnsafe(`
       SELECT e.id, e."separationDate"
       FROM users.employees e
@@ -1351,17 +1349,18 @@ export class PayrollService {
         AND e."employmentStatus" <> 'ACTIVE'
         AND e."separationDate" IS NOT NULL
     `, empIds)) as Array<{ id: string; separationDate: Date }>;
-    if (sepRows.length === 0) return rows;
-    const sepKeyById = new Map<string, number>();
     for (const r of sepRows) {
       const d = new Date(r.separationDate);
       sepKeyById.set(r.id, d.getUTCFullYear() * 100 + (d.getUTCMonth() + 1));
     }
-    return rows.filter(r => {
-      const sepKey = sepKeyById.get(r.employeeId);
-      if (sepKey === undefined) return true;
-      return sepKey >= r.year * 100 + r.month;
-    });
+    return sepKeyById;
+  }
+
+  /** هل يظهر كشف هذا الشهر للموظف؟ يختفي فقط إذا انفكّ قبل بداية شهر الكشف. */
+  private isVisibleAfterSeparation(sepKeyById: Map<string, number>, employeeId: string, year: number, month: number): boolean {
+    const sepKey = sepKeyById.get(employeeId);
+    if (sepKey === undefined) return true;
+    return sepKey >= year * 100 + month;
   }
 
   async findAll(query: { year?: number; month?: number; departmentId?: string; status?: string }) {
@@ -1377,7 +1376,8 @@ export class PayrollService {
     });
 
     // المستقيل يظهر بكشف شهر انفكاكه وما قبله فقط، ومن الشهر التالي ما يظهر بالجدول
-    const payrolls = await this.filterOutSeparatedBeforeMonth(allPayrolls);
+    const sepKeyById = await this.getSeparationMonthKeys(allPayrolls.map(p => p.employeeId));
+    const payrolls = allPayrolls.filter(p => this.isVisibleAfterSeparation(sepKeyById, p.employeeId, p.year, p.month));
 
     if (query.departmentId) {
       const empIds = (await this.prisma.$queryRawUnsafe(
@@ -1576,7 +1576,8 @@ export class PayrollService {
     });
 
     // نفس قاعدة الجدول: المستقيل يبقى بإكسل شهر انفكاكه، ومن الشهر التالي ما يطلع
-    const payrolls = await this.filterOutSeparatedBeforeMonth(allPayrolls);
+    const sepKeyById = await this.getSeparationMonthKeys(allPayrolls.map(p => p.employeeId));
+    const payrolls = allPayrolls.filter(p => this.isVisibleAfterSeparation(sepKeyById, p.employeeId, p.year, p.month));
 
     const empIds = payrolls.map(p => p.employeeId);
     let employees: any[] = [];
