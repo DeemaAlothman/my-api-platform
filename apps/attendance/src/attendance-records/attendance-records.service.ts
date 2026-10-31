@@ -466,6 +466,9 @@ export class AttendanceRecordsService {
     }
 
     const excludedStatusesForDisplay = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+    // لليوم الحالي: ما نعتبره "غياب" قبل ما ينتهي دوامه — لسا ممكن يسجّل خروج طبيعي لاحقاً
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
 
     const items = records.map((record: any) => {
       let displayLateMinutes = record.lateMinutes;
@@ -570,11 +573,14 @@ export class AttendanceRecordsService {
       // بصمة دخول بدون خروج، بدون إجازة تغطي اليوم، وبدون تبرير معتمد (تنبيه MISSING_CLOCK_OUT) —
       // تُعرض "غياب" بدل "حاضر". عرض فقط (status المخزّن بقاعدة البيانات ما يتغيّر، فصفر تأثير
       // على كشف الراتب أو أي حساب آخر يعتمد على العمود المخزَّن مباشرة) — بآخر خطوة عشان
-      // تتغلّب على أي إعادة احتساب "متأخر/حاضر" فوق، ولأنها لا تنطبق على حالات خاصة مستثناة أصلاً
+      // تتغلّب على أي إعادة احتساب "متأخر/حاضر" فوق، ولأنها لا تنطبق على حالات خاصة مستثناة أصلاً.
+      // لليوم الحالي ما تنطبق إطلاقاً — الموظف ممكن لسا يكون بدوامه ولسا ما سجّل خروج طبيعياً،
+      // تنبيه MISSING_CLOCK_OUT أصلاً ما بيتولّد إلا لليوم اللي خلص (إقفال يومي)
       if (
         record.clockInTime && !record.clockOutTime && !onFullDayLeave &&
         !excludedStatusesForDisplay.has(record.status) &&
-        !justifiedMissingClockOutRecordIds.has(record.id)
+        !justifiedMissingClockOutRecordIds.has(record.id) &&
+        new Date(record.date) < todayStart
       ) {
         displayStatus = 'ABSENT';
       }
