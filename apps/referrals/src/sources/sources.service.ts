@@ -242,7 +242,12 @@ export class SourcesService {
   // المرضى المنسوبين لهاد المصدر — قائمة فعلية، مش عدّاد بس (مختلفة عن getPatientCount)
   // realOnly=true: يقتصر على "المبيعات" الفعلية فقط (نفس شرط realPatientCount بالأعلى بالضبط) —
   // هاد يلي بيُستخدم لما تكبسي على رقم "المبيعات" لتشوفي أسماءهم بالتحديد
-  async getPatients(sourceId: string, page = 1, limit = 20, realOnly = false) {
+  // dateFrom/dateTo: فلترة على نفس referredAt (createdAt)، كل واحد يشتغل لحاله، واليومين داخلين
+  // بالنتيجة (dateTo لآخر اليوم) — تشتغل مع realOnly والـpagination سوا، total بعد كل الفلاتر
+  async getPatients(
+    sourceId: string, page = 1, limit = 20, realOnly = false,
+    dateFrom?: string, dateTo?: string,
+  ) {
     await this.findOne(sourceId);
     const safeLimit = Math.min(100, Math.max(1, limit));
     const safePage = Math.max(1, page);
@@ -256,6 +261,9 @@ export class SourcesService {
       )
     ` : '';
 
+    const dateFromStart = dateFrom ? new Date(`${dateFrom}T00:00:00.000Z`) : null;
+    const dateToEnd = dateTo ? new Date(`${dateTo}T23:59:59.999Z`) : null;
+
     const [items, totalRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<Array<{
         id: string; patientNumber: string; firstName: string; lastName: string;
@@ -264,14 +272,18 @@ export class SourcesService {
         `SELECT id, "patientNumber", "firstName", "lastName", phone, "createdAt"
          FROM clinic_patients.patients
          WHERE "referralSourceId" = $1 AND "deletedAt" IS NULL ${realCondition}
+           AND ($4::timestamp IS NULL OR "createdAt" >= $4)
+           AND ($5::timestamp IS NULL OR "createdAt" <= $5)
          ORDER BY "createdAt" DESC
          LIMIT $2 OFFSET $3`,
-        sourceId, safeLimit, skip,
+        sourceId, safeLimit, skip, dateFromStart, dateToEnd,
       ),
       this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
         `SELECT COUNT(*) as count FROM clinic_patients.patients
-         WHERE "referralSourceId" = $1 AND "deletedAt" IS NULL ${realCondition}`,
-        sourceId,
+         WHERE "referralSourceId" = $1 AND "deletedAt" IS NULL ${realCondition}
+           AND ($2::timestamp IS NULL OR "createdAt" >= $2)
+           AND ($3::timestamp IS NULL OR "createdAt" <= $3)`,
+        sourceId, dateFromStart, dateToEnd,
       ),
     ]);
 
