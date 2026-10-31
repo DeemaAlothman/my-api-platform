@@ -213,4 +213,55 @@ export class ReceptionsService {
     }
     return this.prisma.podiatryReception.update({ where: { id }, data });
   }
+
+  // ── مبيعات فيتافوت ──────────────────────────────────────────────────────
+  // جلسات فيها تركيب فعلي (installedAt) وغير مؤرشفة — بدون أي بيانات طبية،
+  // فقط ما يلزم لفريق المبيعات. يُرجع سطر لكل جلسة تركيب (مش مُجمَّع بالمريض/الاستقبال)
+  async getSales(page = 1, limit = 20, search?: string) {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const skip = (safePage - 1) * safeLimit;
+
+    const searchTerm = search ? `%${search}%` : null;
+
+    const [items, totalRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<{
+        receptionId: string; patientId: string; patientNumber: string; patientName: string;
+        insoleType: string[]; shoeSize: number | null; installedAt: Date;
+      }>>(
+        `SELECT s."receptionId", s."patientId", p."patientNumber",
+                (p."firstName" || ' ' || p."lastName") AS "patientName",
+                s."insoleType", s."shoeSize", s."installedAt"
+         FROM clinic_podiatry.podiatry_sessions s
+         JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
+         WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
+           AND ($3::text IS NULL OR p."firstName" ILIKE $3 OR p."lastName" ILIKE $3 OR p."patientNumber" ILIKE $3)
+         ORDER BY s."installedAt" DESC
+         LIMIT $1 OFFSET $2`,
+        safeLimit, skip, searchTerm,
+      ),
+      this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
+        `SELECT COUNT(*) as count
+         FROM clinic_podiatry.podiatry_sessions s
+         JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
+         WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
+           AND ($1::text IS NULL OR p."firstName" ILIKE $1 OR p."lastName" ILIKE $1 OR p."patientNumber" ILIKE $1)`,
+        searchTerm,
+      ),
+    ]);
+
+    const total = Number(totalRows[0]?.count ?? 0);
+    return {
+      items: items.map((r) => ({
+        receptionId: r.receptionId,
+        patientId: r.patientId,
+        patientNumber: r.patientNumber,
+        patientName: r.patientName,
+        insoleType: r.insoleType,
+        shoeSize: r.shoeSize,
+        installedAt: r.installedAt,
+      })),
+      page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+    };
+  }
 }
