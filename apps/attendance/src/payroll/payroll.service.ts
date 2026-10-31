@@ -802,14 +802,16 @@ export class PayrollService {
     }
     const deductibleBase = effectiveBasicSalary + allowancesTotal - excludedAllowancesAmount;
 
-    // Pro-rating للموظف الجديد
+    // Pro-rating للموظف الجديد — proRationFactor يضل يُستخدم لـgrossSalary بالأسفل (الراتب
+    // الفعلي المستحق عن الشهر الجزئي، صح يبقى متناسب). بس معدلات الساعة/اليوم/الدقيقة هلأ
+    // دايماً على أساس الشهر كامل، بغض النظر متى انتسب الموظف — هاي المعدلات مرجع ثابت
+    // لحساب الإضافي والخصومات (تأخير/غياب/إجازة)، مش مبلغ مستحق فعلي بحد ذاتها
     const effectiveStart = hireDate && hireDate > startDate ? hireDate : startDate;
     const employeeWorkingDays = this.countWorkingDaysInRange(effectiveStart, endDate, workDaysArray);
     const proRationFactor = workingDays > 0 ? Math.min(1, employeeWorkingDays / workingDays) : 1.0;
-    const proRatedDeductible = deductibleBase * proRationFactor;
 
-    // معدلات الدقيقة واليوم والساعة (القاعدة: Salary / 30 / 8)
-    const dailyRate   = proRatedDeductible / 30;
+    // معدلات الدقيقة واليوم والساعة (القاعدة: Salary / 30 / 8) — على كامل الشهر دايماً
+    const dailyRate   = deductibleBase / 30;
     const hourlyRate  = dailyRate / 8;
     const minuteRate  = hourlyRate / 60;
 
