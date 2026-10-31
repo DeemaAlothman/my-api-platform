@@ -291,15 +291,53 @@ export class SourcesService {
       ),
     ]);
 
+    // بيانات طب الأقدام (بودياتري) لكل مريض — آخر جلسة له إذا عنده أكتر من وحدة، بالضبط متل
+    // ما طُلب. serviceName مبني من وجود استقبال (= "تحليل قدم") وإذا انركّب ضبان بآخر جلسة
+    // (= "تحليل قدم وضبان طبي") — قرار اجتهادي مني بسبب عدم وجود قاموس تسميات جاهز لهاد الحقل،
+    // فيكن تصححوه لو قصدكم تسمية مختلفة
+    const patientIds = items.map((p) => p.id);
+    const sessionMap = new Map<string, { sessionDate: Date; installedAt: Date | null; insoleType: string[] }>();
+    const receptionPatientSet = new Set<string>();
+    if (patientIds.length) {
+      const [latestSessions, receptionPatients] = await Promise.all([
+        this.prisma.$queryRawUnsafe<Array<{
+          patientId: string; sessionDate: Date; installedAt: Date | null; insoleType: string[];
+        }>>(
+          `SELECT DISTINCT ON (s."patientId") s."patientId", s."sessionDate", s."installedAt", s."insoleType"
+           FROM clinic_podiatry.podiatry_sessions s
+           WHERE s."patientId" = ANY($1::text[])
+           ORDER BY s."patientId", s."sessionDate" DESC`,
+          patientIds,
+        ),
+        this.prisma.$queryRawUnsafe<Array<{ patientId: string }>>(
+          `SELECT DISTINCT "patientId" FROM clinic_podiatry.podiatry_receptions WHERE "patientId" = ANY($1::text[])`,
+          patientIds,
+        ),
+      ]);
+      for (const s of latestSessions) sessionMap.set(s.patientId, s);
+      for (const r of receptionPatients) receptionPatientSet.add(r.patientId);
+    }
+
     const total = Number(totalRows[0]?.count ?? 0);
     return {
-      items: items.map((p) => ({
-        id: p.id,
-        patientNumber: p.patientNumber,
-        name: `${p.firstName} ${p.lastName}`,
-        phone: p.phone,
-        referredAt: p.createdAt,
-      })),
+      items: items.map((p) => {
+        const session = sessionMap.get(p.id) ?? null;
+        const hasReception = receptionPatientSet.has(p.id);
+        const serviceName = hasReception
+          ? (session?.installedAt ? 'تحليل قدم وضبان طبي' : 'تحليل قدم')
+          : null;
+        return {
+          id: p.id,
+          patientNumber: p.patientNumber,
+          name: `${p.firstName} ${p.lastName}`,
+          phone: p.phone,
+          referredAt: p.createdAt,
+          serviceName,
+          lastVisitDate: session?.sessionDate ?? null,
+          installedAt: session?.installedAt ?? null,
+          insoleType: session?.insoleType ?? null,
+        };
+      }),
       page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)),
     };
   }
