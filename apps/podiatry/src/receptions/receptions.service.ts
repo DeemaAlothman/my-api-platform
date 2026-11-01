@@ -274,21 +274,19 @@ export class ReceptionsService {
       this.prisma.$queryRawUnsafe<Array<{
         sessionId: string; receptionId: string; patientId: string; patientNumber: string; patientName: string;
         insoleType: string[]; shoeSize: number | null; installedAt: Date; installCount: bigint;
-        insoleCost: number | null; totalCost: number | null; insoleCostCurrency: string | null;
+        insoleCost: number | null; insoleCostCurrency: string | null;
       }>>(
         `WITH ranked AS (
            SELECT s.*,
              ROW_NUMBER() OVER (PARTITION BY s."patientId" ORDER BY s."installedAt" DESC) AS rn,
-             COUNT(*) OVER (PARTITION BY s."patientId") AS install_count,
-             SUM(s."insoleCost") OVER (PARTITION BY s."patientId") AS total_cost
+             COUNT(*) OVER (PARTITION BY s."patientId") AS install_count
            FROM clinic_podiatry.podiatry_sessions s
            WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
          )
          SELECT r.id AS "sessionId", r."receptionId", r."patientId", p."patientNumber",
                 (p."firstName" || ' ' || p."lastName") AS "patientName",
                 r."insoleType", r."shoeSize", r."installedAt", r.install_count AS "installCount",
-                r."insoleCost"::float8 AS "insoleCost", r."insoleCostCurrency",
-                r.total_cost::float8 AS "totalCost"
+                r."insoleCost"::float8 AS "insoleCost", r."insoleCostCurrency"
          FROM ranked r
          JOIN clinic_patients.patients p ON p.id = r."patientId" AND p."deletedAt" IS NULL
          WHERE r.rn = 1
@@ -326,9 +324,11 @@ export class ReceptionsService {
         insoleCost: canViewCost && r.insoleCost !== null ? Number(r.insoleCost) : null,
         insoleCostCurrency: canViewCost ? (r.insoleCostCurrency ?? null) : null,
         // الإجمالي مقسوماً حسب العملة؛ null يعني لا صلاحية، و {} يعني لا تكاليف مسجَّلة بعملة
-        totalCosts: canViewCost ? (costsByCurrency[r.patientId] ?? {}) : null,
-        // totalCost: الإجمالي القديم بلا تمييز عملة — مؤقت حتى ينتقل الفرونت إلى totalCosts
-        totalCost: canViewCost && r.totalCost !== null ? Number(r.totalCost) : null,
+        totalCosts: canViewCost ? (costsByCurrency[r.patientId]?.totals ?? {}) : null,
+        // تنبيه: عند المريض تكلفة بلا عملة فالإجمالي أعلاه ناقص
+        hasCostWithoutCurrency: canViewCost
+          ? (costsByCurrency[r.patientId]?.hasCostWithoutCurrency ?? false)
+          : null,
       })),
       page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)),
     };
@@ -369,17 +369,10 @@ export class ReceptionsService {
       insoleCost, insoleCostCurrency, sessionId,
     );
 
-    // الإجمالي القديم (بلا تمييز عملة) — يبقى للفترة الانتقالية فقط
-    const totals = await this.prisma.$queryRawUnsafe<Array<{ totalCost: number | null }>>(
-      `SELECT SUM("insoleCost")::float8 AS "totalCost"
-       FROM clinic_podiatry.podiatry_sessions
-       WHERE "patientId" = $1 AND "installedAt" IS NOT NULL AND "archivedAt" IS NULL`,
-      session.patientId,
-    );
-    const totalCost = totals[0]?.totalCost ?? null;
-
     // الإجمالي مقسوماً حسب العملة — جمع الليرة مع الدولار يعطي رقماً بلا معنى
-    const totalCosts = (await this.sumCostsByCurrency([session.patientId]))[session.patientId] ?? {};
+    const agg = (await this.sumCostsByCurrency([session.patientId]))[session.patientId];
+    const totalCosts = agg?.totals ?? {};
+    const hasCostWithoutCurrency = agg?.hasCostWithoutCurrency ?? false;
 
     const ip = (req?.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req?.ip || null;
     const path = `/api/v1/podiatry/sales/${sessionId}/cost`;
@@ -399,33 +392,37 @@ export class ReceptionsService {
       insoleCost: insoleCost === null ? null : Number(insoleCost),
       insoleCostCurrency,
       totalCosts,
-      // totalCost: الإجمالي القديم بلا تمييز عملة — مؤقت حتى ينتقل الفرونت إلى totalCosts
-      totalCost: totalCost === null ? null : Number(totalCost),
+      hasCostWithoutCurrency,
     };
   }
 
   /**
-   * مجموع تكاليف التركيبات غير المؤرشفة لكل مريض، مقسوماً حسب العملة:
-   * { "<patientId>": { "USD": 150, "SYP": 14400 } }
-   * التكاليف المسجَّلة بلا عملة (قبل إضافة الحقل) لا تدخل هنا — تبقى ضمن totalCost القديم فقط.
+   * لكل مريض: مجموع تكاليف تركيباته غير المؤرشفة مقسوماً حسب العملة، مع علامة إن كان
+   * عندو أي تكلفة مسجَّلة بلا عملة (من قبل إضافة حقل العملة).
+   * { "<patientId>": { totals: { "USD": 150, "SYP": 14400 }, hasCostWithoutCurrency: true } }
+   * التكلفة بلا عملة ما بتنضاف لأي مجموع — ما في عملة نحطها تحتها — فالعلامة هي اللي
+   * بتخلّي الواجهة تنبّه إن الإجمالي ناقص.
    */
-  private async sumCostsByCurrency(patientIds: string[]): Promise<Record<string, Record<string, number>>> {
-    const result: Record<string, Record<string, number>> = {};
+  private async sumCostsByCurrency(
+    patientIds: string[],
+  ): Promise<Record<string, { totals: Record<string, number>; hasCostWithoutCurrency: boolean }>> {
+    const result: Record<string, { totals: Record<string, number>; hasCostWithoutCurrency: boolean }> = {};
     if (patientIds.length === 0) return result;
     const rows = await this.prisma.$queryRawUnsafe<Array<{
-      patientId: string; currency: string; total: number;
+      patientId: string; currency: string | null; total: number;
     }>>(
       `SELECT "patientId", "insoleCostCurrency" AS currency, SUM("insoleCost")::float8 AS total
        FROM clinic_podiatry.podiatry_sessions
        WHERE "patientId" = ANY($1::text[])
          AND "installedAt" IS NOT NULL AND "archivedAt" IS NULL
-         AND "insoleCost" IS NOT NULL AND "insoleCostCurrency" IS NOT NULL
+         AND "insoleCost" IS NOT NULL
        GROUP BY 1, 2`,
       [...new Set(patientIds)],
     );
     for (const r of rows) {
-      if (!result[r.patientId]) result[r.patientId] = {};
-      result[r.patientId][r.currency] = Number(r.total);
+      if (!result[r.patientId]) result[r.patientId] = { totals: {}, hasCostWithoutCurrency: false };
+      if (r.currency === null) result[r.patientId].hasCostWithoutCurrency = true;
+      else result[r.patientId].totals[r.currency] = Number(r.total);
     }
     return result;
   }
