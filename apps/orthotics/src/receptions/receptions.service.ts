@@ -131,8 +131,9 @@ export class ReceptionsService {
     const fields: (keyof PhysioAssessmentDto)[] = [
       'mobilityLevel', 'assistiveDevices', 'gaitProblems',
       'hipROM', 'kneeROM', 'ankleROM', 'wristROM', 'elbowROM',
-      'muscleStrengthMovements', 'deformityFlexibility', 'deformityStatus',
-      'trunkStrengthMovements',
+      'muscleStrengthMovements', 'muscleStrengthGrades',
+      'deformityFlexibility', 'deformityStatus',
+      'trunkStrengthMovements', 'trunkStrengthGrades',
       'trunkControlSitting', 'trunkBalanceDynamicSitting',
       'trunkControlStanding', 'trunkBalanceStaticStanding', 'trunkBalanceDynamicStanding',
       'activityLevel',

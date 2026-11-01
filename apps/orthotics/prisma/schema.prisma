@@ -100,10 +100,14 @@ model OrthoticsReception {
   wristROM String?
   elbowROM String?
 
-  // muscleStrengthMovements: HIP_FLEXION | HIP_EXTENSION | HIP_ABDUCTION | HIP_ADDUCTION |
-  // KNEE_FLEXION | KNEE_EXTENSION | ANKLE_DORSIFLEXION | ANKLE_PLANTARFLEXION |
-  // ANKLE_EVERSION | ANKLE_INVERSION | GREAT_TOE_FLEXION
+  // muscleStrengthMovements — الطرف السفلي: HIP_FLEXION | HIP_EXTENSION | HIP_ABDUCTION |
+  // HIP_ADDUCTION | KNEE_FLEXION | KNEE_EXTENSION | ANKLE_DORSIFLEXION |
+  // ANKLE_PLANTARFLEXION | ANKLE_EVERSION | ANKLE_INVERSION | GREAT_TOE_FLEXION
+  // والطرف العلوي: ELBOW_FLEXION | ELBOW_EXTENSION | FOREARM_PRONATION |
+  // FOREARM_SUPINATION | WRIST_FLEXION | WRIST_EXTENSION
   muscleStrengthMovements String[]
+  // درجة قوة كل حركة: { "<حركة من muscleStrengthMovements>": رقم >= 0 }
+  muscleStrengthGrades    Json?
   // deformityFlexibility: FLEXIBLE | RIGID
   deformityFlexibility    String?
   // deformityStatus: ACTIVE | DORMANT
@@ -112,6 +116,8 @@ model OrthoticsReception {
   // trunkStrengthMovements: TRUNK_FLEXION | TRUNK_EXTENSION | RIGHT_LATERAL_TILT |
   // LEFT_LATERAL_TILT | ROTATION_RIGHT | ROTATION_LEFT
   trunkStrengthMovements String[]
+  // درجة قوة كل حركة جذعية: { "<حركة من trunkStrengthMovements>": رقم >= 0 }
+  trunkStrengthGrades    Json?
   // trunk*: GOOD | MODERATE | WEAK | ABSENT
   trunkControlSitting         String?
   trunkBalanceDynamicSitting  String?
