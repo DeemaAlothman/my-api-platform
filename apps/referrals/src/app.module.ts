@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from './prisma/prisma.service';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { SourcesModule } from './sources/sources.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { SourcesModule } from './sources/sources.module';
       signOptions: { expiresIn: '15m' },
     }),
     SourcesModule,
+    DashboardModule,
   ],
   providers: [
     PrismaService,

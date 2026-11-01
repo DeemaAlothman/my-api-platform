@@ -12,6 +12,7 @@ export class DashboardService {
     evaluation: process.env.EVALUATION_SERVICE_URL || 'http://localhost:4005',
     jobs:       process.env.JOBS_SERVICE_URL        || 'http://localhost:4008',
     patients:   process.env.PATIENTS_SERVICE_URL    || 'http://localhost:4010',
+    referrals:  process.env.REFERRALS_SERVICE_URL   || 'http://localhost:4016',
   };
 
   // دمج ردود الخدمات: إذا خدمتين رجّعوا نفس المفتاح ككائن (مثل previousMonth)، منجمع حقولهم بدل ما وحدة تمسح التانية
@@ -83,6 +84,7 @@ export class DashboardService {
     let evaluationPromise: Promise<any> = Promise.resolve(null);
     let jobsPromise: Promise<any>       = Promise.resolve(null);
     let clinicPromise: Promise<any>     = Promise.resolve(null);
+    let referralsPromise: Promise<any>  = Promise.resolve(null);
 
     if (role === 'EMPLOYEE') {
       attendancePromise = this.fetch(serviceUrl('attendance'), token);
@@ -106,6 +108,7 @@ export class DashboardService {
       evaluationPromise = this.fetch(serviceUrl('evaluation'), token);
       jobsPromise       = this.fetch(serviceUrl('jobs'), token);
       clinicPromise     = this.fetch(serviceUrl('patients'), token);
+      referralsPromise  = this.fetch(serviceUrl('referrals'), token);
     } else if (role === 'CFO') {
       attendancePromise = this.fetch(serviceUrl('attendance'), token);
       leavePromise      = this.fetch(serviceUrl('leave'), token);
@@ -114,6 +117,7 @@ export class DashboardService {
 
     const parts = await Promise.all([
       usersPromise, attendancePromise, leavePromise, requestsPromise, evaluationPromise, jobsPromise, clinicPromise,
+      referralsPromise,
     ]);
 
     return { role, ...this.merge(parts) };

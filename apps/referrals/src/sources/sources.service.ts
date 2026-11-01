@@ -517,6 +517,53 @@ export class SourcesService {
     };
   }
 
+  // بوكس "المبيعات" بداشبورد المدير التنفيذي — زيارات الفريق + مبيعات فعلية (مرضى محالون دخلوا خدمة)
+  async getCeoSalesSummary() {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const [visitsThisMonth, visitsPreviousMonth, visitsTotal, firstCaseDates] = await Promise.all([
+      this.prisma.referralVisit.count({ where: { visitDate: { gte: thisMonthStart, lt: nextMonthStart } } }),
+      this.prisma.referralVisit.count({ where: { visitDate: { gte: prevMonthStart, lt: thisMonthStart } } }),
+      this.prisma.referralVisit.count(),
+      // لكل مريض محال دخل خدمة فعلية: أقدم تاريخ بين حالاته (فيزيو/أطراف/طب أقدام) = تاريخ "بيعه"
+      this.prisma.$queryRaw<Array<{ firstCaseDate: Date }>>`
+        SELECT MIN(d."createdAt") as "firstCaseDate"
+        FROM clinic_patients.patients p
+        CROSS JOIN LATERAL (
+          SELECT pc."createdAt" FROM clinic_physio.physio_cases pc
+            WHERE pc."patientId" = p.id AND pc."deletedAt" IS NULL AND pc."caseType" = 'PHYSIO'
+          UNION ALL
+          SELECT prc."createdAt" FROM clinic_prosthetics.prosthetics_cases prc
+            WHERE prc."patientId" = p.id AND prc."deletedAt" IS NULL
+          UNION ALL
+          SELECT por."createdAt" FROM clinic_podiatry.podiatry_receptions por
+            WHERE por."patientId" = p.id
+        ) d
+        WHERE p."referralSourceId" IS NOT NULL AND p."deletedAt" IS NULL
+        GROUP BY p.id
+      `,
+    ]);
+
+    let salesThisMonth = 0;
+    let salesPreviousMonth = 0;
+    const salesTotal = firstCaseDates.length;
+    for (const row of firstCaseDates) {
+      const d = new Date(row.firstCaseDate);
+      if (d >= thisMonthStart && d < nextMonthStart) salesThisMonth++;
+      else if (d >= prevMonthStart && d < thisMonthStart) salesPreviousMonth++;
+    }
+
+    return {
+      sales: {
+        visits: { thisMonth: visitsThisMonth, previousMonth: visitsPreviousMonth, total: visitsTotal },
+        sales:  { thisMonth: salesThisMonth, previousMonth: salesPreviousMonth, total: salesTotal },
+      },
+    };
+  }
+
   // ── Visits ────────────────────────────────────────────────────────
 
   async addVisit(sourceId: string, dto: CreateVisitDto, userId: string) {

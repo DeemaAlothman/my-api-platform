@@ -6,5 +6,6 @@ import { SourcesService } from './sources.service';
 @Module({
   controllers: [SourcesController],
   providers: [SourcesService, PrismaService],
+  exports: [SourcesService],
 })
 export class SourcesModule {}
