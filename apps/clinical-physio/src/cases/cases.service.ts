@@ -222,36 +222,51 @@ export class CasesService {
     return { items: enriched, total, page, limit };
   }
 
-  async findDoctorExamPending(page: number, limit: number, status?: string) {
+  async findDoctorExamPending(page: number, limit: number, status?: string, includeConverted = false) {
     const skip = (page - 1) * limit;
-    const VALID_STATUSES = ['INTAKE', 'COMPLAINT', 'COMPLETED', 'CANCELLED'];
-    const safeStatus = status && VALID_STATUSES.includes(status) ? status : null;
-    const statusClause = safeStatus
-      ? `AND status = '${safeStatus}'::"clinic_physio"."PhysioStatus"`
+    // كل الحالات اللي ممكن توصلها معاينة الطبيب حسب DOCTOR_EXAM_TRANSITIONS.
+    // سابقاً كانت PAIN_MAP و MEDICAL_HISTORY ناقصة من اللائحة، فكان الفلتر يُهمَل بصمت
+    // وترجع كل المراحل بدون أي إشارة للمستدعي — صار يرمي 400 بدل التجاهل.
+    const VALID_STATUSES = ['INTAKE', 'COMPLAINT', 'PAIN_MAP', 'MEDICAL_HISTORY', 'COMPLETED', 'CANCELLED'];
+    if (status && !VALID_STATUSES.includes(status)) {
+      throw new BadRequestException({
+        code: 'INVALID_STATUS',
+        message: `حالة غير صالحة لمعاينة الطبيب: ${status}`,
+        details: [{ status, allowed: VALID_STATUSES }],
+      });
+    }
+    const statusClause = status
+      ? `AND e.status = '${status}'::"clinic_physio"."PhysioStatus"`
       : '';
+    // المعاينة المحوَّلة لعلاج فيزيائي مستبعدة افتراضياً لأن القائمة قائمة معاينات قيد المعالجة.
+    // لكن كل معاينة توصل COMPLETED عن طريق التحويل تحديداً، فكان status=COMPLETED يرجّع صفراً
+    // دائماً رغم وجود الحالات. includeConverted=true تُظهرها، والافتراضي يبقى كما كان.
+    const convertedClause = includeConverted ? '' : 'AND e."convertedToCaseId" IS NULL';
 
     const baseWhere = `
-      "deletedAt" IS NULL
-      AND "convertedToCaseId" IS NULL
+      e."deletedAt" IS NULL
+      ${convertedClause}
       AND (
-        "caseType" = 'DOCTOR_EXAM'::"clinic_physio"."CaseType"
-        OR ("caseType" IS NULL AND "caseNumber" LIKE 'DE-%')
+        e."caseType" = 'DOCTOR_EXAM'::"clinic_physio"."CaseType"
+        OR (e."caseType" IS NULL AND e."caseNumber" LIKE 'DE-%')
       )
       ${statusClause}
     `;
 
     const [items, countRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<any[]>(`
-        SELECT id, "caseNumber", "caseType"::text, status::text, "patientId",
-               "majorComplaint", "createdAt", "physiotherapistId", "supervisingDoctorId"
-        FROM clinic_physio.physio_cases
+        SELECT e.id, e."caseNumber", e."caseType"::text, e.status::text, e."patientId",
+               e."majorComplaint", e."createdAt", e."physiotherapistId", e."supervisingDoctorId",
+               e."convertedToCaseId", c."caseNumber" AS "convertedToCaseNumber"
+        FROM clinic_physio.physio_cases e
+        LEFT JOIN clinic_physio.physio_cases c ON c.id = e."convertedToCaseId"
         WHERE ${baseWhere}
-        ORDER BY "createdAt" DESC
+        ORDER BY e."createdAt" DESC
         LIMIT ${limit} OFFSET ${skip}
       `),
       this.prisma.$queryRawUnsafe<[{ count: bigint }]>(`
         SELECT COUNT(*)::int AS count
-        FROM clinic_physio.physio_cases
+        FROM clinic_physio.physio_cases e
         WHERE ${baseWhere}
       `),
     ]);
