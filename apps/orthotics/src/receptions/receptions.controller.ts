@@ -15,7 +15,19 @@ import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
 import { CreateMeasurementSheetDto } from './dto/create-measurement-sheet.dto';
 import { orthoticsAttachmentMulterOptions } from './orthotics-files.config';
 import { JwtAuthGuard, User } from '@shared/auth';
-import { PermissionsGuard, Permission, PERMISSIONS } from '@shared';
+import { PermissionsGuard, Permission, PERMISSIONS, InternalAuthGuard } from '@shared';
+
+// نقطة داخلية (خدمة-لخدمة): تحويل حالة معاينة طبيب (من خدمة physio) إلى استقبال مقومات جديد
+@Controller('orthotics/receptions/internal')
+export class ReceptionsInternalController {
+  constructor(private readonly service: ReceptionsService) {}
+
+  @Post('from-exam')
+  @UseGuards(InternalAuthGuard)
+  createFromExam(@Body() body: { patientId: string; specialistId?: string; createdBy?: string }) {
+    return this.service.createFromExam(body.patientId, body.specialistId, body.createdBy);
+  }
+}
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('orthotics/receptions')

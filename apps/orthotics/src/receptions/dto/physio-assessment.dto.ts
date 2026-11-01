@@ -16,6 +16,9 @@ export class PhysioAssessmentDto {
   @IsOptional() @IsString() kneeROM?: string;
   // ankleROM: FREE | EQUINUS | VARUS_VALGUS
   @IsOptional() @IsString() ankleROM?: string;
+  // الطرف العلوي — wristROM / elbowROM: FREE | LIMITED
+  @IsOptional() @IsString() wristROM?: string;
+  @IsOptional() @IsString() elbowROM?: string;
 
   // muscleStrengthMovements: HIP_FLEXION | HIP_EXTENSION | HIP_ABDUCTION | HIP_ADDUCTION |
   // KNEE_FLEXION | KNEE_EXTENSION | ANKLE_DORSIFLEXION | ANKLE_PLANTARFLEXION |

@@ -39,6 +39,18 @@ export class ReceptionsService {
     }
   }
 
+  // تحويل حالة معاينة طبيب (من خدمة physio) إلى استقبال مقومات جديد
+  async createFromExam(patientId: string, specialistId: string | undefined, createdBy: string | undefined) {
+    const reception = await this.prisma.orthoticsReception.create({
+      data: {
+        patientId,
+        createdBy: createdBy || 'system',
+        practitionerIds: specialistId ? [specialistId] : [],
+      },
+    });
+    return { id: reception.id };
+  }
+
   async create(dto: CreateReceptionDto, userId: string) {
     const reception = await this.prisma.orthoticsReception.create({
       data: {
@@ -118,7 +130,7 @@ export class ReceptionsService {
     const data: any = { physioAssessmentUpdatedAt: new Date(), physioAssessmentUpdatedBy: userId };
     const fields: (keyof PhysioAssessmentDto)[] = [
       'mobilityLevel', 'assistiveDevices', 'gaitProblems',
-      'hipROM', 'kneeROM', 'ankleROM',
+      'hipROM', 'kneeROM', 'ankleROM', 'wristROM', 'elbowROM',
       'muscleStrengthMovements', 'deformityFlexibility', 'deformityStatus',
       'trunkStrengthMovements',
       'trunkControlSitting', 'trunkBalanceDynamicSitting',

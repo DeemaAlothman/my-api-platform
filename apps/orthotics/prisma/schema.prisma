@@ -96,6 +96,9 @@ model OrthoticsReception {
   kneeROM  String?
   // ankleROM: FREE | EQUINUS | VARUS_VALGUS
   ankleROM String?
+  // الطرف العلوي — wristROM / elbowROM: FREE | LIMITED
+  wristROM String?
+  elbowROM String?
 
   // muscleStrengthMovements: HIP_FLEXION | HIP_EXTENSION | HIP_ABDUCTION | HIP_ADDUCTION |
   // KNEE_FLEXION | KNEE_EXTENSION | ANKLE_DORSIFLEXION | ANKLE_PLANTARFLEXION |
