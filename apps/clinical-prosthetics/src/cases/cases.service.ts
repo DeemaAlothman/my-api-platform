@@ -1897,6 +1897,27 @@ export class CasesService {
     return rows.map(r => r.userId).filter(Boolean);
   }
 
+  // تنبيه "استمارة غير مكتملة" — بيروح لرئيس قسم الأطراف الصناعية وطب الأقدام (VTX-JTL-000035)
+  async notifyIncompleteForm(caseId: string) {
+    const prosCase = await this.findCaseOrThrow(caseId);
+    const nameMap = await this.resolvePatientNames([prosCase.patientId]);
+    const info = nameMap[prosCase.patientId];
+    const patientName = info ? `${info.firstName} ${info.lastName}` : 'غير معروف';
+
+    const headUserIds = await this.getUsersByJobTitle('VTX-JTL-000035');
+    for (const userId of headUserIds) {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+         VALUES (gen_random_uuid(), $1, 'GENERAL', $2, $2, $3, $3, $4::jsonb, NOW())`,
+        userId,
+        'تنبيه بخصوص استمارة غير مكتملة',
+        `قام المدير الطبي بإرسال تنبيه بخصوص استمارة المريض (${patientName}). الرجاء توجيه الموظف المستلم للحالة لإكمال الاستمارة خلال 24 ساعة.`,
+        JSON.stringify({ type: 'INCOMPLETE_FORM_ALERT', caseId, link: `/clinic/prosthetics/${caseId}` }),
+      ).catch(() => {});
+    }
+    return { sent: headUserIds.length > 0 };
+  }
+
   async createTreatmentProgramFromAppointment(caseId: string, sessionDate: Date, sessionTime: string, appointmentType?: string, appointmentId?: string) {
     const cs = await this.prisma.prostheticsCase.findFirst({ where: { id: caseId, deletedAt: null } });
     if (!cs) return null;

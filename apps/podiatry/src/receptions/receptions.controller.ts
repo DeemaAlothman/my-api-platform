@@ -43,6 +43,12 @@ export class ReceptionsController {
     return this.service.assignPractitioners(id, dto);
   }
 
+  @Permission(PERMISSIONS.CLINIC_PODIATRY.NOTIFY_INCOMPLETE_FORM)
+  @Post(':id/notify-incomplete-form')
+  notifyIncompleteForm(@Param('id') id: string) {
+    return this.service.notifyIncompleteForm(id);
+  }
+
   @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_EDIT)
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateReceptionDto) {

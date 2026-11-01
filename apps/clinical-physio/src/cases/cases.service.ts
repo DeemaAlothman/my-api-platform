@@ -952,6 +952,33 @@ export class CasesService {
     ).catch(() => {});
   }
 
+  // تنبيه "استمارة غير مكتملة" — بيروح لمدير قسم العلاج الفيزيائي (users.departments.managerId)
+  async notifyIncompleteForm(caseId: string) {
+    const physioCase = await this.findCaseOrThrow(caseId);
+    const nameMap = await this.resolvePatientNames([physioCase.patientId]);
+    const info = nameMap[physioCase.patientId];
+    const patientName = info ? `${info.firstName} ${info.lastName}` : 'غير معروف';
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT e."userId" FROM users.departments d
+       JOIN users.employees e ON e.id = d."managerId"
+       WHERE d.code = 'VTX-DEP-000016' AND d."deletedAt" IS NULL AND e."deletedAt" IS NULL
+       LIMIT 1`,
+    ).catch(() => [] as Array<{ userId: string }>);
+    const targetUserId = rows[0]?.userId;
+    if (!targetUserId) return { sent: false };
+
+    await this.prisma.$queryRawUnsafe(
+      `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+       VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+      targetUserId,
+      'تنبيه بخصوص استمارة غير مكتملة',
+      `قام المدير الطبي بإرسال تنبيه بخصوص استمارة المريض (${patientName}). الرجاء توجيه الموظف المستلم للحالة لإكمال الاستمارة خلال 24 ساعة.`,
+      JSON.stringify({ type: 'INCOMPLETE_FORM_ALERT', caseId, link: `/clinic/physio/${caseId}` }),
+    ).catch(() => {});
+    return { sent: true };
+  }
+
   async convertToPhysio(examCaseId: string, userId: string, physiotherapistId?: string) {
     const examCase = await this.findCaseOrThrow(examCaseId);
     if ((examCase as any).caseType !== 'DOCTOR_EXAM') {

@@ -84,6 +84,38 @@ export class ReceptionsService {
     return { ...reception, patient: patientMap[reception.patientId] ?? null };
   }
 
+  private async getUsersByJobTitle(code: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT e."userId" FROM users.employees e
+       JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+       WHERE jt.code = $1 AND e."deletedAt" IS NULL`,
+      code,
+    ).catch(() => [] as Array<{ userId: string }>);
+    return rows.map(r => r.userId).filter(Boolean);
+  }
+
+  // تنبيه "استمارة غير مكتملة" — بيروح لرئيس قسم الأطراف الصناعية وطب الأقدام (VTX-JTL-000035)
+  async notifyIncompleteForm(id: string) {
+    const reception = await this.prisma.podiatryReception.findUnique({ where: { id } });
+    if (!reception) throw new NotFoundException('Reception not found');
+    const patientMap = await this.resolvePatients([reception.patientId]);
+    const info = patientMap[reception.patientId];
+    const patientName = info ? `${info.firstName} ${info.lastName}` : 'غير معروف';
+
+    const headUserIds = await this.getUsersByJobTitle('VTX-JTL-000035');
+    for (const userId of headUserIds) {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+         VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+        userId,
+        'تنبيه بخصوص استمارة غير مكتملة',
+        `قام المدير الطبي بإرسال تنبيه بخصوص استمارة المريض (${patientName}). الرجاء توجيه الموظف المستلم للحالة لإكمال الاستمارة خلال 24 ساعة.`,
+        JSON.stringify({ type: 'INCOMPLETE_FORM_ALERT', receptionId: id, link: `/clinic/podiatry/${id}` }),
+      ).catch(() => {});
+    }
+    return { sent: headUserIds.length > 0 };
+  }
+
   async update(id: string, dto: UpdateReceptionDto) {
     const reception = await this.prisma.podiatryReception.update({
       where: { id },

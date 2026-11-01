@@ -85,6 +85,12 @@ export class CasesController {
     return this.service.findAll(query);
   }
 
+  @Post(':id/notify-incomplete-form')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.NOTIFY_INCOMPLETE_FORM)
+  notifyIncompleteForm(@Param('id') id: string) {
+    return this.service.notifyIncompleteForm(id);
+  }
+
   @Get('by-patient/:patientId')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_VIEW)
   findByPatient(@Param('patientId') patientId: string) {

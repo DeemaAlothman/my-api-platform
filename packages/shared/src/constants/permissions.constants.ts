@@ -275,6 +275,8 @@ export const PERMISSIONS = {
     GAIT_CREATE:       'clinic.prosthetics.gait.create',
     DELIVERY_CREATE:   'clinic.prosthetics.delivery.create',
     DELIVERY_APPROVE:  'clinic.prosthetics.delivery.approve',
+    // تنبيه رئيس القسم بخصوص استمارة غير مكتملة لحالة معيّنة
+    NOTIFY_INCOMPLETE_FORM: 'clinic.prosthetics.notify_incomplete_form',
   },
   CLINIC_PHYSIO: {
     CASE_VIEW:         'clinic.physio.case.view',
@@ -283,6 +285,7 @@ export const PERMISSIONS = {
     SUPERVISOR_REVIEW: 'clinic.physio.supervisor_review',
     PLAN_SIGN:         'clinic.physio.plan.sign',
     SESSIONS_CREATE:   'clinic.physio.sessions.create',
+    NOTIFY_INCOMPLETE_FORM: 'clinic.physio.notify_incomplete_form',
   },
   CLINIC_PODIATRY: {
     RECEPTION_VIEW:   'clinic.podiatry.reception.view',
@@ -294,6 +297,7 @@ export const PERMISSIONS = {
     // تكلفة الضبان بصفحة مبيعات فيتافوت — قراءة وتعديل منفصلتين عن clinic.referrals.view
     SALES_VIEW_COST:   'clinic.podiatry.sales.view-cost',
     SALES_UPDATE_COST: 'clinic.podiatry.sales.update-cost',
+    NOTIFY_INCOMPLETE_FORM: 'clinic.podiatry.notify_incomplete_form',
   },
   CLINIC_ORTHOTICS: {
     VIEW:   'clinic.orthotics.view',

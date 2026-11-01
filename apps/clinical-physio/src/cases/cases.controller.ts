@@ -257,6 +257,12 @@ export class CasesController {
     return this.service.convertToPhysio(id, user.userId, body?.physiotherapistId);
   }
 
+  @Post(':id/notify-incomplete-form')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.NOTIFY_INCOMPLETE_FORM)
+  notifyIncompleteForm(@Param('id') id: string) {
+    return this.service.notifyIncompleteForm(id);
+  }
+
   // ── Follow-ups ────────────────────────────────────────────────────────────
 
   @Post(':id/follow-ups')
