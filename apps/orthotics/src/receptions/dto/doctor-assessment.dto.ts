@@ -3,17 +3,27 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export const MUSCLE_TONE_REGIONS = ['THIGH', 'LEG', 'FOOT', 'WRIST', 'UPPER_ARM', 'FOREARM'];
-export const MUSCLE_TONE_SIDES = ['RIGHT', 'LEFT'];
+// مناطق وجهات الجسم — مشتركة بين تفصيل المقوية وتفصيل الإحساس
+export const BODY_REGIONS = ['THIGH', 'LEG', 'FOOT', 'WRIST', 'UPPER_ARM', 'FOREARM'];
+export const BODY_SIDES = ['RIGHT', 'LEFT'];
 export const MUSCLE_TONE_VALUES = ['NORMAL', 'SPASTIC', 'HYPOTONIC'];
+export const SENSATION_VALUES = ['INTACT', 'REDUCED', 'ABSENT'];
 
 // سطر واحد من تفصيل المقوية العضلية: منطقة + جهة، والمقوية اختيارية
 // لأن الجهة ممكن تنحفظ قبل ما الطبيب يختار المقوية.
 export class MuscleToneDetailDto {
-  @IsIn(MUSCLE_TONE_REGIONS, { message: 'منطقة غير صالحة' }) region!: string;
-  @IsIn(MUSCLE_TONE_SIDES, { message: 'جهة غير صالحة' }) side!: string;
+  @IsIn(BODY_REGIONS, { message: 'منطقة غير صالحة' }) region!: string;
+  @IsIn(BODY_SIDES, { message: 'جهة غير صالحة' }) side!: string;
   @IsOptional() @IsIn(MUSCLE_TONE_VALUES, { message: 'قيمة مقوية غير صالحة' }) tone?: string;
   @IsOptional() @IsString() spasticityLevel?: string;
+}
+
+// سطر واحد من تفصيل الإحساس: منطقة + جهة، والإحساس اختياري
+// لأن الجهة ممكن تنحفظ قبل ما الطبيب يختار قيمة الإحساس.
+export class SensationDetailDto {
+  @IsIn(BODY_REGIONS, { message: 'منطقة غير صالحة' }) region!: string;
+  @IsIn(BODY_SIDES, { message: 'جهة غير صالحة' }) side!: string;
+  @IsOptional() @IsIn(SENSATION_VALUES, { message: 'قيمة إحساس غير صالحة' }) sensation?: string;
 }
 
 // تقييم طبيب العظمية — القصة المرضية والفحص السريري
@@ -45,8 +55,12 @@ export class DoctorAssessmentDto {
   // و [] تمسح الكل. حذف الحقل من الطلب يتركه كما هو.
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => MuscleToneDetailDto)
   muscleToneDetails?: MuscleToneDetailDto[];
-  // sensation: INTACT | REDUCED | ABSENT
+  // sensation: INTACT | REDUCED | ABSENT — الحقل القديم، بلا تغيير
   @IsOptional() @IsString() sensation?: string;
+  // تفصيل الإحساس لكل منطقة/جهة. نفس قواعد muscleToneDetails:
+  // المصفوفة تُرسَل كاملة وتستبدل القديمة، و [] تمسح الكل، وحذف الحقل يتركه كما هو.
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => SensationDetailDto)
+  sensationDetails?: SensationDetailDto[];
   // thighMuscleStrength / legFootMuscleStrength: EXCELLENT | MODERATE | WEAK
   @IsOptional() @IsString() thighMuscleStrength?: string;
   @IsOptional() @IsString() legFootMuscleStrength?: string;
