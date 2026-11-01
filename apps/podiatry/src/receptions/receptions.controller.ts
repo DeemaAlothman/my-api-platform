@@ -4,7 +4,19 @@ import { CreateReceptionDto } from './dto/create-reception.dto';
 import { UpdateReceptionDto } from './dto/update-reception.dto';
 import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
 import { JwtAuthGuard, User } from '@shared/auth';
-import { PermissionsGuard, Permission, PERMISSIONS } from '@shared';
+import { PermissionsGuard, Permission, PERMISSIONS, InternalAuthGuard } from '@shared';
+
+// نقطة داخلية (خدمة-لخدمة): تحويل حالة معاينة طبيب (من خدمة physio) إلى استقبال طب أقدام جديد
+@Controller('podiatry/receptions/internal')
+export class ReceptionsInternalController {
+  constructor(private readonly service: ReceptionsService) {}
+
+  @Post('from-exam')
+  @UseGuards(InternalAuthGuard)
+  createFromExam(@Body() body: { patientId: string; podiatristId?: string; createdBy?: string }) {
+    return this.service.createFromExam(body.patientId, body.podiatristId, body.createdBy);
+  }
+}
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('podiatry/receptions')

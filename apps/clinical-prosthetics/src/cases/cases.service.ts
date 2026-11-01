@@ -223,6 +223,12 @@ export class CasesService {
 
   // ── Cases CRUD ────────────────────────────────────────────────────────────
 
+  // تحويل حالة معاينة طبيب (من خدمة physio) إلى حالة أطراف صناعية جديدة
+  async createFromExam(patientId: string, prosthetistId: string | undefined, createdBy: string | undefined) {
+    const created = await this.create({ patientId, prosthetistId } as CreateCaseDto, createdBy || 'system');
+    return { id: created.id, caseNumber: created.caseNumber };
+  }
+
   async create(dto: CreateCaseDto, userId: string) {
     const caseNumber = await this.generateCaseNumber();
     const created = await this.prisma.prostheticsCase.create({

@@ -245,6 +245,9 @@ services:
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       PATIENTS_SERVICE_URL: http://patients:4010
       PATIENT_APP_SERVICE_URL: http://patient-app:4017
+      PROSTHETICS_SERVICE_URL: http://clinical-prosthetics:4011
+      PODIATRY_SERVICE_URL: http://podiatry:4015
+      ORTHOTICS_SERVICE_URL: http://orthotics:4019
       NODE_ENV: production
     depends_on:
       postgres:

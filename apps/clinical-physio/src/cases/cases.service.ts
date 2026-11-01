@@ -46,6 +46,9 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 
 const PATIENTS_URL = process.env.PATIENTS_SERVICE_URL || 'http://localhost:4010';
 const PATIENT_APP_URL = process.env.PATIENT_APP_SERVICE_URL || 'http://patient-app:4017';
+const PROSTHETICS_URL = process.env.PROSTHETICS_SERVICE_URL || 'http://clinical-prosthetics:4011';
+const PODIATRY_URL = process.env.PODIATRY_SERVICE_URL || 'http://podiatry:4015';
+const ORTHOTICS_URL = process.env.ORTHOTICS_SERVICE_URL || 'http://orthotics:4019';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 
 @Injectable()
@@ -979,10 +982,26 @@ export class CasesService {
     return { sent: true };
   }
 
+  // عنوان القسم بالعربي — لرسالة الخطأ عند محاولة تحويل حالة محوّلة مسبقاً لقسم مختلف
+  private caseTypeLabel(type: string): string {
+    const labels: Record<string, string> = {
+      PHYSIO: 'العلاج الفيزيائي',
+      PROSTHETICS: 'الأطراف الصناعية',
+      PODIATRY: 'طب الأقدام',
+      ORTHOTICS: 'المقومات',
+    };
+    return labels[type] ?? type;
+  }
+
   async convertToPhysio(examCaseId: string, userId: string, physiotherapistId?: string) {
     const examCase = await this.findCaseOrThrow(examCaseId);
     if ((examCase as any).caseType !== 'DOCTOR_EXAM') {
       throw new BadRequestException('الحالة ليست معاينة طبيب');
+    }
+    if ((examCase as any).convertedToCaseType && (examCase as any).convertedToCaseType !== 'PHYSIO') {
+      throw new BadRequestException(
+        `الحالة محوّلة مسبقاً إلى قسم آخر (${this.caseTypeLabel((examCase as any).convertedToCaseType)}) — لا يمكن تحويل حالة معاينة لأكثر من قسم`,
+      );
     }
 
     // idempotent: لو سبق التحويل، نرجع الحالة الموجودة — وإذا انبعت معالج جديد، نستبدل به الإسناد الحالي
@@ -1139,6 +1158,7 @@ export class CasesService {
         data: {
           status: 'COMPLETED' as any,
           convertedToCaseId: newCase.id,
+          convertedToCaseType: 'PHYSIO',
           finalNotes: `تم التحويل إلى حالة علاج فيزيائي: ${newCase.caseNumber}`,
         },
       });
@@ -1161,6 +1181,163 @@ export class CasesService {
       this.autoCreatePatientAppAccount(examCase.patientId).catch(() => {});
       return result;
     });
+  }
+
+  // تحقق مشترك قبل أي تحويل: الحالة لازم تكون معاينة طبيب، وما تكون محوَّلة مسبقاً لقسم مختلف
+  private async checkConvertible(examCaseId: string, targetType: string) {
+    const examCase = await this.findCaseOrThrow(examCaseId);
+    if ((examCase as any).caseType !== 'DOCTOR_EXAM') {
+      throw new BadRequestException('الحالة ليست معاينة طبيب');
+    }
+    if ((examCase as any).convertedToCaseType && (examCase as any).convertedToCaseType !== targetType) {
+      throw new BadRequestException(
+        `الحالة محوّلة مسبقاً إلى قسم آخر (${this.caseTypeLabel((examCase as any).convertedToCaseType)}) — لا يمكن تحويل حالة معاينة لأكثر من قسم`,
+      );
+    }
+    return examCase;
+  }
+
+  async convertToProsthetics(examCaseId: string, prosthetistId?: string) {
+    const examCase = await this.checkConvertible(examCaseId, 'PROSTHETICS');
+
+    // idempotent: إعادة الاستدعاء على نفس القسم تُعيد إشعاراً فقط — بدون إنشاء حالة أطراف جديدة
+    if ((examCase as any).convertedToCaseId && (examCase as any).convertedToCaseType === 'PROSTHETICS') {
+      const existingId = (examCase as any).convertedToCaseId;
+      if (prosthetistId) {
+        await this.sendNotifToEmployee(
+          prosthetistId, 'تم تحويل حالة إليك', 'تم تحويل حالة أطراف صناعية إليك',
+          { type: 'PROSTHETICS_CASE_ASSIGNED', caseId: existingId, link: `/clinic/prosthetics/${existingId}` },
+        );
+      }
+      return { convertedCaseId: existingId };
+    }
+
+    let created: { id: string; caseNumber?: string };
+    try {
+      const res = await fetch(`${PROSTHETICS_URL}/api/v1/prosthetics/cases/internal/from-exam`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+        body: JSON.stringify({ patientId: examCase.patientId, prosthetistId }),
+      });
+      if (!res.ok) throw new Error(`prosthetics service responded ${res.status}`);
+      created = await res.json();
+    } catch {
+      throw new BadRequestException('فشل إنشاء حالة الأطراف الصناعية — حاول مرة أخرى');
+    }
+
+    await this.prisma.physioCase.update({
+      where: { id: examCaseId },
+      data: {
+        status: 'COMPLETED' as any,
+        convertedToCaseId: created.id,
+        convertedToCaseType: 'PROSTHETICS',
+        finalNotes: `تم التحويل إلى حالة أطراف صناعية: ${created.caseNumber ?? created.id}`,
+      },
+    });
+
+    if (prosthetistId) {
+      await this.sendNotifToEmployee(
+        prosthetistId, 'تم تحويل حالة إليك',
+        `تم تحويل حالة أطراف صناعية جديدة إليك${created.caseNumber ? ' — رقم الحالة: ' + created.caseNumber : ''}`,
+        { type: 'PROSTHETICS_CASE_ASSIGNED', caseId: created.id, caseNumber: created.caseNumber, link: `/clinic/prosthetics/${created.id}` },
+      );
+    }
+    this.autoCreatePatientAppAccount(examCase.patientId).catch(() => {});
+    return { convertedCaseId: created.id, caseNumber: created.caseNumber };
+  }
+
+  async convertToPodiatry(examCaseId: string, podiatristId?: string) {
+    const examCase = await this.checkConvertible(examCaseId, 'PODIATRY');
+
+    if ((examCase as any).convertedToCaseId && (examCase as any).convertedToCaseType === 'PODIATRY') {
+      const existingId = (examCase as any).convertedToCaseId;
+      if (podiatristId) {
+        await this.sendNotifToEmployee(
+          podiatristId, 'تم تحويل حالة إليك', 'تم تحويل حالة طب أقدام إليك',
+          { type: 'PODIATRY_RECEPTION_ASSIGNED', receptionId: existingId, link: `/clinic/podiatry/${existingId}` },
+        );
+      }
+      return { convertedCaseId: existingId };
+    }
+
+    let created: { id: string };
+    try {
+      const res = await fetch(`${PODIATRY_URL}/api/v1/podiatry/receptions/internal/from-exam`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+        body: JSON.stringify({ patientId: examCase.patientId, podiatristId }),
+      });
+      if (!res.ok) throw new Error(`podiatry service responded ${res.status}`);
+      created = await res.json();
+    } catch {
+      throw new BadRequestException('فشل إنشاء استقبال طب الأقدام — حاول مرة أخرى');
+    }
+
+    await this.prisma.physioCase.update({
+      where: { id: examCaseId },
+      data: {
+        status: 'COMPLETED' as any,
+        convertedToCaseId: created.id,
+        convertedToCaseType: 'PODIATRY',
+        finalNotes: `تم التحويل إلى استقبال طب الأقدام: ${created.id}`,
+      },
+    });
+
+    if (podiatristId) {
+      await this.sendNotifToEmployee(
+        podiatristId, 'تم تحويل حالة إليك', 'تم تحويل حالة طب أقدام جديدة إليك',
+        { type: 'PODIATRY_RECEPTION_ASSIGNED', receptionId: created.id, link: `/clinic/podiatry/${created.id}` },
+      );
+    }
+    this.autoCreatePatientAppAccount(examCase.patientId).catch(() => {});
+    return { convertedCaseId: created.id };
+  }
+
+  async convertToOrthotics(examCaseId: string, specialistId?: string) {
+    const examCase = await this.checkConvertible(examCaseId, 'ORTHOTICS');
+
+    if ((examCase as any).convertedToCaseId && (examCase as any).convertedToCaseType === 'ORTHOTICS') {
+      const existingId = (examCase as any).convertedToCaseId;
+      if (specialistId) {
+        await this.sendNotifToEmployee(
+          specialistId, 'تم تحويل حالة إليك', 'تم تحويل حالة مقومات إليك',
+          { type: 'ORTHOTICS_RECEPTION_ASSIGNED', receptionId: existingId, link: `/clinic/orthotics/${existingId}` },
+        );
+      }
+      return { convertedCaseId: existingId };
+    }
+
+    let created: { id: string };
+    try {
+      const res = await fetch(`${ORTHOTICS_URL}/api/v1/orthotics/receptions/internal/from-exam`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+        body: JSON.stringify({ patientId: examCase.patientId, specialistId }),
+      });
+      if (!res.ok) throw new Error(`orthotics service responded ${res.status}`);
+      created = await res.json();
+    } catch {
+      throw new BadRequestException('فشل إنشاء استقبال المقومات — حاول مرة أخرى');
+    }
+
+    await this.prisma.physioCase.update({
+      where: { id: examCaseId },
+      data: {
+        status: 'COMPLETED' as any,
+        convertedToCaseId: created.id,
+        convertedToCaseType: 'ORTHOTICS',
+        finalNotes: `تم التحويل إلى استقبال مقومات: ${created.id}`,
+      },
+    });
+
+    if (specialistId) {
+      await this.sendNotifToEmployee(
+        specialistId, 'تم تحويل حالة إليك', 'تم تحويل حالة مقومات جديدة إليك',
+        { type: 'ORTHOTICS_RECEPTION_ASSIGNED', receptionId: created.id, link: `/clinic/orthotics/${created.id}` },
+      );
+    }
+    this.autoCreatePatientAppAccount(examCase.patientId).catch(() => {});
+    return { convertedCaseId: created.id };
   }
 
   // ── Follow-ups ────────────────────────────────────────────────────────────

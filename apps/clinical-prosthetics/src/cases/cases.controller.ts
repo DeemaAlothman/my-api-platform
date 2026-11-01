@@ -60,6 +60,13 @@ export class CasesInternalController {
   endFromAppointment(@Body() body: { appointmentId: string; sessionEndTime: string }) {
     return this.service.setTreatmentProgramEndFromAppointment(body.appointmentId, body.sessionEndTime);
   }
+
+  // تحويل حالة معاينة طبيب (من خدمة physio) إلى حالة أطراف صناعية جديدة
+  @Post('from-exam')
+  @UseGuards(InternalAuthGuard)
+  createFromExam(@Body() body: { patientId: string; prosthetistId?: string; createdBy?: string }) {
+    return this.service.createFromExam(body.patientId, body.prosthetistId, body.createdBy);
+  }
 }
 
 @Controller('prosthetics/cases')

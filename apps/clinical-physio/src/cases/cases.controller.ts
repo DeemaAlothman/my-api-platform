@@ -263,6 +263,24 @@ export class CasesController {
     return this.service.notifyIncompleteForm(id);
   }
 
+  @Post(':id/convert-to-prosthetics')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
+  convertToProsthetics(@Param('id') id: string, @Body() body: { prosthetistId?: string }) {
+    return this.service.convertToProsthetics(id, body?.prosthetistId);
+  }
+
+  @Post(':id/convert-to-podiatry')
+  @Permission(PERMISSIONS.CLINIC_PODIATRY.RECEPTION_CREATE)
+  convertToPodiatry(@Param('id') id: string, @Body() body: { podiatristId?: string }) {
+    return this.service.convertToPodiatry(id, body?.podiatristId);
+  }
+
+  @Post(':id/convert-to-orthotics')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.CREATE)
+  convertToOrthotics(@Param('id') id: string, @Body() body: { specialistId?: string }) {
+    return this.service.convertToOrthotics(id, body?.specialistId);
+  }
+
   // ── Follow-ups ────────────────────────────────────────────────────────────
 
   @Post(':id/follow-ups')

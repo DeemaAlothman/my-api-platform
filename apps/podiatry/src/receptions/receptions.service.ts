@@ -36,6 +36,18 @@ export class ReceptionsService {
     }
   }
 
+  // تحويل حالة معاينة طبيب (من خدمة physio) إلى استقبال طب أقدام جديد
+  async createFromExam(patientId: string, podiatristId: string | undefined, createdBy: string | undefined) {
+    const reception = await this.prisma.podiatryReception.create({
+      data: {
+        patientId,
+        createdBy: createdBy || 'system',
+        practitionerIds: podiatristId ? [podiatristId] : [],
+      },
+    });
+    return { id: reception.id };
+  }
+
   async create(dto: CreateReceptionDto, userId: string) {
     const reception = await this.prisma.podiatryReception.create({
       data: {
