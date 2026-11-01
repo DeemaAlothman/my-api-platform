@@ -1,6 +1,6 @@
 import { IsOptional, IsString, IsNumber, IsEnum, IsIn, IsBoolean, Min } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { Gender } from './create-patient.dto';
+import { Gender, EducationLevel } from './create-patient.dto';
 
 export class ListPatientsQueryDto {
   @IsOptional() @Type(() => Number) @IsNumber() @Min(1) page?: number = 1;
@@ -8,6 +8,7 @@ export class ListPatientsQueryDto {
   @IsOptional() @IsString() search?: string;
   @IsOptional() @Type(() => Number) @IsNumber() cityId?: number;
   @IsOptional() @IsEnum(Gender) gender?: Gender;
+  @IsOptional() @IsEnum(EducationLevel) educationLevel?: EducationLevel;
   @IsOptional() @IsString() governorate?: string;
   @IsOptional() @IsString() documentConsent?: string;
   @IsOptional() @IsString() consentDecision?: string;

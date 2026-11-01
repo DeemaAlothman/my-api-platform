@@ -177,6 +177,7 @@ export class PatientsService {
     }
     if (query.cityId) where.cityId = query.cityId;
     if (query.gender) where.gender = query.gender;
+    if (query.educationLevel) where.educationLevel = query.educationLevel;
     if (query.governorate) where.city = { governorate: query.governorate };
     if (query.documentConsent) where.documentConsent = query.documentConsent;
     if (query.isCompanyPatient !== undefined) where.isCompanyPatient = query.isCompanyPatient;
