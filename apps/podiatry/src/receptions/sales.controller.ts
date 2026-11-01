@@ -41,6 +41,9 @@ export class SalesController {
     @User() user: any,
     @Req() req: any,
   ) {
-    return this.service.updateInsoleCost(sessionId, dto.insoleCost ?? null, user, req);
+    const cost = dto.insoleCost ?? null;
+    // المسح يشمل العملة: ما في معنى لعملة بلا مبلغ
+    const currency = cost === null ? null : (dto.insoleCostCurrency ?? null);
+    return this.service.updateInsoleCost(sessionId, cost, currency, user, req);
   }
 }

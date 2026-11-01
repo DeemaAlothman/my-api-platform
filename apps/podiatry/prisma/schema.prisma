@@ -158,6 +158,9 @@ model PodiatrySession {
   clinicianSignature String? @db.Text
 
   insoleCost  Decimal? @db.Decimal(12, 2) // تكلفة الضبان لهذا التركيب — يكتبها موظف المبيعات يدوياً
+  // عملة التكلفة: USD | SYP. إجبارية مع أي تكلفة رقمية جديدة، وتبقى null للتكاليف
+  // المسجَّلة قبل إضافة هذا الحقل (لم تُرحَّل تلقائياً عن قصد).
+  insoleCostCurrency String?
 
   installedAt DateTime?
   installedBy String?

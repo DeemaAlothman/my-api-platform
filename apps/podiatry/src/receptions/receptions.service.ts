@@ -274,7 +274,7 @@ export class ReceptionsService {
       this.prisma.$queryRawUnsafe<Array<{
         sessionId: string; receptionId: string; patientId: string; patientNumber: string; patientName: string;
         insoleType: string[]; shoeSize: number | null; installedAt: Date; installCount: bigint;
-        insoleCost: number | null; totalCost: number | null;
+        insoleCost: number | null; totalCost: number | null; insoleCostCurrency: string | null;
       }>>(
         `WITH ranked AS (
            SELECT s.*,
@@ -287,7 +287,8 @@ export class ReceptionsService {
          SELECT r.id AS "sessionId", r."receptionId", r."patientId", p."patientNumber",
                 (p."firstName" || ' ' || p."lastName") AS "patientName",
                 r."insoleType", r."shoeSize", r."installedAt", r.install_count AS "installCount",
-                r."insoleCost"::float8 AS "insoleCost", r.total_cost::float8 AS "totalCost"
+                r."insoleCost"::float8 AS "insoleCost", r."insoleCostCurrency",
+                r.total_cost::float8 AS "totalCost"
          FROM ranked r
          JOIN clinic_patients.patients p ON p.id = r."patientId" AND p."deletedAt" IS NULL
          WHERE r.rn = 1
@@ -307,6 +308,9 @@ export class ReceptionsService {
     ]);
 
     const total = Number(totalRows[0]?.count ?? 0);
+    const costsByCurrency = canViewCost
+      ? await this.sumCostsByCurrency(items.map((r) => r.patientId))
+      : {};
     return {
       items: items.map((r) => ({
         sessionId: r.sessionId,
@@ -320,6 +324,10 @@ export class ReceptionsService {
         installCount: Number(r.installCount),
         // التكلفة تُحجب (null) عن أي مستخدم ما عندو صلاحية عرض التكلفة
         insoleCost: canViewCost && r.insoleCost !== null ? Number(r.insoleCost) : null,
+        insoleCostCurrency: canViewCost ? (r.insoleCostCurrency ?? null) : null,
+        // الإجمالي مقسوماً حسب العملة؛ null يعني لا صلاحية، و {} يعني لا تكاليف مسجَّلة بعملة
+        totalCosts: canViewCost ? (costsByCurrency[r.patientId] ?? {}) : null,
+        // totalCost: الإجمالي القديم بلا تمييز عملة — مؤقت حتى ينتقل الفرونت إلى totalCosts
         totalCost: canViewCost && r.totalCost !== null ? Number(r.totalCost) : null,
       })),
       page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)),
@@ -333,13 +341,16 @@ export class ReceptionsService {
   async updateInsoleCost(
     sessionId: string,
     insoleCost: number | null,
+    insoleCostCurrency: string | null,
     user?: { userId?: string; username?: string },
     req?: { ip?: string; headers?: Record<string, any> },
   ) {
     const rows = await this.prisma.$queryRawUnsafe<Array<{
-      id: string; patientId: string; installedAt: Date | null; archivedAt: Date | null; insoleCost: number | null;
+      id: string; patientId: string; installedAt: Date | null; archivedAt: Date | null;
+      insoleCost: number | null; insoleCostCurrency: string | null;
     }>>(
-      `SELECT id, "patientId", "installedAt", "archivedAt", "insoleCost"::float8 AS "insoleCost"
+      `SELECT id, "patientId", "installedAt", "archivedAt", "insoleCost"::float8 AS "insoleCost",
+              "insoleCostCurrency"
        FROM clinic_podiatry.podiatry_sessions WHERE id = $1`,
       sessionId,
     );
@@ -349,15 +360,16 @@ export class ReceptionsService {
     if (session.archivedAt) throw new BadRequestException('لا يمكن تعديل تكلفة جلسة مؤرشفة');
 
     const oldValue = session.insoleCost === null ? null : Number(session.insoleCost);
+    const oldCurrency = session.insoleCostCurrency ?? null;
 
     await this.prisma.$executeRawUnsafe(
       `UPDATE clinic_podiatry.podiatry_sessions
-       SET "insoleCost" = $1::numeric, "updatedAt" = NOW()
-       WHERE id = $2`,
-      insoleCost, sessionId,
+       SET "insoleCost" = $1::numeric, "insoleCostCurrency" = $2::text, "updatedAt" = NOW()
+       WHERE id = $3`,
+      insoleCost, insoleCostCurrency, sessionId,
     );
 
-    // إجمالي تكاليف تركيبات هذا المريض غير المؤرشفة بعد التعديل
+    // الإجمالي القديم (بلا تمييز عملة) — يبقى للفترة الانتقالية فقط
     const totals = await this.prisma.$queryRawUnsafe<Array<{ totalCost: number | null }>>(
       `SELECT SUM("insoleCost")::float8 AS "totalCost"
        FROM clinic_podiatry.podiatry_sessions
@@ -366,6 +378,9 @@ export class ReceptionsService {
     );
     const totalCost = totals[0]?.totalCost ?? null;
 
+    // الإجمالي مقسوماً حسب العملة — جمع الليرة مع الدولار يعطي رقماً بلا معنى
+    const totalCosts = (await this.sumCostsByCurrency([session.patientId]))[session.patientId] ?? {};
+
     const ip = (req?.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req?.ip || null;
     const path = `/api/v1/podiatry/sales/${sessionId}/cost`;
     await this.prisma.$executeRawUnsafe(
@@ -373,13 +388,45 @@ export class ReceptionsService {
        VALUES ($1, $2, $3, $4, $5, 'PATCH', $6, $7, $8::jsonb, NOW())`,
       user?.userId ?? null, user?.username ?? null,
       'PODIATRY_SALES_INSOLE_COST_UPDATED', 'podiatry_sessions', sessionId, path, ip,
-      JSON.stringify({ field: 'insoleCost', from: oldValue, to: insoleCost }),
+      JSON.stringify({
+        insoleCost: { from: oldValue, to: insoleCost },
+        insoleCostCurrency: { from: oldCurrency, to: insoleCostCurrency },
+      }),
     ).catch(() => { /* فشل التدقيق ما بيوقف العملية */ });
 
     return {
       sessionId,
       insoleCost: insoleCost === null ? null : Number(insoleCost),
+      insoleCostCurrency,
+      totalCosts,
+      // totalCost: الإجمالي القديم بلا تمييز عملة — مؤقت حتى ينتقل الفرونت إلى totalCosts
       totalCost: totalCost === null ? null : Number(totalCost),
     };
+  }
+
+  /**
+   * مجموع تكاليف التركيبات غير المؤرشفة لكل مريض، مقسوماً حسب العملة:
+   * { "<patientId>": { "USD": 150, "SYP": 14400 } }
+   * التكاليف المسجَّلة بلا عملة (قبل إضافة الحقل) لا تدخل هنا — تبقى ضمن totalCost القديم فقط.
+   */
+  private async sumCostsByCurrency(patientIds: string[]): Promise<Record<string, Record<string, number>>> {
+    const result: Record<string, Record<string, number>> = {};
+    if (patientIds.length === 0) return result;
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      patientId: string; currency: string; total: number;
+    }>>(
+      `SELECT "patientId", "insoleCostCurrency" AS currency, SUM("insoleCost")::float8 AS total
+       FROM clinic_podiatry.podiatry_sessions
+       WHERE "patientId" = ANY($1::text[])
+         AND "installedAt" IS NOT NULL AND "archivedAt" IS NULL
+         AND "insoleCost" IS NOT NULL AND "insoleCostCurrency" IS NOT NULL
+       GROUP BY 1, 2`,
+      [...new Set(patientIds)],
+    );
+    for (const r of rows) {
+      if (!result[r.patientId]) result[r.patientId] = {};
+      result[r.patientId][r.currency] = Number(r.total);
+    }
+    return result;
   }
 }
