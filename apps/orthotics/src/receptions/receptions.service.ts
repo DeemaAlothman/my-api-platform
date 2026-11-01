@@ -97,7 +97,7 @@ export class ReceptionsService {
       'diagnosisTypes', 'cerebralPalsyType', 'footDropCause', 'diagnosisOther',
       'injuryStartDate', 'surgicalHistory', 'familyHistory', 'chiefComplaint',
       'appliancesCount', 'affectedLimbType', 'affectedSide', 'soundLimbDescription',
-      'muscleTone', 'spasticityLevel', 'sensation',
+      'muscleTone', 'spasticityLevel', 'muscleToneDetails', 'sensation',
       'thighMuscleStrength', 'legFootMuscleStrength',
       'skinConditions', 'pressurePointsLocation',
       'birthHistory', 'previousOrthosisUse', 'previousOrthosisDetails', 'medicalHistory',

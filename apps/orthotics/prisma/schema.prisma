@@ -56,8 +56,13 @@ model OrthoticsReception {
   dailyUseOther    String?
 
   // muscleTone: NORMAL | SPASTIC | HYPOTONIC
+  // muscleTone و spasticityLevel محفوظان كما هما — لسا بينعرضوا للحالات القديمة
   muscleTone      String?
   spasticityLevel String?
+  // تفصيل المقوية العضلية لكل منطقة وجهة:
+  // [{ region: THIGH|LEG|FOOT|WRIST|UPPER_ARM|FOREARM, side: RIGHT|LEFT,
+  //    tone?: NORMAL|SPASTIC|HYPOTONIC, spasticityLevel?: string }]
+  muscleToneDetails Json?
   // sensation: INTACT | REDUCED | ABSENT
   sensation       String?
   // thighMuscleStrength / legFootMuscleStrength: EXCELLENT | MODERATE | WEAK
