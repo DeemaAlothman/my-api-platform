@@ -61,9 +61,12 @@ export class DoctorAssessmentDto {
   // المصفوفة تُرسَل كاملة وتستبدل القديمة، و [] تمسح الكل، وحذف الحقل يتركه كما هو.
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => SensationDetailDto)
   sensationDetails?: SensationDetailDto[];
-  // thighMuscleStrength / legFootMuscleStrength: EXCELLENT | MODERATE | WEAK
+  // قوة العضلات: EXCELLENT | MODERATE | WEAK
+  // السفلي: الفخذ والساق/القدم — العلوي: العضد والساعد
   @IsOptional() @IsString() thighMuscleStrength?: string;
   @IsOptional() @IsString() legFootMuscleStrength?: string;
+  @IsOptional() @IsString() upperArmMuscleStrength?: string;
+  @IsOptional() @IsString() forearmMuscleStrength?: string;
   // skinConditions: INTACT | PRESSURE_POINTS | EDEMA
   @IsOptional() @IsArray() @IsString({ each: true }) skinConditions?: string[];
   @IsOptional() @IsString() pressurePointsLocation?: string;

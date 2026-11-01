@@ -99,6 +99,7 @@ export class ReceptionsService {
       'appliancesCount', 'affectedLimbType', 'affectedSide', 'soundLimbDescription',
       'muscleTone', 'spasticityLevel', 'muscleToneDetails', 'sensation', 'sensationDetails',
       'thighMuscleStrength', 'legFootMuscleStrength',
+      'upperArmMuscleStrength', 'forearmMuscleStrength',
       'skinConditions', 'pressurePointsLocation',
       'birthHistory', 'previousOrthosisUse', 'previousOrthosisDetails', 'medicalHistory',
       'functionalGoals', 'dailyUseSettings', 'dailyUseOther',

@@ -69,9 +69,12 @@ model OrthoticsReception {
   // [{ region: THIGH|LEG|FOOT|WRIST|UPPER_ARM|FOREARM, side: RIGHT|LEFT,
   //    sensation?: INTACT|REDUCED|ABSENT }]
   sensationDetails Json?
-  // thighMuscleStrength / legFootMuscleStrength: EXCELLENT | MODERATE | WEAK
+  // قوة العضلات: EXCELLENT | MODERATE | WEAK — الطرف السفلي (فخذ، ساق/قدم)
+  // والطرف العلوي (عضد، ساعد)
   thighMuscleStrength   String?
   legFootMuscleStrength String?
+  upperArmMuscleStrength String?
+  forearmMuscleStrength  String?
   // skinConditions: INTACT | PRESSURE_POINTS | EDEMA
   skinConditions         String[]
   pressurePointsLocation String?
