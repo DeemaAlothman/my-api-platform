@@ -263,12 +263,22 @@ export class ReceptionsService {
   // فقط ما يلزم لفريق المبيعات. يُرجع سطر لكل جلسة تركيب (مش مُجمَّع بالمريض/الاستقبال)
   // سطر واحد لكل مريض (آخر تركيب له حسب installedAt)، مع installCount = كل تركيباته غير
   // المؤرشفة عبر كل استقباله. total/totalPages بعدد المرضى، مش التركيبات.
-  async getSales(page = 1, limit = 20, search?: string, canViewCost = false) {
+  async getSales(
+    page = 1,
+    limit = 20,
+    search?: string,
+    canViewCost = false,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
     const safePage = Math.max(1, page);
     const safeLimit = Math.min(100, Math.max(1, limit));
     const skip = (safePage - 1) * safeLimit;
 
     const searchTerm = search ? `%${search}%` : null;
+    // dateTo شامل لآخر اليوم — نحوّله لحد أعلى حصري (بداية اليوم التالي)
+    const fromDate = dateFrom ? new Date(dateFrom) : null;
+    const toDateExclusive = dateTo ? new Date(new Date(dateTo).getTime() + 86_400_000) : null;
 
     const [items, totalRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<Array<{
@@ -282,6 +292,8 @@ export class ReceptionsService {
              COUNT(*) OVER (PARTITION BY s."patientId") AS install_count
            FROM clinic_podiatry.podiatry_sessions s
            WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
+             AND ($4::timestamptz IS NULL OR s."installedAt" >= $4::timestamptz)
+             AND ($5::timestamptz IS NULL OR s."installedAt" < $5::timestamptz)
          )
          SELECT r.id AS "sessionId", r."receptionId", r."patientId", p."patientNumber",
                 (p."firstName" || ' ' || p."lastName") AS "patientName",
@@ -293,21 +305,23 @@ export class ReceptionsService {
            AND ($3::text IS NULL OR p."firstName" ILIKE $3 OR p."lastName" ILIKE $3 OR p."patientNumber" ILIKE $3)
          ORDER BY r."installedAt" DESC
          LIMIT $1 OFFSET $2`,
-        safeLimit, skip, searchTerm,
+        safeLimit, skip, searchTerm, fromDate, toDateExclusive,
       ),
       this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
         `SELECT COUNT(DISTINCT s."patientId") as count
          FROM clinic_podiatry.podiatry_sessions s
          JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
          WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
-           AND ($1::text IS NULL OR p."firstName" ILIKE $1 OR p."lastName" ILIKE $1 OR p."patientNumber" ILIKE $1)`,
-        searchTerm,
+           AND ($1::text IS NULL OR p."firstName" ILIKE $1 OR p."lastName" ILIKE $1 OR p."patientNumber" ILIKE $1)
+           AND ($2::timestamptz IS NULL OR s."installedAt" >= $2::timestamptz)
+           AND ($3::timestamptz IS NULL OR s."installedAt" < $3::timestamptz)`,
+        searchTerm, fromDate, toDateExclusive,
       ),
     ]);
 
     const total = Number(totalRows[0]?.count ?? 0);
     const costsByCurrency = canViewCost
-      ? await this.sumCostsByCurrency(items.map((r) => r.patientId))
+      ? await this.sumCostsByCurrency(items.map((r) => r.patientId), fromDate, toDateExclusive)
       : {};
     return {
       items: items.map((r) => ({
@@ -405,6 +419,8 @@ export class ReceptionsService {
    */
   private async sumCostsByCurrency(
     patientIds: string[],
+    fromDate: Date | null = null,
+    toDateExclusive: Date | null = null,
   ): Promise<Record<string, { totals: Record<string, number>; hasCostWithoutCurrency: boolean }>> {
     const result: Record<string, { totals: Record<string, number>; hasCostWithoutCurrency: boolean }> = {};
     if (patientIds.length === 0) return result;
@@ -416,8 +432,10 @@ export class ReceptionsService {
        WHERE "patientId" = ANY($1::text[])
          AND "installedAt" IS NOT NULL AND "archivedAt" IS NULL
          AND "insoleCost" IS NOT NULL
+         AND ($2::timestamptz IS NULL OR "installedAt" >= $2::timestamptz)
+         AND ($3::timestamptz IS NULL OR "installedAt" < $3::timestamptz)
        GROUP BY 1, 2`,
-      [...new Set(patientIds)],
+      [...new Set(patientIds)], fromDate, toDateExclusive,
     );
     for (const r of rows) {
       if (!result[r.patientId]) result[r.patientId] = { totals: {}, hasCostWithoutCurrency: false };

@@ -17,6 +17,8 @@ export class SalesController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
     // التكلفة لها صلاحية عرض منفصلة؛ ومن يملك صلاحية التعديل يراها بالضرورة.
     // من لا يملك أياً منهما يحصل على insoleCost و totalCost بقيمة null.
@@ -30,6 +32,8 @@ export class SalesController {
       limit ? parseInt(limit, 10) : 20,
       search,
       canViewCost,
+      dateFrom,
+      dateTo,
     );
   }
 
