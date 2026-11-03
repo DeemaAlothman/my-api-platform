@@ -46,8 +46,8 @@ export class AppointmentsController {
 
   @Get()
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
-  findAll(@Query() query: ListAppointmentsQueryDto) {
-    return this.service.findAll(query);
+  findAll(@Query() query: ListAppointmentsQueryDto, @User() user: any) {
+    return this.service.findAll(query, user.userId);
   }
 
   @Get('calendar')
@@ -113,8 +113,8 @@ export class AppointmentsController {
 
   @Get(':id')
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.VIEW)
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(@Param('id') id: string, @User() user: any) {
+    return this.service.findOne(id, user.userId);
   }
 
   @Put(':id')

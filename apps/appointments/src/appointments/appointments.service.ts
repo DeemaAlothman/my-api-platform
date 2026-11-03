@@ -1,5 +1,5 @@
 import {
-  Injectable, NotFoundException, BadRequestException, OnModuleInit,
+  Injectable, NotFoundException, BadRequestException, ForbiddenException, OnModuleInit,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
@@ -163,6 +163,60 @@ export class AppointmentsService implements OnModuleInit {
       code,
     ).catch(() => [] as Array<{ userId: string }>);
     return rows.map(r => r.userId).filter(Boolean);
+  }
+
+  // تقييد تعديل/إلغاء/تغيير حالة المواعيد بأصحابها: منشئ الموعد، المعالج الأساسي،
+  // مشرف المركز (VTX-JTL-000011)، أو super_admin — بالإضافة لصلاحيات create/update_status/cancel
+  // الموجودة أصلاً (الصلاحيات تضل شرط، بس ما عادت كافية لحالها)
+  private isOwner(appt: { createdBy: string; practitionerId: string }, userId: string): boolean {
+    return appt.createdBy === userId || appt.practitionerId === userId;
+  }
+
+  private async isSupervisorUser(userId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ ok: boolean }>>(
+      `SELECT EXISTS (
+         SELECT 1 FROM users.employees e
+         JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+         WHERE e."userId" = $1 AND jt.code = 'VTX-JTL-000011' AND e."deletedAt" IS NULL
+       ) as ok`,
+      userId,
+    ).catch(() => [{ ok: false }]);
+    return !!rows[0]?.ok;
+  }
+
+  private async isSuperAdminUser(userId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ ok: boolean }>>(
+      `SELECT EXISTS (
+         SELECT 1 FROM users.user_roles ur
+         JOIN users.roles r ON r.id = ur."roleId"
+         WHERE ur."userId" = $1 AND r.name = 'super_admin'
+       ) as ok`,
+      userId,
+    ).catch(() => [{ ok: false }]);
+    return !!rows[0]?.ok;
+  }
+
+  private async canBypassOwnership(userId: string): Promise<boolean> {
+    const [isSupervisor, isAdmin] = await Promise.all([
+      this.isSupervisorUser(userId),
+      this.isSuperAdminUser(userId),
+    ]);
+    return isSupervisor || isAdmin;
+  }
+
+  private async assertCanModify(appt: { createdBy: string; practitionerId: string }, userId: string): Promise<void> {
+    if (this.isOwner(appt, userId)) return;
+    if (await this.canBypassOwnership(userId)) return;
+    throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'لا يمكنك تعديل موعد لست صاحبه' });
+  }
+
+  private async attachCanModify<T extends { createdBy: string; practitionerId: string }>(
+    items: T[],
+    userId?: string,
+  ): Promise<(T & { canModify: boolean })[]> {
+    if (!userId) return items.map(i => ({ ...i, canModify: false }));
+    const bypass = await this.canBypassOwnership(userId);
+    return items.map(i => ({ ...i, canModify: bypass || this.isOwner(i, userId) }));
   }
 
   private async notifySupervisors(appt: { id: string; patientId: string }, msg: string) {
@@ -568,7 +622,7 @@ export class AppointmentsService implements OnModuleInit {
     );
   }
 
-  async findAll(query: ListAppointmentsQueryDto) {
+  async findAll(query: ListAppointmentsQueryDto, userId?: string) {
     const { page = 1, limit = 50, patientId, practitionerId, departmentId, status, date } = query;
     const skip = (page - 1) * limit;
     const where: any = {};
@@ -592,7 +646,8 @@ export class AppointmentsService implements OnModuleInit {
       this.prisma.appointment.findMany({ where, skip, take: limit, orderBy: { startTime: 'asc' } }),
       this.prisma.appointment.count({ where }),
     ]);
-    const items = await this.attachPatientNames(raw);
+    const withNames = await this.attachPatientNames(raw);
+    const items = await this.attachCanModify(withNames as any, userId);
     return { items, total, page, limit };
   }
 
@@ -717,15 +772,18 @@ export class AppointmentsService implements OnModuleInit {
     return { items, total, page, limit };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string) {
     const a = await this.prisma.appointment.findUnique({ where: { id } });
     if (!a) throw new NotFoundException('Appointment not found');
     const [withName] = await this.attachPatientNames([a]);
-    return withName;
+    if (!userId) return withName;
+    const [withCanModify] = await this.attachCanModify([withName as any], userId);
+    return withCanModify;
   }
 
   async update(id: string, dto: UpdateAppointmentDto, userId: string) {
     const existing = await this.findOne(id);
+    await this.assertCanModify(existing as any, userId);
     const data: any = {};
     if (dto.startTime && dto.endTime) {
       const startTime = new Date(dto.startTime);
@@ -811,6 +869,7 @@ export class AppointmentsService implements OnModuleInit {
 
   async cancel(id: string, reason?: string, performedBy?: string) {
     const appt = await this.findOne(id);
+    if (performedBy) await this.assertCanModify(appt as any, performedBy);
     const updated = await this.prisma.appointment.update({
       where: { id },
       data: { status: 'CANCELLED' as any, cancelledReason: reason },
@@ -845,6 +904,7 @@ export class AppointmentsService implements OnModuleInit {
 
   async updateStatus(id: string, dto: UpdateStatusDto, performedBy?: string) {
     const appt = await this.findOne(id);
+    if (performedBy) await this.assertCanModify(appt as any, performedBy);
     const updated = await this.prisma.appointment.update({
       where: { id },
       data: {
