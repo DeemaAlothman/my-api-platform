@@ -172,6 +172,11 @@ export class AppointmentsService implements OnModuleInit {
     return appt.createdBy === userId || appt.practitionerId === userId;
   }
 
+  // معالج إضافي (therapistIds) — يُسمح له بتغيير الحالة فقط (حضر/تغيّب/متأخر)، مش التعديل/الإلغاء/التأجيل
+  private isSecondaryTherapist(appt: { therapistIds?: string[] }, userId: string): boolean {
+    return (appt.therapistIds ?? []).includes(userId);
+  }
+
   private async isSupervisorUser(userId: string): Promise<boolean> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ ok: boolean }>>(
       `SELECT EXISTS (
@@ -210,13 +215,26 @@ export class AppointmentsService implements OnModuleInit {
     throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'لا يمكنك تعديل موعد لست صاحبه' });
   }
 
-  private async attachCanModify<T extends { createdBy: string; practitionerId: string }>(
+  // نفس أصحاب الموعد + المعالجون الإضافيون — لتغيير الحالة فقط (updateStatus، باستثناء CANCELLED)
+  private async assertCanChangeStatus(
+    appt: { createdBy: string; practitionerId: string; therapistIds?: string[] },
+    userId: string,
+  ): Promise<void> {
+    if (this.isOwner(appt, userId) || this.isSecondaryTherapist(appt, userId)) return;
+    if (await this.canBypassOwnership(userId)) return;
+    throw new ForbiddenException({ code: 'AUTH_INSUFFICIENT_PERMISSIONS', message: 'لا يمكنك تعديل موعد لست صاحبه' });
+  }
+
+  private async attachCanModify<T extends { createdBy: string; practitionerId: string; therapistIds?: string[] }>(
     items: T[],
     userId?: string,
-  ): Promise<(T & { canModify: boolean })[]> {
-    if (!userId) return items.map(i => ({ ...i, canModify: false }));
+  ): Promise<(T & { canModify: boolean; canChangeStatus: boolean })[]> {
+    if (!userId) return items.map(i => ({ ...i, canModify: false, canChangeStatus: false }));
     const bypass = await this.canBypassOwnership(userId);
-    return items.map(i => ({ ...i, canModify: bypass || this.isOwner(i, userId) }));
+    return items.map(i => {
+      const owner = bypass || this.isOwner(i, userId);
+      return { ...i, canModify: owner, canChangeStatus: owner || this.isSecondaryTherapist(i, userId) };
+    });
   }
 
   private async notifySupervisors(appt: { id: string; patientId: string }, msg: string) {
@@ -904,7 +922,14 @@ export class AppointmentsService implements OnModuleInit {
 
   async updateStatus(id: string, dto: UpdateStatusDto, performedBy?: string) {
     const appt = await this.findOne(id);
-    if (performedBy) await this.assertCanModify(appt as any, performedBy);
+    if (performedBy) {
+      // الإلغاء عبر تغيير الحالة يبقى لأصحاب الموعد فقط — المعالج الإضافي مسموح له بباقي الحالات بس
+      if (dto.status === 'CANCELLED') {
+        await this.assertCanModify(appt as any, performedBy);
+      } else {
+        await this.assertCanChangeStatus(appt as any, performedBy);
+      }
+    }
     const updated = await this.prisma.appointment.update({
       where: { id },
       data: {
