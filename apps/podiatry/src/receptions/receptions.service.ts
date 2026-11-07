@@ -96,11 +96,20 @@ export class ReceptionsService {
     return { ...reception, patient: patientMap[reception.patientId] ?? null };
   }
 
+  // أصحاب المسمى الوظيفي فعلياً + أي بديل بتفويض نشط حالياً عن حامل هالمسمى (إجازة مع بديل معتمد)
   private async getUsersByJobTitle(code: string): Promise<string[]> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
       `SELECT e."userId" FROM users.employees e
        JOIN users.job_titles jt ON jt.id = e."jobTitleId"
-       WHERE jt.code = $1 AND e."deletedAt" IS NULL`,
+       WHERE jt.code = $1 AND e."deletedAt" IS NULL
+       UNION
+       SELECT de."userId" FROM users.delegations d
+       JOIN users.employees de ON de.id = d."delegateId"
+       JOIN users.employees dr ON dr.id = d."delegatorId"
+       JOIN users.job_titles jt2 ON jt2.id = dr."jobTitleId"
+       WHERE jt2.code = $1
+         AND d.status = 'ACTIVE' AND d."fromDate" <= NOW() AND d."toDate" >= NOW()
+         AND de."deletedAt" IS NULL AND dr."deletedAt" IS NULL`,
       code,
     ).catch(() => [] as Array<{ userId: string }>);
     return rows.map(r => r.userId).filter(Boolean);

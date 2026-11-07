@@ -921,7 +921,15 @@ export class CasesService {
       const reps = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
         `SELECT e."userId" FROM users.employees e
          JOIN users.job_titles jt ON jt.id = e."jobTitleId"
-         WHERE jt.code = 'VTX-JTL-000024' AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL`,
+         WHERE jt.code = 'VTX-JTL-000024' AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL
+         UNION
+         SELECT de."userId" FROM users.delegations d
+         JOIN users.employees de ON de.id = d."delegateId"
+         JOIN users.employees dr ON dr.id = d."delegatorId"
+         JOIN users.job_titles jt2 ON jt2.id = dr."jobTitleId"
+         WHERE jt2.code = 'VTX-JTL-000024'
+           AND d.status = 'ACTIVE' AND d."fromDate" <= NOW() AND d."toDate" >= NOW()
+           AND de."deletedAt" IS NULL AND dr."deletedAt" IS NULL`,
       );
       if (reps.length === 0) return;
       const patientRows = await this.prisma.$queryRawUnsafe<Array<{ firstName: string; lastName: string }>>(

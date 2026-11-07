@@ -33,7 +33,7 @@ export class DoctorDecisionsService {
     const reception = await this.prisma.podiatryReception.findUnique({ where: { id: receptionId } });
     if (!reception) throw new NotFoundException('Reception not found');
 
-    // أوجد كل المستخدمين النشطين بالمسمى الوظيفي VTX-JTL-000007
+    // أوجد كل المستخدمين النشطين بالمسمى الوظيفي VTX-JTL-000007 + أي بديل بتفويض نشط عنهم
     const doctors = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
       `SELECT DISTINCT u.id AS "userId"
        FROM users.users u
@@ -41,7 +41,16 @@ export class DoctorDecisionsService {
        JOIN users.job_titles jt ON jt.id = e."jobTitleId"
        WHERE jt.code = $1
          AND e."employmentStatus" = 'ACTIVE'
-         AND e."deletedAt" IS NULL`,
+         AND e."deletedAt" IS NULL
+       UNION
+       SELECT de."userId" AS "userId"
+       FROM users.delegations d
+       JOIN users.employees de ON de.id = d."delegateId"
+       JOIN users.employees dr ON dr.id = d."delegatorId"
+       JOIN users.job_titles jt2 ON jt2.id = dr."jobTitleId"
+       WHERE jt2.code = $1
+         AND d.status = 'ACTIVE' AND d."fromDate" <= NOW() AND d."toDate" >= NOW()
+         AND de."deletedAt" IS NULL AND dr."deletedAt" IS NULL`,
       DOCTOR_JOB_CODE,
     );
 
