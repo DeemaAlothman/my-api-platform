@@ -20,6 +20,7 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
 import { SalaryAdvancesModule } from './salary-advances/salary-advances.module';
 import { SalesCommissionsModule } from './sales-commissions/sales-commissions.module';
+import { DelegationsModule } from './delegations/delegations.module';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -50,6 +51,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     DashboardDataModule,
     SalaryAdvancesModule,
     SalesCommissionsModule,
+    DelegationsModule,
   ],
   providers: [
     PrismaService,

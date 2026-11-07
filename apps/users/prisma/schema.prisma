@@ -920,6 +920,7 @@ model Delegation {
   revokedAt      DateTime?
   revokedBy      String?
   revokeReason   String?
+  endNotifiedAt  DateTime? // متى انبعث إشعار "انتهى التفويض" — يمنع الإشعار المكرر من المهمة المجدولة
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

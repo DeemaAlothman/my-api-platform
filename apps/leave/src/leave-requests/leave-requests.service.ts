@@ -804,12 +804,54 @@ export class LeaveRequestsService {
 
   private async cancelDelegationForLeave(leaveRequestId: string, cancelledByUserId: string) {
     try {
-      await this.prisma.$executeRawUnsafe(
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ delegatorId: string; delegateId: string }>>(
         `UPDATE users.delegations
-         SET status = 'CANCELLED', "revokedAt" = NOW(), "revokedBy" = $2, "updatedAt" = NOW()
-         WHERE "leaveRequestId" = $1 AND status = 'ACTIVE'`,
+         SET status = 'CANCELLED', "revokedAt" = NOW(), "revokedBy" = $2, "endNotifiedAt" = NOW(), "updatedAt" = NOW()
+         WHERE "leaveRequestId" = $1 AND status = 'ACTIVE'
+         RETURNING "delegatorId", "delegateId"`,
         leaveRequestId, cancelledByUserId,
       );
+      for (const r of rows) {
+        await this.notifyDelegationEnded(r.delegatorId, r.delegateId);
+      }
+    } catch {
+      // لا يكسر إلغاء الإجازة
+    }
+  }
+
+  // إشعار "انتهى التفويض" فوري — للإلغاء المبكر بسبب إلغاء الإجازة (انتهاء الفترة الطبيعي
+  // بينبعت من مهمة مجدولة منفصلة بخدمة users)
+  private async notifyDelegationEnded(delegatorEmployeeId: string, delegateEmployeeId: string) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{
+        id: string; userId: string | null; firstNameAr: string; lastNameAr: string;
+      }>>(
+        `SELECT id, "userId", "firstNameAr", "lastNameAr" FROM users.employees WHERE id = ANY($1::text[]) AND "deletedAt" IS NULL`,
+        [delegatorEmployeeId, delegateEmployeeId],
+      );
+      const map = new Map(rows.map(r => [r.id, r]));
+      const delegator = map.get(delegatorEmployeeId);
+      const delegate = map.get(delegateEmployeeId);
+      if (!delegator || !delegate) return;
+
+      if (delegate.userId) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+          delegate.userId, 'انتهى التفويض',
+          `انتهى تفويضك نيابة عن ${delegator.firstNameAr} ${delegator.lastNameAr}`,
+          JSON.stringify({ type: 'DELEGATION_ENDED', delegatorEmployeeId }),
+        );
+      }
+      if (delegator.userId) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+          delegator.userId, 'انتهى التفويض',
+          `انتهى تفويضك لـ${delegate.firstNameAr} ${delegate.lastNameAr}`,
+          JSON.stringify({ type: 'DELEGATION_ENDED', delegateEmployeeId }),
+        );
+      }
     } catch {
       // لا يكسر إلغاء الإجازة
     }
