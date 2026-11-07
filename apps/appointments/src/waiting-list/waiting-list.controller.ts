@@ -4,7 +4,7 @@ import {
 import type { Response } from 'express';
 import { WaitingListService } from './waiting-list.service';
 import {
-  CreateWaitingListEntryDto, UpdateWaitingListEntryDto, ListWaitingListQueryDto,
+  CreateWaitingListEntryDto, UpdateWaitingListEntryDto, ListWaitingListQueryDto, LinkAppointmentDto,
 } from './dto/waiting-list.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -44,6 +44,18 @@ export class WaitingListController {
   @Permission(PERMISSIONS.CLINIC_WAITING_LIST.VIEW)
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);
+  }
+
+  @Get(':id/appointment-matches')
+  @Permission(PERMISSIONS.CLINIC_WAITING_LIST.VIEW)
+  findAppointmentMatches(@Param('id') id: string) {
+    return this.service.findAppointmentMatches(id);
+  }
+
+  @Post(':id/link-appointment')
+  @Permission(PERMISSIONS.CLINIC_WAITING_LIST.EDIT)
+  linkAppointment(@Param('id') id: string, @Body() dto: LinkAppointmentDto) {
+    return this.service.linkAppointment(id, dto.appointmentId);
   }
 
   @Put(':id')

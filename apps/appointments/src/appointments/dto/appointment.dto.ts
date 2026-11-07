@@ -39,7 +39,7 @@ export enum PractitionerRoleEnum {
 }
 
 export enum CaseTypeEnum          { PROSTHETICS='PROSTHETICS', PHYSIO='PHYSIO', GENERAL='GENERAL' }
-export enum AppointmentStatusEnum { SCHEDULED='SCHEDULED', CONFIRMED='CONFIRMED', COMPLETED='COMPLETED', CANCELLED='CANCELLED', NO_SHOW='NO_SHOW', RESCHEDULED='RESCHEDULED', LATE='LATE', APOLOGIZED='APOLOGIZED' }
+export enum AppointmentStatusEnum { SCHEDULED='SCHEDULED', CONFIRMED='CONFIRMED', COMPLETED='COMPLETED', CANCELLED='CANCELLED', NO_SHOW='NO_SHOW', RESCHEDULED='RESCHEDULED', LATE='LATE', APOLOGIZED='APOLOGIZED', SCHEDULED_CONTACTED='SCHEDULED_CONTACTED' }
 
 export class StatisticsQueryDto {
   @IsDateString() dateFrom: string;
@@ -54,6 +54,10 @@ export class CreateAppointmentDto {
   @ValidateIf(o => !o.patientId)
   @IsString() @IsNotEmpty()
   patientName?: string;
+
+  // رقم تواصل لمواعيد غير المسجّلين (بدون patientId) — لمطابقة قائمة الانتظار لاحقاً
+  @IsOptional() @IsString()
+  contactNumber?: string;
 
   @IsOptional() @IsString()
   caseId?: string;
@@ -94,6 +98,10 @@ export class CreateAppointmentDto {
 
   @IsOptional() @IsString()
   notes?: string;
+
+  // لربط الموعد تلقائياً بسجل قائمة الانتظار وتحويله لـSCHEDULED بنفس عملية الإنشاء
+  @IsOptional() @IsString()
+  waitingListEntryId?: string;
 }
 
 export class UpdateAppointmentDto {

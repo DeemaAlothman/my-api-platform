@@ -131,8 +131,8 @@ export class AppointmentsController {
 
   @Put(':id/reschedule')
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.CREATE)
-  reschedule(@Param('id') id: string, @Body() dto: RescheduleDto) {
-    return this.service.reschedule(id, dto);
+  reschedule(@Param('id') id: string, @Body() dto: RescheduleDto, @User() user: any) {
+    return this.service.reschedule(id, dto, user.userId);
   }
 
   @Put(':id/status')

@@ -247,6 +247,29 @@ export class AppointmentsService implements OnModuleInit {
     }
   }
 
+  // الموعد أنشأه معالج مش مشرف مركز — تنبيه كل مشرفي المركز (بما فيهم أي بديل بتفويض نشط)
+  private async notifySupervisorsOfTherapistBooking(appointmentId: string, creatorUserId: string) {
+    try {
+      const supervisorIds = await this.getUserIdsByJobTitle('VTX-JTL-000011');
+      if (supervisorIds.length === 0) return;
+      const nameRows = await this.prisma.$queryRawUnsafe<Array<{ firstNameAr: string; lastNameAr: string }>>(
+        `SELECT "firstNameAr", "lastNameAr" FROM users.employees WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        creatorUserId,
+      );
+      const therapistName = nameRows[0] ? `${nameRows[0].firstNameAr} ${nameRows[0].lastNameAr}`.trim() : 'معالج';
+      for (const supervisorUserId of supervisorIds) {
+        await this.insertNotif(
+          supervisorUserId,
+          { type: 'APPOINTMENT_CREATED_BY_THERAPIST', appointmentId, link: `/appointments/${appointmentId}` },
+          'موعد جديد من معالج',
+          `قام ${therapistName} بإنشاء موعد جديد — يرجى المراجعة`,
+        );
+      }
+    } catch {
+      // لا يكسر إنشاء الموعد
+    }
+  }
+
   private async getDeptManagerUserId(deptCode: string): Promise<string | null> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
       `SELECT e."userId" FROM users.departments d
@@ -436,25 +459,51 @@ export class AppointmentsService implements OnModuleInit {
     const onLeave = await this.checkLeaveOverlap(dto.practitionerId, startTime, endTime);
     if (onLeave) throw new BadRequestException('Practitioner is on approved leave during this time');
 
-    const appt = await this.prisma.appointment.create({
-      data: {
-        patientId:         dto.patientId ?? null,
-        patientName:       dto.patientId ? null : (dto.patientName ?? null),
-        caseId:            dto.caseId,
-        caseType:          dto.caseType as any,
-        practitionerId:    dto.practitionerId,
-        practitionerRole:  dto.practitionerRole ?? null,
-        departmentId:      dto.departmentId ?? null,
-        physiotherapistId: dto.physiotherapistId ?? null,
-        therapistIds:      dto.therapistIds ?? [],
-        appointmentType:   dto.appointmentType as any,
-        startTime,
-        endTime,
-        isOpenEnded:       dto.isOpenEnded ?? false,
-        durationMinutes:   dto.durationMinutes ?? 60,
-        notes:             dto.notes,
-        createdBy:         userId,
-      },
+    // لربط الموعد بسجل قائمة انتظار (اختياري) — يُتحقّق منه قبل أي كتابة، ويُطبَّق بنفس معاملة الإنشاء
+    if (dto.waitingListEntryId) {
+      const waitingRows = await this.prisma.$queryRawUnsafe<Array<{ id: string; appointmentId: string | null }>>(
+        `SELECT id, "appointmentId" FROM clinic_appointments.waiting_list_entries WHERE id = $1`,
+        dto.waitingListEntryId,
+      );
+      const waitingEntry = waitingRows[0];
+      if (!waitingEntry) throw new NotFoundException('سجل قائمة الانتظار غير موجود');
+      if (waitingEntry.appointmentId) throw new BadRequestException('سجل قائمة الانتظار مرتبط بموعد آخر مسبقاً');
+    }
+
+    const createdBySupervisor = await this.isSupervisorUser(userId);
+
+    const appt = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.appointment.create({
+        data: {
+          patientId:         dto.patientId ?? null,
+          patientName:       dto.patientId ? null : (dto.patientName ?? null),
+          contactNumber:     dto.patientId ? null : (dto.contactNumber ?? null),
+          caseId:            dto.caseId,
+          caseType:          dto.caseType as any,
+          practitionerId:    dto.practitionerId,
+          practitionerRole:  dto.practitionerRole ?? null,
+          departmentId:      dto.departmentId ?? null,
+          physiotherapistId: dto.physiotherapistId ?? null,
+          therapistIds:      dto.therapistIds ?? [],
+          appointmentType:   dto.appointmentType as any,
+          startTime,
+          endTime,
+          isOpenEnded:       dto.isOpenEnded ?? false,
+          durationMinutes:   dto.durationMinutes ?? 60,
+          notes:             dto.notes,
+          createdBy:         userId,
+          createdBySupervisor,
+        },
+      });
+
+      if (dto.waitingListEntryId) {
+        await tx.waitingListEntry.update({
+          where: { id: dto.waitingListEntryId },
+          data: { appointmentId: created.id, status: 'SCHEDULED' as any },
+        });
+      }
+
+      return created;
     });
 
     const tz = { timeZone: 'Asia/Riyadh' };
@@ -493,6 +542,11 @@ export class AppointmentsService implements OnModuleInit {
           entityId: appt.id,
         }),
       }).catch(() => {});
+    }
+
+    // المنشئ مش مشرف مركز → تنبيه كل مشرفي المركز (بما فيهم أي بديل بتفويض نشط) للمراجعة
+    if (!createdBySupervisor) {
+      await this.notifySupervisorsOfTherapistBooking(appt.id, userId);
     }
 
     return appt;
@@ -900,12 +954,28 @@ export class AppointmentsService implements OnModuleInit {
     await Promise.all([
       this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg, performedBy),
       this.notifySupervisors(appt, supervisorMsg),
+      this.unlinkWaitingListEntryOnCancel(id),
     ]);
     return updated;
   }
 
-  async reschedule(id: string, dto: RescheduleDto) {
+  // الموعد الملغى كان مربوط بسجل قائمة انتظار → يرجع السجل WAITING وينفك الربط
+  private async unlinkWaitingListEntryOnCancel(appointmentId: string) {
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE clinic_appointments.waiting_list_entries
+         SET status = 'WAITING', "appointmentId" = NULL, "updatedAt" = NOW()
+         WHERE "appointmentId" = $1`,
+        appointmentId,
+      );
+    } catch {
+      // لا يكسر إلغاء الموعد
+    }
+  }
+
+  async reschedule(id: string, dto: RescheduleDto, userId?: string) {
     const appt = await this.findOne(id);
+    if (userId) await this.assertCanModify(appt as any, userId);
     const startTime = new Date(dto.startTime);
     const endTime = dto.isOpenEnded
       ? new Date(startTime.getTime() + 15 * 60 * 1000)
@@ -946,6 +1016,7 @@ export class AppointmentsService implements OnModuleInit {
       await Promise.all([
         this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg, performedBy),
         this.notifySupervisors(appt, supervisorMsg),
+        this.unlinkWaitingListEntryOnCancel(id),
       ]);
     }
 

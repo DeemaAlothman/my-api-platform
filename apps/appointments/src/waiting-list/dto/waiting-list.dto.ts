@@ -2,6 +2,7 @@ import {
   IsString, IsOptional, IsEnum, IsInt, Min, Max, IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { AppointmentTypeEnum } from '../../appointments/dto/appointment.dto';
 
 export enum GenderEnum {
   MALE   = 'MALE',
@@ -36,8 +37,12 @@ export class CreateWaitingListEntryDto {
   @IsOptional() @IsEnum(ArrivalMethodEnum)
   arrivalMethod?: string;
 
-  @IsString() @IsNotEmpty()
-  serviceType: string;
+  // serviceType تضل مؤقتاً للسجلات القديمة — السجلات الجديدة تبعت appointmentType بدلاً منه
+  @IsOptional() @IsString() @IsNotEmpty()
+  serviceType?: string;
+
+  @IsOptional() @IsEnum(AppointmentTypeEnum)
+  appointmentType?: string;
 
   @IsString() @IsNotEmpty()
   contactNumber: string;
@@ -65,6 +70,9 @@ export class UpdateWaitingListEntryDto {
   @IsOptional() @IsString() @IsNotEmpty()
   serviceType?: string;
 
+  @IsOptional() @IsEnum(AppointmentTypeEnum)
+  appointmentType?: string;
+
   @IsOptional() @IsString() @IsNotEmpty()
   contactNumber?: string;
 
@@ -82,6 +90,9 @@ export class ListWaitingListQueryDto {
   @IsOptional() @IsEnum(WaitingListStatusEnum)
   status?: string;
 
+  @IsOptional() @IsEnum(AppointmentTypeEnum)
+  appointmentType?: string;
+
   @IsOptional() @IsString()
   search?: string;
 
@@ -90,4 +101,9 @@ export class ListWaitingListQueryDto {
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1)
   limit?: number = 50;
+}
+
+export class LinkAppointmentDto {
+  @IsString() @IsNotEmpty()
+  appointmentId: string;
 }

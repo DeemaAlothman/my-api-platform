@@ -54,6 +54,7 @@ enum AppointmentStatus {
   RESCHEDULED
   LATE
   APOLOGIZED
+  SCHEDULED_CONTACTED
   @@schema("clinic_appointments")
 }
 
@@ -110,6 +111,7 @@ model Appointment {
   id               String   @id @default(uuid())
   patientId        String?
   patientName      String?
+  contactNumber    String?  // لمواعيد غير المسجّلين (بدون patientId) — لمطابقة قائمة الانتظار
   caseId           String?
   caseType         CaseType?
 
@@ -136,6 +138,11 @@ model Appointment {
   updatedAt        DateTime @updatedAt
   createdBy        String
   cancelledReason  String?
+  // محسوبة ومخزَّنة لحظة الإنشاء فقط (حسب VTX-JTL-000011) — null للمواعيد الأقدم من هالميزة،
+  // لا تُعاد حسابها لاحقاً حتى لو تغيّر مسمى المنشئ بعدين
+  createdBySupervisor Boolean?
+
+  waitingListEntry WaitingListEntry?
 
   @@map("appointments")
   @@schema("clinic_appointments")
@@ -153,12 +160,16 @@ model WaitingListEntry {
   age              Int?
   registrationDate DateTime @default(now())
   arrivalMethod    ArrivalMethod?
-  serviceType      String
+  serviceType      String?          // تضل مؤقتاً للسجلات القديمة — السجلات الجديدة تستخدم appointmentType
+  appointmentType  AppointmentType?
   contactNumber    String
   priority         Int
   notes            String? @db.Text
 
   status           WaitingListStatus @default(WAITING)
+
+  appointmentId    String?     @unique
+  appointment      Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
