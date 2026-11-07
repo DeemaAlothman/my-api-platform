@@ -289,11 +289,13 @@ export class ReceptionsService {
     const fromDate = dateFrom ? new Date(dateFrom) : null;
     const toDateExclusive = dateTo ? new Date(new Date(dateTo).getTime() + 86_400_000) : null;
 
-    const [items, totalRows] = await Promise.all([
+    const [items, countsRow, costSummary] = await Promise.all([
       this.prisma.$queryRawUnsafe<Array<{
         sessionId: string; receptionId: string; patientId: string; patientNumber: string; patientName: string;
         insoleType: string[]; shoeSize: number | null; installedAt: Date; installCount: bigint;
         insoleCost: number | null; insoleCostCurrency: string | null;
+        referralSource: string | null; referralDetails: string | null;
+        referralStaffId: string | null; referralStaffFirstName: string | null; referralStaffLastName: string | null;
       }>>(
         `WITH ranked AS (
            SELECT s.*,
@@ -307,17 +309,21 @@ export class ReceptionsService {
          SELECT r.id AS "sessionId", r."receptionId", r."patientId", p."patientNumber",
                 (p."firstName" || ' ' || p."lastName") AS "patientName",
                 r."insoleType", r."shoeSize", r."installedAt", r.install_count AS "installCount",
-                r."insoleCost"::float8 AS "insoleCost", r."insoleCostCurrency"
+                r."insoleCost"::float8 AS "insoleCost", r."insoleCostCurrency",
+                p."referralSource"::text AS "referralSource", p."referralDetails",
+                p."referralStaffId", rs."firstNameAr" AS "referralStaffFirstName", rs."lastNameAr" AS "referralStaffLastName"
          FROM ranked r
          JOIN clinic_patients.patients p ON p.id = r."patientId" AND p."deletedAt" IS NULL
+         LEFT JOIN users.employees rs ON rs.id = p."referralStaffId" AND rs."deletedAt" IS NULL
          WHERE r.rn = 1
            AND ($3::text IS NULL OR p."firstName" ILIKE $3 OR p."lastName" ILIKE $3 OR p."patientNumber" ILIKE $3)
          ORDER BY r."installedAt" DESC
          LIMIT $1 OFFSET $2`,
         safeLimit, skip, searchTerm, fromDate, toDateExclusive,
       ),
-      this.prisma.$queryRawUnsafe<{ count: bigint }[]>(
-        `SELECT COUNT(DISTINCT s."patientId") as count
+      // عدد المرضى والتركيبات ضمن كل النتائج المطابقة للفلاتر (مو الصفحة الحالية بس)
+      this.prisma.$queryRawUnsafe<Array<{ patients: bigint; installs: bigint }>>(
+        `SELECT COUNT(DISTINCT s."patientId") as patients, COUNT(*) as installs
          FROM clinic_podiatry.podiatry_sessions s
          JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
          WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
@@ -326,9 +332,12 @@ export class ReceptionsService {
            AND ($3::timestamptz IS NULL OR s."installedAt" < $3::timestamptz)`,
         searchTerm, fromDate, toDateExclusive,
       ),
+      canViewCost
+        ? this.sumCostsByCurrencyForFilter(searchTerm, fromDate, toDateExclusive)
+        : Promise.resolve(null),
     ]);
 
-    const total = Number(totalRows[0]?.count ?? 0);
+    const total = Number(countsRow[0]?.patients ?? 0);
     const costsByCurrency = canViewCost
       ? await this.sumCostsByCurrency(items.map((r) => r.patientId), fromDate, toDateExclusive)
       : {};
@@ -352,8 +361,21 @@ export class ReceptionsService {
         hasCostWithoutCurrency: canViewCost
           ? (costsByCurrency[r.patientId]?.hasCostWithoutCurrency ?? false)
           : null,
+        // طريقة الوصول — نفس حقول ملف المريض
+        referralSource: r.referralSource,
+        referralDetails: r.referralDetails,
+        referralStaff: r.referralStaffId
+          ? { id: r.referralStaffId, fullName: `${r.referralStaffFirstName ?? ''} ${r.referralStaffLastName ?? ''}`.trim() }
+          : null,
       })),
       page: safePage, limit: safeLimit, total, totalPages: Math.max(1, Math.ceil(total / safeLimit)),
+      // ملخص كل النتائج المطابقة للفلاتر (مو الصفحة الحالية بس)
+      summary: {
+        patients: total,
+        installs: Number(countsRow[0]?.installs ?? 0),
+        totalCosts: canViewCost ? (costSummary?.totals ?? {}) : null,
+        patientsWithCostWithoutCurrency: canViewCost ? (costSummary?.patientsWithCostWithoutCurrency ?? 0) : null,
+      },
     };
   }
 
@@ -452,5 +474,43 @@ export class ReceptionsService {
       else result[r.patientId].totals[r.currency] = Number(r.total);
     }
     return result;
+  }
+
+  // إجمالي التكاليف مقسوماً حسب العملة + عدد المرضى بتكلفة بلا عملة، عبر كل النتائج
+  // المطابقة لفلاتر /podiatry/sales (مو قائمة مرضى معيّنة) — لبوكس الملخص
+  private async sumCostsByCurrencyForFilter(
+    searchTerm: string | null,
+    fromDate: Date | null,
+    toDateExclusive: Date | null,
+  ): Promise<{ totals: Record<string, number>; patientsWithCostWithoutCurrency: number }> {
+    const [rows, noCurrencyRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<{ currency: string | null; total: number }>>(
+        `SELECT s."insoleCostCurrency" AS currency, SUM(s."insoleCost")::float8 AS total
+         FROM clinic_podiatry.podiatry_sessions s
+         JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
+         WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL AND s."insoleCost" IS NOT NULL
+           AND ($1::text IS NULL OR p."firstName" ILIKE $1 OR p."lastName" ILIKE $1 OR p."patientNumber" ILIKE $1)
+           AND ($2::timestamptz IS NULL OR s."installedAt" >= $2::timestamptz)
+           AND ($3::timestamptz IS NULL OR s."installedAt" < $3::timestamptz)
+         GROUP BY 1`,
+        searchTerm, fromDate, toDateExclusive,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(DISTINCT s."patientId") as count
+         FROM clinic_podiatry.podiatry_sessions s
+         JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
+         WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL
+           AND s."insoleCost" IS NOT NULL AND s."insoleCostCurrency" IS NULL
+           AND ($1::text IS NULL OR p."firstName" ILIKE $1 OR p."lastName" ILIKE $1 OR p."patientNumber" ILIKE $1)
+           AND ($2::timestamptz IS NULL OR s."installedAt" >= $2::timestamptz)
+           AND ($3::timestamptz IS NULL OR s."installedAt" < $3::timestamptz)`,
+        searchTerm, fromDate, toDateExclusive,
+      ),
+    ]);
+    const totals: Record<string, number> = {};
+    for (const r of rows) {
+      if (r.currency !== null) totals[r.currency] = Number(r.total);
+    }
+    return { totals, patientsWithCostWithoutCurrency: Number(noCurrencyRows[0]?.count ?? 0) };
   }
 }
