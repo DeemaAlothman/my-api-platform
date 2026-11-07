@@ -155,11 +155,20 @@ export class AppointmentsService implements OnModuleInit {
     }
   }
 
+  // أصحاب المسمى الوظيفي فعلياً + أي بديل بتفويض نشط حالياً عن حامل هالمسمى (إجازة مع بديل معتمد)
   private async getUserIdsByJobTitle(code: string): Promise<string[]> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
       `SELECT e."userId" FROM users.employees e
        JOIN users.job_titles jt ON jt.id = e."jobTitleId"
-       WHERE jt.code = $1 AND e."deletedAt" IS NULL`,
+       WHERE jt.code = $1 AND e."deletedAt" IS NULL
+       UNION
+       SELECT de."userId" FROM users.delegations d
+       JOIN users.employees de ON de.id = d."delegateId"
+       JOIN users.employees dr ON dr.id = d."delegatorId"
+       JOIN users.job_titles jt2 ON jt2.id = dr."jobTitleId"
+       WHERE jt2.code = $1
+         AND d.status = 'ACTIVE' AND d."fromDate" <= NOW() AND d."toDate" >= NOW()
+         AND de."deletedAt" IS NULL AND dr."deletedAt" IS NULL`,
       code,
     ).catch(() => [] as Array<{ userId: string }>);
     return rows.map(r => r.userId).filter(Boolean);
@@ -177,16 +186,10 @@ export class AppointmentsService implements OnModuleInit {
     return (appt.therapistIds ?? []).includes(userId);
   }
 
+  // يشمل تلقائياً أي بديل بتفويض نشط عن مشرف مركز (getUserIdsByJobTitle بتضيفه)
   private async isSupervisorUser(userId: string): Promise<boolean> {
-    const rows = await this.prisma.$queryRawUnsafe<Array<{ ok: boolean }>>(
-      `SELECT EXISTS (
-         SELECT 1 FROM users.employees e
-         JOIN users.job_titles jt ON jt.id = e."jobTitleId"
-         WHERE e."userId" = $1 AND jt.code = 'VTX-JTL-000011' AND e."deletedAt" IS NULL
-       ) as ok`,
-      userId,
-    ).catch(() => [{ ok: false }]);
-    return !!rows[0]?.ok;
+    const ids = await this.getUserIdsByJobTitle('VTX-JTL-000011');
+    return ids.includes(userId);
   }
 
   private async isSuperAdminUser(userId: string): Promise<boolean> {
