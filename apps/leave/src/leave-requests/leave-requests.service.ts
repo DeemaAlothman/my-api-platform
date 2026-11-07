@@ -767,6 +767,79 @@ export class LeaveRequestsService {
     return this.prisma.leaveRequest.findUnique({ where: { id }, include: { leaveType: true } });
   }
 
+  // ── تفويض مؤقت للصلاحيات/المسمى الوظيفي أثناء الإجازة (users.delegations) ──────
+  // يُنشأ فقط عند الاعتماد النهائي للإجازة مع موافقة بديل فعلية. كتابة مباشرة
+  // عبر raw SQL على نفس قاعدة البيانات الفيزيائية (بدون FK)، ما بتكسر اعتماد الإجازة لو فشلت
+  private async createDelegationIfSubstituteApproved(request: {
+    id: string; employeeId: string; substituteId: string | null; substituteStatus: string | null;
+    startDate: Date; endDate: Date;
+  }) {
+    if (!request.substituteId || request.substituteStatus !== 'APPROVED') return;
+    try {
+      const existing = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM users.delegations WHERE "leaveRequestId" = $1 LIMIT 1`,
+        request.id,
+      );
+      if (existing.length > 0) return;
+
+      // إذا اعتمدت الإجازة بعد تاريخ بدايتها، التفويض يبلّش من لحظة الاعتماد لا من بداية الإجازة
+      const now = new Date();
+      const leaveStart = new Date(request.startDate);
+      const fromDate = now > leaveStart ? now : leaveStart;
+      const toDate = new Date(request.endDate);
+      toDate.setHours(23, 59, 59, 999);
+
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO users.delegations
+           (id, "delegatorId", "delegateId", "leaveRequestId", "fromDate", "toDate", status, "createdAt", "updatedAt")
+         VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, 'ACTIVE', NOW(), NOW())`,
+        request.employeeId, request.substituteId, request.id, fromDate, toDate,
+      );
+
+      await this.notifyDelegationStarted(request.employeeId, request.substituteId, toDate);
+    } catch {
+      // لا يكسر اعتماد الإجازة لو فشل إنشاء التفويض
+    }
+  }
+
+  private async cancelDelegationForLeave(leaveRequestId: string, cancelledByUserId: string) {
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE users.delegations
+         SET status = 'CANCELLED', "revokedAt" = NOW(), "revokedBy" = $2, "updatedAt" = NOW()
+         WHERE "leaveRequestId" = $1 AND status = 'ACTIVE'`,
+        leaveRequestId, cancelledByUserId,
+      );
+    } catch {
+      // لا يكسر إلغاء الإجازة
+    }
+  }
+
+  private async notifyDelegationStarted(delegatorEmployeeId: string, delegateEmployeeId: string, toDate: Date) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ delegatorName: string | null; delegateUserId: string | null }>>(
+        `SELECT d."firstNameAr" || ' ' || d."lastNameAr" as "delegatorName", g."userId" as "delegateUserId"
+         FROM users.employees g
+         LEFT JOIN users.employees d ON d.id = $1
+         WHERE g.id = $2 AND g."deletedAt" IS NULL`,
+        delegatorEmployeeId, delegateEmployeeId,
+      );
+      const row = rows[0];
+      if (!row?.delegateUserId) return;
+      const dateStr = toDate.toLocaleDateString('en-GB', { timeZone: 'Asia/Damascus' });
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+         VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+        row.delegateUserId,
+        'تفويض صلاحيات مؤقت',
+        `صرت تعمل نيابة عن ${row.delegatorName ?? 'موظف'} حتى ${dateStr}`,
+        JSON.stringify({ type: 'DELEGATION_STARTED', delegatorEmployeeId }),
+      );
+    } catch {
+      // لا يكسر اعتماد الإجازة
+    }
+  }
+
   // موافقة المدير
   async approveByManager(id: string, dto: ApproveLeaveRequestDto, managerId: string) {
     const request = await this.prisma.leaveRequest.findUnique({
@@ -836,6 +909,11 @@ export class LeaveRequestsService {
         );
       }
       await this.resolveAnomalyAlertsForLeave(request.employeeId, request.startDate, request.endDate);
+      await this.createDelegationIfSubstituteApproved({
+        id: request.id, employeeId: request.employeeId,
+        substituteId: request.substituteId, substituteStatus: request.substituteStatus,
+        startDate: request.startDate, endDate: request.endDate,
+      });
     }
 
     return updated;
@@ -945,6 +1023,11 @@ export class LeaveRequestsService {
     }
 
     await this.resolveAnomalyAlertsForLeave(request.employeeId, request.startDate, request.endDate);
+    await this.createDelegationIfSubstituteApproved({
+      id: request.id, employeeId: request.employeeId,
+      substituteId: request.substituteId, substituteStatus: request.substituteStatus,
+      startDate: request.startDate, endDate: request.endDate,
+    });
 
     return updated;
   }
@@ -1251,10 +1334,11 @@ export class LeaveRequestsService {
       id,
     );
 
-    // إذا كانت الإجازة معتمدة → أشعر المدير المباشر والـ HR بالإلغاء
+    // إذا كانت الإجازة معتمدة → أشعر المدير المباشر والـ HR بالإلغاء، وألغِ أي تفويض مرتبط فوراً
     if (oldStatus === 'APPROVED') {
       await this.notifyManagerOfApprovedCancellation(request.employeeId, id, leaveTypeName);
       await this.notifyHROfApprovedCancellation(id, leaveTypeName);
+      await this.cancelDelegationForLeave(id, userId);
     }
 
     return updated;

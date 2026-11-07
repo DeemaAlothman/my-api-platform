@@ -904,3 +904,29 @@ model EmployeeHistoryEvent {
   @@map("employee_history_events")
 }
 
+// تفويض مؤقت للصلاحيات/المسمى الوظيفي أثناء إجازة — يُنشأ تلقائياً عند اعتماد إجازة
+// نهائياً مع substituteStatus=APPROVED (خدمة leave، كتابة مباشرة عبر raw SQL على نفس
+// قاعدة البيانات الفيزيائية، بدون FK). status هون حالة طرفية يدوية فقط
+// (ACTIVE = سارٍ طبيعياً، REVOKED = ألغاه HR يدوياً، CANCELLED = اتلغت الإجازة الأصلية) —
+// حالة "فعّال الآن/قادم/منتهي" تُحسب وقت القراءة بمقارنة fromDate/toDate مع التاريخ الحالي.
+model Delegation {
+  id             String    @id @default(uuid())
+  delegatorId    String    // users.employees.id — الموظف صاحب الصلاحيات الأصلية (بإجازة)
+  delegateId     String    // users.employees.id — الموظف البديل
+  leaveRequestId String    // leaves.leave_requests.id — مرجع خارجي بلا FK
+  fromDate       DateTime
+  toDate         DateTime  // شامل لآخر لحظة باليوم الأخير من الإجازة
+  status         String    @default("ACTIVE")
+  revokedAt      DateTime?
+  revokedBy      String?
+  revokeReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([delegatorId])
+  @@index([delegateId])
+  @@index([leaveRequestId])
+  @@map("delegations")
+}
+
