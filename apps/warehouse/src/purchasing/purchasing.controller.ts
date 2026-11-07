@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PurchasingService } from './purchasing.service';
-import { CreatePurchaseInvoiceDto, RejectPurchaseInvoiceDto } from './dto/purchase-invoice.dto';
+import { CreatePurchaseInvoiceDto, RejectPurchaseInvoiceDto, ApprovePurchaseInvoiceDto } from './dto/purchase-invoice.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
@@ -50,8 +50,8 @@ export class PurchasingController {
 
   @Post(':id/approve')
   @Permission(PERMISSIONS.WAREHOUSE.PURCHASE_INVOICES_APPROVE)
-  approve(@Param('id') id: string, @User() user: any) {
-    return this.service.approve(id, user.userId);
+  approve(@Param('id') id: string, @Body() dto: ApprovePurchaseInvoiceDto, @User() user: any) {
+    return this.service.approve(id, user.userId, dto);
   }
 
   @Post(':id/reject')

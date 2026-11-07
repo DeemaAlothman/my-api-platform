@@ -9,7 +9,8 @@ export enum DiscountTypeEnum {
 export class PurchaseInvoiceItemInputDto {
   @IsString() @IsNotEmpty() itemId: string;
   @Type(() => Number) @IsNumber() @Min(0.001) qty: number;
-  @Type(() => Number) @IsNumber() @Min(0) unitPrice: number;
+  // اختياري: أمين المستودع بينشئ الفاتورة بدون سعر، والمدير المالي بيحدده لاحقاً عند الاعتماد
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) unitPrice?: number;
 }
 
 export class CreatePurchaseInvoiceDto {
@@ -29,4 +30,20 @@ export class CreatePurchaseInvoiceDto {
 
 export class RejectPurchaseInvoiceDto {
   @IsOptional() @IsString() reason?: string;
+}
+
+// تسعير فاتورة الشراء عند الاعتماد المالي — سعر فقط، لا يوجد حقل كمية إطلاقاً
+export class SetPurchaseInvoiceItemPriceDto {
+  @IsString() @IsNotEmpty() itemId: string;
+  @Type(() => Number) @IsNumber() @Min(0) unitPrice: number;
+}
+
+export class ApprovePurchaseInvoiceDto {
+  // اختياري: لو ما انبعت، لازم كل الأصناف يكون عندها سعر محدَّد مسبقاً وإلا يُرفض الاعتماد.
+  // لو انبعت، لازم يغطّي كل أصناف الفاتورة بالضبط (لا أقل ولا أكثر).
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SetPurchaseInvoiceItemPriceDto)
+  items?: SetPurchaseInvoiceItemPriceDto[];
 }
