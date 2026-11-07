@@ -396,6 +396,112 @@ export class AuthService {
     ];
   }
 
+  // الصلاحيات/المسميات الوظيفية الفعّالة للمستخدم الحالي الآن — صلاحياته الأساسية + أي
+  // تفويض نشط حالياً (هو بديل عن حدا بإجازة)، فوق صلاحياته مش بدالها. استعلام حي من DB
+  // بكل استدعاء (مش من التوكن)، عشان الفرونت يقدر يبني الواجهة (صفحات/أزرار) حسب الوضع
+  // الفعلي هلق، لا حسب لحظة تسجيل الدخول
+  async getEffectiveProfile(userId: string) {
+    const userRoles = await this.prisma.$queryRaw<Array<{ name: string }>>`
+      SELECT r.name
+      FROM users.users u
+      INNER JOIN users.user_roles ur ON u.id = ur."userId"
+      INNER JOIN users.roles r ON ur."roleId" = r.id
+      WHERE u.id = ${userId} AND r."deletedAt" IS NULL
+    `;
+
+    let permissions: string[] = [];
+    if (userRoles.some(r => r.name === ROLES.SUPER_ADMIN)) {
+      permissions = await this.loadSuperAdminPermissions();
+    } else if (userRoles.length > 0) {
+      const rows = await this.prisma.$queryRaw<Array<{ code: string }>>`
+        SELECT DISTINCT p.name as code
+        FROM users.users u
+        INNER JOIN users.user_roles ur ON u.id = ur."userId"
+        INNER JOIN users.role_permissions rp ON ur."roleId" = rp."roleId"
+        INNER JOIN users.permissions p ON rp."permissionId" = p.id
+        WHERE u.id = ${userId}
+      `;
+      permissions = rows.map(r => r.code);
+    }
+
+    const ownJobTitleRows = await this.prisma.$queryRaw<Array<{ code: string | null }>>`
+      SELECT jt.code
+      FROM users.employees e
+      LEFT JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+      WHERE e."userId" = ${userId} AND e."deletedAt" IS NULL
+      LIMIT 1
+    `;
+    const jobTitleCodes = new Set<string>();
+    if (ownJobTitleRows[0]?.code) jobTitleCodes.add(ownJobTitleRows[0].code);
+
+    const delegationRows = await this.prisma.$queryRaw<Array<{
+      id: string; delegatorId: string;
+      delegatorFirstName: string | null; delegatorLastName: string | null;
+      delegatorJobTitle: string | null;
+      from: Date; to: Date;
+    }>>`
+      SELECT d.id, d."delegatorId",
+             dr."firstNameAr" AS "delegatorFirstName", dr."lastNameAr" AS "delegatorLastName",
+             jt."nameAr" AS "delegatorJobTitle",
+             d."fromDate" AS "from", d."toDate" AS "to"
+      FROM users.delegations d
+      JOIN users.employees de ON de.id = d."delegateId"
+      JOIN users.employees dr ON dr.id = d."delegatorId"
+      LEFT JOIN users.job_titles jt ON jt.id = dr."jobTitleId"
+      WHERE de."userId" = ${userId}
+        AND d.status = 'ACTIVE' AND d."fromDate" <= NOW() AND d."toDate" >= NOW()
+        AND de."deletedAt" IS NULL AND dr."deletedAt" IS NULL
+    `.catch(() => [] as Array<{
+      id: string; delegatorId: string; delegatorFirstName: string | null; delegatorLastName: string | null;
+      delegatorJobTitle: string | null; from: Date; to: Date;
+    }>);
+
+    if (delegationRows.length > 0) {
+      const delegatorIds = [...new Set(delegationRows.map(d => d.delegatorId))];
+      const delegatorRows = await this.prisma.$queryRaw<Array<{ userId: string | null; code: string | null }>>`
+        SELECT dr."userId", jt.code
+        FROM users.employees dr
+        LEFT JOIN users.job_titles jt ON jt.id = dr."jobTitleId"
+        WHERE dr.id = ANY(${delegatorIds}::text[])
+      `;
+      for (const r of delegatorRows) {
+        if (r.code) jobTitleCodes.add(r.code);
+      }
+      const delegatorUserIds = [...new Set(delegatorRows.map(r => r.userId).filter(Boolean))] as string[];
+      if (delegatorUserIds.length > 0) {
+        const delegatedPermRows = await this.prisma.$queryRaw<Array<{ name: string }>>`
+          SELECT DISTINCT p.name
+          FROM users.users u
+          JOIN users.user_roles ur ON ur."userId" = u.id
+          JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+          JOIN users.permissions p ON p.id = rp."permissionId"
+          WHERE u.id = ANY(${delegatorUserIds}::text[])
+          UNION
+          SELECT p.name FROM users.permissions p
+          WHERE EXISTS (
+            SELECT 1 FROM users.user_roles ur2
+            JOIN users.roles r2 ON r2.id = ur2."roleId"
+            WHERE ur2."userId" = ANY(${delegatorUserIds}::text[]) AND r2.name = 'super_admin'
+          )
+        `;
+        permissions = [...new Set([...permissions, ...delegatedPermRows.map(r => r.name)])];
+      }
+    }
+
+    return {
+      permissions,
+      jobTitleCodes: [...jobTitleCodes],
+      activeDelegations: delegationRows.map(d => ({
+        id: d.id,
+        delegatorId: d.delegatorId,
+        delegatorName: `${d.delegatorFirstName ?? ''} ${d.delegatorLastName ?? ''}`.trim(),
+        delegatorJobTitle: d.delegatorJobTitle,
+        from: d.from,
+        to: d.to,
+      })),
+    };
+  }
+
   private signRefreshToken(userId: string) {
     // نضيف jti عشوائي حتى كل refresh token يكون فريد
     const jti = crypto.randomUUID();

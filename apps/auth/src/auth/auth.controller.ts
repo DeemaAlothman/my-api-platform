@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { JwtAuthGuard, User } from '@shared/auth';
 
 @Controller('auth')
 export class AuthController {
@@ -33,6 +34,14 @@ export class AuthController {
   async logout(@Req() req: Request) {
     const authHeader = req.headers['authorization'] || '';
     const data = await this.auth.logout(String(authHeader));
+    return { success: true, data, meta: { timestamp: new Date().toISOString() } };
+  }
+
+  // الصلاحيات/المسميات/التفويضات الفعّالة الآن — استعلام حي، مش من التوكن المخزَّن بالفرونت
+  @UseGuards(JwtAuthGuard)
+  @Get('me/effective')
+  async getEffectiveProfile(@User() user: any) {
+    const data = await this.auth.getEffectiveProfile(user.userId);
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };
   }
 }
