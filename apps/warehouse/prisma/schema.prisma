@@ -324,9 +324,9 @@ model PurchaseInvoice {
   supplier       Supplier              @relation(fields: [supplierId], references: [id])
   warehouseId    String
   warehouse      Warehouse             @relation(fields: [warehouseId], references: [id])
-  currencyId     String
-  currency       Currency              @relation(fields: [currencyId], references: [id])
-  exchangeRate   Decimal               @db.Decimal(18, 8) // نسخة مجمَّدة وقت الإنشاء — لا تتغيّر لاحقاً حتى لو تغيّر السعر المركزي
+  currencyId     String?              // فاضي لحد الاعتماد المالي — أمين المستودع ما بيحدد العملة
+  currency       Currency?             @relation(fields: [currencyId], references: [id])
+  exchangeRate   Decimal?              @db.Decimal(18, 8) // يُحسب لحظة الاعتماد المالي (آخر سعر مسجَّل)، ويضل ثابت بعدها
   invoiceDate    DateTime              @default(now())
   discountType   DiscountType?
   discountValue  Decimal?              @db.Decimal(18, 4)
@@ -364,7 +364,7 @@ model PurchaseInvoiceItem {
 
   qty           Decimal @db.Decimal(18, 3)
   unitPrice     Decimal @db.Decimal(18, 4) // بعملة الفاتورة
-  baseUnitPrice Decimal @db.Decimal(18, 4) // = unitPrice × exchangeRate — بعملة الأساس، لتحديث تكلفة المخزون
+  baseUnitPrice Decimal? @db.Decimal(18, 4) // = unitPrice × exchangeRate — فاضي لحد الاعتماد (ما في سعر صرف بعد)
   lineTotal     Decimal @db.Decimal(18, 4) // بعملة الفاتورة
 
   @@index([purchaseInvoiceId])

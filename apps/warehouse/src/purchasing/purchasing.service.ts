@@ -35,7 +35,10 @@ export class PurchasingService {
     invoice: T,
   ): Promise<T & { baseCurrencyCode: string | null; subtotalBase: number | null; totalBase: number | null }> {
     const baseCurrency = await this.prisma.currency.findFirst({ where: { isBaseCurrency: true } });
-    if (!baseCurrency) return { ...invoice, baseCurrencyCode: null, subtotalBase: null, totalBase: null };
+    // ما في عملة/سعر صرف بعد (قبل الاعتماد المالي) — null لحد ما يصير فيه شي يُحسَب عليه
+    if (!baseCurrency || invoice.exchangeRate === null || invoice.exchangeRate === undefined) {
+      return { ...invoice, baseCurrencyCode: baseCurrency?.code ?? null, subtotalBase: null, totalBase: null };
+    }
     const rate = Number(invoice.exchangeRate);
     return {
       ...invoice,
@@ -96,7 +99,8 @@ export class PurchasingService {
     if (!warehouse) throw new NotFoundException({ code: 'WAREHOUSE_NOT_FOUND', message: 'المستودع غير موجود' });
     if (!dto.items?.length) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لازم بند واحد على الأقل' });
 
-    const exchangeRate = await this.currencies.getCurrentRate(dto.currencyId);
+    // أمين المستودع عادة ما بيحدد عملة أصلاً — تحسب فقط إذا انبعتت (استثناء/توافق قديم)
+    const exchangeRate = dto.currencyId ? await this.currencies.getCurrentRate(dto.currencyId) : null;
 
     let subtotal = 0;
     const itemsData = [];
@@ -111,7 +115,7 @@ export class PurchasingService {
         itemId: it.itemId,
         qty: it.qty,
         unitPrice,
-        baseUnitPrice: unitPrice * exchangeRate,
+        baseUnitPrice: exchangeRate !== null ? unitPrice * exchangeRate : null,
         lineTotal,
       });
     }
@@ -151,18 +155,23 @@ export class PurchasingService {
     throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'فشل توليد رقم الفاتورة' });
   }
 
-  // 2) اعتماد مالي — المدير المالي يحدّد سعر كل صنف هون (لا يلمس الكميات إطلاقاً، الـDTO
-  // نفسه بلا حقل كمية)، أو يعتمد مباشرة لو الأسعار محدَّدة مسبقاً. لا يمس المخزون إطلاقاً
-  // (مرحلة منفصلة عن الترحيل)
+  // 2) اعتماد مالي — المدير المالي يحدّد هون العملة والخصم (إذا ما تحددوا وقت الإنشاء) وسعر
+  // كل صنف (لا يلمس الكميات إطلاقاً، الـDTO نفسه بلا حقل كمية)، أو يعتمد مباشرة لو الأسعار
+  // محدَّدة مسبقاً. سعر الصرف يُحسب هون دايماً (آخر سعر مسجَّل لحظة الاعتماد). لا يمس المخزون
+  // إطلاقاً (مرحلة منفصلة عن الترحيل)
   async approve(id: string, performedByUserId: string, dto?: ApprovePurchaseInvoiceDto) {
     const invoice: any = await this.findOne(id);
     if (invoice.status !== 'DRAFT') {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'الفاتورة ليست بانتظار الاعتماد' });
     }
 
-    let subtotal = Number(invoice.subtotal);
-    let itemUpdates: Array<{ id: string; unitPrice: number; baseUnitPrice: number; lineTotal: number }> = [];
+    const effectiveCurrencyId: string | null = dto?.currencyId ?? invoice.currencyId ?? null;
+    if (!effectiveCurrencyId) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'currencyId إجباري لاعتماد فاتورة بدون عملة محدَّدة' });
+    }
+    const exchangeRate = await this.currencies.getCurrentRate(effectiveCurrencyId);
 
+    let priceMap: Map<string, number> | null = null;
     if (dto?.items?.length) {
       const existingIds = new Set(invoice.items.map((it: any) => it.itemId));
       const providedIds = new Set(dto.items.map((it) => it.itemId));
@@ -170,15 +179,7 @@ export class PurchasingService {
       if (!sameSet) {
         throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لازم تحدّد سعر كل أصناف الفاتورة، لا أكثر ولا أقل' });
       }
-      const rate = Number(invoice.exchangeRate);
-      subtotal = 0;
-      itemUpdates = invoice.items.map((line: any) => {
-        const priced = dto.items!.find((it) => it.itemId === line.itemId)!;
-        const qty = Number(line.qty);
-        const lineTotal = qty * priced.unitPrice;
-        subtotal += lineTotal;
-        return { id: line.id, unitPrice: priced.unitPrice, baseUnitPrice: priced.unitPrice * rate, lineTotal };
-      });
+      priceMap = new Map(dto.items.map((it) => [it.itemId, it.unitPrice]));
     } else {
       // ما انبعتوا أسعار جديدة — لازم كل الأصناف يكون عندها سعر محدَّد مسبقاً
       const unpriced = invoice.items.filter((it: any) => Number(it.unitPrice) <= 0);
@@ -187,9 +188,22 @@ export class PurchasingService {
       }
     }
 
+    // يعاد حساب baseUnitPrice لكل البنود دايماً بسعر الصرف الجديد، حتى لو سعرها انحدّد قبل
+    let subtotal = 0;
+    const itemUpdates = invoice.items.map((line: any) => {
+      const unitPrice = priceMap ? priceMap.get(line.itemId)! : Number(line.unitPrice);
+      const qty = Number(line.qty);
+      const lineTotal = qty * unitPrice;
+      subtotal += lineTotal;
+      return { id: line.id, unitPrice, baseUnitPrice: unitPrice * exchangeRate, lineTotal };
+    });
+
+    // الخصم بالكامل من هون — بدون تحديده بالاعتماد تصير الفاتورة بلا خصم
+    const discountType = dto?.discountType ?? null;
+    const discountValue = dto?.discountValue ?? null;
     let total = subtotal;
-    if (invoice.discountType === 'PERCENT' && invoice.discountValue) total = subtotal - (subtotal * Number(invoice.discountValue)) / 100;
-    else if (invoice.discountType === 'FIXED' && invoice.discountValue) total = subtotal - Number(invoice.discountValue);
+    if (discountType === 'PERCENT' && discountValue) total = subtotal - (subtotal * discountValue) / 100;
+    else if (discountType === 'FIXED' && discountValue) total = subtotal - discountValue;
     if (total < 0) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'قيمة الخصم أكبر من إجمالي الفاتورة' });
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -202,7 +216,12 @@ export class PurchasingService {
       return tx.purchaseInvoice.update({
         where: { id },
         data: {
-          ...(itemUpdates.length ? { subtotal, total } : {}),
+          currencyId: effectiveCurrencyId,
+          exchangeRate,
+          discountType: discountType as any,
+          discountValue,
+          subtotal,
+          total,
           status: 'APPROVED',
           approvedByUserId: performedByUserId,
           approvedAt: new Date(),

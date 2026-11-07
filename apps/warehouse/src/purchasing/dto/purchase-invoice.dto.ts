@@ -16,7 +16,8 @@ export class PurchaseInvoiceItemInputDto {
 export class CreatePurchaseInvoiceDto {
   @IsString() @IsNotEmpty() supplierId: string;
   @IsString() @IsNotEmpty() warehouseId: string;
-  @IsString() @IsNotEmpty() currencyId: string;
+  // اختياري: أمين المستودع ما بيحدد العملة ولا الخصم — المدير المالي بيحددهم عند الاعتماد
+  @IsOptional() @IsString() @IsNotEmpty() currencyId?: string;
   @IsOptional() @IsDateString() invoiceDate?: string;
   @IsOptional() @IsEnum(DiscountTypeEnum) discountType?: DiscountTypeEnum;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) discountValue?: number;
@@ -46,4 +47,10 @@ export class ApprovePurchaseInvoiceDto {
   @ValidateNested({ each: true })
   @Type(() => SetPurchaseInvoiceItemPriceDto)
   items?: SetPurchaseInvoiceItemPriceDto[];
+
+  // إجباري إذا الفاتورة ما إلها عملة بعد (كل الفواتير الجديدة تقريباً) — وإلا 400
+  @IsOptional() @IsString() @IsNotEmpty() currencyId?: string;
+
+  @IsOptional() @IsEnum(DiscountTypeEnum) discountType?: DiscountTypeEnum;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) discountValue?: number;
 }
