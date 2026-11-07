@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaService } from './prisma/prisma.service';
 import { HealthModule } from './health/health.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
@@ -26,6 +27,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
       secret: process.env.JWT_ACCESS_SECRET!,
       signOptions: { expiresIn: '15m' },
     }),
+    ScheduleModule.forRoot(),
     HealthModule,
     WarehousesModule,
     CatalogModule,
