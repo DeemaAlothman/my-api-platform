@@ -108,13 +108,25 @@ export class AuditLogsService {
     // (يعني resourceId فيها هو المعرّف الحقيقي للسجل، مو جزء ثابت من المسار متل "cases")
     const targetNameMap = await this.getTargetNames(rows).catch(() => ({} as Record<string, string>));
 
+    // "نيابة عن فلان" — هل صاحب العملية كان بديلاً بتفويض فعّال لحظة تنفيذها بالضبط؟
+    // قراءة فقط وقت العرض، بدون أي لمس لآلية تسجيل العمليات نفسها بأي خدمة
+    const delegationMap = await this.resolveDelegationContext(rows).catch(() => new Map<string, string>());
+
     return {
-      data: rows.map((r) => ({
-        ...r,
-        fullNameAr: nameMap[r.userId ?? ''] ?? r.username ?? null,
-        targetName: (r.resourceId && targetNameMap[`${r.resource}:${r.resourceId}`]) || null,
-        description: this.buildDescription(r, nameMap[r.userId ?? ''], targetNameMap) + this.detailsSuffix(r.metadata, leaveTypeMap),
-      })),
+      data: rows.map((r) => {
+        const actingAsDelegateFor = r.userId
+          ? delegationMap.get(`${r.userId}:${r.createdAt.toISOString()}`) ?? null
+          : null;
+        return {
+          ...r,
+          fullNameAr: nameMap[r.userId ?? ''] ?? r.username ?? null,
+          targetName: (r.resourceId && targetNameMap[`${r.resource}:${r.resourceId}`]) || null,
+          actingAsDelegateFor,
+          description: this.buildDescription(r, nameMap[r.userId ?? ''], targetNameMap)
+            + this.detailsSuffix(r.metadata, leaveTypeMap)
+            + (actingAsDelegateFor ? ` — نيابةً عن ${actingAsDelegateFor}` : ''),
+        };
+      }),
       total: parseInt((countRows as any)[0]?.total ?? '0'),
       page,
       limit,
@@ -222,6 +234,48 @@ export class AuditLogsService {
       if (parts.length >= 8) break;
     }
     return parts.length ? ` — التفاصيل: ${parts.join('، ')}` : '';
+  }
+
+  // يبني خريطة "userId:createdAt(ISO) → اسم المفوِّض" لصفوف الصفحة الحالية — تفويض كان فعّالاً
+  // فعلاً بتلك اللحظة بالضبط (from/to + ما كان قد انلغى بعد)، بغض النظر عن حالته الحالية هلق
+  private async resolveDelegationContext(
+    rows: Array<{ userId: string | null; createdAt: Date }>,
+  ): Promise<Map<string, string>> {
+    const userIds = [...new Set(rows.map((r) => r.userId).filter(Boolean))] as string[];
+    const result = new Map<string, string>();
+    if (userIds.length === 0) return result;
+
+    const delegations = await this.prisma.$queryRawUnsafe<Array<{
+      actingUserId: string; delegatorFirstName: string; delegatorLastName: string;
+      fromDate: Date; toDate: Date; revokedAt: Date | null;
+    }>>(
+      `SELECT de."userId" AS "actingUserId",
+              dr."firstNameAr" AS "delegatorFirstName", dr."lastNameAr" AS "delegatorLastName",
+              d."fromDate", d."toDate", d."revokedAt"
+       FROM users.delegations d
+       JOIN users.employees de ON de.id = d."delegateId"
+       JOIN users.employees dr ON dr.id = d."delegatorId"
+       WHERE de."userId" = ANY($1::text[])`,
+      userIds,
+    ).catch(() => [] as Array<{
+      actingUserId: string; delegatorFirstName: string; delegatorLastName: string;
+      fromDate: Date; toDate: Date; revokedAt: Date | null;
+    }>);
+    if (delegations.length === 0) return result;
+
+    for (const r of rows) {
+      if (!r.userId) continue;
+      const match = delegations.find((d) =>
+        d.actingUserId === r.userId &&
+        new Date(d.fromDate) <= r.createdAt &&
+        new Date(d.toDate) >= r.createdAt &&
+        (!d.revokedAt || new Date(d.revokedAt) > r.createdAt),
+      );
+      if (match) {
+        result.set(`${r.userId}:${r.createdAt.toISOString()}`, `${match.delegatorFirstName} ${match.delegatorLastName}`.trim());
+      }
+    }
+    return result;
   }
 
   private async getFullNamesAr(userIds: string[]): Promise<Record<string, string>> {

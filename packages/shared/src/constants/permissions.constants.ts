@@ -411,6 +411,9 @@ export const PERMISSIONS = {
     CHAT_USE:           'clinic.patient_app.chat.use',            // محادثة المريض (كمعالج مسؤول)
     RATINGS_VIEW:       'clinic.patient_app.ratings.view',        // عرض تقييمات المعالجين السرية — حصراً رئيس قسم الفيزيو
   },
+  DELEGATIONS: {
+    MANAGE: 'delegations.manage', // عرض كل التفويضات (GET /delegations) وإلغاء تفويض يدوياً (POST /delegations/:id/revoke)
+  },
 } as const;
 
 // ── Type Helpers ──────────────────────────────────────────────────────────────
