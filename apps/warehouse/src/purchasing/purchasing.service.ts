@@ -5,7 +5,7 @@ import { InventoryCountsService } from '../inventory-counts/inventory-counts.ser
 import { CreatePurchaseInvoiceDto, RejectPurchaseInvoiceDto } from './dto/purchase-invoice.dto';
 
 const PRICE_FIELDS = ['unitPrice', 'baseUnitPrice', 'lineTotal'];
-const INVOICE_PRICE_FIELDS = ['subtotal', 'total', 'discountType', 'discountValue', 'exchangeRate'];
+const INVOICE_PRICE_FIELDS = ['subtotal', 'total', 'discountType', 'discountValue', 'exchangeRate', 'subtotalBase', 'totalBase'];
 
 @Injectable()
 export class PurchasingService {
@@ -29,6 +29,22 @@ export class PurchasingService {
     return clone;
   }
 
+  // يضيف إجمالي الفاتورة بعملة الأساس (subtotalBase/totalBase + كود عملة الأساس) — محسوب فقط،
+  // باستخدام exchangeRate المجمَّد على الفاتورة نفسها، بدون أي لمس لأي عمود مخزَّن
+  private async attachBaseCurrencyTotals<T extends { subtotal: any; total: any; exchangeRate: any }>(
+    invoice: T,
+  ): Promise<T & { baseCurrencyCode: string | null; subtotalBase: number | null; totalBase: number | null }> {
+    const baseCurrency = await this.prisma.currency.findFirst({ where: { isBaseCurrency: true } });
+    if (!baseCurrency) return { ...invoice, baseCurrencyCode: null, subtotalBase: null, totalBase: null };
+    const rate = Number(invoice.exchangeRate);
+    return {
+      ...invoice,
+      baseCurrencyCode: baseCurrency.code,
+      subtotalBase: Number(invoice.subtotal) * rate,
+      totalBase: Number(invoice.total) * rate,
+    };
+  }
+
   private async generateDocumentNo(): Promise<string> {
     const last = await this.prisma.purchaseInvoice.findFirst({
       where: { documentNo: { startsWith: 'VTX-PI-' } },
@@ -45,7 +61,7 @@ export class PurchasingService {
       include: { items: { include: { item: true } }, supplier: true, warehouse: true, currency: true },
     });
     if (!invoice) throw new NotFoundException({ code: 'PURCHASE_INVOICE_NOT_FOUND', message: 'فاتورة الشراء غير موجودة' });
-    return invoice;
+    return this.attachBaseCurrencyTotals(invoice);
   }
 
   async list(query: { status?: string; supplierId?: string; warehouseId?: string; page?: number; limit?: number }) {
@@ -66,7 +82,8 @@ export class PurchasingService {
       }),
       this.prisma.purchaseInvoice.count({ where }),
     ]);
-    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    const itemsWithBase = await Promise.all(items.map((i) => this.attachBaseCurrencyTotals(i)));
+    return { items: itemsWithBase, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   // 1) إنشاء فاتورة شراء DRAFT — يجمّد سعر الصرف الحالي لحظة الإنشاء
@@ -105,7 +122,7 @@ export class PurchasingService {
     for (let attempt = 0; attempt < 5; attempt++) {
       const documentNo = await this.generateDocumentNo();
       try {
-        return await this.prisma.purchaseInvoice.create({
+        const created = await this.prisma.purchaseInvoice.create({
           data: {
             documentNo,
             supplierId: dto.supplierId,
@@ -122,6 +139,7 @@ export class PurchasingService {
           },
           include: { items: { include: { item: true } }, supplier: true, warehouse: true, currency: true },
         });
+        return this.attachBaseCurrencyTotals(created);
       } catch (err: any) {
         if (err?.code === 'P2002' && err?.meta?.target?.includes('documentNo')) continue;
         throw err;
