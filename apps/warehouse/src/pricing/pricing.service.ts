@@ -6,9 +6,22 @@ import { ListProstheticsPricingQueryDto, UpsertItemMarkupDto } from './dto/prici
 export class PricingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // قطع الأطراف الصناعية = كل صنف عنده partCode (مفتاح الربط مع مكوّنات الأطراف الصناعية)
-  // وعنده فعلياً فاتورة شراء مرحَّلة واحدة عالأقل. آخر/أعلى سعر يُحسبان لحظياً من فواتير
-  // الشراء المرحَّلة نفسها — ما بيترحّزنوا، فبيضلوا محدَّثين تلقائياً مع كل شراء جديد
+  // السعر النهائي = الأساس (آخر/أعلى سعر شراء) + markupAmount الثابت + قيمة الربح (ثابتة
+  // أو نسبة من الأساس). null لو الأساس نفسه مش متوفر بعد (ما في شراء فعلي لهالقطعة لسا)
+  private computeFinalPrice(
+    basePrice: number | null,
+    markupAmount: number,
+    profitType: 'FIXED' | 'PERCENT' | null,
+    profitValue: number | null,
+  ): number | null {
+    if (basePrice === null) return null;
+    const profitAmount = profitType === 'PERCENT' ? (basePrice * (profitValue ?? 0)) / 100 : (profitValue ?? 0);
+    return basePrice + markupAmount + profitAmount;
+  }
+
+  // قطع الأطراف الصناعية = كل صنف عنده partCode (مفتاح الربط مع مكوّنات الأطراف الصناعية)،
+  // بغض النظر عن وجود فاتورة شراء سابقة أم لا. آخر/أعلى سعر يُحسبان لحظياً من فواتير الشراء
+  // المرحَّلة نفسها لو وُجدت — وإلا بيرجعوا null، وتضل القطعة قابلة للإعداد بانتظار أول شراء
   async listProstheticsPricing(query: ListProstheticsPricingQueryDto) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 20));
@@ -34,11 +47,6 @@ export class PricingService {
            WHERE pii."itemId" = i.id AND pi.status = 'POSTED') AS "highestPurchasePrice"
        FROM warehouse.items i
        WHERE i."partCode" IS NOT NULL AND i."deletedAt" IS NULL
-         AND EXISTS (
-           SELECT 1 FROM warehouse.purchase_invoice_items pii2
-           JOIN warehouse.purchase_invoices pi2 ON pi2.id = pii2."purchaseInvoiceId"
-           WHERE pii2."itemId" = i.id AND pi2.status = 'POSTED'
-         )
          ${searchCondition}
        ORDER BY i.name ASC
        LIMIT $1 OFFSET $2`,
@@ -51,11 +59,6 @@ export class PricingService {
     const countRows = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
       `SELECT COUNT(*)::int as count FROM warehouse.items i
        WHERE i."partCode" IS NOT NULL AND i."deletedAt" IS NULL
-         AND EXISTS (
-           SELECT 1 FROM warehouse.purchase_invoice_items pii2
-           JOIN warehouse.purchase_invoices pi2 ON pi2.id = pii2."purchaseInvoiceId"
-           WHERE pii2."itemId" = i.id AND pi2.status = 'POSTED'
-         )
          ${countSearchCondition}`,
       ...countParams,
     );
@@ -71,6 +74,8 @@ export class PricingService {
       const markup = markupMap.get(i.id);
       const priceBasis = markup?.priceBasis ?? 'LAST_PURCHASE';
       const markupAmount = markup ? Number(markup.markupAmount) : 0;
+      const profitType = markup?.profitType ?? null;
+      const profitValue = markup?.profitValue != null ? Number(markup.profitValue) : null;
       const lastPurchasePrice = i.lastPurchasePrice !== null ? Number(i.lastPurchasePrice) : null;
       const highestPurchasePrice = i.highestPurchasePrice !== null ? Number(i.highestPurchasePrice) : null;
       const basePrice = priceBasis === 'HIGHEST_PURCHASE' ? highestPurchasePrice : lastPurchasePrice;
@@ -84,7 +89,9 @@ export class PricingService {
         highestPurchasePrice,
         priceBasis,
         markupAmount,
-        finalPrice: basePrice !== null ? basePrice + markupAmount : null,
+        profitType,
+        profitValue,
+        finalPrice: this.computeFinalPrice(basePrice, markupAmount, profitType as any, profitValue),
       };
     });
 
@@ -116,8 +123,10 @@ export class PricingService {
     const markup = await this.prisma.itemPricingMarkup.findUnique({ where: { itemId } });
     const priceBasis = markup?.priceBasis ?? 'LAST_PURCHASE';
     const markupAmount = markup ? Number(markup.markupAmount) : 0;
+    const profitType = markup?.profitType ?? null;
+    const profitValue = markup?.profitValue != null ? Number(markup.profitValue) : null;
     const basePrice = priceBasis === 'HIGHEST_PURCHASE' ? highestPurchasePrice : lastPurchasePrice;
-    return basePrice !== null ? basePrice + markupAmount : null;
+    return this.computeFinalPrice(basePrice, markupAmount, profitType as any, profitValue);
   }
 
   async upsertMarkup(itemId: string, dto: UpsertItemMarkupDto, userId: string) {
@@ -133,11 +142,16 @@ export class PricingService {
         itemId,
         markupAmount: dto.markupAmount,
         priceBasis: (dto.priceBasis as any) ?? 'LAST_PURCHASE',
+        profitType: (dto.profitType as any) ?? null,
+        profitValue: dto.profitValue ?? null,
         updatedByUserId: userId,
       },
       update: {
         markupAmount: dto.markupAmount,
         ...(dto.priceBasis ? { priceBasis: dto.priceBasis as any } : {}),
+        // لو ما انبعتوا، تضل قيم الربح السابقة متل ما هي (ما يصير مسح ضمني)
+        ...(dto.profitType !== undefined ? { profitType: (dto.profitType as any) ?? null } : {}),
+        ...(dto.profitValue !== undefined ? { profitValue: dto.profitValue ?? null } : {}),
         updatedByUserId: userId,
       },
     });

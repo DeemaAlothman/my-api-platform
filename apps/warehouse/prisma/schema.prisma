@@ -387,8 +387,11 @@ model PurchaseInvoiceItem {
 }
 
 // ── إعدادات تسعير الأطراف الصناعية ──────────────────────────────────────
-// السعر النهائي = (آخر سعر شراء أو أعلى سعر شراء، حسب الاختيار هون) + markupAmount الثابت.
-// الأساسان نفسهم (آخر/أعلى) يُحسبان دايماً لحظياً من فواتير الشراء المرحَّلة — ما يُخزَّنان هون.
+// السعر النهائي = (آخر سعر شراء أو أعلى سعر شراء، حسب الاختيار هون) + markupAmount الثابت
+// + قيمة الربح (ثابتة أو نسبة من الأساس، حسب profitType) — الاثنين يُضافان معاً، مش بديلان
+// عن بعض. الأساسان نفسهم (آخر/أعلى) يُحسبان دايماً لحظياً من فواتير الشراء المرحَّلة —
+// ما يُخزَّنان هون. القطعة ما بتحتاج فاتورة شراء سابقة حتى تُعدَّل إعداداتها — بس السعر
+// النهائي بيضل null لحد ما يصير إلها شراء فعلي أول مرة
 
 enum PriceBasis {
   LAST_PURCHASE
@@ -397,12 +400,21 @@ enum PriceBasis {
   @@schema("warehouse")
 }
 
+enum ProfitType {
+  FIXED
+  PERCENT
+
+  @@schema("warehouse")
+}
+
 model ItemPricingMarkup {
-  id              String     @id @default(uuid())
-  itemId          String     @unique
-  item            Item       @relation(fields: [itemId], references: [id])
-  priceBasis      PriceBasis @default(LAST_PURCHASE)
-  markupAmount    Decimal    @default(0) @db.Decimal(18, 4)
+  id              String      @id @default(uuid())
+  itemId          String      @unique
+  item            Item        @relation(fields: [itemId], references: [id])
+  priceBasis      PriceBasis  @default(LAST_PURCHASE)
+  markupAmount    Decimal     @default(0) @db.Decimal(18, 4) // قيمة ثابتة تُضاف دايماً
+  profitType      ProfitType?                                // فاضي = بدون ربح إضافي
+  profitValue     Decimal?    @db.Decimal(18, 4)              // مبلغ ثابت أو نسبة %، حسب profitType
   updatedByUserId String
 
   createdAt DateTime @default(now())
