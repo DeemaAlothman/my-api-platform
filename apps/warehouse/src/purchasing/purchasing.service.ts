@@ -63,19 +63,26 @@ export class PurchasingService {
       totalBase = Number(invoice.total) * rate;
     }
 
-    // إجمالي الفاتورة بالدولار دايماً: مباشرة لو عملة الفاتورة أصلاً دولار، وإلا عبر
-    // usdExchangeRate المجمَّد لحظة الاعتماد. null لحد الاعتماد أو لو ما في عملة دولار مُعرَّفة أصلاً
+    // إجمالي الفاتورة بالدولار دايماً: مباشرة لو عملة الفاتورة أصلاً دولار، وإلا بيتحول عبر
+    // subtotalBase/totalBase (المحسوبين بالأعلى بشكل عام مهما كانت عملة الفاتورة) ثم عبر
+    // usdExchangeRate — هيك بتضل صحيحة حتى لو انضافت عملة ثالثة غير الليرة والدولار مستقبلاً.
+    // null لحد الاعتماد أو لو ما في عملة دولار مُعرَّفة أصلاً
     let subtotalUSD: number | null = null;
     let totalUSD: number | null = null;
     const currencyCode = (invoice as any).currency?.code;
     if (currencyCode === 'USD') {
       subtotalUSD = Number(invoice.subtotal);
       totalUSD = Number(invoice.total);
-    } else if (invoice.usdExchangeRate !== null && invoice.usdExchangeRate !== undefined) {
+    } else if (
+      invoice.usdExchangeRate !== null &&
+      invoice.usdExchangeRate !== undefined &&
+      subtotalBase !== null &&
+      totalBase !== null
+    ) {
       const usdRate = Number(invoice.usdExchangeRate);
       if (usdRate > 0) {
-        subtotalUSD = Number(invoice.subtotal) / usdRate;
-        totalUSD = Number(invoice.total) / usdRate;
+        subtotalUSD = subtotalBase / usdRate;
+        totalUSD = totalBase / usdRate;
       }
     }
 
