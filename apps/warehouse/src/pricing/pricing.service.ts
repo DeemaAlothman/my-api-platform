@@ -19,9 +19,10 @@ export class PricingService {
     return basePrice + markupAmount + profitAmount;
   }
 
-  // قطع الأطراف الصناعية = كل صنف عنده partCode (مفتاح الربط مع مكوّنات الأطراف الصناعية)،
-  // بغض النظر عن وجود فاتورة شراء سابقة أم لا. آخر/أعلى سعر يُحسبان لحظياً من فواتير الشراء
-  // المرحَّلة نفسها لو وُجدت — وإلا بيرجعوا null، وتضل القطعة قابلة للإعداد بانتظار أول شراء
+  // قطع الأطراف الصناعية = كل صنف عنده partCode (مفتاح الربط مع مكوّنات الأطراف الصناعية)
+  // وعنده فعلياً فاتورة شراء مرحَّلة واحدة عالأقل. آخر/أعلى سعر يُحسبان لحظياً من فواتير
+  // الشراء المرحَّلة نفسها. ملاحظة: upsertMarkup تحت ما بتشترط هالشرط — ينفع تحطي إعدادات
+  // تسعير لأي قطعة عندها partCode حتى لو ما ظهرت بهالقائمة بعد (لسا ما انشترت)
   async listProstheticsPricing(query: ListProstheticsPricingQueryDto) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 20));
@@ -47,6 +48,11 @@ export class PricingService {
            WHERE pii."itemId" = i.id AND pi.status = 'POSTED') AS "highestPurchasePrice"
        FROM warehouse.items i
        WHERE i."partCode" IS NOT NULL AND i."deletedAt" IS NULL
+         AND EXISTS (
+           SELECT 1 FROM warehouse.purchase_invoice_items pii2
+           JOIN warehouse.purchase_invoices pi2 ON pi2.id = pii2."purchaseInvoiceId"
+           WHERE pii2."itemId" = i.id AND pi2.status = 'POSTED'
+         )
          ${searchCondition}
        ORDER BY i.name ASC
        LIMIT $1 OFFSET $2`,
@@ -59,6 +65,11 @@ export class PricingService {
     const countRows = await this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
       `SELECT COUNT(*)::int as count FROM warehouse.items i
        WHERE i."partCode" IS NOT NULL AND i."deletedAt" IS NULL
+         AND EXISTS (
+           SELECT 1 FROM warehouse.purchase_invoice_items pii2
+           JOIN warehouse.purchase_invoices pi2 ON pi2.id = pii2."purchaseInvoiceId"
+           WHERE pii2."itemId" = i.id AND pi2.status = 'POSTED'
+         )
          ${countSearchCondition}`,
       ...countParams,
     );
