@@ -25,11 +25,12 @@ export class QuotationsController {
     @User() user: any,
     @Query('status') status?: string,
     @Query('patientId') patientId?: string,
+    @Query('customerId') customerId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     const result = await this.service.list({
-      status, patientId,
+      status, patientId, customerId,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });

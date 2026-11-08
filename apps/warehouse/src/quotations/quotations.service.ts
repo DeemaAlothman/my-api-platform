@@ -31,6 +31,31 @@ export class QuotationsService {
     return clone;
   }
 
+  // العرض إما لمريض أو لزبون مبيعات — بالضبط واحد منهم، لا أقل ولا أكثر
+  private assertExactlyOnePatientOrCustomer(patientId: string | null | undefined, customerId: string | null | undefined) {
+    if (patientId && customerId) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'العرض إما لمريض أو لزبون — مش الاثنين معاً' });
+    }
+    if (!patientId && !customerId) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لازم تحدّدي مريض أو زبون للعرض' });
+    }
+  }
+
+  // يرفق بيانات الزبون (id/name/contactNumber) من خدمة referrals — مرجع خارجي بلا FK، نفس
+  // نمط باقي المراجع الخارجية بالمشروع. لا يحتاج صلاحية sales.customers.view (قرار متعمّد)
+  private async attachCustomers<T extends { customerId: string | null }>(
+    items: T[],
+  ): Promise<Array<T & { customer: { id: string; name: string; contactNumber: string } | null }>> {
+    const ids = [...new Set(items.filter((i) => i.customerId).map((i) => i.customerId as string))];
+    if (!ids.length) return items.map((i) => ({ ...i, customer: null }));
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; name: string; contactNumber: string }>>(
+      `SELECT id, name, "contactNumber" FROM referrals.customers WHERE id = ANY($1::text[]) AND "deletedAt" IS NULL`,
+      ids,
+    );
+    const map = new Map(rows.map((r) => [r.id, r]));
+    return items.map((i) => ({ ...i, customer: i.customerId ? (map.get(i.customerId) ?? null) : null }));
+  }
+
   private async generateDocumentNo(): Promise<string> {
     const last = await this.prisma.quotation.findFirst({
       where: { documentNo: { startsWith: 'VTX-QT-' } },
@@ -83,15 +108,17 @@ export class QuotationsService {
       include: { items: { include: { item: true } }, currency: true, childVersions: { select: { id: true, version: true, status: true } } },
     });
     if (!q) throw new NotFoundException({ code: 'QUOTATION_NOT_FOUND', message: 'العرض غير موجود' });
-    return q;
+    const [withCustomer] = await this.attachCustomers([q]);
+    return withCustomer;
   }
 
-  async list(query: { status?: string; patientId?: string; page?: number; limit?: number }) {
+  async list(query: { status?: string; patientId?: string; customerId?: string; page?: number; limit?: number }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 20));
     const where: any = {};
     if (query.status) where.status = query.status;
     if (query.patientId) where.patientId = query.patientId;
+    if (query.customerId) where.customerId = query.customerId;
 
     const [items, total] = await Promise.all([
       this.prisma.quotation.findMany({
@@ -103,11 +130,13 @@ export class QuotationsService {
       }),
       this.prisma.quotation.count({ where }),
     ]);
-    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    const itemsWithCustomer = await this.attachCustomers(items);
+    return { items: itemsWithCustomer, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   async create(dto: CreateQuotationDto, userId: string) {
     if (!dto.items?.length) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لازم بند واحد على الأقل' });
+    this.assertExactlyOnePatientOrCustomer(dto.patientId, dto.customerId);
     const exchangeRate = await this.currencies.getCurrentRate(dto.currencyId);
     const itemsData = await this.validateAndBuildItems(dto.items);
     const subtotal = itemsData.reduce((s, i) => s + Number(i.lineTotal), 0);
@@ -115,10 +144,11 @@ export class QuotationsService {
     if (total < 0) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'قيمة الخصم أكبر من إجمالي العرض' });
 
     const documentNo = await this.generateDocumentNo();
-    return this.prisma.quotation.create({
+    const created = await this.prisma.quotation.create({
       data: {
         documentNo,
-        patientId: dto.patientId,
+        patientId: dto.patientId ?? null,
+        customerId: dto.customerId ?? null,
         currencyId: dto.currencyId,
         exchangeRate,
         discountType: dto.discountType as any,
@@ -133,6 +163,8 @@ export class QuotationsService {
       },
       include: { items: { include: { item: true } } },
     });
+    const [withCustomer] = await this.attachCustomers([created]);
+    return withCustomer;
   }
 
   // تعديل مباشر — فقط أثناء DRAFT (استبدال كامل للبنود لو أُرسلت)
@@ -153,13 +185,25 @@ export class QuotationsService {
     const total = this.applyDiscount(subtotal, discountType, discountValue);
     if (total < 0) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'قيمة الخصم أكبر من إجمالي العرض' });
 
-    return this.prisma.$transaction(async (tx) => {
+    // تبديل صاحب العرض (مريض↔زبون) — ابعت واحد منهم بس، وبيلغي التاني تلقائياً
+    if (dto.patientId !== undefined && dto.customerId !== undefined) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'العرض إما لمريض أو لزبون — مش الاثنين معاً' });
+    }
+    let patientId = q.patientId;
+    let customerId = q.customerId;
+    if (dto.patientId !== undefined) { patientId = dto.patientId; customerId = null; }
+    else if (dto.customerId !== undefined) { customerId = dto.customerId; patientId = null; }
+    this.assertExactlyOnePatientOrCustomer(patientId, customerId);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (itemsData) {
         await tx.quotationItem.deleteMany({ where: { quotationId: id } });
       }
       return tx.quotation.update({
         where: { id },
         data: {
+          patientId,
+          customerId,
           validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
           paymentTerms: dto.paymentTerms,
           notes: dto.notes,
@@ -172,6 +216,8 @@ export class QuotationsService {
         include: { items: { include: { item: true } } },
       });
     });
+    const [withCustomer] = await this.attachCustomers([updated]);
+    return withCustomer;
   }
 
   // موافقة إدارية (أسعار/خصم) — أول اعتماد داخلي قبل الإرسال للمريض
@@ -264,15 +310,26 @@ export class QuotationsService {
     const total = this.applyDiscount(subtotal, discountType, discountValue);
     if (total < 0) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'قيمة الخصم أكبر من إجمالي العرض' });
 
+    // تبديل صاحب العرض بالنسخة الجديدة (مريض↔زبون) — نفس قاعدة update()، افتراضياً يرث من الأصل
+    if (dto.patientId !== undefined && dto.customerId !== undefined) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'العرض إما لمريض أو لزبون — مش الاثنين معاً' });
+    }
+    let patientId = parent.patientId;
+    let customerId = parent.customerId;
+    if (dto.patientId !== undefined) { patientId = dto.patientId; customerId = null; }
+    else if (dto.customerId !== undefined) { customerId = dto.customerId; patientId = null; }
+    this.assertExactlyOnePatientOrCustomer(patientId, customerId);
+
     const documentNo = await this.generateDocumentNo();
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       await tx.quotation.update({ where: { id }, data: { status: 'SUPERSEDED' } });
       return tx.quotation.create({
         data: {
           documentNo,
           version: parent.version + 1,
           parentQuotationId: parent.id,
-          patientId: parent.patientId,
+          patientId,
+          customerId,
           currencyId: parent.currencyId,
           exchangeRate: parent.exchangeRate,
           discountType: discountType as any,
@@ -288,6 +345,8 @@ export class QuotationsService {
         include: { items: { include: { item: true } } },
       });
     });
+    const [withCustomer] = await this.attachCustomers([created]);
+    return withCustomer;
   }
 
   // يُستخدم من SalesInvoicesService.createFromQuotation قبل توليد الفاتورة

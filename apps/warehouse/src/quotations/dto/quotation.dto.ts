@@ -24,7 +24,9 @@ export class QuotationItemInputDto {
 }
 
 export class CreateQuotationDto {
-  @IsString() @IsNotEmpty() patientId: string;
+  // العرض إما لمريض أو لزبون مبيعات (/referrals/customers) — بالضبط واحد منهم، وإلا 400
+  @IsOptional() @IsString() @IsNotEmpty() patientId?: string;
+  @IsOptional() @IsString() @IsNotEmpty() customerId?: string;
   @IsString() @IsNotEmpty() currencyId: string;
   @IsOptional() @IsDateString() validUntil?: string;
   @IsOptional() @IsString() paymentTerms?: string;
@@ -40,6 +42,9 @@ export class CreateQuotationDto {
 
 // تعديل مباشر مسموح فقط أثناء DRAFT — استبدال كامل للبنود
 export class UpdateQuotationDto {
+  // لتغيير صاحب العرض: ابعت واحد منهم بس — بيلغي التاني تلقائياً. بعت الاثنين سوا = 400
+  @IsOptional() @IsString() @IsNotEmpty() patientId?: string;
+  @IsOptional() @IsString() @IsNotEmpty() customerId?: string;
   @IsOptional() @IsDateString() validUntil?: string;
   @IsOptional() @IsString() paymentTerms?: string;
   @IsOptional() @IsString() notes?: string;
@@ -53,8 +58,11 @@ export class UpdateQuotationDto {
   items?: QuotationItemInputDto[];
 }
 
-// تعديل عرض بعد اعتماده = نسخة جديدة (نفس المريض والعملة، بقية الحقول قابلة للتغيير)
+// تعديل عرض بعد اعتماده = نسخة جديدة (نفس المريض/الزبون والعملة افتراضياً، بقية الحقول قابلة للتغيير)
 export class NewQuotationVersionDto {
+  // نفس قاعدة UpdateQuotationDto — ابعت واحد منهم بس لو بدك تغيّري صاحب العرض بالنسخة الجديدة
+  @IsOptional() @IsString() @IsNotEmpty() patientId?: string;
+  @IsOptional() @IsString() @IsNotEmpty() customerId?: string;
   @IsOptional() @IsDateString() validUntil?: string;
   @IsOptional() @IsString() paymentTerms?: string;
   @IsOptional() @IsString() notes?: string;

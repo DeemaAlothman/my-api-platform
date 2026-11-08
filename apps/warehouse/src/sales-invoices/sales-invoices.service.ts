@@ -27,6 +27,21 @@ export class SalesInvoicesService {
     return clone;
   }
 
+  // يرفق بيانات الزبون (id/name/contactNumber) من خدمة referrals — مرجع خارجي بلا FK، نفس
+  // نمط QuotationsService.attachCustomers بالضبط. لا يحتاج صلاحية sales.customers.view (قرار متعمّد)
+  private async attachCustomers<T extends { customerId: string | null }>(
+    items: T[],
+  ): Promise<Array<T & { customer: { id: string; name: string; contactNumber: string } | null }>> {
+    const ids = [...new Set(items.filter((i) => i.customerId).map((i) => i.customerId as string))];
+    if (!ids.length) return items.map((i) => ({ ...i, customer: null }));
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; name: string; contactNumber: string }>>(
+      `SELECT id, name, "contactNumber" FROM referrals.customers WHERE id = ANY($1::text[]) AND "deletedAt" IS NULL`,
+      ids,
+    );
+    const map = new Map(rows.map((r) => [r.id, r]));
+    return items.map((i) => ({ ...i, customer: i.customerId ? (map.get(i.customerId) ?? null) : null }));
+  }
+
   private async generateDocumentNo(): Promise<string> {
     const last = await this.prisma.salesInvoice.findFirst({
       where: { documentNo: { startsWith: 'VTX-INV-' } },
@@ -43,15 +58,17 @@ export class SalesInvoicesService {
       include: { items: { include: { item: true } }, currency: true, quotation: { select: { id: true, documentNo: true } } },
     });
     if (!inv) throw new NotFoundException({ code: 'SALES_INVOICE_NOT_FOUND', message: 'الفاتورة غير موجودة' });
-    return inv;
+    const [withCustomer] = await this.attachCustomers([inv]);
+    return withCustomer;
   }
 
-  async list(query: { status?: string; patientId?: string; page?: number; limit?: number }) {
+  async list(query: { status?: string; patientId?: string; customerId?: string; page?: number; limit?: number }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 20));
     const where: any = {};
     if (query.status) where.status = query.status;
     if (query.patientId) where.patientId = query.patientId;
+    if (query.customerId) where.customerId = query.customerId;
 
     const [items, total] = await Promise.all([
       this.prisma.salesInvoice.findMany({
@@ -63,7 +80,8 @@ export class SalesInvoicesService {
       }),
       this.prisma.salesInvoice.count({ where }),
     ]);
-    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    const itemsWithCustomer = await this.attachCustomers(items);
+    return { items: itemsWithCustomer, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   // عرض واحد مقبول = فاتورة واحدة فقط (القرار المعتمد) — القيم منسوخة حرفياً من العرض وقت التوليد
@@ -71,11 +89,12 @@ export class SalesInvoicesService {
     const q = await this.quotations.assertAcceptedAndUninvoiced(dto.quotationId);
     const documentNo = await this.generateDocumentNo();
 
-    return this.prisma.salesInvoice.create({
+    const created = await this.prisma.salesInvoice.create({
       data: {
         documentNo,
         quotationId: q.id,
         patientId: q.patientId,
+        customerId: q.customerId,
         currencyId: q.currencyId,
         exchangeRate: q.exchangeRate,
         discountType: q.discountType as any,
@@ -100,6 +119,8 @@ export class SalesInvoicesService {
       },
       include: { items: { include: { item: true } } },
     });
+    const [withCustomer] = await this.attachCustomers([created]);
+    return withCustomer;
   }
 
   async approve(id: string, userId: string) {

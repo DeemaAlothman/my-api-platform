@@ -602,7 +602,8 @@ model Quotation {
   parentQuotation    Quotation?      @relation("QuotationVersions", fields: [parentQuotationId], references: [id])
   childVersions      Quotation[]     @relation("QuotationVersions")
 
-  patientId          String          // مرجع خارجي لخدمة patients — بلا FK
+  patientId          String?         // مرجع خارجي لخدمة patients — بلا FK. إما هاد أو customerId، بالضبط واحد
+  customerId         String?         // مرجع خارجي لخدمة referrals (عملاء المبيعات) — بلا FK
   currencyId         String
   currency           Currency        @relation(fields: [currencyId], references: [id])
   exchangeRate       Decimal         @db.Decimal(18, 8) // نسخة مجمَّدة وقت الإنشاء
@@ -633,6 +634,7 @@ model Quotation {
 
   @@index([status])
   @@index([patientId])
+  @@index([customerId])
   @@map("quotations")
   @@schema("warehouse")
 }
@@ -670,7 +672,8 @@ model SalesInvoice {
   documentNo     String             @unique
   quotationId    String?
   quotation      Quotation?         @relation(fields: [quotationId], references: [id])
-  patientId      String             // مرجع خارجي — بلا FK
+  patientId      String?            // مرجع خارجي — بلا FK. إما هاد أو customerId، بالضبط واحد (موروث من العرض)
+  customerId     String?            // مرجع خارجي لخدمة referrals (عملاء المبيعات) — بلا FK
   currencyId     String
   currency       Currency           @relation(fields: [currencyId], references: [id])
   exchangeRate   Decimal            @db.Decimal(18, 8)
@@ -698,6 +701,7 @@ model SalesInvoice {
 
   @@index([status])
   @@index([patientId])
+  @@index([customerId])
   @@map("sales_invoices")
   @@schema("warehouse")
 }
