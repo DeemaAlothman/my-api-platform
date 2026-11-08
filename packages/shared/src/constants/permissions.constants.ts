@@ -400,6 +400,10 @@ export const PERMISSIONS = {
     VISITS_ADD: 'clinic.referrals.visits.add', // تسجيل زيارة
     STATS_VIEW: 'clinic.referrals.stats.view', // عرض الإحصائيات
   },
+  SALES_CUSTOMERS: {
+    VIEW:   'sales.customers.view',   // عرض عملاء المبيعات
+    MANAGE: 'sales.customers.manage', // إضافة/تعديل/حذف عملاء المبيعات
+  },
   CLINIC_PATIENT_APP: {
     ACCOUNT_MANAGE:     'clinic.patient_app.account.manage',      // إنشاء/تعديل حساب تطبيق المريض
     TAXONOMY_MANAGE:    'clinic.patient_app.taxonomy.manage',     // إدارة تصنيف التمارين

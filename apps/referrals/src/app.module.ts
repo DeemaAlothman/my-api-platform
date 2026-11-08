@@ -5,6 +5,7 @@ import { PrismaService } from './prisma/prisma.service';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { SourcesModule } from './sources/sources.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { CustomersModule } from './customers/customers.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     }),
     SourcesModule,
     DashboardModule,
+    CustomersModule,
   ],
   providers: [
     PrismaService,

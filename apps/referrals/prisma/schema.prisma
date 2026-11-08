@@ -27,6 +27,24 @@ enum VisitType {
   @@schema("referrals")
 }
 
+enum CustomerGender {
+  MALE
+  FEMALE
+
+  @@schema("referrals")
+}
+
+// طريقة وصول عميل المبيعات — مختلفة عن SourceType (خاص بمصادر الإحالة الطبية/المؤسسية)
+enum CustomerArrivalMethod {
+  HOSPITAL
+  FRIEND
+  DOCTOR
+  STAFF
+  SOCIAL_MEDIA
+
+  @@schema("referrals")
+}
+
 // ── Models ──────────────────────────────────────────────────────────
 
 model ReferralSource {
@@ -115,5 +133,26 @@ model ReferralVisit {
   updatedAt DateTime @updatedAt
 
   @@map("referral_visits")
+  @@schema("referrals")
+}
+
+// عميل قسم المبيعات — كيان مستقل عن المرضى ومصادر الإحالة الطبية
+model Customer {
+  id            String                 @id @default(uuid())
+  name          String
+  gender        CustomerGender
+  age           Int?
+  arrivalMethod CustomerArrivalMethod?
+  contactNumber String
+  residence     String?
+  notes         String?                @db.Text
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String
+
+  @@map("customers")
   @@schema("referrals")
 }
