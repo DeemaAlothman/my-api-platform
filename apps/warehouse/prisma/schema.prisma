@@ -302,9 +302,10 @@ model MaterialRequestItem {
 
 enum PurchaseInvoiceStatus {
   DRAFT
-  APPROVED  // اعتماد مالي فقط — لسا ما أثّر على المخزون
-  POSTED    // تم الترحيل — زاد الرصيد فعلياً
+  APPROVED        // اعتماد مالي فقط — لسا ما أثّر على المخزون
+  POSTED          // تم الترحيل — زاد الرصيد فعلياً
   REJECTED
+  CANCEL_REQUESTED // مدير المستودع طلب الإلغاء، بانتظار قرار المدير المالي
   CANCELLED
 
   @@schema("warehouse")
@@ -342,6 +343,17 @@ model PurchaseInvoice {
   approvedAt       DateTime?
   postedByUserId   String?
   postedAt         DateTime?
+
+  // طلب إلغاء (مدير المستودع) — statusBeforeCancelRequest يحفظ الحالة الأصلية لإرجاعها لو رُفض الطلب
+  cancelRequestedByUserId   String?
+  cancelRequestedAt         DateTime?
+  cancelRequestReason       String?
+  statusBeforeCancelRequest PurchaseInvoiceStatus?
+
+  // إلغاء فعلي نهائي (المدير المالي فقط)
+  cancelledByUserId  String?
+  cancelledAt        DateTime?
+  cancellationReason String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

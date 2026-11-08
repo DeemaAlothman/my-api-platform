@@ -58,3 +58,18 @@ export class ApprovePurchaseInvoiceDto {
   // آخر سعر عام مسجَّل تلقائياً (نفس سلوك جدول العملات العام)
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0.00000001) exchangeRate?: number;
 }
+
+// طلب إلغاء (مدير المستودع) — بانتظار قرار المدير المالي
+export class RequestCancelPurchaseInvoiceDto {
+  @IsOptional() @IsString() reason?: string;
+}
+
+// إلغاء فعلي أو اعتماد طلب إلغاء قائم (المدير المالي فقط)
+export class CancelPurchaseInvoiceDto {
+  @IsOptional() @IsString() reason?: string;
+}
+
+// رفض طلب إلغاء قائم (المدير المالي) — ترجع الفاتورة لحالتها السابقة
+export class RejectCancelRequestDto {
+  @IsOptional() @IsString() reason?: string;
+}

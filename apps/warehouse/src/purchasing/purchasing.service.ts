@@ -2,7 +2,14 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrenciesService } from '../currencies/currencies.service';
 import { InventoryCountsService } from '../inventory-counts/inventory-counts.service';
-import { CreatePurchaseInvoiceDto, RejectPurchaseInvoiceDto, ApprovePurchaseInvoiceDto } from './dto/purchase-invoice.dto';
+import {
+  CreatePurchaseInvoiceDto,
+  RejectPurchaseInvoiceDto,
+  ApprovePurchaseInvoiceDto,
+  RequestCancelPurchaseInvoiceDto,
+  CancelPurchaseInvoiceDto,
+  RejectCancelRequestDto,
+} from './dto/purchase-invoice.dto';
 
 const PRICE_FIELDS = ['unitPrice', 'baseUnitPrice', 'lineTotal'];
 const INVOICE_PRICE_FIELDS = ['subtotal', 'total', 'discountType', 'discountValue', 'exchangeRate', 'subtotalBase', 'totalBase', 'usdExchangeRate', 'subtotalUSD', 'totalUSD'];
@@ -344,6 +351,180 @@ export class PurchasingService {
       where: { id },
       data: { status: 'REJECTED', rejectionReason: dto.reason },
     });
+  }
+
+  // طلب إلغاء (مدير المستودع) — لفاتورة معتمدة أو مرحَّلة فقط، بانتظار قرار المدير المالي
+  async requestCancel(id: string, userId: string, dto: RequestCancelPurchaseInvoiceDto) {
+    const invoice = await this.findOne(id);
+    if (!['APPROVED', 'POSTED'].includes(invoice.status)) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'طلب الإلغاء متاح فقط للفواتير المعتمدة أو المرحَّلة' });
+    }
+    const updated = await this.prisma.purchaseInvoice.update({
+      where: { id },
+      data: {
+        statusBeforeCancelRequest: invoice.status as any,
+        status: 'CANCEL_REQUESTED',
+        cancelRequestedByUserId: userId,
+        cancelRequestedAt: new Date(),
+        cancelRequestReason: dto.reason ?? null,
+      },
+      include: { items: { include: { item: true } }, supplier: true, warehouse: true, currency: true },
+    });
+    await this.notifyCfoCancelRequested(updated);
+    return this.attachBaseCurrencyTotals(updated);
+  }
+
+  // رفض طلب الإلغاء (المدير المالي) — ترجع الفاتورة لحالتها قبل الطلب، بدون أي أثر على المخزون
+  async rejectCancelRequest(id: string, dto: RejectCancelRequestDto) {
+    const invoice = await this.findOne(id);
+    if (invoice.status !== 'CANCEL_REQUESTED') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لا يوجد طلب إلغاء قيد الانتظار لهذه الفاتورة' });
+    }
+    const restoredStatus = (invoice as any).statusBeforeCancelRequest ?? 'APPROVED';
+    const updated = await this.prisma.purchaseInvoice.update({
+      where: { id },
+      data: { status: restoredStatus, statusBeforeCancelRequest: null },
+      include: { items: { include: { item: true } }, supplier: true, warehouse: true, currency: true },
+    });
+    await this.notifyRequesterCancelRejected(updated, dto.reason);
+    return this.attachBaseCurrencyTotals(updated);
+  }
+
+  // إلغاء فعلي نهائي (المدير المالي فقط) — مباشرة لفاتورة معتمدة/مرحَّلة، أو اعتماد طلب إلغاء قائم.
+  // لو كانت مرحَّلة، يتراجع عن أثرها بالمخزون — ويُرفض الإلغاء كاملاً لو أي صنف منها ما عاد
+  // متوفر بالكمية الكافية حالياً (جزء منها اتصرف لاحقاً)، صفر سماح برصيد سالب
+  async cancel(id: string, performedByUserId: string, dto: CancelPurchaseInvoiceDto) {
+    const invoice: any = await this.findOne(id);
+    if (!['APPROVED', 'POSTED', 'CANCEL_REQUESTED'].includes(invoice.status)) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لا يمكن إلغاء فاتورة بهذه الحالة' });
+    }
+    const originalStatus = invoice.status === 'CANCEL_REQUESTED' ? invoice.statusBeforeCancelRequest : invoice.status;
+    const wasPosted = originalStatus === 'POSTED';
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (wasPosted) {
+        for (const line of invoice.items) {
+          const qty = Number(line.qty);
+          const rows = await tx.$queryRawUnsafe<Array<{ onHandQty: string }>>(
+            `SELECT "onHandQty" FROM warehouse.stock_balances WHERE "warehouseId" = $1 AND "itemId" = $2 FOR UPDATE`,
+            invoice.warehouseId, line.itemId,
+          );
+          const onHand = rows[0] ? parseFloat(rows[0].onHandQty) : 0;
+          if (onHand < qty) {
+            throw new BadRequestException({
+              code: 'INSUFFICIENT_STOCK_FOR_CANCEL',
+              message: `لا يمكن إلغاء الفاتورة — الكمية المتوفرة حالياً من الصنف (${line.item?.name ?? line.itemId}) أقل من الكمية التي أضافتها الفاتورة، على الأغلب تم التصرف بجزء منها`,
+            });
+          }
+        }
+        for (const line of invoice.items) {
+          const qty = Number(line.qty);
+          const updatedRows = await tx.$queryRawUnsafe<Array<{ onHandQty: string }>>(
+            `UPDATE warehouse.stock_balances SET "onHandQty" = "onHandQty" - $3, "updatedAt" = NOW()
+             WHERE "warehouseId" = $1 AND "itemId" = $2 RETURNING "onHandQty"`,
+            invoice.warehouseId, line.itemId, qty,
+          );
+          await tx.stockMovement.create({
+            data: {
+              itemId: line.itemId,
+              warehouseId: invoice.warehouseId,
+              movementType: 'RETURN_OUT',
+              onHandDelta: -qty,
+              reservedDelta: 0,
+              balanceAfter: updatedRows[0].onHandQty,
+              documentType: 'PURCHASE_INVOICE_CANCEL',
+              documentId: invoice.id,
+              notes: 'تراجع تلقائي عن ترحيل فاتورة شراء تم إلغاؤها',
+              performedByUserId,
+            },
+          });
+        }
+      }
+
+      return tx.purchaseInvoice.update({
+        where: { id },
+        data: {
+          status: 'CANCELLED',
+          statusBeforeCancelRequest: null,
+          cancelledByUserId: performedByUserId,
+          cancelledAt: new Date(),
+          cancellationReason: dto.reason ?? invoice.cancelRequestReason ?? null,
+        },
+        include: { items: { include: { item: true } }, supplier: true, warehouse: true, currency: true },
+      });
+    });
+
+    await this.notifyCeoInvoiceCancelled(updated);
+    return this.attachBaseCurrencyTotals(updated);
+  }
+
+  // إشعار المدير المالي بطلب إلغاء فاتورة بانتظار قراره
+  private async notifyCfoCancelRequested(invoice: { id: string; documentNo: string }) {
+    try {
+      const cfoUsers = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+        SELECT DISTINCT u.id as "userId"
+        FROM users.users u
+        JOIN users.user_roles ur ON ur."userId" = u.id
+        JOIN users.role_permissions rp ON rp."roleId" = ur."roleId"
+        JOIN users.permissions p ON p.id = rp."permissionId"
+        WHERE p.name = 'requests:cfo-approve' AND u.status = 'ACTIVE'
+      `;
+      for (const { userId } of cfoUsers) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+          userId,
+          'طلب إلغاء فاتورة شراء',
+          `مدير المستودع طلب إلغاء فاتورة الشراء (${invoice.documentNo}) — بانتظار قرارك`,
+          JSON.stringify({ type: 'PURCHASE_INVOICE_CANCEL_REQUESTED', purchaseInvoiceId: invoice.id }),
+        ).catch(() => {});
+      }
+    } catch {
+      // الإشعار لا يكسر الطلب
+    }
+  }
+
+  // إشعار صاحب طلب الإلغاء بأن المدير المالي رفض الطلب
+  private async notifyRequesterCancelRejected(invoice: { id: string; documentNo: string; cancelRequestedByUserId: string | null }, reason?: string) {
+    try {
+      if (!invoice.cancelRequestedByUserId) return;
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+         VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+        invoice.cancelRequestedByUserId,
+        'تم رفض طلب إلغاء الفاتورة',
+        reason
+          ? `رفض المدير المالي طلب إلغاء فاتورة الشراء (${invoice.documentNo}) — السبب: ${reason}`
+          : `رفض المدير المالي طلب إلغاء فاتورة الشراء (${invoice.documentNo})`,
+        JSON.stringify({ type: 'PURCHASE_INVOICE_CANCEL_REJECTED', purchaseInvoiceId: invoice.id }),
+      ).catch(() => {});
+    } catch {
+      // الإشعار لا يكسر القرار
+    }
+  }
+
+  // إشعار المدير التنفيذي (دور CEO) بأي إلغاء فعلي لفاتورة شراء
+  private async notifyCeoInvoiceCancelled(invoice: { id: string; documentNo: string }) {
+    try {
+      const ceoUsers = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+        SELECT DISTINCT u.id FROM users.users u
+        INNER JOIN users.user_roles ur ON ur."userId" = u.id
+        INNER JOIN users.roles r ON r.id = ur."roleId"
+        WHERE r.name IN ('CEO', 'super_admin') AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+      `);
+      for (const { id: userId } of ceoUsers) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+          userId,
+          'تم إلغاء فاتورة شراء',
+          `تم إلغاء فاتورة الشراء (${invoice.documentNo}) نهائياً`,
+          JSON.stringify({ type: 'PURCHASE_INVOICE_CANCELLED', purchaseInvoiceId: invoice.id }),
+        ).catch(() => {});
+      }
+    } catch {
+      // الإشعار لا يكسر الإلغاء
+    }
   }
 
   // 3) الترحيل — يزيد الرصيد فعلياً ويحدّث تكلفة الوحدة (متوسط مرجّح دائماً يُحدَّث،

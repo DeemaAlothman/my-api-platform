@@ -1,6 +1,13 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PurchasingService } from './purchasing.service';
-import { CreatePurchaseInvoiceDto, RejectPurchaseInvoiceDto, ApprovePurchaseInvoiceDto } from './dto/purchase-invoice.dto';
+import {
+  CreatePurchaseInvoiceDto,
+  RejectPurchaseInvoiceDto,
+  ApprovePurchaseInvoiceDto,
+  RequestCancelPurchaseInvoiceDto,
+  CancelPurchaseInvoiceDto,
+  RejectCancelRequestDto,
+} from './dto/purchase-invoice.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
@@ -64,5 +71,26 @@ export class PurchasingController {
   @Permission(PERMISSIONS.WAREHOUSE.PURCHASE_INVOICES_POST)
   post(@Param('id') id: string, @User() user: any) {
     return this.service.post(id, user.userId);
+  }
+
+  // مدير المستودع (نفس صلاحية الإنشاء) — يطلب إلغاء، ما بيلغي مباشرة
+  @Post(':id/request-cancel')
+  @Permission(PERMISSIONS.WAREHOUSE.PURCHASE_INVOICES_CREATE)
+  requestCancel(@Param('id') id: string, @Body() dto: RequestCancelPurchaseInvoiceDto, @User() user: any) {
+    return this.service.requestCancel(id, user.userId, dto);
+  }
+
+  // المدير المالي فقط (نفس صلاحية الاعتماد) — إلغاء مباشر أو اعتماد طلب إلغاء قائم
+  @Post(':id/cancel')
+  @Permission(PERMISSIONS.WAREHOUSE.PURCHASE_INVOICES_APPROVE)
+  cancel(@Param('id') id: string, @Body() dto: CancelPurchaseInvoiceDto, @User() user: any) {
+    return this.service.cancel(id, user.userId, dto);
+  }
+
+  // المدير المالي فقط — رفض طلب إلغاء قائم
+  @Post(':id/reject-cancel-request')
+  @Permission(PERMISSIONS.WAREHOUSE.PURCHASE_INVOICES_APPROVE)
+  rejectCancelRequest(@Param('id') id: string, @Body() dto: RejectCancelRequestDto) {
+    return this.service.rejectCancelRequest(id, dto);
   }
 }
