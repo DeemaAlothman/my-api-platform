@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrenciesService } from '../currencies/currencies.service';
+import { PricingService } from '../pricing/pricing.service';
 import {
   CreateQuotationDto, UpdateQuotationDto, NewQuotationVersionDto,
   AdjustQuotationPricesDto, AcceptQuotationDto, RejectQuotationDto,
   QuotationItemInputDto, DiscountTypeEnum,
 } from './dto/quotation.dto';
 
-const PRICE_FIELDS = ['unitPrice', 'discountType', 'discountValue', 'lineTotal'];
+const PRICE_FIELDS = ['unitPrice', 'lineTotal'];
 const QUOTATION_PRICE_FIELDS = ['subtotal', 'total', 'discountType', 'discountValue', 'exchangeRate'];
 
 @Injectable()
@@ -15,6 +16,7 @@ export class QuotationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly currencies: CurrenciesService,
+    private readonly pricing: PricingService,
   ) {}
 
   // نسخة "الفني" — بدون أي سعر إطلاقاً (حذف كامل للحقول، مش إخفاء بالواجهة فقط)
@@ -66,11 +68,8 @@ export class QuotationsService {
     return `VTX-QT-${String(n + 1).padStart(6, '0')}`;
   }
 
-  private lineTotal(it: { qty: number; unitPrice: number; discountType?: DiscountTypeEnum; discountValue?: number }): number {
-    const base = it.qty * it.unitPrice;
-    if (it.discountType === DiscountTypeEnum.PERCENT && it.discountValue) return base - (base * it.discountValue) / 100;
-    if (it.discountType === DiscountTypeEnum.FIXED && it.discountValue) return base - it.discountValue;
-    return base;
+  private lineTotal(it: { qty: number; unitPrice: number }): number {
+    return it.qty * it.unitPrice;
   }
 
   private applyDiscount(subtotal: number, discountType?: DiscountTypeEnum, discountValue?: number): number {
@@ -83,20 +82,30 @@ export class QuotationsService {
     const rows = [];
     for (const it of items) {
       const lineType = it.lineType ?? 'ITEM';
+      let unitPrice = it.unitPrice;
       if (lineType === 'ITEM') {
         if (!it.itemId) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'بند من نوع ITEM يحتاج itemId' });
         const item = await this.prisma.item.findFirst({ where: { id: it.itemId, deletedAt: null } });
         if (!item) throw new BadRequestException({ code: 'ITEM_NOT_FOUND', message: `الصنف غير موجود: ${it.itemId}` });
+
+        // لو الصنف مُسعَّر بإعدادات تسعير الأطراف الصناعية، سعره يُؤخذ من هناك دايماً
+        // (يتجاهل أي سعر مبعوت)، وإلا لازم سعر يدوي
+        const autoPrice = await this.pricing.getFinalPriceForItem(it.itemId);
+        if (autoPrice !== null) {
+          unitPrice = autoPrice;
+        } else if (unitPrice === undefined || unitPrice === null) {
+          throw new BadRequestException({ code: 'VALIDATION_ERROR', message: `هذا الصنف غير مُسعَّر بإعدادات التسعير — لازم تحدّدي سعر يدوي: ${it.itemId}` });
+        }
+      } else if (unitPrice === undefined || unitPrice === null) {
+        throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لازم تحدّدي سعر الوحدة لهذا البند' });
       }
       rows.push({
         lineType: lineType as any,
         itemId: lineType === 'ITEM' ? it.itemId : null,
         description: it.description,
         qty: it.qty,
-        unitPrice: it.unitPrice,
-        discountType: it.discountType as any,
-        discountValue: it.discountValue,
-        lineTotal: this.lineTotal(it as any),
+        unitPrice,
+        lineTotal: this.lineTotal({ qty: it.qty, unitPrice }),
       });
     }
     return rows;
@@ -242,10 +251,10 @@ export class QuotationsService {
       for (const it of dto.items ?? []) {
         const existing = q.items.find((qi) => qi.id === it.quotationItemId);
         if (!existing) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: `بند غير موجود بهذا العرض: ${it.quotationItemId}` });
-        const lineTotal = this.lineTotal({ qty: Number(existing.qty), unitPrice: it.unitPrice, discountType: it.discountType, discountValue: it.discountValue });
+        const lineTotal = this.lineTotal({ qty: Number(existing.qty), unitPrice: it.unitPrice });
         await tx.quotationItem.update({
           where: { id: it.quotationItemId },
-          data: { unitPrice: it.unitPrice, discountType: it.discountType as any, discountValue: it.discountValue, lineTotal },
+          data: { unitPrice: it.unitPrice, lineTotal },
         });
       }
 
@@ -300,8 +309,6 @@ export class QuotationsService {
       description: i.description,
       qty: Number(i.qty),
       unitPrice: Number(i.unitPrice),
-      discountType: i.discountType as any,
-      discountValue: i.discountValue ? Number(i.discountValue) : undefined,
     }));
     const itemsData = await this.validateAndBuildItems(itemsInput);
     const subtotal = itemsData.reduce((s, i) => s + Number(i.lineTotal), 0);

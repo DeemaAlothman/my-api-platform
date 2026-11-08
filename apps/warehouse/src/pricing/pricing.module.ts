@@ -6,5 +6,6 @@ import { PricingService } from './pricing.service';
 @Module({
   controllers: [PricingController],
   providers: [PricingService, PrismaService],
+  exports: [PricingService],
 })
 export class PricingModule {}

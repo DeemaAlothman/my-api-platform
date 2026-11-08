@@ -18,9 +18,9 @@ export class QuotationItemInputDto {
   @IsOptional() @IsString() itemId?: string; // مطلوب فقط لو lineType=ITEM
   @IsString() @IsNotEmpty() description: string;
   @Type(() => Number) @IsNumber() @Min(0.001) qty: number;
-  @Type(() => Number) @IsNumber() @Min(0) unitPrice: number;
-  @IsOptional() @IsEnum(DiscountTypeEnum) discountType?: DiscountTypeEnum;
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) discountValue?: number;
+  // اختياري لبنود ITEM إذا كان الصنف مُسعَّر بإعدادات تسعير الأطراف الصناعية (السعر يُؤخذ
+  // تلقائياً من هناك ويتجاهل أي قيمة مبعوتة) — إجباري وإلا (الصنف غير مُسعَّر، أو بند خدمة/حر)
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) unitPrice?: number;
 }
 
 export class CreateQuotationDto {
@@ -76,12 +76,11 @@ export class NewQuotationVersionDto {
   items?: QuotationItemInputDto[];
 }
 
-// صلاحية edit_prices فقط — تعديل الأسعار/الخصومات بدون فتح نسخة جديدة (قبل الإرسال)
+// صلاحية edit_prices فقط — تعديل الأسعار بدون فتح نسخة جديدة (قبل الإرسال). بدون خصم لكل
+// بند — الخصم صار فقط على إجمالي العرض (discountType/discountValue بالأعلى)
 export class AdjustQuotationPriceItemDto {
   @IsString() @IsNotEmpty() quotationItemId: string;
   @Type(() => Number) @IsNumber() @Min(0) unitPrice: number;
-  @IsOptional() @IsEnum(DiscountTypeEnum) discountType?: DiscountTypeEnum;
-  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) discountValue?: number;
 }
 
 export class AdjustQuotationPricesDto {

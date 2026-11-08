@@ -91,6 +91,35 @@ export class PricingService {
     return { items: enriched, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
+  // السعر النهائي لصنف واحد — تُستخدم من QuotationsService لتسعير بنود العروض تلقائياً.
+  // null يعني: الصنف مش قطعة أطراف صناعية (بدون partCode)، أو ما عنده فاتورة شراء مرحَّلة بعد
+  async getFinalPriceForItem(itemId: string): Promise<number | null> {
+    const item = await this.prisma.item.findFirst({ where: { id: itemId, deletedAt: null } });
+    if (!item?.partCode) return null;
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ lastPurchasePrice: string | null; highestPurchasePrice: string | null }>>(
+      `SELECT
+         (SELECT pii."unitPrice" FROM warehouse.purchase_invoice_items pii
+            JOIN warehouse.purchase_invoices pi ON pi.id = pii."purchaseInvoiceId"
+            WHERE pii."itemId" = $1 AND pi.status = 'POSTED'
+            ORDER BY pi."invoiceDate" DESC, pi."approvedAt" DESC
+            LIMIT 1) AS "lastPurchasePrice",
+         (SELECT MAX(pii."unitPrice") FROM warehouse.purchase_invoice_items pii
+            JOIN warehouse.purchase_invoices pi ON pi.id = pii."purchaseInvoiceId"
+            WHERE pii."itemId" = $1 AND pi.status = 'POSTED') AS "highestPurchasePrice"`,
+      itemId,
+    );
+    const lastPurchasePrice = rows[0]?.lastPurchasePrice != null ? Number(rows[0].lastPurchasePrice) : null;
+    const highestPurchasePrice = rows[0]?.highestPurchasePrice != null ? Number(rows[0].highestPurchasePrice) : null;
+    if (lastPurchasePrice === null && highestPurchasePrice === null) return null;
+
+    const markup = await this.prisma.itemPricingMarkup.findUnique({ where: { itemId } });
+    const priceBasis = markup?.priceBasis ?? 'LAST_PURCHASE';
+    const markupAmount = markup ? Number(markup.markupAmount) : 0;
+    const basePrice = priceBasis === 'HIGHEST_PURCHASE' ? highestPurchasePrice : lastPurchasePrice;
+    return basePrice !== null ? basePrice + markupAmount : null;
+  }
+
   async upsertMarkup(itemId: string, dto: UpsertItemMarkupDto, userId: string) {
     const item = await this.prisma.item.findFirst({ where: { id: itemId, deletedAt: null } });
     if (!item) throw new NotFoundException({ code: 'ITEM_NOT_FOUND', message: 'الصنف غير موجود' });
