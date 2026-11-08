@@ -11,6 +11,10 @@ import {
   RejectCancelRequestDto,
 } from './dto/purchase-invoice.dto';
 
+// مسار صفحة فاتورة الشراء في الواجهة — مكان واحد يحكم كل إشعارات الفواتير،
+// حتى لو تغيّر المسار لاحقاً يتعدّل هنا فقط.
+const purchaseInvoiceLink = (invoiceId: string) => `/warehouse/purchasing/${invoiceId}`;
+
 const PRICE_FIELDS = ['unitPrice', 'baseUnitPrice', 'lineTotal'];
 const INVOICE_PRICE_FIELDS = ['subtotal', 'total', 'discountType', 'discountValue', 'exchangeRate', 'subtotalBase', 'totalBase', 'usdExchangeRate', 'subtotalUSD', 'totalUSD'];
 
@@ -317,7 +321,7 @@ export class PurchasingService {
           userId,
           'فاتورة شراء بانتظار التسعير',
           `فاتورة شراء جديدة (${invoice.documentNo}) بانتظار تحديد الأسعار والاعتماد المالي`,
-          JSON.stringify({ type: 'PURCHASE_INVOICE_PENDING_PRICING', purchaseInvoiceId: invoice.id }),
+          JSON.stringify({ type: 'PURCHASE_INVOICE_PENDING_PRICING', purchaseInvoiceId: invoice.id, link: purchaseInvoiceLink(invoice.id) }),
         ).catch(() => {});
       }
     } catch {
@@ -342,7 +346,7 @@ export class PurchasingService {
         userId,
         'فاتورة شراء جاهزة للترحيل',
         `تم اعتماد فاتورة الشراء (${invoice.documentNo}) مالياً — جاهزة للترحيل للمخزون`,
-        JSON.stringify({ type: 'PURCHASE_INVOICE_APPROVED', purchaseInvoiceId: invoice.id }),
+        JSON.stringify({ type: 'PURCHASE_INVOICE_APPROVED', purchaseInvoiceId: invoice.id, link: purchaseInvoiceLink(invoice.id) }),
       ).catch(() => {});
     } catch {
       // الإشعار لا يكسر الاعتماد
@@ -483,7 +487,7 @@ export class PurchasingService {
           userId,
           'طلب إلغاء فاتورة شراء',
           `مدير المستودع طلب إلغاء فاتورة الشراء (${invoice.documentNo}) — بانتظار قرارك`,
-          JSON.stringify({ type: 'PURCHASE_INVOICE_CANCEL_REQUESTED', purchaseInvoiceId: invoice.id }),
+          JSON.stringify({ type: 'PURCHASE_INVOICE_CANCEL_REQUESTED', purchaseInvoiceId: invoice.id, link: purchaseInvoiceLink(invoice.id) }),
         ).catch(() => {});
       }
     } catch {
@@ -503,7 +507,7 @@ export class PurchasingService {
         reason
           ? `رفض المدير المالي طلب إلغاء فاتورة الشراء (${invoice.documentNo}) — السبب: ${reason}`
           : `رفض المدير المالي طلب إلغاء فاتورة الشراء (${invoice.documentNo})`,
-        JSON.stringify({ type: 'PURCHASE_INVOICE_CANCEL_REJECTED', purchaseInvoiceId: invoice.id }),
+        JSON.stringify({ type: 'PURCHASE_INVOICE_CANCEL_REJECTED', purchaseInvoiceId: invoice.id, link: purchaseInvoiceLink(invoice.id) }),
       ).catch(() => {});
     } catch {
       // الإشعار لا يكسر القرار
@@ -526,7 +530,7 @@ export class PurchasingService {
           userId,
           'تم إلغاء فاتورة شراء',
           `تم إلغاء فاتورة الشراء (${invoice.documentNo}) نهائياً`,
-          JSON.stringify({ type: 'PURCHASE_INVOICE_CANCELLED', purchaseInvoiceId: invoice.id }),
+          JSON.stringify({ type: 'PURCHASE_INVOICE_CANCELLED', purchaseInvoiceId: invoice.id, link: purchaseInvoiceLink(invoice.id) }),
         ).catch(() => {});
       }
     } catch {
