@@ -327,6 +327,7 @@ model PurchaseInvoice {
   currencyId     String?              // فاضي لحد الاعتماد المالي — أمين المستودع ما بيحدد العملة
   currency       Currency?             @relation(fields: [currencyId], references: [id])
   exchangeRate   Decimal?              @db.Decimal(18, 8) // يُحسب لحظة الاعتماد المالي (آخر سعر مسجَّل)، ويضل ثابت بعدها
+  usdExchangeRate Decimal?             @db.Decimal(18, 8) // كم ليرة = 1 دولار، مجمَّد لحظة الاعتماد — لحساب totalUSD فقط، فاضي لو الفاتورة أصلاً بالدولار
   invoiceDate    DateTime              @default(now())
   discountType   DiscountType?
   discountValue  Decimal?              @db.Decimal(18, 4)

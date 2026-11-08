@@ -5,7 +5,7 @@ import { InventoryCountsService } from '../inventory-counts/inventory-counts.ser
 import { CreatePurchaseInvoiceDto, RejectPurchaseInvoiceDto, ApprovePurchaseInvoiceDto } from './dto/purchase-invoice.dto';
 
 const PRICE_FIELDS = ['unitPrice', 'baseUnitPrice', 'lineTotal'];
-const INVOICE_PRICE_FIELDS = ['subtotal', 'total', 'discountType', 'discountValue', 'exchangeRate', 'subtotalBase', 'totalBase'];
+const INVOICE_PRICE_FIELDS = ['subtotal', 'total', 'discountType', 'discountValue', 'exchangeRate', 'subtotalBase', 'totalBase', 'usdExchangeRate', 'subtotalUSD', 'totalUSD'];
 
 @Injectable()
 export class PurchasingService {
@@ -29,22 +29,56 @@ export class PurchasingService {
     return clone;
   }
 
-  // يضيف إجمالي الفاتورة بعملة الأساس (subtotalBase/totalBase + كود عملة الأساس) — محسوب فقط،
-  // باستخدام exchangeRate المجمَّد على الفاتورة نفسها، بدون أي لمس لأي عمود مخزَّن
-  private async attachBaseCurrencyTotals<T extends { subtotal: any; total: any; exchangeRate: any }>(
+  // يضيف إجمالي الفاتورة بعملة الأساس (subtotalBase/totalBase) وبالدولار دايماً (subtotalUSD/totalUSD)
+  // — محسوب فقط وقت القراءة، باستخدام exchangeRate/usdExchangeRate المجمَّدين على الفاتورة نفسها،
+  // بدون أي لمس لأي عمود مخزَّن
+  private async attachBaseCurrencyTotals<
+    T extends { subtotal: any; total: any; exchangeRate: any; usdExchangeRate?: any; currency?: any },
+  >(
     invoice: T,
-  ): Promise<T & { baseCurrencyCode: string | null; subtotalBase: number | null; totalBase: number | null }> {
-    const baseCurrency = await this.prisma.currency.findFirst({ where: { isBaseCurrency: true } });
-    // ما في عملة/سعر صرف بعد (قبل الاعتماد المالي) — null لحد ما يصير فيه شي يُحسَب عليه
-    if (!baseCurrency || invoice.exchangeRate === null || invoice.exchangeRate === undefined) {
-      return { ...invoice, baseCurrencyCode: baseCurrency?.code ?? null, subtotalBase: null, totalBase: null };
+  ): Promise<
+    T & {
+      baseCurrencyCode: string | null;
+      subtotalBase: number | null;
+      totalBase: number | null;
+      subtotalUSD: number | null;
+      totalUSD: number | null;
     }
-    const rate = Number(invoice.exchangeRate);
+  > {
+    const baseCurrency = await this.prisma.currency.findFirst({ where: { isBaseCurrency: true } });
+
+    let subtotalBase: number | null = null;
+    let totalBase: number | null = null;
+    // ما في عملة/سعر صرف بعد (قبل الاعتماد المالي) — null لحد ما يصير فيه شي يُحسَب عليه
+    if (baseCurrency && invoice.exchangeRate !== null && invoice.exchangeRate !== undefined) {
+      const rate = Number(invoice.exchangeRate);
+      subtotalBase = Number(invoice.subtotal) * rate;
+      totalBase = Number(invoice.total) * rate;
+    }
+
+    // إجمالي الفاتورة بالدولار دايماً: مباشرة لو عملة الفاتورة أصلاً دولار، وإلا عبر
+    // usdExchangeRate المجمَّد لحظة الاعتماد. null لحد الاعتماد أو لو ما في عملة دولار مُعرَّفة أصلاً
+    let subtotalUSD: number | null = null;
+    let totalUSD: number | null = null;
+    const currencyCode = (invoice as any).currency?.code;
+    if (currencyCode === 'USD') {
+      subtotalUSD = Number(invoice.subtotal);
+      totalUSD = Number(invoice.total);
+    } else if (invoice.usdExchangeRate !== null && invoice.usdExchangeRate !== undefined) {
+      const usdRate = Number(invoice.usdExchangeRate);
+      if (usdRate > 0) {
+        subtotalUSD = Number(invoice.subtotal) / usdRate;
+        totalUSD = Number(invoice.total) / usdRate;
+      }
+    }
+
     return {
       ...invoice,
-      baseCurrencyCode: baseCurrency.code,
-      subtotalBase: Number(invoice.subtotal) * rate,
-      totalBase: Number(invoice.total) * rate,
+      baseCurrencyCode: baseCurrency?.code ?? null,
+      subtotalBase,
+      totalBase,
+      subtotalUSD,
+      totalUSD,
     };
   }
 
@@ -169,7 +203,23 @@ export class PurchasingService {
     if (!effectiveCurrencyId) {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'currencyId إجباري لاعتماد فاتورة بدون عملة محدَّدة' });
     }
-    const exchangeRate = await this.currencies.getCurrentRate(effectiveCurrencyId);
+
+    const usdCurrency = await this.currencies.getUsdCurrency();
+    const isUsdInvoice = !!usdCurrency && effectiveCurrencyId === usdCurrency.id;
+
+    // سعر صرف عملة الفاتورة مقابل عملة الأساس — يدعم سعر يدوي خاص بهي الفاتورة فقط لو
+    // عملتها هي الدولار (عملة الأساس سعرها ثابت 1 دايماً، ما في داعي لتخصيصه)
+    const exchangeRate = isUsdInvoice
+      ? dto?.exchangeRate ?? (await this.currencies.getCurrentRate(effectiveCurrencyId))
+      : await this.currencies.getCurrentRate(effectiveCurrencyId);
+
+    // سعر صرف الدولار المجمَّد خصيصاً لحساب totalUSD لاحقاً (كم ليرة = 1 دولار)، بغض النظر
+    // عن عملة الفاتورة نفسها. فاضي لو الفاتورة أصلاً بالدولار (المبلغ أصلاً دولار، ما بحتاجه)
+    let usdExchangeRate: number | null = null;
+    if (!isUsdInvoice) {
+      if (dto?.exchangeRate != null) usdExchangeRate = dto.exchangeRate;
+      else if (usdCurrency) usdExchangeRate = await this.currencies.getCurrentRate(usdCurrency.id);
+    }
 
     let priceMap: Map<string, number> | null = null;
     if (dto?.items?.length) {
@@ -218,6 +268,7 @@ export class PurchasingService {
         data: {
           currencyId: effectiveCurrencyId,
           exchangeRate,
+          usdExchangeRate,
           discountType: discountType as any,
           discountValue,
           subtotal,

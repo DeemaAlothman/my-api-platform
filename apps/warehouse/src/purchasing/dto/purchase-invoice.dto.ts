@@ -53,4 +53,8 @@ export class ApprovePurchaseInvoiceDto {
 
   @IsOptional() @IsEnum(DiscountTypeEnum) discountType?: DiscountTypeEnum;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) discountValue?: number;
+
+  // سعر صرف يدوي خاص بهي الفاتورة بالذات (كم ليرة = 1 دولار) — لو ما انبعت، يُستخدم
+  // آخر سعر عام مسجَّل تلقائياً (نفس سلوك جدول العملات العام)
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0.00000001) exchangeRate?: number;
 }

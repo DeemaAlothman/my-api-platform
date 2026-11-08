@@ -62,4 +62,9 @@ export class CurrenciesService {
     if (!latest) throw new BadRequestException({ code: 'NO_EXCHANGE_RATE', message: 'لا يوجد سعر صرف مسجَّل لهذه العملة بعد' });
     return Number(latest.rate);
   }
+
+  // عملة الدولار تحديداً — مستخدَمة لحساب totalUSD بفواتير الشراء بغض النظر عن عملة الأساس الحالية
+  async getUsdCurrency() {
+    return this.prisma.currency.findUnique({ where: { code: 'USD' } });
+  }
 }
