@@ -174,7 +174,6 @@ model Item {
   inventoryCountItems  InventoryCountItem[]
   quotationItems       QuotationItem[]
   salesInvoiceItems    SalesInvoiceItem[]
-  pricingMarkup        ItemPricingMarkup?
 
   @@index([categoryId])
   @@index([unitId])
@@ -387,11 +386,11 @@ model PurchaseInvoiceItem {
 }
 
 // ── إعدادات تسعير الأطراف الصناعية ──────────────────────────────────────
-// السعر النهائي = (آخر سعر شراء أو أعلى سعر شراء، حسب الاختيار هون) + markupAmount الثابت
-// + قيمة الربح (ثابتة أو نسبة من الأساس، حسب profitType) — الاثنين يُضافان معاً، مش بديلان
-// عن بعض. الأساسان نفسهم (آخر/أعلى) يُحسبان دايماً لحظياً من فواتير الشراء المرحَّلة —
-// ما يُخزَّنان هون. القطعة ما بتحتاج فاتورة شراء سابقة حتى تُعدَّل إعداداتها — بس السعر
-// النهائي بيضل null لحد ما يصير إلها شراء فعلي أول مرة
+// إعداد واحد عام (مش لكل قطعة لحالها) يُطبَّق على كل قطع الأطراف الصناعية (أي صنف عنده
+// partCode). السعر النهائي لأي قطعة = (آخر سعر شراء أو أعلى سعر شراء لهاي القطعة بالذات،
+// حسب الاختيار هون) + markupAmount الثابت + قيمة الربح (ثابتة أو نسبة من الأساس) — الاثنين
+// يُضافان معاً، مش بديلان عن بعض. الأساس نفسه (آخر/أعلى) يُحسب لحظياً من فواتير الشراء
+// المرحَّلة الخاصة بكل قطعة، ما يُخزَّن هون — فيضل null لقطعة ما انشترت بعد
 
 enum PriceBasis {
   LAST_PURCHASE
@@ -407,10 +406,9 @@ enum ProfitType {
   @@schema("warehouse")
 }
 
-model ItemPricingMarkup {
+// صف واحد بس دايماً (singleton) — تُدار بالكامل من الكود، بدون مفتاح فريد إضافي
+model ProstheticsPricingSettings {
   id              String      @id @default(uuid())
-  itemId          String      @unique
-  item            Item        @relation(fields: [itemId], references: [id])
   priceBasis      PriceBasis  @default(LAST_PURCHASE)
   markupAmount    Decimal     @default(0) @db.Decimal(18, 4) // قيمة ثابتة تُضاف دايماً
   profitType      ProfitType?                                // فاضي = بدون ربح إضافي
@@ -420,7 +418,7 @@ model ItemPricingMarkup {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("item_pricing_markups")
+  @@map("prosthetics_pricing_settings")
   @@schema("warehouse")
 }
 

@@ -1,26 +1,27 @@
-import { Controller, Get, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
 import { PricingService } from './pricing.service';
-import { ListProstheticsPricingQueryDto, UpsertItemMarkupDto } from './dto/pricing.dto';
+import { UpsertProstheticsPricingSettingsDto } from './dto/pricing.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
 import { User } from '@shared/auth/decorators/current-user.decorator';
 import { PERMISSIONS } from '@shared/constants/permissions.constants';
 
-@Controller('warehouse/pricing/prosthetics')
+// إعداد عام واحد (singleton) — يُطبَّق على كل قطع الأطراف الصناعية (أي صنف عنده partCode)
+@Controller('warehouse/pricing/prosthetics/settings')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class PricingController {
   constructor(private readonly service: PricingService) {}
 
   @Get()
   @Permission(PERMISSIONS.WAREHOUSE.PRICING_PROSTHETICS_VIEW)
-  list(@Query() query: ListProstheticsPricingQueryDto) {
-    return this.service.listProstheticsPricing(query);
+  getSettings() {
+    return this.service.getSettings();
   }
 
-  @Put(':itemId')
+  @Put()
   @Permission(PERMISSIONS.WAREHOUSE.PRICING_PROSTHETICS_MANAGE)
-  upsertMarkup(@Param('itemId') itemId: string, @Body() dto: UpsertItemMarkupDto, @User() user: any) {
-    return this.service.upsertMarkup(itemId, dto, user.userId);
+  upsertSettings(@Body() dto: UpsertProstheticsPricingSettingsDto, @User() user: any) {
+    return this.service.upsertSettings(dto, user.userId);
   }
 }

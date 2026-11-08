@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsNumber, Min, IsInt } from 'class-validator';
+import { IsOptional, IsEnum, IsNumber, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum PriceBasisEnum {
@@ -11,13 +11,8 @@ export enum ProfitTypeEnum {
   PERCENT = 'PERCENT',
 }
 
-export class ListProstheticsPricingQueryDto {
-  @IsOptional() @Type(() => Number) @IsInt() page?: number;
-  @IsOptional() @Type(() => Number) @IsInt() limit?: number;
-  @IsOptional() @IsString() search?: string;
-}
-
-export class UpsertItemMarkupDto {
+// إعداد عام واحد يُطبَّق على كل قطع الأطراف الصناعية
+export class UpsertProstheticsPricingSettingsDto {
   // قيمة ثابتة تُضاف دايماً للسعر الأساس
   @Type(() => Number) @IsNumber() @Min(0) markupAmount: number;
   @IsOptional() @IsEnum(PriceBasisEnum) priceBasis?: PriceBasisEnum;
