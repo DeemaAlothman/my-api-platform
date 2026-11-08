@@ -2,6 +2,10 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# بدونها، node-gyp ما بيقدر يبني bcrypt محلياً (تبع apps/attendance، مسحوب بالتثبيت
+# المشترك هون) إذا فشل تحميل الملف الجاهز من GitHub — زي ما صار فعلياً
+RUN apk add --no-cache python3 make g++
+
 COPY package*.json ./
 COPY packages/shared/package*.json ./packages/shared/
 COPY apps/auth/package*.json       ./apps/auth/
