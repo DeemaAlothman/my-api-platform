@@ -63,6 +63,13 @@ export class QuotationsController {
     return this.service.approve(id, user.userId);
   }
 
+  // المدير التنفيذي فقط — موافقة على خصم العرض، لازمة قبل /approve لأي عرض فيه خصم
+  @Post(':id/approve-discount')
+  @Permission(PERMISSIONS.WAREHOUSE.QUOTATIONS_APPROVE_DISCOUNT)
+  approveDiscount(@Param('id') id: string, @User() user: any) {
+    return this.service.approveDiscount(id, user.userId);
+  }
+
   @Post(':id/adjust-prices')
   @Permission(PERMISSIONS.WAREHOUSE.QUOTATIONS_EDIT_PRICES)
   adjustPrices(@Param('id') id: string, @Body() dto: AdjustQuotationPricesDto) {

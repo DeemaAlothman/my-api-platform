@@ -78,6 +78,42 @@ export class QuotationsService {
     return subtotal;
   }
 
+  private hasPendingDiscount(discountType: any, discountValue: any): boolean {
+    return !!discountType && Number(discountValue ?? 0) > 0;
+  }
+
+  // هل تغيّر الخصم فعلياً مقارنة بالمخزَّن؟ لو تغيّر، أي موافقة سابقة من المدير التنفيذي
+  // تلغى تلقائياً (null) وتُطلب من جديد
+  private discountChanged(q: { discountType: any; discountValue: any }, newType: any, newValue: any): boolean {
+    const oldValue = q.discountValue !== null && q.discountValue !== undefined ? Number(q.discountValue) : null;
+    const normalizedNewValue = newValue ?? null;
+    return (q.discountType ?? null) !== (newType ?? null) || oldValue !== normalizedNewValue;
+  }
+
+  // إشعار المدير التنفيذي بخصم بانتظار موافقته على عرض سعر
+  private async notifyCeoDiscountPending(quotation: { id: string; documentNo: string }) {
+    try {
+      const ceoUsers = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`
+        SELECT DISTINCT u.id FROM users.users u
+        INNER JOIN users.user_roles ur ON ur."userId" = u.id
+        INNER JOIN users.roles r ON r.id = ur."roleId"
+        WHERE r.name IN ('CEO', 'super_admin') AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL
+      `);
+      for (const { id: userId } of ceoUsers) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+          userId,
+          'عرض سعر بانتظار موافقتك على الخصم',
+          `عرض السعر (${quotation.documentNo}) فيه خصم على الإجمالي بانتظار موافقتك قبل اعتماده`,
+          JSON.stringify({ type: 'QUOTATION_DISCOUNT_PENDING', quotationId: quotation.id }),
+        ).catch(() => {});
+      }
+    } catch {
+      // الإشعار لا يكسر العملية
+    }
+  }
+
   private async validateAndBuildItems(items: QuotationItemInputDto[]) {
     const rows = [];
     for (const it of items) {
@@ -172,6 +208,9 @@ export class QuotationsService {
       },
       include: { items: { include: { item: true } } },
     });
+    if (this.hasPendingDiscount(created.discountType, created.discountValue)) {
+      await this.notifyCeoDiscountPending(created);
+    }
     const [withCustomer] = await this.attachCustomers([created]);
     return withCustomer;
   }
@@ -204,6 +243,9 @@ export class QuotationsService {
     else if (dto.customerId !== undefined) { customerId = dto.customerId; patientId = null; }
     this.assertExactlyOnePatientOrCustomer(patientId, customerId);
 
+    // تغيّر الخصم؟ أي موافقة سابقة من المدير التنفيذي تلغى وتُطلب من جديد
+    const discountHasChanged = this.discountChanged(q, discountType, discountValue);
+
     const updated = await this.prisma.$transaction(async (tx) => {
       if (itemsData) {
         await tx.quotationItem.deleteMany({ where: { quotationId: id } });
@@ -220,22 +262,44 @@ export class QuotationsService {
           discountValue,
           subtotal,
           total,
+          ...(discountHasChanged ? { discountApprovedByUserId: null, discountApprovedAt: null } : {}),
           ...(itemsData ? { items: { create: itemsData } } : {}),
         },
         include: { items: { include: { item: true } } },
       });
     });
+    if (discountHasChanged && this.hasPendingDiscount(updated.discountType, updated.discountValue)) {
+      await this.notifyCeoDiscountPending(updated);
+    }
     const [withCustomer] = await this.attachCustomers([updated]);
     return withCustomer;
   }
 
-  // موافقة إدارية (أسعار/خصم) — أول اعتماد داخلي قبل الإرسال للمريض
+  // موافقة إدارية (أسعار) — أول اعتماد داخلي قبل الإرسال للمريض/الزبون. لو في خصم على
+  // الإجمالي، لازم المدير التنفيذي يوافق عليه أولاً (approveDiscount) وإلا تترفض
   async approve(id: string, userId: string) {
     const q = await this.findOne(id);
     if (q.status !== 'DRAFT') throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'العرض ليس مسودة' });
+    if (this.hasPendingDiscount(q.discountType, q.discountValue) && !q.discountApprovedByUserId) {
+      throw new BadRequestException({ code: 'DISCOUNT_APPROVAL_PENDING', message: 'الخصم على هذا العرض بانتظار موافقة المدير التنفيذي أولاً' });
+    }
     return this.prisma.quotation.update({
       where: { id },
       data: { status: 'APPROVED', approvedByUserId: userId, approvedAt: new Date() },
+      include: { items: { include: { item: true } } },
+    });
+  }
+
+  // موافقة المدير التنفيذي تحديداً على خصم العرض — صلاحية منفصلة (warehouse.quotations.approve_discount).
+  // شرط لازم قبل approve() لأي عرض فيه خصم على الإجمالي
+  async approveDiscount(id: string, userId: string) {
+    const q = await this.findOne(id);
+    if (!this.hasPendingDiscount(q.discountType, q.discountValue)) {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'ما في خصم على هذا العرض يحتاج موافقة' });
+    }
+    return this.prisma.quotation.update({
+      where: { id },
+      data: { discountApprovedByUserId: userId, discountApprovedAt: new Date() },
       include: { items: { include: { item: true } } },
     });
   }
@@ -247,7 +311,8 @@ export class QuotationsService {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'تعديل الأسعار مسموح فقط قبل إرسال العرض' });
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    let discountHasChanged = false;
+    const updated = await this.prisma.$transaction(async (tx) => {
       for (const it of dto.items ?? []) {
         const existing = q.items.find((qi) => qi.id === it.quotationItemId);
         if (!existing) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: `بند غير موجود بهذا العرض: ${it.quotationItemId}` });
@@ -264,13 +329,24 @@ export class QuotationsService {
       const discountValue = dto.discountValue ?? (q.discountValue ? Number(q.discountValue) : undefined);
       const total = this.applyDiscount(subtotal, discountType, discountValue);
       if (total < 0) throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'قيمة الخصم أكبر من إجمالي العرض' });
+      discountHasChanged = this.discountChanged(q, discountType, discountValue);
 
       return tx.quotation.update({
         where: { id },
-        data: { subtotal, total, discountType: discountType as any, discountValue },
+        data: {
+          subtotal,
+          total,
+          discountType: discountType as any,
+          discountValue,
+          ...(discountHasChanged ? { discountApprovedByUserId: null, discountApprovedAt: null } : {}),
+        },
         include: { items: { include: { item: true } } },
       });
     });
+    if (discountHasChanged && this.hasPendingDiscount(updated.discountType, updated.discountValue)) {
+      await this.notifyCeoDiscountPending(updated);
+    }
+    return updated;
   }
 
   async send(id: string) {
@@ -352,6 +428,9 @@ export class QuotationsService {
         include: { items: { include: { item: true } } },
       });
     });
+    if (this.hasPendingDiscount(created.discountType, created.discountValue)) {
+      await this.notifyCeoDiscountPending(created);
+    }
     const [withCustomer] = await this.attachCustomers([created]);
     return withCustomer;
   }

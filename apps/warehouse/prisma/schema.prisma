@@ -647,6 +647,10 @@ model Quotation {
   createdByUserId    String
   approvedByUserId   String?
   approvedAt         DateTime?
+  // أي خصم على إجمالي العرض يحتاج موافقة المدير التنفيذي تحديداً، منفصلة عن الموافقة الإدارية
+  // العادية أعلاه — تنمسح تلقائياً (ترجع null) كل ما تغيّر الخصم فعلياً، وتُطلب من جديد
+  discountApprovedByUserId String?
+  discountApprovedAt       DateTime?
   sentAt             DateTime?
   acceptedAt         DateTime?
   acceptedByName     String?         // اسم من وافق نيابة عن المريض (نص حر)

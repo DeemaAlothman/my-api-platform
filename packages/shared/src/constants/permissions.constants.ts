@@ -383,6 +383,7 @@ export const PERMISSIONS = {
     QUOTATIONS_READ:         'warehouse.quotations.read',
     QUOTATIONS_CREATE:       'warehouse.quotations.create',
     QUOTATIONS_APPROVE:      'warehouse.quotations.approve',
+    QUOTATIONS_APPROVE_DISCOUNT: 'warehouse.quotations.approve_discount', // المدير التنفيذي فقط
     QUOTATIONS_EDIT_PRICES:  'warehouse.quotations.edit_prices',
     QUOTATIONS_VIEW_PRICES:  'warehouse.quotations.view_prices',
     SALES_INVOICES_READ:    'warehouse.sales_invoices.read',
