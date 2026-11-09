@@ -1,8 +1,10 @@
 import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { CyclesService } from './cycles.service';
 import { VotesService } from './votes.service';
+import { RewardsService } from './rewards.service';
 import { AddHrNomineeDto } from './dto/cycle.dto';
 import { CastVoteDto, TieBreakDto } from './dto/vote.dto';
+import { SetRewardDto, SetWinnerImageDto } from './dto/reward.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
@@ -15,7 +17,15 @@ export class CyclesController {
   constructor(
     private readonly service: CyclesService,
     private readonly votes: VotesService,
+    private readonly rewards: RewardsService,
   ) {}
+
+  // نجوم الشهر الحالية للواجهة الرئيسية (آخر دورة مغلقة، كل الشركات)
+  @Get('current')
+  @Permission(PERMISSIONS.STAR_OF_MONTH.VIEW)
+  getCurrent() {
+    return this.rewards.getCurrent();
+  }
 
   @Get(':year/:month')
   @Permission(PERMISSIONS.STAR_OF_MONTH.VIEW)
@@ -101,5 +111,27 @@ export class CyclesController {
     @Body() dto: TieBreakDto,
   ) {
     return this.votes.tieBreak(year, month, dto);
+  }
+
+  // اختيار نوع مكافأة الفائز — 50$ (افتراضي) أو إجازة مدفوعة بعدد أيام محدَّد
+  @Post(':year/:month/reward')
+  @Permission(PERMISSIONS.STAR_OF_MONTH.REWARD)
+  setReward(
+    @Param('year', ParseIntPipe) year: number,
+    @Param('month', ParseIntPipe) month: number,
+    @Body() dto: SetRewardDto,
+    @User() user: any,
+  ) {
+    return this.rewards.setReward(year, month, dto, user.userId);
+  }
+
+  @Post(':year/:month/winner-image')
+  @Permission(PERMISSIONS.STAR_OF_MONTH.REWARD)
+  setWinnerImage(
+    @Param('year', ParseIntPipe) year: number,
+    @Param('month', ParseIntPipe) month: number,
+    @Body() dto: SetWinnerImageDto,
+  ) {
+    return this.rewards.setWinnerImage(year, month, dto);
   }
 }

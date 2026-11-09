@@ -45,6 +45,7 @@ model Cycle {
   votingOpensAt         DateTime?
   votingClosesAt        DateTime?
   closedAt              DateTime?
+  voteReminderSentAt    DateTime? // تذكير "قبل الإغلاق بيوم" — مرة وحدة بس لكل دورة
 
   candidates Candidate[]
   votes      Vote[]
@@ -87,12 +88,37 @@ model Candidate {
   isWinner            Boolean  @default(false)
   wasTieBroken        Boolean  @default(false)
 
+  // المكافأة والصورة — تُملأ بعد تحديد الفائز
+  imageUrl        String?
+  rewardType      String?   // CASH | PAID_LEAVE
+  rewardAmount    Decimal?  @db.Decimal(10, 2) // لـCASH (دولار)
+  rewardLeaveDays Decimal?  @db.Decimal(5, 2)  // لـPAID_LEAVE
+  rewardedAt      DateTime?
+  historyRecordedAt DateTime? // لقب "نجم الشهر" انسجّل بإضبارة الموظف — مرة وحدة بس
+
+  comments Comment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([cycleId, company, employeeId])
   @@index([cycleId, company])
   @@map("candidates")
+  @@schema("star_of_month")
+}
+
+// تعليقات على صورة/بطاقة النجم الفائز — موظف عادي يضيف، HR يحذف أي تعليق
+model Comment {
+  id          String    @id @default(uuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  employeeId  String    // مرجع خارجي لخدمة users — بلا FK
+  text        String    @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([candidateId])
+  @@map("comments")
   @@schema("star_of_month")
 }
 
