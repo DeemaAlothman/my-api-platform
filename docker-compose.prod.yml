@@ -396,6 +396,22 @@ services:
     networks:
       - app-network
 
+  cashbox:
+    build:
+      context: .
+      dockerfile: apps/cashbox/Dockerfile
+    container_name: myapiplatform-cashbox
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=cashbox
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -422,6 +438,7 @@ services:
       PATIENT_APP_SERVICE_URL: http://patient-app:4017
       WAREHOUSE_SERVICE_URL: http://warehouse:4018
       ORTHOTICS_SERVICE_URL: http://orthotics:4019
+      CASHBOX_SERVICE_URL: http://cashbox:4020
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012,http://159.198.37.52:3012,http://159.198.37.52:3000
@@ -468,6 +485,8 @@ services:
       warehouse:
         condition: service_started
       orthotics:
+        condition: service_started
+      cashbox:
         condition: service_started
     networks:
       - app-network

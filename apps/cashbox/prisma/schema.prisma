@@ -1,0 +1,117 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["cashbox"]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+// ── نظام الصندوق النقدي — مستقل تماماً عن المستودع ──────────────────────
+// عدة صناديق، صندوق واحد منهم "رئيسي" (type=MAIN) والباقي "فرعية". كل صندوق
+// إله موظف مسؤول (custodianEmployeeId — مرجع خارجي لخدمة users، بلا FK).
+// أربع حركات فقط: صرف (لموظف)، قبض (من مريض أو زبون)، تسليم لصندوق فرعي
+// للرئيسي، تعبئة من الرئيسي لصندوق فرعي. الرصيد محسوب دايماً من مجموع
+// الحركات لكل عملة لحالها — ما في تحويل بين العملات بهالمرحلة.
+
+model Currency {
+  id   String @id @default(uuid())
+  code String @unique // SYP, USD, ...
+  name String
+
+  transactions CashTransaction[]
+  counts       CashCount[]
+
+  @@map("currencies")
+  @@schema("cashbox")
+}
+
+enum CashBoxType {
+  MAIN
+  SUB
+
+  @@schema("cashbox")
+}
+
+model CashBox {
+  id                   String      @id @default(uuid())
+  name                 String
+  type                 CashBoxType @default(SUB)
+  custodianEmployeeId  String      // مرجع خارجي لخدمة users — بلا FK
+  isActive             Boolean     @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions       CashTransaction[] @relation("BoxTransactions")
+  relatedTransactions CashTransaction[] @relation("RelatedBoxTransactions")
+  counts             CashCount[]
+
+  @@map("cash_boxes")
+  @@schema("cashbox")
+}
+
+enum CashTransactionType {
+  DISBURSEMENT // أمر صرف — لموظف
+  RECEIPT      // أمر قبض — من مريض أو زبون
+  HANDOVER     // تسليم من صندوق فرعي للرئيسي
+  REFILL       // تعبئة من الرئيسي لصندوق فرعي
+
+  @@schema("cashbox")
+}
+
+// حركة غير قابلة للتعديل — لا updatedAt عمداً، نفس مبدأ StockMovement بالمستودع
+model CashTransaction {
+  id              String               @id @default(uuid())
+  cashBoxId       String
+  cashBox         CashBox              @relation("BoxTransactions", fields: [cashBoxId], references: [id])
+  transactionType CashTransactionType
+
+  // الصندوق الآخر بعملية التسليم/التعبئة (دايماً الرئيسي) — فاضي لعمليات الصرف/القبض
+  relatedCashBoxId String?
+  relatedCashBox   CashBox? @relation("RelatedBoxTransactions", fields: [relatedCashBoxId], references: [id])
+
+  amount     Decimal  @db.Decimal(18, 4)
+  currencyId String
+  currency   Currency @relation(fields: [currencyId], references: [id])
+
+  reason String? @db.Text // سبب الصرف أو القبض
+
+  // أمر الصرف: لمين. أمر القبض: من مريض أو زبون — بالضبط واحد منهم
+  targetEmployeeId String? // مرجع خارجي لخدمة users — بلا FK
+  patientId        String? // مرجع خارجي لخدمة patients — بلا FK
+  customerId       String? // مرجع خارجي لخدمة referrals (عملاء المبيعات) — بلا FK
+
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  @@index([cashBoxId])
+  @@index([relatedCashBoxId])
+  @@index([transactionType])
+  @@map("cash_transactions")
+  @@schema("cashbox")
+}
+
+// جرد صندوق — نفس مبدأ جرد المستودع: رصيد متوقع (محسوب لحظة الجرد) مقابل
+// رصيد فعلي (مُدخَل يدوياً)، والفرق بينهم
+model CashCount {
+  id         String   @id @default(uuid())
+  cashBoxId  String
+  cashBox    CashBox  @relation(fields: [cashBoxId], references: [id])
+  currencyId String
+  currency   Currency @relation(fields: [currencyId], references: [id])
+
+  expectedBalance Decimal @db.Decimal(18, 4) // محسوب ومجمَّد لحظة الجرد
+  actualBalance   Decimal @db.Decimal(18, 4) // المبلغ الفعلي المعدود يدوياً
+  variance        Decimal @db.Decimal(18, 4) // actualBalance - expectedBalance
+
+  notes           String?
+  countedByUserId String
+  createdAt       DateTime @default(now())
+
+  @@index([cashBoxId])
+  @@map("cash_counts")
+  @@schema("cashbox")
+}

@@ -421,6 +421,14 @@ export const PERMISSIONS = {
   DELEGATIONS: {
     MANAGE: 'delegations.manage', // عرض كل التفويضات (GET /delegations) وإلغاء تفويض يدوياً (POST /delegations/:id/revoke)
   },
+  CASHBOX: {
+    BOXES_READ:        'cashbox.boxes.read',        // عرض الصناديق وأرصدتها
+    BOXES_MANAGE:      'cashbox.boxes.manage',       // إنشاء/تعديل صندوق، تعيين الرئيسي، إدارة العملات
+    TRANSACTIONS_READ:   'cashbox.transactions.read',   // عرض حركات الصندوق
+    TRANSACTIONS_CREATE: 'cashbox.transactions.create', // صرف/قبض/تسليم/تعبئة
+    COUNTS_READ:   'cashbox.counts.read',   // عرض الجرد
+    COUNTS_CREATE: 'cashbox.counts.create', // تسجيل جرد جديد
+  },
 } as const;
 
 // ── Type Helpers ──────────────────────────────────────────────────────────────

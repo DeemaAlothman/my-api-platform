@@ -111,6 +111,11 @@ export class ProxyService {
       url: process.env.ORTHOTICS_SERVICE_URL || 'http://localhost:4019',
       prefix: '/orthotics',
     });
+
+    this.services.set('cashbox', {
+      url: process.env.CASHBOX_SERVICE_URL || 'http://localhost:4020',
+      prefix: '/cashbox',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {
