@@ -1,0 +1,77 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["star_of_month"]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+// ── نجم الشهر — مرحلة 1: الدورة الشهرية + القوائم + النقاط التلقائية ─────
+// التصويت والمكافآت والتعليقات مراحل لاحقة، بجداول إضافية بمجريشن منفصل لما نوصلها
+
+enum CycleStatus {
+  NOMINATING // القائمة انولّدت، بانتظار إضافة مرشح HR وفتح التصويت
+  VOTING
+  CLOSED
+
+  @@schema("star_of_month")
+}
+
+enum CandidateSource {
+  AUTO
+  HR
+
+  @@schema("star_of_month")
+}
+
+model Cycle {
+  id     String      @id @default(uuid())
+  year   Int
+  month  Int
+  status CycleStatus @default(NOMINATING)
+
+  nominationGeneratedAt DateTime?
+  votingOpensAt         DateTime?
+  votingClosesAt        DateTime?
+  closedAt              DateTime?
+
+  candidates Candidate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, month])
+  @@map("cycles")
+  @@schema("star_of_month")
+}
+
+model Candidate {
+  id         String          @id @default(uuid())
+  cycleId    String
+  cycle      Cycle           @relation(fields: [cycleId], references: [id])
+  company    String          // قيمة حقل company بملف الموظف (VITASYR/VITAXIR) — بلا FK
+  employeeId String          // مرجع خارجي لخدمة users — بلا FK
+  source     CandidateSource @default(AUTO)
+
+  // النقاط التلقائية — مجمَّدة لحظة توليد القائمة (يوم 1)، فاضية لمرشح HR لحد ما يصوَّت عليه
+  latenessScore   Decimal? @db.Decimal(5, 2) // من 10
+  leaveScore      Decimal? @db.Decimal(5, 2) // من 10
+  substituteScore Decimal? @db.Decimal(5, 2) // من 10
+  autoScoreTotal  Decimal? @db.Decimal(5, 2) // من 30
+
+  // القيم الخام (شفافية لعرض التفاصيل لكل معيار)
+  lateMinutesTotal Int?
+  leaveUnitsTotal  Decimal? @db.Decimal(8, 2)
+  substituteCount  Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, company, employeeId])
+  @@index([cycleId, company])
+  @@map("candidates")
+  @@schema("star_of_month")
+}

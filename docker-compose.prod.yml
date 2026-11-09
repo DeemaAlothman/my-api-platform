@@ -412,6 +412,22 @@ services:
     networks:
       - app-network
 
+  star-of-month:
+    build:
+      context: .
+      dockerfile: apps/star-of-month/Dockerfile
+    container_name: myapiplatform-star-of-month
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=star_of_month
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   gateway:
     build:
       context: .
@@ -439,6 +455,7 @@ services:
       WAREHOUSE_SERVICE_URL: http://warehouse:4018
       ORTHOTICS_SERVICE_URL: http://orthotics:4019
       CASHBOX_SERVICE_URL: http://cashbox:4020
+      STAR_OF_MONTH_SERVICE_URL: http://star-of-month:4021
       NODE_ENV: production
       PORT: 8000
       ALLOWED_ORIGINS: http://localhost:3000,http://217.76.53.136:3012,http://159.198.37.52:3012,http://159.198.37.52:3000
@@ -487,6 +504,8 @@ services:
       orthotics:
         condition: service_started
       cashbox:
+        condition: service_started
+      star-of-month:
         condition: service_started
     networks:
       - app-network

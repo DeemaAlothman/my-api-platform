@@ -421,6 +421,15 @@ export const PERMISSIONS = {
   DELEGATIONS: {
     MANAGE: 'delegations.manage', // عرض كل التفويضات (GET /delegations) وإلغاء تفويض يدوياً (POST /delegations/:id/revoke)
   },
+  STAR_OF_MONTH: {
+    VIEW:             'star_of_month.view',             // الجميع
+    VOTE:             'star_of_month.vote',              // تصويت الزملاء — الجميع
+    NOMINATE:         'star_of_month.nominate',          // إضافة مرشح HR
+    MANAGER_VOTE:     'star_of_month.manager_vote',      // تصويت المدير الإداري
+    CEO_VOTE:         'star_of_month.ceo_vote',          // تصويت المدير التنفيذي + حسم التعادل
+    REWARD:           'star_of_month.reward',            // اختيار نوع المكافأة
+    MODERATE_COMMENTS:'star_of_month.moderate_comments', // حذف تعليق — HR
+  },
   CASHBOX: {
     BOXES_READ:        'cashbox.boxes.read',        // عرض الصناديق وأرصدتها
     BOXES_MANAGE:      'cashbox.boxes.manage',       // إنشاء/تعديل صندوق، تعيين الرئيسي، إدارة العملات

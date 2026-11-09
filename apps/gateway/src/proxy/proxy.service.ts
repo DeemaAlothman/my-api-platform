@@ -116,6 +116,11 @@ export class ProxyService {
       url: process.env.CASHBOX_SERVICE_URL || 'http://localhost:4020',
       prefix: '/cashbox',
     });
+
+    this.services.set('star-of-month', {
+      url: process.env.STAR_OF_MONTH_SERVICE_URL || 'http://localhost:4021',
+      prefix: '/star-of-month',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {
