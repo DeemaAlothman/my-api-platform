@@ -426,6 +426,7 @@ export const PERMISSIONS = {
     BOXES_MANAGE:      'cashbox.boxes.manage',       // إنشاء/تعديل صندوق، تعيين الرئيسي، إدارة العملات
     TRANSACTIONS_READ:   'cashbox.transactions.read',   // عرض حركات الصندوق
     TRANSACTIONS_CREATE: 'cashbox.transactions.create', // صرف/قبض/تسليم/تعبئة
+    TRANSACTIONS_DEPOSIT: 'cashbox.transactions.deposit', // إيداع/رصيد افتتاحي — المدير المالي فقط
     COUNTS_READ:   'cashbox.counts.read',   // عرض الجرد
     COUNTS_CREATE: 'cashbox.counts.create', // تسجيل جرد جديد
   },

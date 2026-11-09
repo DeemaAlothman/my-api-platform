@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
-import { DisbursementDto, ReceiptDto, HandoverDto, RefillDto, ListTransactionsQueryDto } from './dto/transaction.dto';
+import { DisbursementDto, ReceiptDto, HandoverDto, RefillDto, DepositDto, ListTransactionsQueryDto } from './dto/transaction.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
@@ -16,6 +16,12 @@ export class TransactionsController {
   @Permission(PERMISSIONS.CASHBOX.TRANSACTIONS_READ)
   list(@Query() query: ListTransactionsQueryDto) {
     return this.service.list(query);
+  }
+
+  @Post('deposit')
+  @Permission(PERMISSIONS.CASHBOX.TRANSACTIONS_DEPOSIT)
+  deposit(@Body() dto: DepositDto, @User() user: any) {
+    return this.service.deposit(dto, user.userId);
   }
 
   @Post('disbursement')

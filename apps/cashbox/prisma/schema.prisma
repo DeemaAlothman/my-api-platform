@@ -58,6 +58,7 @@ enum CashTransactionType {
   RECEIPT      // أمر قبض — من مريض أو زبون
   HANDOVER     // تسليم من صندوق فرعي للرئيسي
   REFILL       // تعبئة من الرئيسي لصندوق فرعي
+  DEPOSIT      // إيداع/رصيد افتتاحي — رأس مال خارجي، صلاحية خاصة
 
   @@schema("cashbox")
 }

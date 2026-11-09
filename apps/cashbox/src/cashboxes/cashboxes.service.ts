@@ -49,6 +49,7 @@ export class CashBoxesService {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ balance: string }>>(
       `SELECT COALESCE(SUM(CASE
          WHEN "cashBoxId" = $1 AND "transactionType" = 'RECEIPT'      THEN amount
+         WHEN "cashBoxId" = $1 AND "transactionType" = 'DEPOSIT'      THEN amount
          WHEN "cashBoxId" = $1 AND "transactionType" = 'DISBURSEMENT' THEN -amount
          WHEN "cashBoxId" = $1 AND "transactionType" = 'HANDOVER'     THEN -amount
          WHEN "cashBoxId" = $1 AND "transactionType" = 'REFILL'       THEN amount

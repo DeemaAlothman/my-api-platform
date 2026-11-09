@@ -35,6 +35,14 @@ export class RefillDto {
   @IsOptional() @IsString() reason?: string;
 }
 
+// إيداع/رصيد افتتاحي — رأس مال خارجي بدون مريض أو زبون، صلاحية خاصة (cashbox.transactions.deposit)
+export class DepositDto {
+  @IsString() @IsNotEmpty() cashBoxId: string;
+  @Type(() => Number) @IsNumber() @Min(0.01) amount: number;
+  @IsString() @IsNotEmpty() currencyId: string;
+  @IsString() @IsNotEmpty() reason: string;
+}
+
 export class ListTransactionsQueryDto {
   @IsOptional() @IsString() cashBoxId?: string;
   @IsOptional() @IsString() transactionType?: string;

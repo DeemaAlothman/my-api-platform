@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CashBoxesService } from '../cashboxes/cashboxes.service';
-import { DisbursementDto, ReceiptDto, HandoverDto, RefillDto, ListTransactionsQueryDto } from './dto/transaction.dto';
+import { DisbursementDto, ReceiptDto, HandoverDto, RefillDto, DepositDto, ListTransactionsQueryDto } from './dto/transaction.dto';
 
 @Injectable()
 export class TransactionsService {
@@ -20,6 +20,22 @@ export class TransactionsService {
     const box = await this.cashBoxes.findOne(id);
     if (!box.isActive) throw new BadRequestException({ code: 'CASHBOX_INACTIVE', message: 'الصندوق غير فعّال' });
     return box;
+  }
+
+  // إيداع/رصيد افتتاحي — رأس مال خارجي لأي صندوق (الرئيسي عادةً)، بدون مريض أو زبون.
+  // صلاحية خاصة (cashbox.transactions.deposit) لأنها بتضيف مال "من العدم" بمنظور النظام
+  async deposit(dto: DepositDto, userId: string) {
+    await this.assertBoxActive(dto.cashBoxId);
+    return this.prisma.cashTransaction.create({
+      data: {
+        cashBoxId: dto.cashBoxId,
+        transactionType: 'DEPOSIT',
+        amount: dto.amount,
+        currencyId: dto.currencyId,
+        reason: dto.reason,
+        createdByUserId: userId,
+      },
+    });
   }
 
   // أمر صرف — لموظف، بسبب. بيرفض لو بيخلي رصيد الصندوق بهالعملة سالب
