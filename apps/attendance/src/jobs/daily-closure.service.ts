@@ -266,7 +266,7 @@ export class DailyClosureService implements OnModuleInit {
     await this.processBreakOverLimit(dateStr);
 
     // C.6: Detect anomalous attendance patterns
-    await this.processAnomalyDetection(dateStr, offlineDeviceIds, employeeDeviceMap);
+    await this.processAnomalyDetection(dateStr, workingEmployeeIds, offlineDeviceIds, employeeDeviceMap);
 
     // C.7: Compute overtime from approved requests (replaces auto-calculated overtime)
     await this.processOvertimeFromRequests(dateStr);
@@ -1747,7 +1747,7 @@ export class DailyClosureService implements OnModuleInit {
   }
 
   /** Phase 7.4: كشف السلوك الشاذ — عمل زائد > 4h، بصمات كثيرة > 8، لا بصمة ولا إجازة */
-  private async processAnomalyDetection(dateStr: string, offlineDeviceIds = new Set<string>(), employeeDeviceMap = new Map<string, string>()): Promise<void> {
+  private async processAnomalyDetection(dateStr: string, workingEmployeeIds: string[], offlineDeviceIds = new Set<string>(), employeeDeviceMap = new Map<string, string>()): Promise<void> {
     try {
       // 7.4-a: workedMinutes > scheduledMinutes + 4h
       const overtimeAnomalies = (await this.prisma.$queryRawUnsafe(
@@ -1828,19 +1828,27 @@ export class DailyClosureService implements OnModuleInit {
         ).catch(() => {});
       }
 
-      // 7.4-c: لا بصمة + لا إجازة (موظف مجدول لكن لا حضور ولا بصمة في biometric)
-      const scheduledEmployees = (await this.prisma.$queryRawUnsafe(
-        `SELECT es."employeeId", e."userId"
-         FROM attendance.employee_schedules es
-         JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
-         JOIN users.employees e ON e.id = es."employeeId"
-         WHERE es."isActive" = true
-           AND e."employmentStatus" = 'ACTIVE'
-           AND e."deletedAt" IS NULL
-           AND $1::date BETWEEN es."effectiveFrom"::date
-               AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)`,
-        dateStr,
-      )) as Array<{ employeeId: string; userId: string | null }>;
+      // 7.4-c: لا بصمة + لا إجازة (موظف مجدول لكن لا حضور ولا بصمة في biometric).
+      // لازم يقتصر الفحص على workingEmployeeIds (المحسوبة فوق حسب workDays كل موظف) —
+      // قبل هالتعديل كان بيعيد جلب كل موظف عنده جدول فعّال بدون فلترة أيام الدوام، فبمجرد
+      // ما يصير موظف واحد بس مجدول فعلاً يشتغل هاليوم، كان يفحص الشركة كلها حتى الموظفين
+      // اللي هاليوم عطلتهم الأسبوعية الشخصية
+      const scheduledEmployees = workingEmployeeIds.length
+        ? ((await this.prisma.$queryRawUnsafe(
+            `SELECT es."employeeId", e."userId"
+             FROM attendance.employee_schedules es
+             JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+             JOIN users.employees e ON e.id = es."employeeId"
+             WHERE es."isActive" = true
+               AND e."employmentStatus" = 'ACTIVE'
+               AND e."deletedAt" IS NULL
+               AND es."employeeId" = ANY($2::text[])
+               AND $1::date BETWEEN es."effectiveFrom"::date
+                   AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)`,
+            dateStr,
+            workingEmployeeIds,
+          )) as Array<{ employeeId: string; userId: string | null }>)
+        : [];
 
       if (scheduledEmployees.length > 0) {
         const empIds = scheduledEmployees.map(e => e.employeeId);
