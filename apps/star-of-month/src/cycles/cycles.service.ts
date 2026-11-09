@@ -31,6 +31,13 @@ export class CyclesService {
     return cycle;
   }
 
+  // حقول نتيجة التصويت — تُحذف من الاستجابة قبل إغلاق الدورة (السرية + "النتائج لا تظهر
+  // حتى يُغلق التصويت")
+  private static readonly RESULT_FIELDS = [
+    'peerVoteCount', 'peerVoteScore', 'managerVoteReceived', 'managerVoteScore',
+    'ceoVoteReceived', 'ceoVoteScore', 'finalScore', 'isWinner', 'wasTieBroken',
+  ] as const;
+
   async getCycle(year: number, month: number) {
     const cycle = await this.prisma.cycle.findUnique({
       where: { year_month: { year, month } },
@@ -38,13 +45,18 @@ export class CyclesService {
     });
     if (!cycle) throw new NotFoundException({ code: 'CYCLE_NOT_FOUND', message: 'لا توجد دورة لهذا الشهر بعد' });
 
-    // النتائج والنسب لا تظهر إلا بعد إغلاق التصويت — بمرحلة 1 لسا ما في تصويت، فهاد الشرط
-    // جاهز لمرحلة 2 (خصم حقول النتيجة قبل الإغلاق لما تنضاف)
-    const byCompany: Record<string, typeof cycle.candidates> = {};
-    for (const c of cycle.candidates) {
+    const candidates = cycle.candidates.map((c) => {
+      if (cycle.status === 'CLOSED') return c;
+      const clone: any = { ...c };
+      for (const f of CyclesService.RESULT_FIELDS) delete clone[f];
+      return clone;
+    });
+
+    const byCompany: Record<string, typeof candidates> = {};
+    for (const c of candidates) {
       (byCompany[c.company] ??= []).push(c);
     }
-    return { ...cycle, candidatesByCompany: byCompany };
+    return { ...cycle, candidates, candidatesByCompany: byCompany };
   }
 
   // حساب القوائم التلقائية لكل شركة — قابل للاستدعاء يدوياً أو من cron يوم 1 من الشهر التالي.

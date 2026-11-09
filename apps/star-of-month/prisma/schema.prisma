@@ -27,6 +27,14 @@ enum CandidateSource {
   @@schema("star_of_month")
 }
 
+enum VoterRole {
+  PEER
+  MANAGER
+  CEO
+
+  @@schema("star_of_month")
+}
+
 model Cycle {
   id     String      @id @default(uuid())
   year   Int
@@ -39,6 +47,7 @@ model Cycle {
   closedAt              DateTime?
 
   candidates Candidate[]
+  votes      Vote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -67,11 +76,43 @@ model Candidate {
   leaveUnitsTotal  Decimal? @db.Decimal(8, 2)
   substituteCount  Int?
 
+  // نتائج التصويت — تُملأ وتُجمَّد فقط لحظة إغلاق الدورة. ما تظهر بالاستجابة قبل الإغلاق
+  peerVoteCount       Int      @default(0)
+  peerVoteScore       Decimal? @db.Decimal(5, 2)  // من 40
+  managerVoteReceived Boolean  @default(false)
+  managerVoteScore    Decimal? @db.Decimal(5, 2)  // 0 أو 10
+  ceoVoteReceived     Boolean  @default(false)
+  ceoVoteScore        Decimal? @db.Decimal(5, 2)  // 0 أو 20
+  finalScore          Decimal? @db.Decimal(6, 2)  // من 100
+  isWinner            Boolean  @default(false)
+  wasTieBroken        Boolean  @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([cycleId, company, employeeId])
   @@index([cycleId, company])
   @@map("candidates")
+  @@schema("star_of_month")
+}
+
+// صوت واحد — سري، ما يُكشف لمين صوّت لمين لأي حدا غير صاحبه (عبر my-vote فقط)
+model Vote {
+  id      String @id @default(uuid())
+  cycleId String
+  cycle   Cycle  @relation(fields: [cycleId], references: [id])
+  company String
+
+  voterEmployeeId     String // مرجع خارجي لخدمة users — بلا FK
+  candidateEmployeeId String // مرجع خارجي لخدمة users — بلا FK
+  voterRole           VoterRole
+
+  createdAt DateTime @default(now())
+
+  // صوت واحد بس لكل (موظف، نوع الصوت) بكل قائمة شركة — بيسمح لنفس الشخص ياخد أكتر من
+  // دور تصويت (مثلاً زميل عادي وبنفس الوقت مدير إداري) لكن صوت واحد بكل دور
+  @@unique([cycleId, company, voterEmployeeId, voterRole])
+  @@index([cycleId, company])
+  @@map("votes")
   @@schema("star_of_month")
 }
