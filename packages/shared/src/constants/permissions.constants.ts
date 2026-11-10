@@ -423,8 +423,8 @@ export const PERMISSIONS = {
     MANAGE: 'delegations.manage', // عرض كل التفويضات (GET /delegations) وإلغاء تفويض يدوياً (POST /delegations/:id/revoke)
   },
   STAR_OF_MONTH: {
-    VIEW:             'star_of_month.view',             // الجميع
-    VOTE:             'star_of_month.vote',              // تصويت الزملاء — الجميع
+    VIEW:             'star_of_month.view',             // مقيّد لـsuper_admin وHR/HR_Specialist حالياً (راجعي migration 20261110000002)
+    VOTE:             'star_of_month.vote',              // تصويت الزملاء — مقيّد لـsuper_admin وHR/HR_Specialist حالياً
     NOMINATE:         'star_of_month.nominate',          // إضافة مرشح HR
     MANAGER_VOTE:     'star_of_month.manager_vote',      // تصويت المدير الإداري
     CEO_VOTE:         'star_of_month.ceo_vote',          // تصويت المدير التنفيذي + حسم التعادل

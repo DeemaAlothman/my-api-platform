@@ -107,6 +107,30 @@ model Candidate {
   @@schema("star_of_month")
 }
 
+// نجم الربع — مقارنة الفائزين الشهريين الثلاثة بكل ربع سنة (نفس finalScore يلي فازوا فيه
+// شهرياً، بدون إعادة حساب)، والأعلى ياخد شهادة تقدير. لا مكافأة إضافية غير الشهادة
+model QuarterWinner {
+  id         String  @id @default(uuid())
+  year       Int
+  quarter    Int // 1-4
+  company    String
+  employeeId String? // فاضي لحد ما يُحسم التعادل (إن وجد) — مرجع خارجي لخدمة users، بلا FK
+  finalScore Decimal @db.Decimal(6, 2) // أعلى finalScore بين الفائزين الثلاثة (أو المتعادلين)
+
+  isTie      Boolean   @default(false)
+  resolvedAt DateTime? // لحظة حسم التعادل يدوياً (لو صار تعادل)
+  awardedAt  DateTime  @default(now()) // تاريخ ثابت يُطبع بالشهادة — ما يتغيّر بإعادة تحميل الملف
+
+  certificateGeneratedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, quarter, company])
+  @@map("quarter_winners")
+  @@schema("star_of_month")
+}
+
 // تعليقات على صورة/بطاقة النجم الفائز — موظف عادي يضيف، HR يحذف أي تعليق
 model Comment {
   id          String    @id @default(uuid())

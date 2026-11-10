@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaService } from './prisma/prisma.service';
 import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
 import { CyclesModule } from './cycles/cycles.module';
+import { QuartersModule } from './quarters/quarters.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { CyclesModule } from './cycles/cycles.module';
     }),
     ScheduleModule.forRoot(),
     CyclesModule,
+    QuartersModule,
   ],
   providers: [
     PrismaService,
