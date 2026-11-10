@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Put, Delete, Body, Param, Query,
+  Controller, Get, Post, Put, Patch, Delete, Body, Param, Query,
   UseGuards, Req, Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -10,7 +10,7 @@ import {
   ComplaintDto, EvaluationDto, PainMapDto, MedicalHistoryDto, SurgeryDto, TreatmentGoalsDto,
   PosturalAssessmentDto, TreatmentPlanDto, SupervisorReviewDto, DoctorReviewDto, PlanSignDto,
   PhysioSessionDto, UpdateSessionDto, FinalSummaryDto,
-  PhysioFollowUpDto, UpdateFollowUpDto,
+  PhysioFollowUpDto, UpdateFollowUpDto, AssignTherapistDto,
 } from './dto/physio-case.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -255,6 +255,13 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_CREATE)
   convertToPhysio(@Param('id') id: string, @Body() body: { physiotherapistId?: string }, @User() user: any) {
     return this.service.convertToPhysio(id, user.userId, body?.physiotherapistId);
+  }
+
+  // رئيس قسم العلاج الفيزيائي / مشرف المركز / super_admin — تعيين أو إعادة تعيين معالج
+  @Patch(':id/assign')
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.CASE_ASSIGN)
+  assignTherapist(@Param('id') id: string, @Body() dto: AssignTherapistDto, @User() user: any) {
+    return this.service.assignTherapist(id, dto.physiotherapistId, user.userId);
   }
 
   @Post(':id/notify-incomplete-form')

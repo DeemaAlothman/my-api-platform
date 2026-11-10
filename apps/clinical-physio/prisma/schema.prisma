@@ -213,6 +213,7 @@ model PhysioCase {
 
   physiotherapistId   String?   // الأخصائي الأساسي (للتوافق/الفلترة — = أول عنصر من القائمة)
   physiotherapistIds  String[]  // أخصائيو العلاج الفيزيائي (اختيار متعدد)
+  awaitingAssignment  Boolean   @default(false) // true بعد التحويل مباشرة لحد ما يُعيَّن معالج
   supervisingDoctorId String?
   caseManagerId       String?
 
@@ -231,6 +232,7 @@ model PhysioCase {
   treatmentPlan       PhysioTreatmentPlan?
   sessions            PhysioSession[]
   followUps           PhysioFollowUp[]
+  assignmentLogs      AssignmentLog[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -242,6 +244,24 @@ model PhysioCase {
   @@index([patientId])
   @@index([status])
   @@index([caseNumber])
+}
+
+// سجل تعيين/إعادة تعيين معالج لحالة — سطر عرض جاهز "عيّنها فلان للمعالج فلان"
+model AssignmentLog {
+  id               String     @id @default(uuid())
+  caseId           String
+  case             PhysioCase @relation(fields: [caseId], references: [id])
+  assignedByUserId String
+  assignedByName   String?    // اسم مجمَّد وقت الإسناد — عرض سريع بدون استعلام إضافي
+  therapistId      String
+  therapistName    String?
+  note             String
+
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+  @@map("assignment_logs")
+  @@schema("clinic_physio")
 }
 
 // ── Pain Map ──────────────────────────────────────────────────────────────

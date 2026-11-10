@@ -187,6 +187,11 @@ export class UpdatePhysioStatusDto {
   cancellationReason?: string;
 }
 
+export class AssignTherapistDto {
+  @IsString()
+  physiotherapistId: string;
+}
+
 export class ListPhysioCasesQueryDto {
   @IsOptional() @IsString()
   patientId?: string;
@@ -199,6 +204,9 @@ export class ListPhysioCasesQueryDto {
 
   @IsOptional() @IsString()
   physiotherapistId?: string;
+
+  @IsOptional() @Type(() => Boolean) @IsBoolean()
+  awaitingAssignment?: boolean;
 
   @IsOptional() @IsInt() @Min(1) @Type(() => Number)
   page?: number = 1;

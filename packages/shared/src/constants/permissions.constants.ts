@@ -286,6 +286,7 @@ export const PERMISSIONS = {
     PLAN_SIGN:         'clinic.physio.plan.sign',
     SESSIONS_CREATE:   'clinic.physio.sessions.create',
     NOTIFY_INCOMPLETE_FORM: 'clinic.physio.notify_incomplete_form',
+    CASE_ASSIGN: 'clinic.physio.case.assign', // رئيس القسم / مشرف المركز — تعيين معالج لحالة بانتظار التعيين
   },
   CLINIC_PODIATRY: {
     RECEPTION_VIEW:   'clinic.podiatry.reception.view',

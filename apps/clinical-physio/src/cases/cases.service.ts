@@ -200,7 +200,7 @@ export class CasesService {
   }
 
   async findAll(query: ListPhysioCasesQueryDto) {
-    const { page = 1, limit = 20, patientId, status, caseType, physiotherapistId } = query;
+    const { page = 1, limit = 20, patientId, status, caseType, physiotherapistId, awaitingAssignment } = query;
     const skip = (page - 1) * limit;
     const where: any = { deletedAt: null };
     if (patientId) where.patientId = patientId;
@@ -208,6 +208,7 @@ export class CasesService {
     // افتراضياً يُظهر حالات العلاج الفيزيائي فقط — المعاينات تحتاج caseType=DOCTOR_EXAM صريح
     where.caseType = caseType ?? 'PHYSIO';
     if (physiotherapistId) where.physiotherapistId = physiotherapistId;
+    if (awaitingAssignment !== undefined) where.awaitingAssignment = awaitingAssignment;
 
     const [items, total] = await Promise.all([
       this.prisma.physioCase.findMany({
@@ -1001,7 +1002,15 @@ export class CasesService {
     return labels[type] ?? type;
   }
 
+  // physiotherapistId ما عاد مقبول هون — التعيين صار حصراً عبر PATCH /physio/cases/:id/assign
   async convertToPhysio(examCaseId: string, userId: string, physiotherapistId?: string) {
+    if (physiotherapistId) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'ما عاد ممكن تحديد المعالج وقت التحويل — الحالة بتنفتح بانتظار التعيين، وتُعيَّن عبر PATCH /physio/cases/:id/assign',
+      });
+    }
+
     const examCase = await this.findCaseOrThrow(examCaseId);
     if ((examCase as any).caseType !== 'DOCTOR_EXAM') {
       throw new BadRequestException('الحالة ليست معاينة طبيب');
@@ -1012,30 +1021,13 @@ export class CasesService {
       );
     }
 
-    // idempotent: لو سبق التحويل، نرجع الحالة الموجودة — وإذا انبعت معالج جديد، نستبدل به الإسناد الحالي
+    // idempotent: لو سبق التحويل، نرجع الحالة الموجودة بدون أي تعديل إضافي — التعيين عبر /assign فقط
     if ((examCase as any).convertedToCaseId) {
       const existing = await this.prisma.physioCase.findFirst({
         where: { id: (examCase as any).convertedToCaseId },
         select: { id: true, caseNumber: true },
       });
       if (existing) {
-        if (physiotherapistId) {
-          await this.prisma.physioCase.update({
-            where: { id: existing.id },
-            data: { physiotherapistId, physiotherapistIds: [physiotherapistId] },
-          });
-          await this.sendNotifToEmployee(
-            physiotherapistId,
-            'تم تحويل حالة إليك',
-            `تم تحويل حالة علاج فيزيائي إليك — رقم الحالة: ${existing.caseNumber}`,
-            {
-              type: 'PHYSIO_CASE_ASSIGNED',
-              caseId: existing.id,
-              caseNumber: existing.caseNumber,
-              link: `/clinic/physio/${existing.id}`,
-            },
-          );
-        }
         return { convertedCaseId: existing.id, caseNumber: existing.caseNumber };
       }
     }
@@ -1065,6 +1057,7 @@ export class CasesService {
           caseNumber,
           caseType: 'PHYSIO' as any,
           status: 'MEDICAL_HISTORY' as any,
+          awaitingAssignment: true,
           patientId: examCase.patientId,
           majorComplaint: examCase.majorComplaint,
           symptoms: examCase.symptoms,
@@ -1093,10 +1086,6 @@ export class CasesService {
           alleviatingFactors: examCase.alleviatingFactors as any,
           customPainTypes: examCase.customPainTypes as any,
           createdBy: userId,
-          ...(physiotherapistId ? {
-            physiotherapistId,
-            physiotherapistIds: [physiotherapistId],
-          } : {}),
         },
       });
 
@@ -1173,22 +1162,109 @@ export class CasesService {
 
       return { convertedCaseId: newCase.id, caseNumber: newCase.caseNumber };
     }).then(async (result) => {
-      if (physiotherapistId) {
-        await this.sendNotifToEmployee(
-          physiotherapistId,
-          'تم تحويل حالة إليك',
-          `تم تحويل حالة علاج فيزيائي جديدة إليك — رقم الحالة: ${result.caseNumber}`,
-          {
-            type: 'PHYSIO_CASE_ASSIGNED',
-            caseId: result.convertedCaseId,
-            caseNumber: result.caseNumber,
-            link: `/clinic/physio/${result.convertedCaseId}`,
-          },
-        );
-      }
+      await this.notifyAwaitingAssignment(result.convertedCaseId, result.caseNumber);
       this.autoCreatePatientAppAccount(examCase.patientId).catch(() => {});
       return result;
     });
+  }
+
+  // إشعار رئيس قسم العلاج الفيزيائي (VTX-JTL-000034) بحالة بانتظار التعيين، مع التفويضات
+  // الفعّالة. لو ما في حدا بهالمسمى، الإشعار بيروح لمشرف المركز (VTX-JTL-000011) بدالو
+  private async notifyAwaitingAssignment(caseId: string, caseNumber: string) {
+    try {
+      const heads = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT e."userId" FROM users.employees e
+         JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+         WHERE jt.code = 'VTX-JTL-000034' AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL
+         UNION
+         SELECT de."userId" FROM users.delegations d
+         JOIN users.employees de ON de.id = d."delegateId"
+         JOIN users.employees dr ON dr.id = d."delegatorId"
+         JOIN users.job_titles jt2 ON jt2.id = dr."jobTitleId"
+         WHERE jt2.code = 'VTX-JTL-000034'
+           AND d.status = 'ACTIVE' AND d."fromDate" <= NOW() AND d."toDate" >= NOW()
+           AND de."deletedAt" IS NULL AND dr."deletedAt" IS NULL`,
+      );
+      let targets = heads;
+      if (targets.length === 0) {
+        targets = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+          `SELECT e."userId" FROM users.employees e
+           JOIN users.job_titles jt ON jt.id = e."jobTitleId"
+           WHERE jt.code = 'VTX-JTL-000011' AND e."deletedAt" IS NULL AND e."userId" IS NOT NULL`,
+        );
+      }
+      for (const t of targets) {
+        await this.prisma.$queryRawUnsafe(
+          `INSERT INTO users.notifications (id, "userId", type, "titleAr", "titleEn", "messageAr", "messageEn", data, "createdAt")
+           VALUES (gen_random_uuid()::text, $1, 'GENERAL'::"users"."NotificationType", $2, $2, $3, $3, $4::jsonb, NOW())`,
+          t.userId,
+          'حالة علاج فيزيائي بانتظار التعيين',
+          `حالة علاج فيزيائي جديدة (${caseNumber}) بانتظار تعيين معالج`,
+          JSON.stringify({ type: 'PHYSIO_CASE_AWAITING_ASSIGNMENT', caseId, caseNumber, link: `/clinic/physio/${caseId}` }),
+        ).catch(() => {});
+      }
+    } catch {
+      // الإشعار لا يكسر عملية التحويل
+    }
+  }
+
+  // تعيين (أو إعادة تعيين) معالج لحالة علاج فيزيائي — رئيس القسم/مشرف المركز/super_admin فقط
+  // (مضبوط بصلاحية clinic.physio.case.assign على مستوى الـcontroller)
+  async assignTherapist(caseId: string, therapistId: string, userId: string) {
+    const physioCase = await this.findCaseOrThrow(caseId);
+    if ((physioCase as any).caseType !== 'PHYSIO') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'التعيين متاح فقط لحالات العلاج الفيزيائي' });
+    }
+
+    const therapistRows = await this.prisma.$queryRawUnsafe<Array<{ id: string; employmentStatus: string; deptCode: string | null; firstNameAr: string | null; lastNameAr: string | null }>>(
+      `SELECT e.id, e."employmentStatus", d.code as "deptCode", e."firstNameAr", e."lastNameAr"
+       FROM users.employees e
+       LEFT JOIN users.departments d ON d.id = e."departmentId"
+       WHERE e.id = $1 AND e."deletedAt" IS NULL`,
+      therapistId,
+    );
+    const therapist = therapistRows[0];
+    if (!therapist) throw new BadRequestException({ code: 'EMPLOYEE_NOT_FOUND', message: 'الموظف غير موجود' });
+    if (therapist.employmentStatus !== 'ACTIVE') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'الموظف غير فعّال' });
+    }
+    if (therapist.deptCode !== 'VTX-DEP-000016') {
+      throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'الموظف ليس من قسم العلاج الفيزيائي' });
+    }
+
+    const assignerRows = await this.prisma.$queryRawUnsafe<Array<{ firstNameAr: string | null; lastNameAr: string | null }>>(
+      `SELECT "firstNameAr", "lastNameAr" FROM users.employees WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
+      userId,
+    );
+    const assignerName = assignerRows[0] ? `${assignerRows[0].firstNameAr ?? ''} ${assignerRows[0].lastNameAr ?? ''}`.trim() || null : null;
+    const therapistName = `${therapist.firstNameAr ?? ''} ${therapist.lastNameAr ?? ''}`.trim() || null;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.physioCase.update({
+        where: { id: caseId },
+        data: { physiotherapistId: therapistId, physiotherapistIds: [therapistId], awaitingAssignment: false },
+      });
+      await tx.assignmentLog.create({
+        data: {
+          caseId,
+          assignedByUserId: userId,
+          assignedByName: assignerName,
+          therapistId,
+          therapistName,
+          note: `عيّنها ${assignerName ?? 'مستخدم'} للمعالج ${therapistName ?? therapistId}`,
+        },
+      });
+      return c;
+    });
+
+    await this.sendNotifToEmployee(
+      therapistId,
+      'تم تعيينك على حالة',
+      `تم تعيينك على حالة علاج فيزيائي — رقم الحالة: ${updated.caseNumber}`,
+      { type: 'PHYSIO_CASE_ASSIGNED', caseId, caseNumber: updated.caseNumber, link: `/clinic/physio/${caseId}` },
+    );
+
+    return updated;
   }
 
   // تحقق مشترك قبل أي تحويل: الحالة لازم تكون معاينة طبيب، وما تكون محوَّلة مسبقاً لقسم مختلف
