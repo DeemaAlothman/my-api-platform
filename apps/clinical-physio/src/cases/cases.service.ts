@@ -756,7 +756,12 @@ export class CasesService {
   async supervisorReview(caseId: string, dto: SupervisorReviewDto, userId: string) {
     const c = await this.findCaseOrThrow(caseId);
     const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId } });
-    if (!plan) throw new NotFoundException('Treatment plan not found');
+    if (!plan) {
+      throw new NotFoundException({
+        code: 'TREATMENT_PLAN_NOT_FOUND',
+        message: 'لا توجد خطة علاج لهذه الحالة بعد — يجب أن يحفظ المعالج الفيزيائي نموذج خطة العلاج أولاً',
+      });
+    }
 
     // خزّن رأي رئيس القسم — وانقل الحالة ACTIVE_TREATMENT → SUPERVISOR_REVIEW (بعد الجلسات)
     const [updatedPlan] = await this.prisma.$transaction([
@@ -780,7 +785,12 @@ export class CasesService {
   async doctorReview(caseId: string, dto: DoctorReviewDto, userId: string) {
     const c = await this.findCaseOrThrow(caseId);
     const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId } });
-    if (!plan) throw new NotFoundException('Treatment plan not found');
+    if (!plan) {
+      throw new NotFoundException({
+        code: 'TREATMENT_PLAN_NOT_FOUND',
+        message: 'لا توجد خطة علاج لهذه الحالة بعد — يجب أن يحفظ المعالج الفيزيائي نموذج خطة العلاج أولاً',
+      });
+    }
 
     // خزّن رأي الطبيب — وانقل الحالة SUPERVISOR_REVIEW → DOCTOR_REVIEW
     const [updatedPlan] = await this.prisma.$transaction([
@@ -803,7 +813,12 @@ export class CasesService {
   async planSign(caseId: string, dto: PlanSignDto, userId: string, ip?: string) {
     const c = await this.findCaseOrThrow(caseId);
     const plan = await this.prisma.physioTreatmentPlan.findUnique({ where: { caseId } });
-    if (!plan) throw new NotFoundException('Treatment plan not found');
+    if (!plan) {
+      throw new NotFoundException({
+        code: 'TREATMENT_PLAN_NOT_FOUND',
+        message: 'لا توجد خطة علاج لهذه الحالة بعد — يجب أن يحفظ المعالج الفيزيائي نموذج خطة العلاج أولاً',
+      });
+    }
 
     // B6.1: منع الاستبدال — لا توقيع فوق توقيع قائم
     if (plan.doctorSignatureBase64) {
