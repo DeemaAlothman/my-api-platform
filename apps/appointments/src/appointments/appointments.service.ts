@@ -34,6 +34,7 @@ const SERVICE_TYPE_AR: Record<string, string> = {
   ORTHOPEDIC_EXAMINATION: 'معاينة عظمية',
   FOOT_ANALYSIS_EXAMINATION: 'تحليل قدم',
   LIMB_PATIENT_EXAMINATION: 'معاينة مريض طرف',
+  ORTHOTICS: 'مقومات',
 };
 
 // "مراجعة" و"معاينة" بحاجة شرط إضافي (نوع الحالة المرتبطة / القسم) لتحديد الاسم الدقيق،

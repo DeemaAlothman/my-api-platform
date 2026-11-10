@@ -29,6 +29,8 @@ export enum AppointmentTypeEnum {
   ORTHOPEDIC_EXAMINATION   = 'ORTHOPEDIC_EXAMINATION',
   FOOT_ANALYSIS_EXAMINATION = 'FOOT_ANALYSIS_EXAMINATION',
   LIMB_PATIENT_EXAMINATION  = 'LIMB_PATIENT_EXAMINATION',
+  // قسم المقومات
+  ORTHOTICS                 = 'ORTHOTICS',
 }
 
 export enum PractitionerRoleEnum {
