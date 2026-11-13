@@ -187,6 +187,36 @@ export class CreateInternalMeetingDto {
   notes?: string;
 }
 
+// تعديل اجتماع/نشاط — كل الحقول اختيارية، وما يُرسَل فقط هو ما يتغيّر
+export class UpdateInternalMeetingDto {
+  @IsOptional() @IsString() @IsNotEmpty()
+  title?: string;
+
+  @IsOptional() @IsEnum(InternalMeetingTypeEnum)
+  meetingType?: string;
+
+  @IsOptional() @IsString()
+  meetingTypeOther?: string;
+
+  @IsOptional() @IsArray() @IsString({ each: true }) @IsNotEmpty({ each: true })
+  attendeeIds?: string[];
+
+  @IsOptional() @IsDateString()
+  startTime?: string;
+
+  @IsOptional() @IsDateString()
+  endTime?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
+
+// إلغاء اجتماع/نشاط — السبب اختياري، ولا يوجد حذف فعلي
+export class CancelInternalMeetingDto {
+  @IsOptional() @IsString()
+  reason?: string;
+}
+
 export class ListAppointmentsQueryDto {
   @IsOptional() @IsString()
   patientId?: string;

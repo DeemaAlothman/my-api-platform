@@ -323,6 +323,8 @@ export const PERMISSIONS = {
     INTERNAL_MEETINGS_CREATE:   'clinic.appointments.internal_meetings.create',
     INTERNAL_MEETINGS_VIEW:     'clinic.appointments.internal_meetings.view',
     INTERNAL_MEETINGS_VIEW_OWN: 'clinic.appointments.internal_meetings.view_own',
+    INTERNAL_MEETINGS_UPDATE:   'clinic.appointments.internal_meetings.update',
+    INTERNAL_MEETINGS_CANCEL:   'clinic.appointments.internal_meetings.cancel',
   },
   CLINIC_WAITING_LIST: {
     VIEW:   'clinic.waiting_list.view',

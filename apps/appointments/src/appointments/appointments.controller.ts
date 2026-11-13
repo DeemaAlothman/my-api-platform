@@ -7,7 +7,7 @@ import {
   CreateAppointmentDto, UpdateAppointmentDto, UpdateStatusDto,
   RescheduleDto, ListAppointmentsQueryDto, CalendarQueryDto, SlotsQueryDto,
   PractitionerPatientsQueryDto, MyAppointmentsQueryDto, StatisticsQueryDto,
-  CreateInternalMeetingDto,
+  CreateInternalMeetingDto, UpdateInternalMeetingDto, CancelInternalMeetingDto,
 } from './dto/appointment.dto';
 import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared/guards/permissions.guard';
@@ -100,8 +100,13 @@ export class AppointmentsController {
 
   @Get('staff-meetings')
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW)
-  listInternalMeetings(@Query('dateFrom') dateFrom?: string, @Query('dateTo') dateTo?: string, @Query('attendeeId') attendeeId?: string) {
-    return this.service.listInternalMeetings({ dateFrom, dateTo, attendeeId });
+  listInternalMeetings(
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('attendeeId') attendeeId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.service.listInternalMeetings({ dateFrom, dateTo, attendeeId, status });
   }
 
   // اجتماعاتي/تدريباتي أنا بس (يلي أنا مدعو فيها) — نفس فكرة my-appointments لمواعيد المرضى
@@ -109,6 +114,27 @@ export class AppointmentsController {
   @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW_OWN, PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW)
   getMyInternalMeetings(@Query('dateFrom') dateFrom?: string, @Query('dateTo') dateTo?: string, @User() user?: any) {
     return this.service.listInternalMeetings({ dateFrom, dateTo, attendeeId: user.userId });
+  }
+
+  // لاحظ الترتيب: هذا المسار بعد staff-meetings/my وقبل :id العام، وإلا التقطه أحدهما
+  @Get('staff-meetings/:id')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW, PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_VIEW_OWN)
+  findInternalMeeting(@Param('id') id: string) {
+    return this.service.findInternalMeeting(id);
+  }
+
+  // الحارس يسمح لمن يملك صلاحية التعديل أو لمن يملك صلاحية الإنشاء (ليمرّ صاحب الاجتماع)،
+  // والخدمة تحسم: صاحب الاجتماع دائماً، وغيره يحتاج صلاحية التعديل تحديداً
+  @Patch('staff-meetings/:id')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_UPDATE, PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_CREATE)
+  updateInternalMeeting(@Param('id') id: string, @Body() dto: UpdateInternalMeetingDto, @User() user: any) {
+    return this.service.updateInternalMeeting(id, dto, user);
+  }
+
+  @Post('staff-meetings/:id/cancel')
+  @Permission(PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_CANCEL, PERMISSIONS.CLINIC_APPOINTMENTS.INTERNAL_MEETINGS_CREATE)
+  cancelInternalMeeting(@Param('id') id: string, @Body() dto: CancelInternalMeetingDto, @User() user: any) {
+    return this.service.cancelInternalMeeting(id, dto, user);
   }
 
   @Get(':id')

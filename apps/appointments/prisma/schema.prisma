@@ -247,6 +247,10 @@ model InternalMeeting {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdBy   String
+  // سجل من عدّل ومن ألغى — يُرجَع مع الاجتماع مثل createdBy
+  updatedBy   String?
+  cancelledBy String?
+  cancelledAt DateTime?
 
   @@map("internal_meetings")
   @@schema("clinic_appointments")
