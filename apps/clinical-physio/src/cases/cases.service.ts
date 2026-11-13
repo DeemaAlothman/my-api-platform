@@ -281,6 +281,22 @@ export class CasesService {
     return { items: enriched, total, page, limit };
   }
 
+  // اسم الموظف صاحب حساب — لعرض "مين كتب الرأي فعلاً" (رأي رئيس القسم / رأي الطبيب)
+  private async resolveUserNames(userIds: Array<string | null | undefined>): Promise<Record<string, string>> {
+    const ids = [...new Set(userIds.filter(Boolean) as string[])];
+    if (ids.length === 0) return {};
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string; firstNameAr: string | null; lastNameAr: string | null }>>(
+      `SELECT "userId", "firstNameAr", "lastNameAr" FROM users.employees WHERE "userId" = ANY($1::text[]) AND "deletedAt" IS NULL`,
+      ids,
+    );
+    const map: Record<string, string> = {};
+    for (const r of rows) {
+      const name = `${r.firstNameAr ?? ''} ${r.lastNameAr ?? ''}`.trim();
+      if (name) map[r.userId] = name;
+    }
+    return map;
+  }
+
   async findOne(id: string) {
     const c = await this.prisma.physioCase.findFirst({
       where: { id, deletedAt: null },
@@ -302,7 +318,18 @@ export class CasesService {
       notes: c.evalNotes,
       evaluation: c.evalSummary,
     };
-    return { ...c, evaluation, patient: nameMap[c.patientId] ?? null };
+    let treatmentPlan: any = c.treatmentPlan;
+    if (treatmentPlan) {
+      const reviewerNames = await this.resolveUserNames([treatmentPlan.supervisorId, treatmentPlan.doctorId]);
+      treatmentPlan = {
+        ...treatmentPlan,
+        supervisorGazeByName: treatmentPlan.supervisorId ? reviewerNames[treatmentPlan.supervisorId] ?? null : null,
+        supervisorGazeAt: treatmentPlan.supervisorReviewedAt,
+        doctorGazeByName: treatmentPlan.doctorId ? reviewerNames[treatmentPlan.doctorId] ?? null : null,
+        doctorGazeAt: treatmentPlan.doctorReviewedAt,
+      };
+    }
+    return { ...c, evaluation, treatmentPlan, patient: nameMap[c.patientId] ?? null };
   }
 
   async update(id: string, dto: UpdatePhysioCaseDto) {

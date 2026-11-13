@@ -283,6 +283,7 @@ export const PERMISSIONS = {
     CASE_CREATE:       'clinic.physio.case.create',
     ASSESSMENT_CREATE: 'clinic.physio.assessment.create',
     SUPERVISOR_REVIEW: 'clinic.physio.supervisor_review',
+    DOCTOR_REVIEW:     'clinic.physio.doctor_review', // كتابة رأي الطبيب — منفصلة عن رأي رئيس القسم وعن التوقيع
     PLAN_SIGN:         'clinic.physio.plan.sign',
     SESSIONS_CREATE:   'clinic.physio.sessions.create',
     NOTIFY_INCOMPLETE_FORM: 'clinic.physio.notify_incomplete_form',

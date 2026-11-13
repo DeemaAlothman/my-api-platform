@@ -211,7 +211,7 @@ export class CasesController {
   }
 
   @Put(':id/treatment-plan/doctor-review')
-  @Permission(PERMISSIONS.CLINIC_PHYSIO.PLAN_SIGN)
+  @Permission(PERMISSIONS.CLINIC_PHYSIO.DOCTOR_REVIEW)
   doctorReview(@Param('id') id: string, @Body() dto: DoctorReviewDto, @User() user: any) {
     return this.service.doctorReview(id, dto, user.userId);
   }
