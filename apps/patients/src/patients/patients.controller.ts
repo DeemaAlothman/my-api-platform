@@ -118,6 +118,14 @@ export class PatientsController {
     return this.surveys.getStats();
   }
 
+  // مرضى بحاجة متابعة لطلب تقييم (أطراف تم تسليمها من أسبوع، وفيتافوت فُحص ولسا ما انركّب
+  // من أسبوع) ولسا ما تقيّموا — لازم تكون قبل :id حتى ما تتصادم المسارات
+  @Get('surveys/pending-followups')
+  @Permission(PERMISSIONS.CLINIC_PATIENTS.SURVEYS_VIEW)
+  getPendingFollowUps() {
+    return this.surveys.getPendingFollowUps();
+  }
+
   @Get('surveys/:id')
   @Permission(PERMISSIONS.CLINIC_PATIENTS.SURVEYS_VIEW)
   findOneSurvey(@Param('id') id: string) {

@@ -128,6 +128,74 @@ export class SurveysService {
     return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
+  // مرضى بحاجة متابعة لطلب تقييم: الأطراف الصناعية (تم التسليم من 7 أيام أو أكتر) +
+  // فيتافوت (فُحص وحُدِّد الضبان بس لسا ما انركّب، من 7 أيام أو أكتر) — وما تقيّموا بعد
+  async getPendingFollowUps() {
+    const prostheticsRows = await this.prisma.$queryRawUnsafe<Array<{ caseId: string; patientId: string; deliveredAt: Date }>>(
+      `WITH last_delivered AS (
+         SELECT DISTINCT ON (csh."caseId") csh."caseId", csh."changedAt" AS "deliveredAt"
+         FROM clinic_prosthetics.case_stage_history csh
+         WHERE csh."toStatus" = 'DELIVERED'
+         ORDER BY csh."caseId", csh."changedAt" DESC
+       )
+       SELECT pc.id AS "caseId", pc."patientId", ld."deliveredAt"
+       FROM clinic_prosthetics.prosthetics_cases pc
+       JOIN last_delivered ld ON ld."caseId" = pc.id
+       WHERE pc.status = 'DELIVERED'
+         AND pc."deletedAt" IS NULL
+         AND ld."deliveredAt" <= NOW() - INTERVAL '7 days'`,
+    );
+
+    const podiatryRows = await this.prisma.$queryRawUnsafe<Array<{ receptionId: string; patientId: string; sessionDate: Date }>>(
+      `SELECT DISTINCT ON (s."receptionId") s."receptionId" AS "receptionId", r."patientId", s."createdAt" AS "sessionDate"
+       FROM clinic_podiatry.podiatry_sessions s
+       JOIN clinic_podiatry.podiatry_receptions r ON r.id = s."receptionId"
+       WHERE s."installedAt" IS NULL
+         AND s."createdAt" <= NOW() - INTERVAL '7 days'
+       ORDER BY s."receptionId", s."createdAt" DESC`,
+    );
+
+    const existingSurveys = await this.prisma.patientSurvey.findMany({
+      where: {
+        OR: [
+          { department: 'PROSTHETICS', caseId: { in: prostheticsRows.map((r) => r.caseId) } },
+          { department: 'PODIATRY', caseId: { in: podiatryRows.map((r) => r.receptionId) } },
+        ],
+      },
+      select: { department: true, caseId: true },
+    });
+    const surveyedProsthetics = new Set(existingSurveys.filter((s) => s.department === 'PROSTHETICS').map((s) => s.caseId));
+    const surveyedPodiatry = new Set(existingSurveys.filter((s) => s.department === 'PODIATRY').map((s) => s.caseId));
+
+    const pendingProsthetics = prostheticsRows.filter((r) => !surveyedProsthetics.has(r.caseId));
+    const pendingPodiatry = podiatryRows.filter((r) => !surveyedPodiatry.has(r.receptionId));
+
+    const patientIds = [...new Set([...pendingProsthetics.map((r) => r.patientId), ...pendingPodiatry.map((r) => r.patientId)])];
+    const patients = await this.prisma.patient.findMany({
+      where: { id: { in: patientIds } },
+      select: { id: true, patientNumber: true, firstName: true, lastName: true, phone: true },
+    });
+    const patientMap = Object.fromEntries(patients.map((p) => [p.id, p]));
+    const daysSince = (d: Date) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+
+    return {
+      prosthetics: pendingProsthetics.map((r) => ({
+        caseId: r.caseId,
+        patientId: r.patientId,
+        patient: patientMap[r.patientId] ?? null,
+        deliveredAt: r.deliveredAt,
+        daysSinceDelivered: daysSince(r.deliveredAt),
+      })),
+      podiatry: pendingPodiatry.map((r) => ({
+        receptionId: r.receptionId,
+        patientId: r.patientId,
+        patient: patientMap[r.patientId] ?? null,
+        sessionDate: r.sessionDate,
+        daysSinceSession: daysSince(r.sessionDate),
+      })),
+    };
+  }
+
   // عدد الاستبيانات لكل قسم + نسبة رضى عامة محسوبة من تجميع overallCompanyRating لكل الاستبيانات
   // (مش من استبيان واحد لحاله) — overallCompanyRating من 1 إلى 5، النسبة = المعدل ÷ 5 × 100
   async getStats() {
