@@ -62,6 +62,30 @@ export class SurveysService {
     }
   }
 
+  // تحويل تقييم نجوم (1-5) لنسبة مئوية — 1=0%، 2=25%، 3=50%، 4=75%، 5=100%
+  // اتفاقية مؤكَّدة مع الفرونت (مو 1÷5×100 القديمة): فرق 25% بالضبط بين كل نجمة وياللي بعدها
+  private toRatingPercent(rating: number | null | undefined): number | null {
+    if (rating == null) return null;
+    return Math.round(((rating - 1) / 4) * 1000) / 10;
+  }
+
+  // أسماء حقول التقييم (نجوم) الموجودة بالاستبيان — لإضافة حقل Percent جنب كل وحدة منهن
+  private readonly RATING_FIELDS = [
+    'staffExplanationRating', 'specialistCareRating', 'waitingAreaRating', 'waitingDurationRating',
+    'overallCompanyRating', 'measurementAccuracyRating', 'movementEaseRating',
+    'medicalRecommendationRating', 'insoleComfortRating', 'exerciseQualityRating', 'mobilityImprovementRating',
+  ] as const;
+
+  // بيضيف حقل <field>Percent جنب كل حقل نجوم موجود بالاستبيان — بدون ما يلمس أو يحذف
+  // الحقل الأصلي (الرقم من 1-5 يضل موجود متل ما هو، النسبة تنضاف جنبه فقط)
+  private attachRatingPercents<T extends Record<string, any>>(survey: T): T {
+    const extra: Record<string, number | null> = {};
+    for (const field of this.RATING_FIELDS) {
+      extra[`${field}Percent`] = this.toRatingPercent(survey[field]);
+    }
+    return { ...survey, ...extra };
+  }
+
   // نسبة رضى مُرجَّحة خاصة بفيتافوت (تركيب ضبان) — 50% لسؤال "ملاءمة الضبان لراحة قدمك"
   // (insoleComfortRating) + 50% لمتوسط باقي أسئلة استبيان الفيتافوت. حساب عرض فقط — لا
   // يلمس ولا يغيّر أي درجة مخزَّنة. ترجع null لو مش فيتافوت أو ما في insoleComfortRating
@@ -135,13 +159,13 @@ export class SurveysService {
         createdByUserId: userId,
       },
     });
-    return { ...created, podiatryWeightedScore: this.computePodiatryWeightedScore(created) };
+    return this.attachRatingPercents({ ...created, podiatryWeightedScore: this.computePodiatryWeightedScore(created) });
   }
 
   async findOne(id: string) {
     const survey = await this.prisma.patientSurvey.findFirst({ where: { id } });
     if (!survey) throw new NotFoundException({ code: 'SURVEY_NOT_FOUND', message: 'الاستبيان غير موجود' });
-    return { ...survey, podiatryWeightedScore: this.computePodiatryWeightedScore(survey) };
+    return this.attachRatingPercents({ ...survey, podiatryWeightedScore: this.computePodiatryWeightedScore(survey) });
   }
 
   async findAll(query: { patientId?: string; department?: string; page?: number; limit?: number }) {
@@ -158,7 +182,9 @@ export class SurveysService {
       }),
       this.prisma.patientSurvey.count({ where }),
     ]);
-    const itemsWithScore = items.map((s) => ({ ...s, podiatryWeightedScore: this.computePodiatryWeightedScore(s) }));
+    const itemsWithScore = items.map((s) =>
+      this.attachRatingPercents({ ...s, podiatryWeightedScore: this.computePodiatryWeightedScore(s) }),
+    );
     return { items: itemsWithScore, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
