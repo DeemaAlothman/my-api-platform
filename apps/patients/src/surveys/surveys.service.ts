@@ -62,6 +62,38 @@ export class SurveysService {
     }
   }
 
+  // نسبة رضى مُرجَّحة خاصة بفيتافوت (تركيب ضبان) — 50% لسؤال "ملاءمة الضبان لراحة قدمك"
+  // (insoleComfortRating) + 50% لمتوسط باقي أسئلة استبيان الفيتافوت. حساب عرض فقط — لا
+  // يلمس ولا يغيّر أي درجة مخزَّنة. ترجع null لو مش فيتافوت أو ما في insoleComfortRating
+  // (مثلاً ANALYSIS_ONLY — السؤال أصلاً ما بينطبق)
+  private computePodiatryWeightedScore(survey: {
+    department: string;
+    insoleComfortRating: number | null;
+    staffExplanationRating: number | null;
+    specialistCareRating: number | null;
+    waitingAreaRating: number | null;
+    waitingDurationRating: number | null;
+    overallCompanyRating: number | null;
+    medicalRecommendationRating: number | null;
+  }): { score: number; percent: number } | null {
+    if (survey.department !== 'PODIATRY' || survey.insoleComfortRating == null) return null;
+
+    const otherRatings = [
+      survey.staffExplanationRating,
+      survey.specialistCareRating,
+      survey.waitingAreaRating,
+      survey.waitingDurationRating,
+      survey.overallCompanyRating,
+      survey.medicalRecommendationRating,
+    ].filter((v): v is number => v != null);
+    if (otherRatings.length === 0) return null;
+
+    const otherAvg = otherRatings.reduce((s, v) => s + v, 0) / otherRatings.length;
+    const score = 0.5 * survey.insoleComfortRating + 0.5 * otherAvg;
+    const percent = Math.round((score / 5) * 1000) / 10;
+    return { score: Math.round(score * 100) / 100, percent };
+  }
+
   async create(dto: CreateSurveyDto, userId: string) {
     const patient = await this.prisma.patient.findFirst({ where: { id: dto.patientId } });
     if (!patient) throw new NotFoundException({ code: 'PATIENT_NOT_FOUND', message: 'المريض غير موجود' });
@@ -75,7 +107,7 @@ export class SurveysService {
 
     const { caseId, practitionerIds } = await this.resolveCaseAndPractitioners(dto.patientId, dto.department);
 
-    return this.prisma.patientSurvey.create({
+    const created = await this.prisma.patientSurvey.create({
       data: {
         patientId: dto.patientId,
         department: dto.department as any,
@@ -103,12 +135,13 @@ export class SurveysService {
         createdByUserId: userId,
       },
     });
+    return { ...created, podiatryWeightedScore: this.computePodiatryWeightedScore(created) };
   }
 
   async findOne(id: string) {
     const survey = await this.prisma.patientSurvey.findFirst({ where: { id } });
     if (!survey) throw new NotFoundException({ code: 'SURVEY_NOT_FOUND', message: 'الاستبيان غير موجود' });
-    return survey;
+    return { ...survey, podiatryWeightedScore: this.computePodiatryWeightedScore(survey) };
   }
 
   async findAll(query: { patientId?: string; department?: string; page?: number; limit?: number }) {
@@ -125,7 +158,8 @@ export class SurveysService {
       }),
       this.prisma.patientSurvey.count({ where }),
     ]);
-    return { items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    const itemsWithScore = items.map((s) => ({ ...s, podiatryWeightedScore: this.computePodiatryWeightedScore(s) }));
+    return { items: itemsWithScore, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   // مرضى بحاجة متابعة لطلب تقييم: الأطراف الصناعية (تم التسليم من 7 أيام أو أكتر) +
@@ -217,11 +251,29 @@ export class SurveysService {
     const avgRating = agg._avg.overallCompanyRating ?? 0;
     const satisfactionPercent = Math.round((avgRating / 5) * 1000) / 10;
 
+    // نسبة رضى فيتافوت المُرجَّحة — متوسط podiatryWeightedScore لكل استبيانات الفيتافوت
+    // يلي فيها insoleComfortRating (نفس حساب computePodiatryWeightedScore، إجمالاً فقط)
+    const podiatrySurveys = await this.prisma.patientSurvey.findMany({
+      where: { department: 'PODIATRY', insoleComfortRating: { not: null } },
+      select: {
+        department: true, insoleComfortRating: true, staffExplanationRating: true,
+        specialistCareRating: true, waitingAreaRating: true, waitingDurationRating: true,
+        overallCompanyRating: true, medicalRecommendationRating: true,
+      },
+    });
+    const podiatryScores = podiatrySurveys
+      .map((s) => this.computePodiatryWeightedScore(s)?.percent)
+      .filter((v): v is number => v != null);
+    const podiatryWeightedSatisfactionPercent = podiatryScores.length
+      ? Math.round((podiatryScores.reduce((sum, v) => sum + v, 0) / podiatryScores.length) * 10) / 10
+      : null;
+
     return {
       total: agg._count.id,
       byDepartment,
       averageRating: avgRating ? Math.round(avgRating * 10) / 10 : 0,
       satisfactionPercent,
+      podiatryWeightedSatisfactionPercent,
     };
   }
 }
