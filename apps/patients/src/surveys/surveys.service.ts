@@ -62,11 +62,12 @@ export class SurveysService {
     }
   }
 
-  // تحويل تقييم نجوم (1-5) لنسبة مئوية — 1=0%، 2=25%، 3=50%، 4=75%، 5=100%
-  // اتفاقية مؤكَّدة مع الفرونت (مو 1÷5×100 القديمة): فرق 25% بالضبط بين كل نجمة وياللي بعدها
+  // تحويل تقييم نجوم (1-5) لنسبة مئوية — النجوم ÷ 5 × 100: 1=20%، 2=40%، 3=60%، 4=80%، 5=100%
+  // نفس معادلة podiatryWeightedScore.percent وsatisfactionPercent بالضبط (طلب الفرونت 2026-11-14
+  // بعد ما لاحظوا تضارب: جنب كل سؤال كانت تطلع بمعادلة مختلفة عن النسبة النهائية)
   private toRatingPercent(rating: number | null | undefined): number | null {
     if (rating == null) return null;
-    return Math.round(((rating - 1) / 4) * 1000) / 10;
+    return Math.round((rating / 5) * 1000) / 10;
   }
 
   // أسماء حقول التقييم (نجوم) الموجودة بالاستبيان — لإضافة حقل Percent جنب كل وحدة منهن
