@@ -49,8 +49,28 @@ model WorkSchedule {
 
   employeeSchedules EmployeeSchedule[]
   customSchedules   CustomWorkSchedule[]
+  timeHistory       WorkScheduleTimeHistory[]
 
   @@map("work_schedules")
+  @@schema("attendance")
+}
+
+/// نسخ تاريخية لوقت الوردية — أي تعديل على workStartTime/workEndTime يسجَّل هون بتاريخ
+/// نفاذ بدل ما يستبدل القيمة الحية مباشرة، حتى السجلات الماضية تبقى تُحسب على الوقت
+/// اللي كان فعّال وقتها، والتعديل الجديد ينطبق من لحظة حفظه وطالع فقط (بدون أثر رجعي)
+model WorkScheduleTimeHistory {
+  id            String    @id @default(uuid())
+  scheduleId    String
+  workStartTime String?
+  workEndTime   String?
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+
+  schedule WorkSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId])
+  @@index([scheduleId, effectiveFrom])
+  @@map("work_schedule_time_history")
   @@schema("attendance")
 }
 

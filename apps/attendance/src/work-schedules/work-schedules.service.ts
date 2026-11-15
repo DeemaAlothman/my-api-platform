@@ -69,7 +69,7 @@ export class WorkSchedulesService {
   }
 
   async update(id: string, dto: UpdateWorkScheduleDto) {
-    await this.findOne(id);
+    const before = await this.findOne(id);
 
     // If updating code, check uniqueness
     if (dto.code) {
@@ -89,10 +89,34 @@ export class WorkSchedulesService {
       }
     }
 
-    return this.prisma.workSchedule.update({
+    const timeChanged =
+      (dto.workStartTime !== undefined && dto.workStartTime !== before.workStartTime) ||
+      (dto.workEndTime !== undefined && dto.workEndTime !== before.workEndTime);
+
+    const updated = await this.prisma.workSchedule.update({
       where: { id },
       data: dto,
     });
+
+    // تعديل وقت الوردية يُسجَّل بتاريخ نفاذ (versioning) بدل ما يُستبدل القيمة الحية مباشرة —
+    // السجلات الماضية تبقى تُحسب على الوقت القديم، والتعديل الجديد يسري من هاي اللحظة وطالع فقط
+    if (timeChanged) {
+      const now = new Date();
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE attendance.work_schedule_time_history
+         SET "effectiveTo" = $1
+         WHERE "scheduleId" = $2 AND "effectiveTo" IS NULL`,
+        now, id,
+      );
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO attendance.work_schedule_time_history
+           (id, "scheduleId", "workStartTime", "workEndTime", "effectiveFrom", "effectiveTo")
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, NULL)`,
+        id, updated.workStartTime, updated.workEndTime, now,
+      );
+    }
+
+    return updated;
   }
 
   async getActiveScheduleForEmployee(employeeId: string, date: Date) {

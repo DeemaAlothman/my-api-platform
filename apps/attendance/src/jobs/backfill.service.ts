@@ -204,14 +204,20 @@ export class BackfillService {
     );
     const netWorkedMinutes = Math.max(0, workedMinutes - totalBreakMinutes);
 
-    // جلب جدول الدوام
+    // جلب جدول الدوام — وقت البداية/النهاية يُؤخذ من النسخة التاريخية الفعّالة بتاريخ
+    // السجل نفسه (work_schedule_time_history)، لا من القيمة الحية الحالية لـwork_schedules،
+    // حتى تعديل لاحق على وقت الوردية ما يأثر بأثر رجعي على سجلات ماضية
     const schedules = (await this.prisma.$queryRawUnsafe(
-      `SELECT ws."workStartTime", ws."workEndTime",
+      `SELECT wsh."workStartTime", wsh."workEndTime",
               ws."lateToleranceMin", ws."earlyLeaveToleranceMin",
               ws."allowOvertime", ws."maxOvertimeHours",
               ws."shiftType", ws."minimumWorkMinutes", ws."requiresContinuousWork"
        FROM attendance.employee_schedules es
        JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+       JOIN attendance.work_schedule_time_history wsh
+         ON wsh."scheduleId" = ws.id
+         AND $2::date >= wsh."effectiveFrom"::date
+         AND ($2::date < wsh."effectiveTo"::date OR wsh."effectiveTo" IS NULL)
        WHERE es."employeeId" = $1
          AND $2::date BETWEEN es."effectiveFrom"::date
              AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)

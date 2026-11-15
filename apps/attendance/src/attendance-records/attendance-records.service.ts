@@ -351,7 +351,7 @@ export class AttendanceRecordsService {
     // عرض فقط — لا تعديل على أي بيانات مخزَّنة: نعيد حساب دقائق التأخير "الصحيحة" (سماحية تُمنح
     // فقط عند تعويضها فعلياً بالبقاء بعد الدوام، لا مجاناً) للعرض بهذه الصفحة تحديداً، بنفس منطق
     // تصحيح الراتب المطبَّق أصلاً — بدون أي UPDATE على attendance_records
-    const scheduleByEmployee = new Map<string, { workStartTime: string | null; workEndTime: string | null; shiftType: string }>();
+    const scheduleByEmployee = new Map<string, { scheduleId: string | null; shiftType: string }>();
     if (employeeIds.length > 0) {
       const employeeSchedules = await this.prisma.employeeSchedule.findMany({
         where: { employeeId: { in: employeeIds }, isActive: true },
@@ -361,13 +361,43 @@ export class AttendanceRecordsService {
       for (const es of employeeSchedules) {
         if (!scheduleByEmployee.has(es.employeeId)) {
           scheduleByEmployee.set(es.employeeId, {
-            workStartTime: es.schedule?.workStartTime ?? null,
-            workEndTime: es.schedule?.workEndTime ?? null,
+            scheduleId: es.scheduleId ?? null,
             shiftType: (es.schedule as any)?.shiftType ?? 'DAY',
           });
         }
       }
     }
+
+    // وقت البداية/النهاية يُؤخذ من النسخة التاريخية الفعّالة بتاريخ كل سجل/إجازة على حدة
+    // (work_schedule_time_history)، لا من القيمة الحية الحالية — حتى تعديل لاحق على وقت
+    // الوردية ما يأثر بأثر رجعي على سجلات ماضية بهاي الصفحة
+    const scheduleIdsInUse = [...new Set(
+      [...scheduleByEmployee.values()].map(s => s.scheduleId).filter((id): id is string => !!id),
+    )];
+    const timeHistoryByScheduleId = new Map<string, Array<{ workStartTime: string | null; workEndTime: string | null; effectiveFrom: Date; effectiveTo: Date | null }>>();
+    if (scheduleIdsInUse.length > 0) {
+      const historyRows = (await this.prisma.$queryRawUnsafe(
+        `SELECT "scheduleId", "workStartTime", "workEndTime", "effectiveFrom", "effectiveTo"
+         FROM attendance.work_schedule_time_history
+         WHERE "scheduleId" = ANY($1::text[])`,
+        scheduleIdsInUse,
+      )) as Array<{ scheduleId: string; workStartTime: string | null; workEndTime: string | null; effectiveFrom: Date; effectiveTo: Date | null }>;
+      for (const row of historyRows) {
+        const list = timeHistoryByScheduleId.get(row.scheduleId) ?? [];
+        list.push(row);
+        timeHistoryByScheduleId.set(row.scheduleId, list);
+      }
+    }
+    const resolveTimeForDate = (scheduleId: string | null, dateStr: string): { workStartTime: string | null; workEndTime: string | null } => {
+      if (!scheduleId) return { workStartTime: null, workEndTime: null };
+      const rows = timeHistoryByScheduleId.get(scheduleId) ?? [];
+      const row = rows.find(r => {
+        const from = r.effectiveFrom.toISOString().split('T')[0];
+        const to = r.effectiveTo ? r.effectiveTo.toISOString().split('T')[0] : null;
+        return dateStr >= from && (!to || dateStr < to);
+      });
+      return { workStartTime: row?.workStartTime ?? null, workEndTime: row?.workEndTime ?? null };
+    };
 
     const justifiedLateRecordIds = new Set<string>();
     const justifiedEarlyLeaveRecordIds = new Set<string>();
@@ -405,14 +435,15 @@ export class AttendanceRecordsService {
         `, employeeIds);
       for (const leave of manualHourlyLeaveRows) {
         const sched = scheduleByEmployee.get(leave.employeeId);
-        if (!sched?.workStartTime || !sched?.workEndTime) continue;
         const dk = new Date(leave.date).toISOString().split('T')[0];
+        const times = resolveTimeForDate(sched?.scheduleId ?? null, dk);
+        if (!times.workStartTime || !times.workEndTime) continue;
         const key = `${leave.employeeId}|${dk}`;
         const minutes = Math.round((leave.durationHours || 0) * 60);
-        if (leave.startTime <= sched.workStartTime) {
+        if (leave.startTime <= times.workStartTime) {
           morningCoverageByEmployeeDate.set(key, (morningCoverageByEmployeeDate.get(key) ?? 0) + minutes);
         }
-        if (leave.endTime >= sched.workEndTime) {
+        if (leave.endTime >= times.workEndTime) {
           eveningCoverageByEmployeeDate.set(key, (eveningCoverageByEmployeeDate.get(key) ?? 0) + minutes);
         }
       }
@@ -476,13 +507,15 @@ export class AttendanceRecordsService {
       let displayStatus = record.status;
 
       const sched = scheduleByEmployee.get(record.employeeId);
+      const recordDateStr = new Date(record.date).toISOString().split('T')[0];
+      const schedTimes = resolveTimeForDate(sched?.scheduleId ?? null, recordDateStr);
       const fullDayLeaveTypeAr = fullDayLeaveByEmployeeDate.get(
-        `${record.employeeId}|${new Date(record.date).toISOString().split('T')[0]}`,
+        `${record.employeeId}|${recordDateStr}`,
       );
       const onFullDayLeave = !!fullDayLeaveTypeAr;
       const canRecompute =
-        record.clockInTime && sched?.workStartTime && sched?.workEndTime &&
-        sched.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status) &&
+        record.clockInTime && schedTimes.workStartTime && schedTimes.workEndTime &&
+        sched?.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status) &&
         !onFullDayLeave;
 
       // يوم بإجازة كاملة معتمدة: تُصفَّر الدقائق صراحةً لا تُترك على القيمة الخام المخزَّنة،
@@ -495,8 +528,8 @@ export class AttendanceRecordsService {
       }
 
       if (canRecompute) {
-        const [startH, startM] = sched!.workStartTime!.split(':').map(Number);
-        const [endH, endM] = sched!.workEndTime!.split(':').map(Number);
+        const [startH, startM] = schedTimes.workStartTime!.split(':').map(Number);
+        const [endH, endM] = schedTimes.workEndTime!.split(':').map(Number);
         const recDate = new Date(record.date);
         // خادم الحاوية يشتغل بتوقيت UTC صافٍ (تأكدنا: docker exec ... date → UTC)، بينما
         // "workStartTime/workEndTime" مقصودة بتوقيت العمل المحلي (UTC+3) — استخدام setHours()
@@ -806,6 +839,24 @@ export class AttendanceRecordsService {
     });
     const sched = employeeSchedule?.schedule;
 
+    // وقت البداية/النهاية يُؤخذ من النسخة التاريخية الفعّالة بتاريخ السجل نفسه
+    // (work_schedule_time_history)، لا من القيمة الحية الحالية — نفس منطق صفحة السجل والراتب
+    let schedWorkStartTime: string | null = null;
+    let schedWorkEndTime: string | null = null;
+    if (employeeSchedule?.scheduleId) {
+      const timeRows = (await this.prisma.$queryRawUnsafe(
+        `SELECT "workStartTime", "workEndTime"
+         FROM attendance.work_schedule_time_history
+         WHERE "scheduleId" = $1
+           AND $2::date >= "effectiveFrom"::date
+           AND ($2::date < "effectiveTo"::date OR "effectiveTo" IS NULL)
+         LIMIT 1`,
+        employeeSchedule.scheduleId, dateStr,
+      )) as Array<{ workStartTime: string | null; workEndTime: string | null }>;
+      schedWorkStartTime = timeRows[0]?.workStartTime ?? null;
+      schedWorkEndTime = timeRows[0]?.workEndTime ?? null;
+    }
+
     // إجازة ساعية يدوية معتمدة بهذا اليوم — لازم نطرحها من التأخير/الخروج المبكر الخام قبل
     // حساب السماحية، تماماً كما بصفحة سجل الحضور وحساب الراتب (fetched early so it can offset
     // the raw late/early-leave minutes below; also reused for display in section 3 further down)
@@ -822,12 +873,12 @@ export class AttendanceRecordsService {
     `, employeeId, dateStr);
     let morningLeaveCoverageMinutes = 0;
     let eveningLeaveCoverageMinutes = 0;
-    if (sched?.workStartTime && sched?.workEndTime) {
+    if (schedWorkStartTime && schedWorkEndTime) {
       for (const leave of manualHourlyLeaveRowsForDay) {
         if (leave.status !== 'APPROVED') continue;
         const minutes = Math.round((leave.durationHours || 0) * 60);
-        if (leave.startTime <= sched.workStartTime) morningLeaveCoverageMinutes += minutes;
-        if (leave.endTime >= sched.workEndTime) eveningLeaveCoverageMinutes += minutes;
+        if (leave.startTime <= schedWorkStartTime) morningLeaveCoverageMinutes += minutes;
+        if (leave.endTime >= schedWorkEndTime) eveningLeaveCoverageMinutes += minutes;
       }
     }
 
@@ -850,11 +901,11 @@ export class AttendanceRecordsService {
     const BUSINESS_UTC_OFFSET_HOURS = 3;
     const excludedStatuses = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
     if (
-      (record as any).clockInTime && sched?.workStartTime && sched?.workEndTime &&
-      (sched as any).shiftType !== 'FLEXIBLE' && !excludedStatuses.has((record as any).status)
+      (record as any).clockInTime && schedWorkStartTime && schedWorkEndTime &&
+      (sched as any)?.shiftType !== 'FLEXIBLE' && !excludedStatuses.has((record as any).status)
     ) {
-      const [startH, startM] = sched.workStartTime.split(':').map(Number);
-      const [endH, endM] = sched.workEndTime.split(':').map(Number);
+      const [startH, startM] = schedWorkStartTime.split(':').map(Number);
+      const [endH, endM] = schedWorkEndTime.split(':').map(Number);
       let schedStart = new Date(Date.UTC(
         recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
         startH - BUSINESS_UTC_OFFSET_HOURS, startM, 0, 0,

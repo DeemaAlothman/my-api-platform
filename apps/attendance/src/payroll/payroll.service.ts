@@ -1310,10 +1310,30 @@ export class PayrollService {
       try { workDaysArray = JSON.parse(schedule.schedule.workDays); } catch {}
     }
 
+    // وقت البداية/النهاية يُؤخذ من النسخة التاريخية الفعّالة بتاريخ نهاية فترة الراتب
+    // (work_schedule_time_history)، لا من القيمة الحية الحالية لـwork_schedules — حتى تعديل
+    // لاحق على وقت الوردية ما يأثر بأثر رجعي على رواتب فترات سابقة
+    let resolvedWorkStartTime: string | null = null;
+    let resolvedWorkEndTime: string | null = null;
+    if (schedule?.scheduleId) {
+      const endDateStr = endDate.toISOString().split('T')[0];
+      const timeRows = (await this.prisma.$queryRawUnsafe(
+        `SELECT "workStartTime", "workEndTime"
+         FROM attendance.work_schedule_time_history
+         WHERE "scheduleId" = $1
+           AND $2::date >= "effectiveFrom"::date
+           AND ($2::date < "effectiveTo"::date OR "effectiveTo" IS NULL)
+         LIMIT 1`,
+        schedule.scheduleId, endDateStr,
+      )) as Array<{ workStartTime: string | null; workEndTime: string | null }>;
+      resolvedWorkStartTime = timeRows[0]?.workStartTime ?? null;
+      resolvedWorkEndTime = timeRows[0]?.workEndTime ?? null;
+    }
+
     let dailyWorkMinutes = 480;
-    if (schedule?.schedule?.workStartTime && schedule?.schedule?.workEndTime) {
-      const [sh, sm] = schedule.schedule.workStartTime.split(':').map(Number);
-      const [eh, em] = schedule.schedule.workEndTime.split(':').map(Number);
+    if (resolvedWorkStartTime && resolvedWorkEndTime) {
+      const [sh, sm] = resolvedWorkStartTime.split(':').map(Number);
+      const [eh, em] = resolvedWorkEndTime.split(':').map(Number);
       const computed = (eh * 60 + em) - (sh * 60 + sm);
       if (computed > 0) dailyWorkMinutes = computed;
     }
@@ -1326,8 +1346,8 @@ export class PayrollService {
     }
     return {
       count, workDaysArray, dailyWorkMinutes,
-      workStartTime: schedule?.schedule?.workStartTime ?? null,
-      workEndTime: schedule?.schedule?.workEndTime ?? null,
+      workStartTime: resolvedWorkStartTime,
+      workEndTime: resolvedWorkEndTime,
       lateToleranceMin: schedule?.schedule?.lateToleranceMin ?? 0,
       shiftType: (schedule?.schedule as any)?.shiftType ?? 'DAY',
     };

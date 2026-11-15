@@ -1605,12 +1605,12 @@ export class DailyClosureService implements OnModuleInit {
                         CASE
                           WHEN ar."halfDayPeriod" = 'AM' THEN
                             (ar.date::date)::timestamp + make_interval(mins =>
-                              (SPLIT_PART(ws."workStartTime",':',1)::int*60 + SPLIT_PART(ws."workStartTime",':',2)::int +
-                               SPLIT_PART(ws."workEndTime",':',1)::int*60   + SPLIT_PART(ws."workEndTime",':',2)::int
+                              (SPLIT_PART(wsh."workStartTime",':',1)::int*60 + SPLIT_PART(wsh."workStartTime",':',2)::int +
+                               SPLIT_PART(wsh."workEndTime",':',1)::int*60   + SPLIT_PART(wsh."workEndTime",':',2)::int
                               ) / 2 - 180)
                           WHEN ar."halfDayPeriod" = 'PM' THEN
                             (ar.date::date)::timestamp + make_interval(mins =>
-                               SPLIT_PART(ws."workEndTime",':',1)::int*60 + SPLIT_PART(ws."workEndTime",':',2)::int - 180)
+                               SPLIT_PART(wsh."workEndTime",':',1)::int*60 + SPLIT_PART(wsh."workEndTime",':',2)::int - 180)
                           ELSE NULL
                         END
                       ) -
@@ -1618,11 +1618,11 @@ export class DailyClosureService implements OnModuleInit {
                         CASE
                           WHEN ar."halfDayPeriod" = 'AM' THEN
                             (ar.date::date)::timestamp + make_interval(mins =>
-                               SPLIT_PART(ws."workStartTime",':',1)::int*60 + SPLIT_PART(ws."workStartTime",':',2)::int - 180)
+                               SPLIT_PART(wsh."workStartTime",':',1)::int*60 + SPLIT_PART(wsh."workStartTime",':',2)::int - 180)
                           WHEN ar."halfDayPeriod" = 'PM' THEN
                             (ar.date::date)::timestamp + make_interval(mins =>
-                              (SPLIT_PART(ws."workStartTime",':',1)::int*60 + SPLIT_PART(ws."workStartTime",':',2)::int +
-                               SPLIT_PART(ws."workEndTime",':',1)::int*60   + SPLIT_PART(ws."workEndTime",':',2)::int
+                              (SPLIT_PART(wsh."workStartTime",':',1)::int*60 + SPLIT_PART(wsh."workStartTime",':',2)::int +
+                               SPLIT_PART(wsh."workEndTime",':',1)::int*60   + SPLIT_PART(wsh."workEndTime",':',2)::int
                               ) / 2 - 180)
                           ELSE NULL
                         END
@@ -1630,7 +1630,7 @@ export class DailyClosureService implements OnModuleInit {
                     )) / 60)::int
                   ) FILTER (
                     WHERE ab.id IS NOT NULL AND ar."halfDayPeriod" IS NOT NULL
-                      AND ws."workStartTime" IS NOT NULL AND ws."workEndTime" IS NOT NULL
+                      AND wsh."workStartTime" IS NOT NULL AND wsh."workEndTime" IS NOT NULL
                       AND ab."breakIn" IS NOT NULL
                   ), 0)::int AS "halfDayOverlap"
            FROM attendance.attendance_records ar
@@ -1640,12 +1640,16 @@ export class DailyClosureService implements OnModuleInit {
                  AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
              AND es."isActive" = true
            JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+           JOIN attendance.work_schedule_time_history wsh
+             ON wsh."scheduleId" = ws.id
+             AND $1::date >= wsh."effectiveFrom"::date
+             AND ($1::date < wsh."effectiveTo"::date OR wsh."effectiveTo" IS NULL)
            LEFT JOIN attendance.attendance_breaks ab ON ab."attendanceRecordId" = ar.id
            WHERE ar.date = $1::date
              AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            GROUP BY ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes",
                     ar."leaveStartTime", ar."leaveEndTime", ar."halfDayPeriod",
-                    ws."workStartTime", ws."workEndTime"
+                    wsh."workStartTime", wsh."workEndTime"
          )
          SELECT id, "employeeId", "totalBreakMinutes", "allowedBreakMinutes",
                 ("leaveOverlap" + "halfDayOverlap") AS "leaveBreakOverlapMinutes"
@@ -1754,12 +1758,12 @@ export class DailyClosureService implements OnModuleInit {
         `WITH sched AS (
            SELECT ar.id, ar."employeeId", ar."workedMinutes",
                   CASE
-                    WHEN ws."workStartTime" IS NOT NULL AND ws."workEndTime" IS NOT NULL THEN
+                    WHEN wsh."workStartTime" IS NOT NULL AND wsh."workEndTime" IS NOT NULL THEN
                       GREATEST(240,
                         EXTRACT(EPOCH FROM (
-                          CASE WHEN ws."workEndTime"::time >= ws."workStartTime"::time
-                            THEN ws."workEndTime"::time - ws."workStartTime"::time
-                            ELSE ws."workEndTime"::time - ws."workStartTime"::time + interval '24 hours'
+                          CASE WHEN wsh."workEndTime"::time >= wsh."workStartTime"::time
+                            THEN wsh."workEndTime"::time - wsh."workStartTime"::time
+                            ELSE wsh."workEndTime"::time - wsh."workStartTime"::time + interval '24 hours'
                           END
                         ))::int / 60 - COALESCE(ws."breakDurationMin", 0)
                       )
@@ -1772,6 +1776,10 @@ export class DailyClosureService implements OnModuleInit {
                  AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
              AND es."isActive" = true
            JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+           JOIN attendance.work_schedule_time_history wsh
+             ON wsh."scheduleId" = ws.id
+             AND $1::date >= wsh."effectiveFrom"::date
+             AND ($1::date < wsh."effectiveTo"::date OR wsh."effectiveTo" IS NULL)
            WHERE ar.date = $1::date
              AND ar."workedMinutes" IS NOT NULL
              AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
@@ -1947,8 +1955,8 @@ export class DailyClosureService implements OnModuleInit {
       const records = (await this.prisma.$queryRawUnsafe(
         `SELECT ar.id, ar."employeeId", ar."clockInTime", ar."clockOutTime",
                 ar."workedMinutes",
-                COALESCE(ws."workStartTime", '') AS "workStartTime",
-                COALESCE(ws."workEndTime", '')   AS "workEndTime",
+                COALESCE(wsh."workStartTime", '') AS "workStartTime",
+                COALESCE(wsh."workEndTime", '')   AS "workEndTime",
                 COALESCE(ws."shiftType", 'DAY')  AS "shiftType",
                 ws."minimumWorkMinutes",
                 ws."workDays"
@@ -1958,6 +1966,10 @@ export class DailyClosureService implements OnModuleInit {
                AND COALESCE(es."effectiveTo"::date, '9999-12-31'::date)
            AND es."isActive" = true
          LEFT JOIN attendance.work_schedules ws ON ws.id = es."scheduleId"
+         LEFT JOIN attendance.work_schedule_time_history wsh
+           ON wsh."scheduleId" = ws.id
+           AND $1::date >= wsh."effectiveFrom"::date
+           AND ($1::date < wsh."effectiveTo"::date OR wsh."effectiveTo" IS NULL)
          WHERE ar.date = $1::date
            AND ar."clockInTime" IS NOT NULL
            AND ar."clockOutTime" IS NOT NULL

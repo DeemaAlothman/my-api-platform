@@ -5,6 +5,7 @@ npx prisma migrate resolve --applied "20260121160000_init_attendance"      || tr
 npx prisma migrate resolve --applied "20260406000002_attendance_additions" || true
 npx prisma migrate resolve --applied "20260407000001_payroll_financial_fields" || true
 npx prisma migrate resolve --applied "20260413000001_payroll_bonus_penalty_fields" || true
+npx prisma migrate resolve --applied "20261115000001_add_work_schedule_time_history" || true
 
 npx prisma migrate deploy
 
