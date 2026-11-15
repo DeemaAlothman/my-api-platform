@@ -22,7 +22,8 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules              ./node_modules
+COPY --from=builder /app/apps/podiatry/package*.json ./
+RUN npm install --omit=dev
 COPY --from=builder /app/apps/podiatry/dist        ./dist
 COPY --from=builder /app/apps/podiatry/prisma      ./prisma
 
