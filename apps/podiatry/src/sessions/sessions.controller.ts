@@ -44,6 +44,13 @@ export class SessionsController {
     return this.service.install(receptionId, sessionId, user.userId);
   }
 
+  // تراجع عن "تم التركيب" — نفس صلاحية التركيب نفسها
+  @Permission(PERMISSIONS.CLINIC_PODIATRY.SESSION_CREATE)
+  @Delete(':sessionId/install')
+  uninstall(@Param('receptionId') receptionId: string, @Param('sessionId') sessionId: string) {
+    return this.service.uninstall(receptionId, sessionId);
+  }
+
   @Permission(PERMISSIONS.CLINIC_PODIATRY.SESSION_ARCHIVE)
   @Post(':sessionId/archive')
   archive(@Param('receptionId') receptionId: string, @Param('sessionId') sessionId: string, @User() user: any) {

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
@@ -104,6 +104,20 @@ export class SessionsService {
       where: { id: sessionId },
       data: { installedAt: new Date(), installedBy: userId },
     });
+  }
+
+  // تراجع عن "تم التركيب" — صفر حذف، بس تفريغ installedAt/installedBy حتى يرجع المريض
+  // يطلع بمتابعة التقييمات وإحصائيات المبيعات متل أي مريض ما ركّب بعد
+  async uninstall(receptionId: string, sessionId: string) {
+    const session = await this.findOne(receptionId, sessionId);
+    if (!session.installedAt) {
+      throw new BadRequestException({ code: 'NOT_INSTALLED', message: 'الجلسة أصلاً غير مركّبة' });
+    }
+    const updated = await this.prisma.podiatrySession.update({
+      where: { id: sessionId },
+      data: { installedAt: null, installedBy: null },
+    });
+    return { ...updated, installedByName: null };
   }
 
   async archive(receptionId: string, sessionId: string, userId: string) {
