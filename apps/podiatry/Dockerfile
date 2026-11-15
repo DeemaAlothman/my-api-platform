@@ -26,6 +26,7 @@ COPY --from=builder /app/apps/podiatry/package*.json ./
 RUN npm install --omit=dev
 COPY --from=builder /app/apps/podiatry/dist        ./dist
 COPY --from=builder /app/apps/podiatry/prisma      ./prisma
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 
 EXPOSE 4015
 CMD ["node", "dist/apps/podiatry/src/main.js"]
