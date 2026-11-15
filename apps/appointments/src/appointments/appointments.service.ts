@@ -834,8 +834,11 @@ export class AppointmentsService implements OnModuleInit {
     return slots;
   }
 
-  async findMyAppointments(userId: string, query: { status?: string; date?: string; page?: number; limit?: number }) {
-    const { page = 1, limit = 50, status, date } = query;
+  async findMyAppointments(
+    userId: string,
+    query: { status?: string; date?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number },
+  ) {
+    const { page = 1, limit = 50, status, date, dateFrom, dateTo } = query;
     const skip = (page - 1) * limit;
     const where: any = {
       OR: [
@@ -845,7 +848,16 @@ export class AppointmentsService implements OnModuleInit {
       ],
     };
     if (status) where.status = status;
-    if (date) {
+    if (dateFrom || dateTo) {
+      // فترة (من-إلى) — نفس منطق clinicDayRange المستخدم بباقي فلاتر التاريخ بهالملف
+      where.startTime = {};
+      if (dateFrom) {
+        where.startTime.gte = BARE_DATE.test(dateFrom) ? clinicDayRange(dateFrom).start : new Date(dateFrom);
+      }
+      if (dateTo) {
+        where.startTime.lt = BARE_DATE.test(dateTo) ? clinicDayRange(dateTo).end : new Date(dateTo);
+      }
+    } else if (date) {
       if (BARE_DATE.test(date)) {
         const { start, end } = clinicDayRange(date);
         where.startTime = { gte: start, lt: end };
@@ -861,7 +873,7 @@ export class AppointmentsService implements OnModuleInit {
       this.prisma.appointment.count({ where }),
     ]);
     const items = await this.attachPatientNames(raw);
-    return { items, total, page, limit };
+    return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   async findOne(id: string, userId?: string) {

@@ -268,8 +268,16 @@ export class MyAppointmentsQueryDto {
   @IsOptional() @IsString()
   status?: string;
 
+  // يوم واحد محدَّد — يبقى شغّال متل ما هو لحتى ما ينكسر أي استخدام حالي
   @IsOptional() @IsString()
   date?: string;
+
+  // فترة (من-إلى) — متل staff-meetings/my. لو انبعتت، بتاخد أولوية عن date
+  @IsOptional() @IsString()
+  dateFrom?: string;
+
+  @IsOptional() @IsString()
+  dateTo?: string;
 
   @IsOptional() @IsInt() @Min(1) @Type(() => Number)
   page?: number = 1;
