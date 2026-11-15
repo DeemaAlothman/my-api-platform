@@ -121,6 +121,11 @@ export class ProxyService {
       url: process.env.STAR_OF_MONTH_SERVICE_URL || 'http://localhost:4021',
       prefix: '/star-of-month',
     });
+
+    this.services.set('whatsapp', {
+      url: process.env.WHATSAPP_SERVICE_URL || 'http://localhost:4022',
+      prefix: '/whatsapp',
+    });
   }
 
   async forward(req: Request, res: Response, serviceName: string) {

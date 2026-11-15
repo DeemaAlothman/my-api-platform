@@ -443,6 +443,9 @@ export const PERMISSIONS = {
     COUNTS_READ:   'cashbox.counts.read',   // عرض الجرد
     COUNTS_CREATE: 'cashbox.counts.create', // تسجيل جرد جديد
   },
+  WHATSAPP: {
+    MANAGE: 'whatsapp.manage', // عرض حالة الاتصال/QR وتسجيل الخروج — super_admin فقط حالياً
+  },
 } as const;
 
 // ── Type Helpers ──────────────────────────────────────────────────────────────

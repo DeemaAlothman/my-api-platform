@@ -978,3 +978,18 @@ export class StarOfMonthProxyController {
     await this.proxy.forward(req, res, 'star-of-month');
   }
 }
+
+@Controller('whatsapp')
+export class WhatsappProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'whatsapp');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'whatsapp');
+  }
+}
