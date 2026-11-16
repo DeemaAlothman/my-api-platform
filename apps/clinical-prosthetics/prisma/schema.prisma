@@ -296,6 +296,18 @@ model ProstheticsCase {
   moreAffectedSide AmputationSide?
 
   status              CaseStatus @default(INTAKE)
+
+  // إعادة فتح حالة مسلَّمة لاستكمال النواقص — لا تغيّر status ولا أي تاريخ تسليم،
+  // وهي الاستثناء الوحيد الذي يسمح بالكتابة على حالة DELIVERED
+  isReopened    Boolean   @default(false)
+  reopenedBy    String?
+  reopenedAt    DateTime?
+  reopenReason  String?   @db.Text
+  relockedBy    String?
+  relockedAt    DateTime?
+  relockForced  Boolean   @default(false)
+  relockForceReason String? @db.Text
+
   hasPreviousProsthesis Boolean @default(false)
   previousProsthesisDetails String?
   previousProsthesisWhen    String?

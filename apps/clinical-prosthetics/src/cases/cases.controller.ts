@@ -7,9 +7,10 @@ import { createReadStream, existsSync } from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CasesService } from './cases.service';
 import { CaseEventsInterceptor } from '../common/interceptors/case-events.interceptor';
+import { CaseWritableGuard } from '../common/guards/case-writable.guard';
 import { caseAttachmentMulterOptions } from './case-files.config';
 import { PdfService } from './pdf.service';
-import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto } from './dto/case.dto';
+import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto, ReopenCaseDto, RelockCaseDto } from './dto/case.dto';
 import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto, TransradialAssessmentDto, ElbowDisarticulationAssessmentDto, TranshumeralAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
@@ -70,7 +71,7 @@ export class CasesInternalController {
 }
 
 @Controller('prosthetics/cases')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard, CaseWritableGuard)
 @UseInterceptors(CaseEventsInterceptor)
 export class CasesController {
   constructor(
@@ -120,6 +121,20 @@ export class CasesController {
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_CREATE)
   update(@Param('id') id: string, @Body() dto: UpdateCaseDto) {
     return this.service.update(id, dto);
+  }
+
+  // إعادة فتح حالة مسلَّمة — لا تلمس status ولا أي تاريخ تسليم
+  @Post(':id/reopen')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.REOPEN)
+  reopen(@Param('id') id: string, @Body() dto: ReopenCaseDto, @User() user: any) {
+    return this.service.reopenCase(id, dto, user);
+  }
+
+  // إعادة القفل — تُرفض إذا بقيت حقول ناقصة، إلا بـ force مع سبب
+  @Post(':id/relock')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.REOPEN)
+  relock(@Param('id') id: string, @Body() dto: RelockCaseDto, @User() user: any) {
+    return this.service.relockCase(id, dto, user);
   }
 
   @Put(':id/status')

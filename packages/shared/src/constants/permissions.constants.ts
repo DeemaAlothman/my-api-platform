@@ -277,6 +277,8 @@ export const PERMISSIONS = {
     DELIVERY_APPROVE:  'clinic.prosthetics.delivery.approve',
     // تنبيه رئيس القسم بخصوص استمارة غير مكتملة لحالة معيّنة
     NOTIFY_INCOMPLETE_FORM: 'clinic.prosthetics.notify_incomplete_form',
+    // إعادة فتح حالة مسلَّمة لاستكمال النواقص، وإعادة قفلها
+    REOPEN: 'clinic.prosthetics.reopen',
   },
   CLINIC_PHYSIO: {
     CASE_VIEW:         'clinic.physio.case.view',

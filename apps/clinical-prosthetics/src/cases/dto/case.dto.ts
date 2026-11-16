@@ -1,5 +1,5 @@
 import {
-  IsString, IsOptional, IsBoolean, IsEnum, IsDateString,
+  IsString, IsNotEmpty, IsOptional, IsBoolean, IsEnum, IsDateString,
   IsInt, Min, Max, IsNumber, IsArray,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
@@ -23,6 +23,21 @@ export enum AmputationCauseEnum {
 export enum AmputationLevelEnum { PH='PH', WD='WD', TR='TR', ED='ED', TH='TH', SD='SD', PF='PF', CHOPART='CHOPART', TT='TT', KD='KD', TF='TF', HD='HD' }
 export enum CaseStatusEnum      { INTAKE='INTAKE', ASSESSMENT='ASSESSMENT', COMMITTEE_REVIEW='COMMITTEE_REVIEW', APPROVED='APPROVED', FITTING='FITTING', SOCKET_TRIAL='SOCKET_TRIAL', GAIT_TRAINING='GAIT_TRAINING', FINAL_REVIEW='FINAL_REVIEW', DELIVERED='DELIVERED', FOLLOW_UP='FOLLOW_UP', CANCELLED='CANCELLED' }
 export enum ProsthesisTypeEnum  { BIONIC='BIONIC', MYOBOCK='MYOBOCK', MECHANIC='MECHANIC', COSMETIC_COVER='COSMETIC_COVER', OTHER='OTHER' }
+
+// إعادة فتح حالة مسلَّمة — السبب إجباري ليبقى القرار موثَّقاً
+export class ReopenCaseDto {
+  @IsString() @IsNotEmpty()
+  reason: string;
+}
+
+// إعادة القفل — force يتجاوز وجود حقول ناقصة، ويلزمه سبب
+export class RelockCaseDto {
+  @IsOptional() @IsBoolean()
+  force?: boolean;
+
+  @IsOptional() @IsString()
+  reason?: string;
+}
 
 export class CreateCaseDto {
   @IsString()

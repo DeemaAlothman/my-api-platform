@@ -3,7 +3,7 @@ import {
   InternalServerErrorException, ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto } from './dto/case.dto';
+import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto, ReopenCaseDto, RelockCaseDto } from './dto/case.dto';
 import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto, TransradialAssessmentDto, ElbowDisarticulationAssessmentDto, TranshumeralAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
@@ -1770,6 +1770,178 @@ export class CasesService {
     return this.prisma.prostheticDeliveryItem.update({
       where: { id: itemId },
       data: { isApproved: true, approvedAt: new Date() },
+    });
+  }
+
+  // ── حساب الحقول الإجبارية الفارغة ────────────────────────────────────────
+
+  /**
+   * الحقول الإجبارية لكل قسم. تُحسب فقط للأقسام المنطبقة على الحالة:
+   * تقييم الطرف العلوي لا يُطلب من حالة بتر سفلي والعكس، حسب amputationType.
+   * بيانات المريض ليست هنا عمداً — مكانها ملف المريض في خدمة أخرى.
+   */
+  private static readonly REQUIRED = {
+    team: ['prosthetistIds', 'physiotherapistIds'],
+    general_assessment: ['amputationDate', 'amputationCause', 'clinicalHistory'],
+    upper_assessment: [
+      'residualLimbLength', 'residualLimbShape', 'amputationLevelNote', 'loadTolerance',
+      'notes', 'skinAppearance', 'skinColor', 'skinTemperature', 'scarCondition',
+      'generalHealthNotes', 'otherLimbCondition',
+    ],
+    lower_assessment: [
+      'residualLimbLength', 'residualLimbShape', 'amputationLevelNote', 'skinNotes',
+      'skinAppearance', 'skinColor', 'skinTemperature', 'scarCondition', 'closureNotes',
+      'generalHealthNotes', 'otherLimbCondition',
+    ],
+    session: ['sessionDate', 'sessionTime', 'technicianId', 'description'],
+    gait_analysis: ['sessionDate'],
+    balance_assessment: ['assessmentDate'],
+    final_evaluation: [
+      'residualLimbCondition', 'suspensionSystemUsed', 'socksDelivered',
+      'linersDelivered', 'fittingDate', 'generalNotes',
+    ],
+  };
+
+  private static isEmpty(v: any): boolean {
+    if (v === null || v === undefined) return true;
+    if (typeof v === 'string') return v.trim() === '';
+    if (Array.isArray(v)) return v.length === 0;
+    return false;
+  }
+
+  /**
+   * يرجّع قائمة الحقول الإجبارية الفارغة بالشكل [{ section, field }].
+   * القسم الغائب كلياً (لا سجل له) يُبلَّغ عنه بكل حقوله، لأن غيابه نقص لا اكتمال.
+   */
+  async computeMissingFields(caseId: string): Promise<Array<{ section: string; field: string; recordId?: string }>> {
+    const R = CasesService.REQUIRED;
+    const isEmpty = CasesService.isEmpty;
+    const missing: Array<{ section: string; field: string; recordId?: string }> = [];
+
+    const c = await this.prisma.prostheticsCase.findFirst({
+      where: { id: caseId, deletedAt: null },
+      include: {
+        upperAssessment: true,
+        lowerAssessment: true,
+        finalEvaluation: true,
+        gaitAnalysisForms: true,
+        balanceAssessmentForms: true,
+        treatmentPrograms: true,
+        reviewPrograms: true,
+      },
+    } as any) as any;
+    if (!c) throw new NotFoundException('Case not found');
+
+    for (const f of R.team) if (isEmpty(c[f])) missing.push({ section: 'team', field: f });
+
+    for (const f of R.general_assessment) if (isEmpty(c[f])) missing.push({ section: 'general_assessment', field: f });
+    if (c.amputationCause === 'OTHER' && isEmpty(c.amputationCauseOtherDetail)) {
+      missing.push({ section: 'general_assessment', field: 'amputationCauseOtherDetail' });
+    }
+
+    // التقييم العلوي/السفلي سجل لكل جهة (يمين/يسار)، فغياب القائمة كلياً نقص كامل
+    const types: string[] = c.amputationType ?? [];
+    const checkAssessments = (section: string, rows: any[], fields: string[]) => {
+      if (!rows || rows.length === 0) {
+        for (const f of fields) missing.push({ section, field: f });
+        return;
+      }
+      for (const row of rows) {
+        for (const f of fields) if (isEmpty(row[f])) missing.push({ section, field: f, recordId: row.id });
+      }
+    };
+    if (types.includes('UPPER')) checkAssessments('upper_assessment', c.upperAssessment, R.upper_assessment);
+    if (types.includes('LOWER')) checkAssessments('lower_assessment', c.lowerAssessment, R.lower_assessment);
+
+    // الجلسات: كل سجل يُفحص على حدة، ويُذكر معرّفه ليعرف المستخدم أي جلسة ناقصة
+    for (const row of (c.treatmentPrograms ?? [])) {
+      for (const f of R.session) if (isEmpty(row[f])) missing.push({ section: 'treatment_program', field: f, recordId: row.id });
+    }
+    for (const row of (c.reviewPrograms ?? [])) {
+      for (const f of R.session) if (isEmpty(row[f])) missing.push({ section: 'review_program', field: f, recordId: row.id });
+    }
+    for (const row of (c.gaitAnalysisForms ?? [])) {
+      for (const f of R.gait_analysis) if (isEmpty(row[f])) missing.push({ section: 'gait_analysis', field: f, recordId: row.id });
+    }
+    for (const row of (c.balanceAssessmentForms ?? [])) {
+      for (const f of R.balance_assessment) if (isEmpty(row[f])) missing.push({ section: 'balance_assessment', field: f, recordId: row.id });
+    }
+
+    const fe = c.finalEvaluation;
+    for (const f of R.final_evaluation) if (!fe || isEmpty(fe[f])) missing.push({ section: 'final_evaluation', field: f });
+
+    return missing;
+  }
+
+  // ── إعادة فتح الحالة المسلَّمة وإعادة قفلها ───────────────────────────────
+
+  /**
+   * يفتح حالة مسلَّمة للتعديل حتى تُستكمل نواقصها.
+   * لا يلمس status ولا deliveryDate ولا inspectionDate — التسليم يبقى كما هو،
+   * والمفتوح هو إذن الكتابة فقط (يفحصه CaseWritableGuard).
+   */
+  async reopenCase(id: string, dto: ReopenCaseDto, user: any) {
+    const c = await this.findCaseOrThrow(id);
+    if (c.status !== 'DELIVERED') {
+      throw new BadRequestException({
+        code: 'CASE_NOT_DELIVERED',
+        message: 'إعادة الفتح تخص الحالات المسلَّمة فقط',
+      });
+    }
+    if (c.isReopened) {
+      throw new BadRequestException({ code: 'CASE_ALREADY_REOPENED', message: 'الحالة مفتوحة مسبقاً' });
+    }
+    return this.prisma.prostheticsCase.update({
+      where: { id },
+      data: {
+        isReopened: true,
+        reopenedBy: user?.userId ?? null,
+        reopenedAt: new Date(),
+        reopenReason: dto.reason,
+        // يُمسح أثر القفل السابق حتى لا يختلط بقرار قفل جديد
+        relockedBy: null,
+        relockedAt: null,
+        relockForced: false,
+        relockForceReason: null,
+      },
+    });
+  }
+
+  /**
+   * يعيد قفل الحالة. يُرفض ما دامت هناك حقول ناقصة، إلا بـ force مع سبب —
+   * فالحالات القديمة التي يستحيل استكمالها تُقفل بقرار موثَّق بدل أن تبقى مفتوحة للأبد.
+   * القفل لا يمسح hasMissingFields: الحالة الناقصة تبقى ظاهرة في فلتر النواقص.
+   */
+  async relockCase(id: string, dto: RelockCaseDto, user: any) {
+    const c = await this.findCaseOrThrow(id);
+    if (!c.isReopened) {
+      throw new BadRequestException({ code: 'CASE_NOT_REOPENED', message: 'الحالة غير مفتوحة أصلاً' });
+    }
+
+    const missing = await this.computeMissingFields(id);
+    if (missing.length > 0 && !dto.force) {
+      throw new BadRequestException({
+        code: 'CASE_STILL_INCOMPLETE',
+        message: 'لا يمكن إعادة القفل — ما زالت هناك حقول إجبارية فارغة',
+        details: { missingFields: missing },
+      });
+    }
+    if (missing.length > 0 && dto.force && !dto.reason?.trim()) {
+      throw new BadRequestException({
+        code: 'FORCE_REASON_REQUIRED',
+        message: 'إعادة القفل مع وجود نواقص تتطلب ذكر السبب',
+      });
+    }
+
+    return this.prisma.prostheticsCase.update({
+      where: { id },
+      data: {
+        isReopened: false,
+        relockedBy: user?.userId ?? null,
+        relockedAt: new Date(),
+        relockForced: missing.length > 0 && !!dto.force,
+        relockForceReason: missing.length > 0 && dto.force ? (dto.reason ?? null) : null,
+      },
     });
   }
 

@@ -393,6 +393,7 @@ export class AuthService {
       'clinic.podiatry.session.create', 'clinic.podiatry.session.edit', 'clinic.podiatry.session.archive',
       'clinic.podiatry.sales.view-cost', 'clinic.podiatry.sales.update-cost',
       'clinic.appointments.internal_meetings.update', 'clinic.appointments.internal_meetings.cancel',
+      'clinic.prosthetics.reopen',
       'clinic.referrals.view', 'clinic.referrals.manage', 'clinic.referrals.visits.add', 'clinic.referrals.stats.view',
     ];
   }
