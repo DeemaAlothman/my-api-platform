@@ -3,6 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateWorkScheduleDto } from './dto/create-work-schedule.dto';
 import { UpdateWorkScheduleDto } from './dto/update-work-schedule.dto';
 
+// الحاوية تعمل بتوقيت UTC بينما أوقات العمل بتوقيت +3 — نفس الثابت المستعمل بحسابات الحضور والرواتب
+const BUSINESS_UTC_OFFSET_HOURS = 3;
+
 @Injectable()
 export class WorkSchedulesService {
   constructor(private prisma: PrismaService) {}
@@ -99,20 +102,28 @@ export class WorkSchedulesService {
     });
 
     // تعديل وقت الوردية يُسجَّل بتاريخ نفاذ (versioning) بدل ما يُستبدل القيمة الحية مباشرة —
-    // السجلات الماضية تبقى تُحسب على الوقت القديم، والتعديل الجديد يسري من هاي اللحظة وطالع فقط
+    // السجلات الماضية تبقى تُحسب على الوقت القديم.
+    //
+    // النفاذ يبدأ من *بداية اليوم التالي* بتوقيت العمل (UTC+3)، مو من لحظة الحفظ: الموظفون
+    // داوموا يوم التعديل على الوردية القديمة فعلاً، فاحتسابهم على الجديدة يجعلهم متأخرين
+    // بلا ذنب. حفظ اللحظة نفسها كان يضع الحد في منتصف يوم التعديل، والمقارنة تتم بالتاريخ
+    // وحده (بلا ساعة) فيقع اليوم كله مع النسخة الجديدة — وهذا ما ظهر على يوم 14/11/2026.
     if (timeChanged) {
-      const now = new Date();
+      const nowBusiness = new Date(Date.now() + BUSINESS_UTC_OFFSET_HOURS * 60 * 60 * 1000);
+      const effectiveFrom = new Date(Date.UTC(
+        nowBusiness.getUTCFullYear(), nowBusiness.getUTCMonth(), nowBusiness.getUTCDate() + 1,
+      ));
       await this.prisma.$executeRawUnsafe(
         `UPDATE attendance.work_schedule_time_history
          SET "effectiveTo" = $1
          WHERE "scheduleId" = $2 AND "effectiveTo" IS NULL`,
-        now, id,
+        effectiveFrom, id,
       );
       await this.prisma.$executeRawUnsafe(
         `INSERT INTO attendance.work_schedule_time_history
            (id, "scheduleId", "workStartTime", "workEndTime", "effectiveFrom", "effectiveTo")
          VALUES (gen_random_uuid(), $1, $2, $3, $4, NULL)`,
-        id, updated.workStartTime, updated.workEndTime, now,
+        id, updated.workStartTime, updated.workEndTime, effectiveFrom,
       );
     }
 
