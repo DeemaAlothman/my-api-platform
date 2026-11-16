@@ -1785,14 +1785,16 @@ export class CasesService {
   private static readonly REQUIRED = {
     team: ['prosthetistIds', 'physiotherapistIds'],
     general_assessment: ['amputationDate', 'amputationCause', 'clinicalHistory'],
+    // skinNotes و closureNotes على التقييم العلوي فقط، و loadTolerance و notes على
+    // السفلي فقط — وردا متبادلين في المواصفة الأولى وصُحّحا هنا
     upper_assessment: [
-      'residualLimbLength', 'residualLimbShape', 'amputationLevelNote', 'loadTolerance',
-      'notes', 'skinAppearance', 'skinColor', 'skinTemperature', 'scarCondition',
+      'residualLimbLength', 'residualLimbShape', 'amputationLevelNote', 'skinNotes',
+      'closureNotes', 'skinAppearance', 'skinColor', 'skinTemperature', 'scarCondition',
       'generalHealthNotes', 'otherLimbCondition',
     ],
     lower_assessment: [
-      'residualLimbLength', 'residualLimbShape', 'amputationLevelNote', 'skinNotes',
-      'skinAppearance', 'skinColor', 'skinTemperature', 'scarCondition', 'closureNotes',
+      'residualLimbLength', 'residualLimbShape', 'amputationLevelNote', 'loadTolerance',
+      'notes', 'skinAppearance', 'skinColor', 'skinTemperature', 'scarCondition',
       'generalHealthNotes', 'otherLimbCondition',
     ],
     session: ['sessionDate', 'sessionTime', 'technicianId', 'description'],
@@ -1803,6 +1805,37 @@ export class CasesService {
       'linersDelivered', 'fittingDate', 'generalNotes',
     ],
   };
+
+  /**
+   * ترتيب مراحل الحالة. القسم لا يُحاسَب عليه إلا إذا بلغت الحالة مرحلته أو تجاوزتها،
+   * فالحالة التي لم تصل بعد إلى التقييم النهائي ليست "ناقصة" لعدم وجوده.
+   *
+   * FOLLOW_UP بعد DELIVERED لأنها مرحلة ما بعد التسليم فعلياً، و APPROVED و
+   * GAIT_TRAINING مُدرجتان في موضعيهما الطبيعيين (غابتا عن ترتيب المواصفة).
+   */
+  private static readonly STAGE_RANK: Record<string, number> = {
+    INTAKE: 0, ASSESSMENT: 1, COMMITTEE_REVIEW: 2, APPROVED: 3, FITTING: 4,
+    SOCKET_TRIAL: 5, GAIT_TRAINING: 6, FINAL_REVIEW: 7, DELIVERED: 8, FOLLOW_UP: 9,
+  };
+
+  // المرحلة التي يبدأ عندها كل قسم مفرد السجل. الأقسام المتعددة (الجلسات، المشي،
+  // التوازن) لا بوابة لها: تُفحص سجلاتها الموجودة فقط، وغيابها ليس نقصاً.
+  private static readonly SECTION_FROM_STAGE: Record<string, string> = {
+    team: 'ASSESSMENT',
+    general_assessment: 'ASSESSMENT',
+    upper_assessment: 'ASSESSMENT',
+    lower_assessment: 'ASSESSMENT',
+    final_evaluation: 'FINAL_REVIEW',
+  };
+
+  private static stageReached(status: string, section: string): boolean {
+    const from = CasesService.SECTION_FROM_STAGE[section];
+    if (!from) return true;
+    const cur = CasesService.STAGE_RANK[status];
+    const need = CasesService.STAGE_RANK[from];
+    if (cur === undefined || need === undefined) return false;
+    return cur >= need;
+  }
 
   private static isEmpty(v: any): boolean {
     if (v === null || v === undefined) return true;
@@ -1834,11 +1867,20 @@ export class CasesService {
     } as any) as any;
     if (!c) throw new NotFoundException('Case not found');
 
-    for (const f of R.team) if (isEmpty(c[f])) missing.push({ section: 'team', field: f });
+    // الحالة الملغاة لا تُحاسَب على نواقص
+    if (c.status === 'CANCELLED') return [];
 
-    for (const f of R.general_assessment) if (isEmpty(c[f])) missing.push({ section: 'general_assessment', field: f });
-    if (c.amputationCause === 'OTHER' && isEmpty(c.amputationCauseOtherDetail)) {
-      missing.push({ section: 'general_assessment', field: 'amputationCauseOtherDetail' });
+    const reached = (section: string) => CasesService.stageReached(c.status, section);
+
+    if (reached('team')) {
+      for (const f of R.team) if (isEmpty(c[f])) missing.push({ section: 'team', field: f });
+    }
+
+    if (reached('general_assessment')) {
+      for (const f of R.general_assessment) if (isEmpty(c[f])) missing.push({ section: 'general_assessment', field: f });
+      if (c.amputationCause === 'OTHER' && isEmpty(c.amputationCauseOtherDetail)) {
+        missing.push({ section: 'general_assessment', field: 'amputationCauseOtherDetail' });
+      }
     }
 
     // التقييم العلوي/السفلي سجل لكل جهة (يمين/يسار)، فغياب القائمة كلياً نقص كامل
@@ -1852,8 +1894,12 @@ export class CasesService {
         for (const f of fields) if (isEmpty(row[f])) missing.push({ section, field: f, recordId: row.id });
       }
     };
-    if (types.includes('UPPER')) checkAssessments('upper_assessment', c.upperAssessment, R.upper_assessment);
-    if (types.includes('LOWER')) checkAssessments('lower_assessment', c.lowerAssessment, R.lower_assessment);
+    if (types.includes('UPPER') && reached('upper_assessment')) {
+      checkAssessments('upper_assessment', c.upperAssessment, R.upper_assessment);
+    }
+    if (types.includes('LOWER') && reached('lower_assessment')) {
+      checkAssessments('lower_assessment', c.lowerAssessment, R.lower_assessment);
+    }
 
     // الجلسات: كل سجل يُفحص على حدة، ويُذكر معرّفه ليعرف المستخدم أي جلسة ناقصة
     for (const row of (c.treatmentPrograms ?? [])) {
@@ -1869,8 +1915,10 @@ export class CasesService {
       for (const f of R.balance_assessment) if (isEmpty(row[f])) missing.push({ section: 'balance_assessment', field: f, recordId: row.id });
     }
 
-    const fe = c.finalEvaluation;
-    for (const f of R.final_evaluation) if (!fe || isEmpty(fe[f])) missing.push({ section: 'final_evaluation', field: f });
+    if (reached('final_evaluation')) {
+      const fe = c.finalEvaluation;
+      for (const f of R.final_evaluation) if (!fe || isEmpty(fe[f])) missing.push({ section: 'final_evaluation', field: f });
+    }
 
     return missing;
   }
