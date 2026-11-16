@@ -308,6 +308,12 @@ model ProstheticsCase {
   relockForced  Boolean   @default(false)
   relockForceReason String? @db.Text
 
+  // الحقول الإجبارية الفارغة — محسوبة ومخزَّنة، تتحدّث مع كل كتابة على الحالة أو أقسامها.
+  // مخزَّنة لا محسوبة لحظياً حتى يعمل فلتر القائمة والترقيم باستعلام واحد.
+  hasMissingFields Boolean   @default(false)
+  missingFields    Json?
+  missingFieldsAt  DateTime?
+
   hasPreviousProsthesis Boolean @default(false)
   previousProsthesisDetails String?
   previousProsthesisWhen    String?

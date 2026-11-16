@@ -8,6 +8,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { CasesService } from './cases.service';
 import { CaseEventsInterceptor } from '../common/interceptors/case-events.interceptor';
 import { CaseWritableGuard } from '../common/guards/case-writable.guard';
+import { MissingFieldsInterceptor } from '../common/interceptors/missing-fields.interceptor';
 import { caseAttachmentMulterOptions } from './case-files.config';
 import { PdfService } from './pdf.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto, ReopenCaseDto, RelockCaseDto } from './dto/case.dto';
@@ -72,7 +73,7 @@ export class CasesInternalController {
 
 @Controller('prosthetics/cases')
 @UseGuards(JwtAuthGuard, PermissionsGuard, CaseWritableGuard)
-@UseInterceptors(CaseEventsInterceptor)
+@UseInterceptors(CaseEventsInterceptor, MissingFieldsInterceptor)
 export class CasesController {
   constructor(
     private readonly service: CasesService,

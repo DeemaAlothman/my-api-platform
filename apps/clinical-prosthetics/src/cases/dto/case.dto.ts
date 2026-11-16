@@ -309,6 +309,11 @@ export class ListCasesQueryDto {
   @IsOptional() @IsDateString()
   deliveredTo?: string;
 
+  // true: الحالات الناقصة فقط | false: المكتملة فقط | غائب: الكل
+  @IsOptional() @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  hasMissingFields?: boolean;
+
   @IsOptional() @IsInt() @Min(1) @Type(() => Number)
   page?: number = 1;
 

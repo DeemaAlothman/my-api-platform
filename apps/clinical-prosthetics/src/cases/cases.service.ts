@@ -272,13 +272,15 @@ export class CasesService {
   }
 
   async findAll(query: ListCasesQueryDto) {
-    const { page = 1, limit = 20, patientId, status, amputationType, prosthetistId, deliveredFrom, deliveredTo } = query;
+    const { page = 1, limit = 20, patientId, status, amputationType, prosthetistId, deliveredFrom, deliveredTo, hasMissingFields } = query;
     const skip = (page - 1) * limit;
     const where: any = { deletedAt: null };
     if (patientId) where.patientId = patientId;
     if (status) where.status = status;
     if (amputationType) where.amputationType = { has: amputationType };
     if (prosthetistId) where.prosthetistId = prosthetistId;
+    // العلامة مخزَّنة، فالفلتر والترقيم يتمان باستعلام واحد بلا حساب في الذاكرة
+    if (hasMissingFields !== undefined) where.hasMissingFields = hasMissingFields;
     if (deliveredFrom || deliveredTo) {
       const inspectionDate: any = {};
       if (deliveredFrom) inspectionDate.gte = new Date(deliveredFrom);
@@ -1871,6 +1873,28 @@ export class CasesService {
     for (const f of R.final_evaluation) if (!fe || isEmpty(fe[f])) missing.push({ section: 'final_evaluation', field: f });
 
     return missing;
+  }
+
+  /**
+   * يعيد حساب النواقص ويخزّنها على الحالة. تُستدعى بعد أي كتابة ناجحة
+   * (عبر MissingFieldsInterceptor) ومن سكربت التعبئة للحالات القديمة.
+   * لا ترمي أبداً: فشل الحساب يجب ألا يُفشل العملية الأصلية.
+   */
+  async refreshMissingFields(caseId: string) {
+    try {
+      const missing = await this.computeMissingFields(caseId);
+      await this.prisma.prostheticsCase.update({
+        where: { id: caseId },
+        data: {
+          hasMissingFields: missing.length > 0,
+          missingFields: missing as any,
+          missingFieldsAt: new Date(),
+        },
+      });
+      return missing;
+    } catch {
+      return null;
+    }
   }
 
   // ── إعادة فتح الحالة المسلَّمة وإعادة قفلها ───────────────────────────────
