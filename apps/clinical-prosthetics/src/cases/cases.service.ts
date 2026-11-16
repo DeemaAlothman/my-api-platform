@@ -1807,16 +1807,28 @@ export class CasesService {
   };
 
   /**
-   * ترتيب مراحل الحالة. القسم لا يُحاسَب عليه إلا إذا بلغت الحالة مرحلته أو تجاوزتها،
-   * فالحالة التي لم تصل بعد إلى التقييم النهائي ليست "ناقصة" لعدم وجوده.
+   * ترتيب مراحل الحالة لأغراض بوابة الأقسام. القسم لا يُحاسَب عليه إلا إذا بلغت
+   * الحالة مرحلته أو تجاوزتها، فالحالة التي لم تصل بعد إلى التقييم النهائي ليست
+   * "ناقصة" لعدم وجوده.
    *
-   * FOLLOW_UP بعد DELIVERED لأنها مرحلة ما بعد التسليم فعلياً، و APPROVED و
-   * GAIT_TRAINING مُدرجتان في موضعيهما الطبيعيين (غابتا عن ترتيب المواصفة).
+   * مشتق من STATUS_ORDER نفسه حتى لا يوجد ترتيبان متعارضان في الخدمة — وفيه
+   * FOLLOW_UP قبل FINAL_REVIEW كما هو المسار الفعلي (تبويب برنامج العلاج ينقل
+   * الحالة إلى المتابعة قبل التقييم النهائي).
+   *
+   * APPROVED و GAIT_TRAINING موجودتان في enum الحالات لكن خارج STATUS_ORDER
+   * (قيمتان قديمتان لا ينقل إليهما المسار الحالي)، فتأخذان رتبة أقرب مرحلة قبلهما.
    */
-  private static readonly STAGE_RANK: Record<string, number> = {
-    INTAKE: 0, ASSESSMENT: 1, COMMITTEE_REVIEW: 2, APPROVED: 3, FITTING: 4,
-    SOCKET_TRIAL: 5, GAIT_TRAINING: 6, FINAL_REVIEW: 7, DELIVERED: 8, FOLLOW_UP: 9,
+  private static readonly EXTRA_STAGE_AFTER: Record<string, string> = {
+    APPROVED: 'COMMITTEE_REVIEW',
+    GAIT_TRAINING: 'SOCKET_TRIAL',
   };
+
+  private stageRank(status: string): number {
+    const direct = this.STATUS_ORDER.indexOf(status);
+    if (direct !== -1) return direct;
+    const near = CasesService.EXTRA_STAGE_AFTER[status];
+    return near ? this.STATUS_ORDER.indexOf(near) : -1;
+  }
 
   // المرحلة التي يبدأ عندها كل قسم مفرد السجل. الأقسام المتعددة (الجلسات، المشي،
   // التوازن) لا بوابة لها: تُفحص سجلاتها الموجودة فقط، وغيابها ليس نقصاً.
@@ -1828,12 +1840,13 @@ export class CasesService {
     final_evaluation: 'FINAL_REVIEW',
   };
 
-  private static stageReached(status: string, section: string): boolean {
+  private stageReached(status: string, section: string): boolean {
     const from = CasesService.SECTION_FROM_STAGE[section];
     if (!from) return true;
-    const cur = CasesService.STAGE_RANK[status];
-    const need = CasesService.STAGE_RANK[from];
-    if (cur === undefined || need === undefined) return false;
+    const cur = this.stageRank(status);
+    const need = this.stageRank(from);
+    // حالة بمرحلة غير معروفة لا تُحاسَب، فلا نتهمها بنقص لا نملك ما يثبته
+    if (cur === -1 || need === -1) return false;
     return cur >= need;
   }
 
@@ -1870,7 +1883,7 @@ export class CasesService {
     // الحالة الملغاة لا تُحاسَب على نواقص
     if (c.status === 'CANCELLED') return [];
 
-    const reached = (section: string) => CasesService.stageReached(c.status, section);
+    const reached = (section: string) => this.stageReached(c.status, section);
 
     if (reached('team')) {
       for (const f of R.team) if (isEmpty(c[f])) missing.push({ section: 'team', field: f });
