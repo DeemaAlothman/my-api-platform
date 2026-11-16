@@ -1896,7 +1896,23 @@ export class CasesService {
       }
     }
 
-    // التقييم العلوي/السفلي سجل لكل جهة (يمين/يسار)، فغياب القائمة كلياً نقص كامل
+    // التقييم العلوي/السفلي سجل لكل جهة (يمين/يسار)، فغياب القائمة كلياً نقص كامل.
+    //
+    // يُفحص سجل جهة البتر وحده: ورقة العضلات في الواجهة تُحفظ على الجهتين، فينشأ
+    // سجل للجهة السليمة لا يحمل إلا بيانات العضلات — وكان يُحتسب ناقصاً بالكامل
+    // رغم أن تقييم الطرف المبتور معبّأ. (مؤكَّد على PR-2026-0145 وعلى 40 حالة.)
+    // الجهة غير المحددة: تُفحص كل السجلات كما كان، فلا نخمّن أيها المقصود.
+    const amputationSide: string | null = c.amputationSide ?? null;
+    const sidesToCheck: string[] | null =
+      amputationSide === 'BILATERAL' ? ['LEFT', 'RIGHT']
+      : (amputationSide === 'LEFT' || amputationSide === 'RIGHT') ? [amputationSide]
+      : null;
+    const onAmputatedSide = (rows: any[]): any[] => {
+      if (!rows || rows.length === 0) return [];
+      if (!sidesToCheck) return rows;
+      return rows.filter((r) => sidesToCheck.includes(r.side));
+    };
+
     const types: string[] = c.amputationType ?? [];
     const checkAssessments = (section: string, rows: any[], fields: string[]) => {
       if (!rows || rows.length === 0) {
@@ -1908,10 +1924,10 @@ export class CasesService {
       }
     };
     if (types.includes('UPPER') && reached('upper_assessment')) {
-      checkAssessments('upper_assessment', c.upperAssessment, R.upper_assessment);
+      checkAssessments('upper_assessment', onAmputatedSide(c.upperAssessment), R.upper_assessment);
     }
     if (types.includes('LOWER') && reached('lower_assessment')) {
-      checkAssessments('lower_assessment', c.lowerAssessment, R.lower_assessment);
+      checkAssessments('lower_assessment', onAmputatedSide(c.lowerAssessment), R.lower_assessment);
     }
 
     // الجلسات: كل سجل يُفحص على حدة، ويُذكر معرّفه ليعرف المستخدم أي جلسة ناقصة
