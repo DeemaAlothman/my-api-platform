@@ -1797,7 +1797,9 @@ export class CasesService {
       'notes', 'skinAppearance', 'skinColor', 'skinTemperature', 'scarCondition',
       'generalHealthNotes', 'otherLimbCondition',
     ],
-    session: ['sessionDate', 'sessionTime', 'technicianId', 'description'],
+    // برنامجا العلاج والمراجعة: التاريخ والوقت فقط. technicianId و description
+    // كانا إجباريين وأُسقطا بقرار الواجهة — يبقيان محفوظين ويُعرضان، دون محاسبة.
+    session: ['sessionDate', 'sessionTime'],
     gait_analysis: ['sessionDate'],
     balance_assessment: ['assessmentDate'],
     final_evaluation: [
