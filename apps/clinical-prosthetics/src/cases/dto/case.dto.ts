@@ -21,7 +21,10 @@ export enum AmputationCauseEnum {
   OTHER = 'OTHER',
 }
 export enum AmputationLevelEnum { PH='PH', WD='WD', TR='TR', ED='ED', TH='TH', SD='SD', PF='PF', CHOPART='CHOPART', TT='TT', KD='KD', TF='TF', HD='HD' }
-export enum CaseStatusEnum      { INTAKE='INTAKE', ASSESSMENT='ASSESSMENT', COMMITTEE_REVIEW='COMMITTEE_REVIEW', APPROVED='APPROVED', FITTING='FITTING', SOCKET_TRIAL='SOCKET_TRIAL', GAIT_TRAINING='GAIT_TRAINING', FINAL_REVIEW='FINAL_REVIEW', DELIVERED='DELIVERED', FOLLOW_UP='FOLLOW_UP', CANCELLED='CANCELLED' }
+// APPROVED و GAIT_TRAINING مهجورتان: لا تعيّنهما الواجهة ولا ينقل إليهما STATUS_ORDER،
+// وعدد الحالات الحيّة بهما صفر. أُسقطتا من قيم التحقق فلا يَقبلهما تغيير المرحلة بعد الآن،
+// وتبقيان في enum قاعدة البيانات خاملتين (حالتان محذوفتان ما زالتا تحملان GAIT_TRAINING).
+export enum CaseStatusEnum      { INTAKE='INTAKE', ASSESSMENT='ASSESSMENT', COMMITTEE_REVIEW='COMMITTEE_REVIEW', FITTING='FITTING', SOCKET_TRIAL='SOCKET_TRIAL', FINAL_REVIEW='FINAL_REVIEW', DELIVERED='DELIVERED', FOLLOW_UP='FOLLOW_UP', CANCELLED='CANCELLED' }
 export enum ProsthesisTypeEnum  { BIONIC='BIONIC', MYOBOCK='MYOBOCK', MECHANIC='MECHANIC', COSMETIC_COVER='COSMETIC_COVER', OTHER='OTHER' }
 
 // إعادة فتح حالة مسلَّمة — السبب إجباري ليبقى القرار موثَّقاً
