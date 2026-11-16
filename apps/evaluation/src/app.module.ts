@@ -14,6 +14,7 @@ import { ProbationCriteriaModule } from './probation-criteria/probation-criteria
 import { ProbationEvaluationsModule } from './probation-evaluations/probation-evaluations.module';
 import { EvaluationReportsModule } from './evaluation-reports/evaluation-reports.module';
 import { DashboardDataModule } from './dashboard/dashboard-data.module';
+import { AppraisalModule } from './appraisal/appraisal.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -40,6 +41,7 @@ import { JwtStrategy, PRISMA_FOR_JWT } from '@shared/auth';
     ProbationEvaluationsModule,
     EvaluationReportsModule,
     DashboardDataModule,
+    AppraisalModule,
   ],
   providers: [
     PrismaService,

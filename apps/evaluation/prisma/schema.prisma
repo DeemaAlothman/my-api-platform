@@ -411,3 +411,191 @@ model ProbationEvaluationHistory {
   @@index([evaluationId])
   @@schema("evaluation")
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// تقييم الأداء 360 درجة (نصف سنوي) — وحدة جديدة مستقلة عن EvaluationForm.
+// المرجع: «الدليل الإداري والفني الشامل لنظام تقييم الأداء 360 درجة والحوافز»
+// + قرارات الموارد البشرية المعتمدة (16 تشرين الثاني 2026).
+// ستة محاور بأوزان ثابتة: مدير 40، رضا عملاء 20، زملاء 10، مرؤوسون 10، التزام 10، ذاتي 10.
+// المحور غير المنطبق يُعاد توزيع وزنه نسبياً على البقية (التطبيع).
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum AppraisalAxis {
+  MANAGER     // تقييم المدير المباشر — يدوي
+  CUSTOMER    // رضا العملاء — آلي من استبيانات المرضى
+  PEER        // الزملاء — يدوي، مجهول
+  UPWARD      // المرؤوسون للمدير — يدوي، مجهول
+  COMMITMENT  // الالتزام والدوام — آلي
+  SELF        // الذاتي + مرفق الإنجازات — يدوي
+
+  @@schema("evaluation")
+}
+
+enum AppraisalCycleStatus {
+  DRAFT      // قيد الإعداد — لا يرى الموظفون شيئاً
+  OPEN       // مفتوحة لإدخال التقييمات
+  CLOSED     // أُغلق الإدخال — الحساب ممكن
+  FINALIZED  // النتائج مجمَّدة ومعلنة للموظفين
+
+  @@schema("evaluation")
+}
+
+enum AppraisalSatisfactionSource {
+  PROSTHETICS // استبيانات الأطراف
+  PHYSIO      // استبيانات العلاج الفيزيائي
+  PODIATRY    // استبيانات صحة القدم
+
+  @@schema("evaluation")
+}
+
+enum AppraisalSubmissionStatus {
+  DRAFT
+  SUBMITTED
+
+  @@schema("evaluation")
+}
+
+enum AppraisalBonusTier {
+  EXCEPTIONAL // 90-100 بونص استثنائي
+  HIGH        // 80-89 بونص مرتفع
+  BASIC       // 70-79 بونص أساسي
+  PIP         // أقل من 70 — خطة تحسين أداء بلا بونص
+
+  @@schema("evaluation")
+}
+
+model AppraisalCycle {
+  id          String               @id @default(uuid())
+  code        String               @unique
+  nameAr      String
+  startDate   DateTime             @db.Date
+  endDate     DateTime             @db.Date
+  status      AppraisalCycleStatus @default(DRAFT)
+  openedAt    DateTime?
+  closedAt    DateTime?
+  finalizedAt DateTime?
+  finalizedBy String?
+  createdBy   String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  submissions AppraisalSubmission[]
+  results     AppraisalResult[]
+
+  @@schema("evaluation")
+}
+
+// الأسئلة ثابتة من الدليل وتُزرع مع الـ migration — لا endpoint لتعديلها
+model AppraisalQuestion {
+  id           String        @id
+  axis         AppraisalAxis
+  displayOrder Int
+  textAr       String
+  maxScore     Int
+  isActive     Boolean       @default(true)
+
+  answers AppraisalAnswer[]
+
+  @@unique([axis, displayOrder])
+  @@schema("evaluation")
+}
+
+// تقييم واحد من مقيِّم لمقيَّم على محور يدوي (MANAGER/PEER/UPWARD/SELF).
+// evaluatorId و evaluateeId = users.employees.id (بلا FK — خدمة منفصلة)
+model AppraisalSubmission {
+  id                 String                    @id @default(uuid())
+  cycleId            String
+  axis               AppraisalAxis
+  evaluateeId        String
+  evaluatorId        String
+  status             AppraisalSubmissionStatus @default(DRAFT)
+  comments           String?                   @db.Text
+  achievementNote    String?                   @db.Text // SELF فقط
+  achievementFileUrl String?                   // SELF فقط
+  scorePercent       Float?                    // يُحسب عند الإرسال: مجموع الدرجات ÷ مجموع الحد الأعلى × 100
+  submittedAt        DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  cycle   AppraisalCycle    @relation(fields: [cycleId], references: [id])
+  answers AppraisalAnswer[]
+
+  @@unique([cycleId, axis, evaluateeId, evaluatorId])
+  @@index([cycleId, evaluateeId])
+  @@index([cycleId, evaluatorId])
+  @@schema("evaluation")
+}
+
+model AppraisalAnswer {
+  submissionId String
+  questionId   String
+  score        Int
+
+  submission AppraisalSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   AppraisalQuestion   @relation(fields: [questionId], references: [id])
+
+  @@id([submissionId, questionId])
+  @@schema("evaluation")
+}
+
+// قرار 3: علامة على القسم. وجود السطر = القسم مصنَّف.
+// satisfactionSource فاضي = قسم إداري (خارج المركز) ← محور رضا العملاء غير منطبق.
+model AppraisalDepartmentConfig {
+  departmentId       String                       @id
+  satisfactionSource AppraisalSatisfactionSource?
+  updatedBy          String?
+  updatedAt          DateTime                     @updatedAt
+
+  @@schema("evaluation")
+}
+
+// قرار 4: المسميات الوظيفية لثلاثي «جاهزية المركز» (مشرفة المركز، الخدمات، الأمن)
+model AppraisalReadinessJobTitle {
+  jobTitleId String   @id
+  createdAt  DateTime @default(now())
+
+  @@schema("evaluation")
+}
+
+// قرار 1: أرقام مؤشر الالتزام — سطر واحد (id = 1)
+model AppraisalSettings {
+  id                         Int      @id @default(1)
+  penaltyPoints              Float    @default(1)
+  justificationPoints        Float    @default(0.25)
+  excessLeaveDayPoints       Float    @default(0.5)
+  excessLeaveHourPoints      Float    @default(0.25)
+  starOfMonthPoints          Float    @default(1)
+  monthlyLeaveDaysAllowance  Float    @default(1)
+  monthlyLeaveHoursAllowance Float    @default(2)
+  countedLeaveTypeCodes      String[]
+  updatedBy                  String?
+  updatedAt                  DateTime @updatedAt
+
+  @@schema("evaluation")
+}
+
+// النتيجة المحسوبة لكل موظف — تُعاد حسابها حتى تجميد الدورة (FINALIZED)
+model AppraisalResult {
+  id                String              @id @default(uuid())
+  cycleId           String
+  employeeId        String
+  managerPercent    Float?
+  customerPercent   Float?
+  peerPercent       Float?
+  upwardPercent     Float?
+  commitmentPercent Float?
+  selfPercent       Float?
+  peerCount         Int                 @default(0)
+  upwardCount       Int                 @default(0)
+  appliedWeights    Json                // الأوزان بعد التطبيع
+  missingAxes       String[]            // محاور مطلوبة لم تُدخل بعد (MANAGER/SELF)
+  details           Json                // تفاصيل الحساب الآلي + لقطة القسم/الدرجة
+  finalScore        Float?              // فاضي طالما في محاور مطلوبة ناقصة
+  bonusTier         AppraisalBonusTier?
+  computedAt        DateTime            @default(now())
+
+  cycle AppraisalCycle @relation(fields: [cycleId], references: [id])
+
+  @@unique([cycleId, employeeId])
+  @@schema("evaluation")
+}

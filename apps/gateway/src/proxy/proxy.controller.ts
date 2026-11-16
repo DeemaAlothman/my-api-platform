@@ -302,6 +302,22 @@ export class EmployeeGoalsProxyController {
   }
 }
 
+// تقييم الأداء 360 درجة — خدمة evaluation
+@Controller('appraisal')
+export class AppraisalProxyController {
+  constructor(private readonly proxy: ProxyService) {}
+
+  @All('*path')
+  async forwardWithPath(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
+  }
+
+  @All()
+  async forward(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxy.forward(req, res, 'evaluation');
+  }
+}
+
 @Controller('job-titles')
 export class JobTitlesProxyController {
   constructor(private readonly proxy: ProxyService) {}
