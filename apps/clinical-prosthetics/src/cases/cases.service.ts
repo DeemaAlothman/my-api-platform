@@ -1,6 +1,6 @@
 import {
   Injectable, NotFoundException, BadRequestException,
-  InternalServerErrorException, ConflictException,
+  InternalServerErrorException, ConflictException, Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto, ReopenCaseDto, RelockCaseDto } from './dto/case.dto';
@@ -35,6 +35,8 @@ const LOWER_MUSCLE_KEYS = [
 
 @Injectable()
 export class CasesService {
+  private readonly logger = new Logger(CasesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -133,7 +135,14 @@ export class CasesService {
         data: { status: targetStatus as any },
       });
       await this.recordStageChange(caseId, c.status as string, targetStatus, 'AUTO');
-    } catch { /* لا يوقف العملية الأصلية */ }
+    } catch (err) {
+      // لا يوقف العملية الأصلية، لكنه لا يمرّ بصمت: ابتلاع الفشل سابقاً جعل حالة
+      // لها تسليم نهائي تبقى على مرحلة سابقة دون أي أثر يُراجَع.
+      const reason = (err as any)?.message ?? String(err);
+      this.logger.error(
+        'autoAdvanceStatus failed: case=' + caseId + ' target=' + targetStatus + ' — ' + reason,
+      );
+    }
   }
 
   // تسجيل دخول مرحلة بتاريخ المراحل — فشله لا يوقف العملية الأصلية
@@ -1685,7 +1694,6 @@ export class CasesService {
 
   async createFinalDelivery(caseId: string, dto: FinalDeliveryFormDto, userId?: string, userName?: string) {
     const prosthCase = await this.findCaseOrThrow(caseId);
-    await this.autoAdvanceStatus(caseId, 'DELIVERED'); // تم التسليم
     const existing = await this.prisma.finalDeliveryForm.findUnique({ where: { caseId } });
     if (existing) throw new BadRequestException('التسليم النهائي موجود مسبقاً — استخدم PATCH للتعديل');
 
@@ -1726,6 +1734,10 @@ export class CasesService {
       data: formData,
       include: { items: { orderBy: { createdAt: 'asc' } } },
     });
+
+    // بعد نجاح الإنشاء فقط: الحالة صارت مسلَّمة. كان التحويل يسبق التحقق، فطلب
+    // ثانٍ يُرفض بـ 400 يترك المرحلة DELIVERED خلفه — وهي مرحلة تقفل الحالة.
+    await this.autoAdvanceStatus(caseId, 'DELIVERED');
 
     if (prosthCase.patientId) {
       this.notifySalesRepsForSurvey(prosthCase.patientId, 'PROSTHETICS', caseId).catch(() => {});
