@@ -161,6 +161,8 @@ model PodiatrySession {
   // عملة التكلفة: USD | SYP. إجبارية مع أي تكلفة رقمية جديدة، وتبقى null للتكاليف
   // المسجَّلة قبل إضافة هذا الحقل (لم تُرحَّل تلقائياً عن قصد).
   insoleCostCurrency String?
+  // نص اختياري جنب التكلفة (مثلاً «هدية»)، مستقل عن المبلغ وما بيدخل بأي مجموع
+  insoleCostNote     String?
 
   installedAt DateTime?
   installedBy String?

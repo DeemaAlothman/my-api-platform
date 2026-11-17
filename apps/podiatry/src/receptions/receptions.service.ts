@@ -293,7 +293,7 @@ export class ReceptionsService {
       this.prisma.$queryRawUnsafe<Array<{
         sessionId: string; receptionId: string; patientId: string; patientNumber: string; patientName: string;
         insoleType: string[]; shoeSize: number | null; installedAt: Date; installCount: bigint;
-        insoleCost: number | null; insoleCostCurrency: string | null;
+        insoleCost: number | null; insoleCostCurrency: string | null; insoleCostNote: string | null;
         referralSource: string | null; referralDetails: string | null;
         referralStaffId: string | null; referralStaffFirstName: string | null; referralStaffLastName: string | null;
       }>>(
@@ -309,7 +309,7 @@ export class ReceptionsService {
          SELECT r.id AS "sessionId", r."receptionId", r."patientId", p."patientNumber",
                 (p."firstName" || ' ' || p."lastName") AS "patientName",
                 r."insoleType", r."shoeSize", r."installedAt", r.install_count AS "installCount",
-                r."insoleCost"::float8 AS "insoleCost", r."insoleCostCurrency",
+                r."insoleCost"::float8 AS "insoleCost", r."insoleCostCurrency", r."insoleCostNote",
                 p."referralSource"::text AS "referralSource", p."referralDetails",
                 p."referralStaffId", rs."firstNameAr" AS "referralStaffFirstName", rs."lastNameAr" AS "referralStaffLastName"
          FROM ranked r
@@ -355,6 +355,8 @@ export class ReceptionsService {
         // التكلفة تُحجب (null) عن أي مستخدم ما عندو صلاحية عرض التكلفة
         insoleCost: canViewCost && r.insoleCost !== null ? Number(r.insoleCost) : null,
         insoleCostCurrency: canViewCost ? (r.insoleCostCurrency ?? null) : null,
+        // نص جنب التكلفة (مثلاً «هدية») — نفس صلاحية العرض، وما بيدخل بأي مجموع
+        insoleCostNote: canViewCost ? (r.insoleCostNote ?? null) : null,
         // الإجمالي مقسوماً حسب العملة؛ null يعني لا صلاحية، و {} يعني لا تكاليف مسجَّلة بعملة
         totalCosts: canViewCost ? (costsByCurrency[r.patientId]?.totals ?? {}) : null,
         // تنبيه: عند المريض تكلفة بلا عملة فالإجمالي أعلاه ناقص
@@ -380,22 +382,22 @@ export class ReceptionsService {
   }
 
   /**
-   * تعديل تكلفة الضبان لجلسة تركيب واحدة. null تمسح القيمة.
+   * تعديل تكلفة الضبان لجلسة تركيب واحدة. الحقول مستقلة: الغائب من patch ما بيتغيّر،
+   * و null بيمسحه (مسح المبلغ بيمسح العملة معه، والنص بيبقى).
    * ما بتلمس أي حقل تاني بالجلسة، وبتسجّل بسجل التدقيق مين عدّل والقيمة القديمة والجديدة.
    */
   async updateInsoleCost(
     sessionId: string,
-    insoleCost: number | null,
-    insoleCostCurrency: string | null,
+    patch: { insoleCost?: number | null; insoleCostCurrency?: string | null; insoleCostNote?: string | null },
     user?: { userId?: string; username?: string },
     req?: { ip?: string; headers?: Record<string, any> },
   ) {
     const rows = await this.prisma.$queryRawUnsafe<Array<{
       id: string; patientId: string; installedAt: Date | null; archivedAt: Date | null;
-      insoleCost: number | null; insoleCostCurrency: string | null;
+      insoleCost: number | null; insoleCostCurrency: string | null; insoleCostNote: string | null;
     }>>(
       `SELECT id, "patientId", "installedAt", "archivedAt", "insoleCost"::float8 AS "insoleCost",
-              "insoleCostCurrency"
+              "insoleCostCurrency", "insoleCostNote"
        FROM clinic_podiatry.podiatry_sessions WHERE id = $1`,
       sessionId,
     );
@@ -406,12 +408,24 @@ export class ReceptionsService {
 
     const oldValue = session.insoleCost === null ? null : Number(session.insoleCost);
     const oldCurrency = session.insoleCostCurrency ?? null;
+    const oldNote = session.insoleCostNote ?? null;
 
+    const costSent = patch.insoleCost !== undefined;
+    const noteSent = patch.insoleCostNote !== undefined;
+    const insoleCost = costSent ? patch.insoleCost : oldValue;
+    const insoleCostCurrency = costSent ? (patch.insoleCostCurrency ?? null) : oldCurrency;
+    const insoleCostNote = noteSent ? patch.insoleCostNote : oldNote;
+
+    // كل عمود بيتحدّث بس إذا انبعت حقله ($2/$4 علامة «انبعت»)
     await this.prisma.$executeRawUnsafe(
       `UPDATE clinic_podiatry.podiatry_sessions
-       SET "insoleCost" = $1::numeric, "insoleCostCurrency" = $2::text, "updatedAt" = NOW()
-       WHERE id = $3`,
-      insoleCost, insoleCostCurrency, sessionId,
+       SET "insoleCost"         = CASE WHEN $2::boolean THEN $1::numeric ELSE "insoleCost" END,
+           "insoleCostCurrency" = CASE WHEN $2::boolean THEN $3::text    ELSE "insoleCostCurrency" END,
+           "insoleCostNote"     = CASE WHEN $4::boolean THEN $5::text    ELSE "insoleCostNote" END,
+           "updatedAt" = NOW()
+       WHERE id = $6`,
+      costSent ? patch.insoleCost : null, costSent, costSent ? (patch.insoleCostCurrency ?? null) : null,
+      noteSent, noteSent ? patch.insoleCostNote : null, sessionId,
     );
 
     // الإجمالي مقسوماً حسب العملة — جمع الليرة مع الدولار يعطي رقماً بلا معنى
@@ -429,6 +443,7 @@ export class ReceptionsService {
       JSON.stringify({
         insoleCost: { from: oldValue, to: insoleCost },
         insoleCostCurrency: { from: oldCurrency, to: insoleCostCurrency },
+        insoleCostNote: { from: oldNote, to: insoleCostNote },
       }),
     ).catch(() => { /* فشل التدقيق ما بيوقف العملية */ });
 
@@ -436,6 +451,7 @@ export class ReceptionsService {
       sessionId,
       insoleCost: insoleCost === null ? null : Number(insoleCost),
       insoleCostCurrency,
+      insoleCostNote,
       totalCosts,
       hasCostWithoutCurrency,
     };
