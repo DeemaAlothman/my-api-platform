@@ -22,7 +22,7 @@ async function main() {
   try {
     const all = await prisma.prostheticsCase.findMany({
       where: { deletedAt: null },
-      select: { id: true, caseNumber: true },
+      select: { id: true, caseNumber: true, hasMissingFields: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -31,6 +31,8 @@ async function main() {
     let incomplete = 0;
     let complete = 0;
     let failed = 0;
+    let becameComplete = 0;
+    let becameIncomplete = 0;
 
     for (const c of all) {
       let missing: Array<{ section: string; field: string }> | null = null;
@@ -42,7 +44,10 @@ async function main() {
         continue;
       }
 
-      if (missing.length > 0) incomplete++; else complete++;
+      const nowIncomplete = missing.length > 0;
+      if (nowIncomplete) incomplete++; else complete++;
+      if (c.hasMissingFields && !nowIncomplete) becameComplete++;
+      if (!c.hasMissingFields && nowIncomplete) becameIncomplete++;
 
       if (apply) {
         await prisma.prostheticsCase.update({
@@ -67,6 +72,7 @@ async function main() {
 
     console.log('');
     console.log(`ناقصة: ${incomplete} | مكتملة: ${complete} | تعذّر حسابها: ${failed}`);
+    console.log(`تغيّر وضعها: ${becameComplete + becameIncomplete} (صارت مكتملة: ${becameComplete} | صارت ناقصة: ${becameIncomplete})`);
     if (!apply) console.log('لم يُكتب شيء. أعد التشغيل مع --apply للتنفيذ.');
   } finally {
     await app.close();

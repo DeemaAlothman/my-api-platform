@@ -1898,38 +1898,51 @@ export class CasesService {
       }
     }
 
-    // التقييم العلوي/السفلي سجل لكل جهة (يمين/يسار)، فغياب القائمة كلياً نقص كامل.
+    // التقييم العلوي/السفلي: سجل لكل جهة (يمين/يسار).
     //
-    // يُفحص سجل جهة البتر وحده: ورقة العضلات في الواجهة تُحفظ على الجهتين، فينشأ
-    // سجل للجهة السليمة لا يحمل إلا بيانات العضلات — وكان يُحتسب ناقصاً بالكامل
-    // رغم أن تقييم الطرف المبتور معبّأ. (مؤكَّد على PR-2026-0145 وعلى 40 حالة.)
-    // الجهة غير المحددة: تُفحص كل السجلات كما كان، فلا نخمّن أيها المقصود.
+    // ورقة العضلات في الواجهة تُحفظ على الجهتين، فينشأ سجل للجهة الأخرى لا يحمل إلا
+    // بيانات العضلات. هذا السجل ليس تقييماً، واحتسابه ناقصاً يُظهر حالات معبّأة بالكامل
+    // على أنها ناقصة. لكن amputationSide حقل واحد على مستوى الحالة، فلا يصف طرفين
+    // على جهتين مختلفتين (علوي يمين + سفلي يسار)، ولا يصلح وحده للتمييز.
+    //
+    // القاعدة:
+    // - طرف واحد وجهة محددة (RIGHT/LEFT/BILATERAL): الجهات متوقَّعة ومعروفة، فتُفحص
+    //   سجلاتها ولو كانت فارغة تماماً — فراغها نقص حقيقي — وتُتجاهل سجلات الجهات
+    //   الأخرى (قشرة ورقة العضلات، أو جهة قديمة لم تعد مستعملة بعد تحوّل الحالة
+    //   من ثنائية إلى جانب واحد).
+    // - طرفان، أو جهة غير محددة: لا يمكن نسب الجهات إلى الأطراف، فيُحكَم على السجل
+    //   بذاته: السجل الذي لم يُملأ فيه ولا حقل إجباري واحد أثر جانبي لا تقييم، فيُتجاهل.
     const amputationSide: string | null = c.amputationSide ?? null;
-    const sidesToCheck: string[] | null =
-      amputationSide === 'BILATERAL' ? ['LEFT', 'RIGHT']
+    const types: string[] = c.amputationType ?? [];
+    const singleLimb = types.length === 1;
+    const expectedSides: string[] | null =
+      !singleLimb ? null
+      : amputationSide === 'BILATERAL' ? ['LEFT', 'RIGHT']
       : (amputationSide === 'LEFT' || amputationSide === 'RIGHT') ? [amputationSide]
       : null;
-    const onAmputatedSide = (rows: any[]): any[] => {
-      if (!rows || rows.length === 0) return [];
-      if (!sidesToCheck) return rows;
-      return rows.filter((r) => sidesToCheck.includes(r.side));
-    };
 
-    const types: string[] = c.amputationType ?? [];
     const checkAssessments = (section: string, rows: any[], fields: string[]) => {
-      if (!rows || rows.length === 0) {
+      const all = rows ?? [];
+      const toCheck = expectedSides
+        ? all.filter((r) => expectedSides.includes(r.side))
+        : all.filter((r) => fields.some((f) => !isEmpty(r[f])));
+
+      // لا سجل صالح للطرف المذكور في amputationType: القسم ناقص كلياً، وبلا recordId
+      // لأنه لا سجل يُشار إليه — وهي حالة مختلفة عن سجل موجود فيه حقول فارغة.
+      if (toCheck.length === 0) {
         for (const f of fields) missing.push({ section, field: f });
         return;
       }
-      for (const row of rows) {
+      for (const row of toCheck) {
         for (const f of fields) if (isEmpty(row[f])) missing.push({ section, field: f, recordId: row.id });
       }
     };
+
     if (types.includes('UPPER') && reached('upper_assessment')) {
-      checkAssessments('upper_assessment', onAmputatedSide(c.upperAssessment), R.upper_assessment);
+      checkAssessments('upper_assessment', c.upperAssessment, R.upper_assessment);
     }
     if (types.includes('LOWER') && reached('lower_assessment')) {
-      checkAssessments('lower_assessment', onAmputatedSide(c.lowerAssessment), R.lower_assessment);
+      checkAssessments('lower_assessment', c.lowerAssessment, R.lower_assessment);
     }
 
     // الجلسات: كل سجل يُفحص على حدة، ويُذكر معرّفه ليعرف المستخدم أي جلسة ناقصة
