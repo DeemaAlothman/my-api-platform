@@ -1784,7 +1784,12 @@ export class CasesService {
    */
   private static readonly REQUIRED = {
     team: ['prosthetistIds', 'physiotherapistIds'],
-    general_assessment: ['amputationDate', 'amputationCause', 'clinicalHistory'],
+    // amputationType و amputationSide إجباريان: بدونهما لا يُعرف أي طرف مبتور ولا أي
+    // جهة، فلا يُفحص التقييم العلوي ولا السفلي وتمرّ الحالة الناقصة بصمت (PR-2026-0042).
+    general_assessment: [
+      'amputationDate', 'amputationCause', 'clinicalHistory',
+      'amputationType', 'amputationSide',
+    ],
     // skinNotes و closureNotes على التقييم العلوي فقط، و loadTolerance و notes على
     // السفلي فقط — وردا متبادلين في المواصفة الأولى وصُحّحا هنا
     upper_assessment: [
