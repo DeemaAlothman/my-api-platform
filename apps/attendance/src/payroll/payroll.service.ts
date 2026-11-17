@@ -368,7 +368,7 @@ export class PayrollService {
     if (salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime) {
       const GRACE_PERIOD_MINUTES = 15;
       const BUSINESS_UTC_OFFSET_HOURS = 3; // خادم الحاوية UTC صافٍ، بينما أوقات الجدول محلية (UTC+3) — مؤكَّد
-      const excludedStatusesForAttendanceRecalc = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+      const excludedStatusesForAttendanceRecalc = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK']);
       const [schedStartH, schedStartM] = scheduleWorkStartTime.split(':').map(Number);
       const [schedEndH, schedEndM] = scheduleWorkEndTime.split(':').map(Number);
 
@@ -630,7 +630,7 @@ export class PayrollService {
     // التبريرات لسجلات البصمة الوحيدة (دخول بدون خروج بعد يومين)
     const singlePunchRecordIds = records
       .filter(r => {
-        if (['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION'].includes(r.status)) return false;
+        if (['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK'].includes(r.status)) return false;
         if (!(r as any).clockInTime || (r as any).clockOutTime) return false;
         return Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000) >= 2;
       })
@@ -669,7 +669,7 @@ export class PayrollService {
         if (!justifiedIds.has(r.id)) absentUnjustified++;
         continue;
       }
-      if (['WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION'].includes(r.status)) continue;
+      if (['WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK'].includes(r.status)) continue;
 
       if ((r as any).clockInTime && !(r as any).clockOutTime) {
         const daysSince = Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000);

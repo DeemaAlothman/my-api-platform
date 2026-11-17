@@ -51,7 +51,7 @@ export class DailyClosureService implements OnModuleInit {
            AND ar."lateMinutes" > 0
            AND ar."lateCompensatedMinutes" = 0
            AND ar."clockOutTime" IS NULL
-           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'HALF_DAY')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'HALF_DAY')
            AND e."userId" IS NOT NULL
            AND e."deletedAt" IS NULL`,
         dateStr,
@@ -181,6 +181,8 @@ export class DailyClosureService implements OnModuleInit {
 
     // فحص مهمات العمل المعتمدة لهذا اليوم — لا يُعلَّم صاحبها غائباً
     const approvedMissions = await this.getApprovedMissionsForDate(workingEmployeeIds, dateStr);
+    const approvedRemoteWork = await this.getApprovedRemoteWorkForDate(workingEmployeeIds, dateStr);
+    const remoteWorkSet = new Set(approvedRemoteWork.map((r) => r.employeeId));
     const missionSet = new Set(approvedMissions.map(m => m.employeeId));
 
     // إعادة الربط بالراتب تلقائياً للموظفين الذين انتهت فترة عملهم عن بعد
@@ -230,6 +232,13 @@ export class DailyClosureService implements OnModuleInit {
         continue;
       }
 
+      // موظف عنده عمل عن بُعد معتمد → REMOTE_WORK. يشمل سجل غياب قائم بلا بصمة،
+      // لأن الموافقة كثيراً ما تأتي بعد الإغلاق اليومي ليوم العمل نفسه.
+      if (remoteWorkSet.has(employeeId) && (!record || (!record.clockInTime && record.status === 'ABSENT'))) {
+        await this.upsertRemoteWorkRecord(employeeId, dateStr);
+        continue;
+      }
+
       // غير مرتبط بالراتب (معفي من الحضور) → لا يُعلَّم غائباً ولا تُنشأ له سجلات حضور تلقائية
       if (!salaryLinked) {
         skipped++;
@@ -241,7 +250,7 @@ export class DailyClosureService implements OnModuleInit {
       if (!record) {
         await this.createAbsentRecord(employeeId, dateStr, salaryLinked, isDeviceOffline);
         absentCreated++;
-      } else if (['ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'ABSENT'].includes(record.status)) {
+      } else if (['ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'ABSENT'].includes(record.status)) {
         skipped++;
       } else if (record.clockInTime && !record.clockOutTime) {
         await this.createMissingClockOutAlert(employeeId, dateStr, salaryLinked, isDeviceOffline);
@@ -297,7 +306,7 @@ export class DailyClosureService implements OnModuleInit {
          JOIN users.employees e ON e.id = ar."employeeId"
          WHERE ar.date = $1::date
            AND ar."lateMinutes" > 0
-           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            AND e."deletedAt" IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM attendance.attendance_alerts aa
@@ -357,7 +366,7 @@ export class DailyClosureService implements OnModuleInit {
          JOIN users.employees e ON e.id = ar."employeeId"
          WHERE ar.date = $1::date
            AND ar."earlyLeaveMinutes" > 0
-           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            AND e."deletedAt" IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM attendance.attendance_alerts aa
@@ -418,7 +427,7 @@ export class DailyClosureService implements OnModuleInit {
          WHERE ar.date = $1::date
            AND ar."clockInTime" IS NULL
            AND ar."clockOutTime" IS NOT NULL
-           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            AND e."deletedAt" IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM attendance.attendance_alerts aa
@@ -618,6 +627,62 @@ export class DailyClosureService implements OnModuleInit {
     } catch (err) {
       this.logger.error(`Failed to fetch approved leaves: ${(err as any)?.message}`);
       return [];
+    }
+  }
+
+  // موظفون بطلب عمل عن بُعد معتمد يغطي هذا اليوم — يوم عمل فعلي، لا غياب
+  private async getApprovedRemoteWorkForDate(
+    employeeIds: string[],
+    dateStr: string,
+  ): Promise<Array<{ employeeId: string }>> {
+    if (employeeIds.length === 0) return [];
+    try {
+      const rows = (await this.prisma.$queryRawUnsafe(
+        `SELECT DISTINCT COALESCE(r.details->>'targetEmployeeId', r."employeeId") AS "employeeId"
+         FROM requests.requests r
+         WHERE r.type = 'REMOTE_WORK'
+           AND r.status = 'APPROVED'
+           AND r."deletedAt" IS NULL
+           AND (r."employeeId" = ANY($1::text[]) OR (r.details->>'targetEmployeeId') = ANY($1::text[]))
+           AND (r.details->>'startDate')::date <= $2::date
+           AND (r.details->>'endDate')::date >= $2::date`,
+        employeeIds,
+        dateStr,
+      )) as Array<{ employeeId: string }>;
+      return rows;
+    } catch (err) {
+      this.logger.error(`Failed to fetch approved remote work: ${(err as any)?.message}`);
+      return [];
+    }
+  }
+
+  // بعكس المهمة، يُطبَّق أيضاً على سجل غياب قائم بلا بصمة: الموافقة على العمل عن بُعد
+  // تأتي عادةً بعد الإغلاق اليومي، فلو اشترطنا غياب السجل لبقي الموظف غائباً رغم الموافقة.
+  private async upsertRemoteWorkRecord(employeeId: string, dateStr: string) {
+    try {
+      await this.prisma.$queryRawUnsafe(
+        `INSERT INTO attendance.attendance_records
+           (id, "employeeId", date, status, source, "isManualEntry",
+            "lateMinutes", "earlyLeaveMinutes", "deductionApplied",
+            "salaryLinked", "createdAt", "updatedAt")
+         VALUES
+           (gen_random_uuid(), $1, $2::date, 'REMOTE_WORK', 'SYSTEM', false,
+            0, 0, false, false, NOW(), NOW())
+         ON CONFLICT ("employeeId", date) DO UPDATE SET
+           status = CASE
+             WHEN attendance_records."clockInTime" IS NOT NULL THEN attendance_records.status
+             ELSE 'REMOTE_WORK'
+           END,
+           "lateMinutes" = CASE WHEN attendance_records."clockInTime" IS NOT NULL THEN attendance_records."lateMinutes" ELSE 0 END,
+           "earlyLeaveMinutes" = CASE WHEN attendance_records."clockInTime" IS NOT NULL THEN attendance_records."earlyLeaveMinutes" ELSE 0 END,
+           "updatedAt" = NOW()`,
+        employeeId, dateStr,
+      );
+
+      await this.auditLog(null, employeeId, dateStr, 'REMOTE_WORK_APPLIED', 'DAILY_CLOSURE',
+        'طلب عمل عن بُعد معتمد تم تطبيقه تلقائياً');
+    } catch (err) {
+      this.logger.error(`Failed to upsert remote-work record for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
     }
   }
 
@@ -840,7 +905,7 @@ export class DailyClosureService implements OnModuleInit {
          FROM attendance.attendance_records
          WHERE date = $1::date
            AND ("lateMinutes" > "lateCompensatedMinutes" OR "earlyLeaveMinutes" > "earlyLeaveCompensatedMinutes")
-           AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')`,
+           AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')`,
         dateStr,
       )) as Array<{
         id: string; employeeId: string;
@@ -1047,7 +1112,7 @@ export class DailyClosureService implements OnModuleInit {
          AND "earlyLeaveMinutes" > "earlyLeaveCompensatedMinutes"
          AND "earlyLeaveOffsetMinutes" = 0
          AND "earlyLeavePendingDeductionMinutes" = 0
-         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
        ORDER BY "employeeId" ASC, date ASC`,
       monthStart, monthEnd,
     )) as Array<{ id: string; employeeId: string; date: Date; earlyLeaveMinutes: number; earlyLeaveCompensatedMinutes: number }>;
@@ -1156,7 +1221,7 @@ export class DailyClosureService implements OnModuleInit {
          AND "lateMinutes" > "lateCompensatedMinutes"
          AND "tardinessOffsetMinutes" = 0
          AND "tardinessPendingDeductionMinutes" = 0
-         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
        ORDER BY "employeeId" ASC, date ASC`,
       monthStart, monthEnd,
     )) as Array<{ id: string; employeeId: string; date: Date; lateMinutes: number; lateCompensatedMinutes: number }>;
@@ -1275,7 +1340,7 @@ export class DailyClosureService implements OnModuleInit {
               "tardinessPendingDeductionMinutes", "earlyLeavePendingDeductionMinutes"
        FROM attendance.attendance_records
        WHERE date >= $1::date AND date <= $2::date
-         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
          AND ("lateMinutes" > "lateCompensatedMinutes" OR "earlyLeaveMinutes" > "earlyLeaveCompensatedMinutes")
        ORDER BY "employeeId" ASC, date ASC`,
       monthStart, monthEnd,
@@ -1387,7 +1452,7 @@ export class DailyClosureService implements OnModuleInit {
        FROM attendance.attendance_records ar
        WHERE ar.date >= $1::date AND ar.date <= $2::date
          AND (ar."lateMinutes" > 0 OR ar."earlyLeaveMinutes" > 0)
-         AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+         AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
        ORDER BY ar."employeeId" ASC, ar.date ASC`,
       monthStart, monthEnd,
     )) as Array<{
@@ -1646,7 +1711,7 @@ export class DailyClosureService implements OnModuleInit {
              AND ($1::date < wsh."effectiveTo"::date OR wsh."effectiveTo" IS NULL)
            LEFT JOIN attendance.attendance_breaks ab ON ab."attendanceRecordId" = ar.id
            WHERE ar.date = $1::date
-             AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+             AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
            GROUP BY ar.id, ar."employeeId", ar."totalBreakMinutes", ws."allowedBreakMinutes",
                     ar."leaveStartTime", ar."leaveEndTime", ar."halfDayPeriod",
                     wsh."workStartTime", wsh."workEndTime"
@@ -1782,7 +1847,7 @@ export class DailyClosureService implements OnModuleInit {
              AND ($1::date < wsh."effectiveTo"::date OR wsh."effectiveTo" IS NULL)
            WHERE ar.date = $1::date
              AND ar."workedMinutes" IS NOT NULL
-             AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
+             AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'PARTIAL_LEAVE', 'ABSENT')
          )
          SELECT id, "employeeId", "workedMinutes", "scheduledMinutes"
          FROM sched
@@ -1815,7 +1880,7 @@ export class DailyClosureService implements OnModuleInit {
            AND ral.timestamp >= $1::date
            AND ral.timestamp < $1::date + INTERVAL '30 hours'
          WHERE ar.date = $1::date
-           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'HOLIDAY', 'WEEKEND', 'ABSENT')
+           AND ar.status NOT IN ('ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK', 'HOLIDAY', 'WEEKEND', 'ABSENT')
          GROUP BY ar."employeeId"
          HAVING COUNT(ral.id) > 8`,
         dateStr,
@@ -1973,7 +2038,7 @@ export class DailyClosureService implements OnModuleInit {
          WHERE ar.date = $1::date
            AND ar."clockInTime" IS NOT NULL
            AND ar."clockOutTime" IS NOT NULL
-           AND ar.status NOT IN ('ABSENT', 'ON_LEAVE', 'ON_MISSION')`,
+           AND ar.status NOT IN ('ABSENT', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK')`,
         dateStr,
       )) as Array<{
         id: string; employeeId: string;

@@ -496,7 +496,7 @@ export class AttendanceRecordsService {
       }
     }
 
-    const excludedStatusesForDisplay = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+    const excludedStatusesForDisplay = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK']);
     // لليوم الحالي: ما نعتبره "غياب" قبل ما ينتهي دوامه — لسا ممكن يسجّل خروج طبيعي لاحقاً
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -899,7 +899,7 @@ export class AttendanceRecordsService {
     let computedEarlyLeaveMinutes = (record as any).earlyLeaveMinutes ?? 0;
     const GRACE_PERIOD_MINUTES = 15;
     const BUSINESS_UTC_OFFSET_HOURS = 3;
-    const excludedStatuses = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION']);
+    const excludedStatuses = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK']);
     if (
       (record as any).clockInTime && schedWorkStartTime && schedWorkEndTime &&
       (sched as any)?.shiftType !== 'FLEXIBLE' && !excludedStatuses.has((record as any).status)
