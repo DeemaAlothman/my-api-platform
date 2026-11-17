@@ -229,6 +229,7 @@ export class DailyClosureService implements OnModuleInit {
       // موظف عنده مهمة عمل معتمدة → ON_MISSION، ما يُعلَّم غائباً
       if (missionSet.has(employeeId) && !record) {
         await this.upsertMissionRecord(employeeId, dateStr);
+        await this.resolveStaleNoStampAlerts(employeeId, dateStr, 'مهمة عمل معتمدة — لا بصمة مطلوبة');
         continue;
       }
 
@@ -236,6 +237,7 @@ export class DailyClosureService implements OnModuleInit {
       // لأن الموافقة كثيراً ما تأتي بعد الإغلاق اليومي ليوم العمل نفسه.
       if (remoteWorkSet.has(employeeId) && (!record || (!record.clockInTime && record.status === 'ABSENT'))) {
         await this.upsertRemoteWorkRecord(employeeId, dateStr);
+        await this.resolveStaleNoStampAlerts(employeeId, dateStr, 'عمل عن بُعد معتمد — لا بصمة مطلوبة');
         continue;
       }
 
@@ -683,6 +685,34 @@ export class DailyClosureService implements OnModuleInit {
         'طلب عمل عن بُعد معتمد تم تطبيقه تلقائياً');
     } catch (err) {
       this.logger.error(`Failed to upsert remote-work record for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
+    }
+  }
+
+  // يوم عمل عن بُعد أو مهمة معتمدة بلا بصمة: أي تنبيه «لا بصمة / غياب» أُنشئ قبل ورود
+  // الموافقة يصير كاذباً ويطالب الموظف بتبرير يوم موافَق عليه أصلاً. الموافقة تأتي عادةً
+  // بعد الإغلاق اليومي، فالامتناع عن إنشاء تنبيه جديد وحده لا يكفي — لا بد من إقفال القديم.
+  //
+  // إقفال فقط: تتغيّر الحالة إلى RESOLVED مع سبب مكتوب، ولا يُحذف أي سطر. ومحصور
+  // بالتنبيهات المفتوحة وبأنواع غياب البصمة دون LATE/EARLY_LEAVE — فيوم فيه بصمة لا يُمسّ.
+  private async resolveStaleNoStampAlerts(employeeId: string, dateStr: string, reasonAr: string): Promise<void> {
+    try {
+      const closed = await this.prisma.$executeRawUnsafe(
+        `UPDATE attendance.attendance_alerts
+         SET status = 'RESOLVED',
+             "resolvedAt" = NOW(),
+             "resolutionNotes" = $3,
+             "updatedAt" = NOW()
+         WHERE "employeeId" = $1
+           AND date = $2::date
+           AND status = 'OPEN'
+           AND "alertType" IN ('ANOMALY_NO_STAMP', 'ABSENT', 'MISSING_CLOCK_IN', 'MISSING_CLOCK_OUT')`,
+        employeeId, dateStr, reasonAr,
+      );
+      if (closed > 0) {
+        this.logger.log(`Closed ${closed} stale no-stamp alert(s) for ${employeeId} on ${dateStr}: ${reasonAr}`);
+      }
+    } catch (err) {
+      this.logger.error(`Failed to close stale alerts for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
     }
   }
 
