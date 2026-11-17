@@ -293,6 +293,15 @@ export class DailyClosureService implements OnModuleInit {
       this.logger.error(`processDayForAllEmployees: regenerateMissingAutoLeaves failed for ${dateStr}: ${(err as any)?.message}`);
     }
 
+    // C.9: الموافقة على العمل عن بُعد تأتي عادةً بعد إغلاق اليوم نفسه، والإغلاق لا يعود
+    // إلى الأيام السابقة إطلاقاً — فلولا هذه المراجعة لبقي اليوم غياباً وتنبيهه مفتوحاً
+    // رغم الموافقة. الأخطاء تُسجَّل ولا توقف نتيجة الإغلاق.
+    try {
+      await this.reconcileRecentApprovedRemoteWork();
+    } catch (err) {
+      this.logger.error(`processDayForAllEmployees: reconcileRecentApprovedRemoteWork failed: ${(err as any)?.message}`);
+    }
+
     return { date: dateStr, absentCreated, missingClockOutAlerts, onLeaveApplied, holidayApplied: 0, orphanNotified, skipped };
   }
 
@@ -713,6 +722,46 @@ export class DailyClosureService implements OnModuleInit {
       }
     } catch (err) {
       this.logger.error(`Failed to close stale alerts for ${employeeId} on ${dateStr}: ${(err as any)?.message}`);
+    }
+  }
+
+  // يراجع آخر أيام مضت عن أيام عُلِّمت غياباً ثم صدرت عليها موافقة عمل عن بُعد لاحقاً.
+  //
+  // حدود صارمة مقصودة: يعمل فقط على **سجل قائم** حالته ABSENT وبلا بصمة دخول —
+  // فلا يُنشئ سجلاً جديداً ليوم لا سجل له (عطلة/يوم غير دوام)، ولا يلمس يوماً فيه
+  // بصمة، ولا يغيّر أي حالة أخرى. المهمات خارج نطاقه عمداً لأن قاعدتها الحالية
+  // (تُطبَّق فقط عند غياب السجل) سلوك قائم لم يُطلب تغييره.
+  private async reconcileRecentApprovedRemoteWork(days = 14): Promise<void> {
+    let candidates: Array<{ employeeId: string; date: string }> = [];
+    try {
+      candidates = (await this.prisma.$queryRawUnsafe(
+        `SELECT DISTINCT ar."employeeId", to_char(ar.date, 'YYYY-MM-DD') AS date
+         FROM attendance.attendance_records ar
+         JOIN requests.requests r
+           ON r.type = 'REMOTE_WORK'
+          AND r.status = 'APPROVED'
+          AND r."deletedAt" IS NULL
+          AND COALESCE(r.details->>'targetEmployeeId', r."employeeId") = ar."employeeId"
+          AND r.details->>'startDate' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+          AND r.details->>'endDate' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+          AND (r.details->>'startDate')::date <= ar.date
+          AND (r.details->>'endDate')::date >= ar.date
+         WHERE ar.date >= (CURRENT_DATE - $1::int)
+           AND ar.status = 'ABSENT'
+           AND ar."clockInTime" IS NULL`,
+        days,
+      )) as Array<{ employeeId: string; date: string }>;
+    } catch (err) {
+      this.logger.error(`reconcileRecentApprovedRemoteWork query failed: ${(err as any)?.message}`);
+      return;
+    }
+
+    if (candidates.length === 0) return;
+    this.logger.log(`Reconciling ${candidates.length} absent day(s) now covered by an approved remote-work request`);
+
+    for (const c of candidates) {
+      await this.upsertRemoteWorkRecord(c.employeeId, c.date);
+      await this.resolveStaleNoStampAlerts(c.employeeId, c.date, 'عمل عن بُعد معتمد — لا بصمة مطلوبة');
     }
   }
 
