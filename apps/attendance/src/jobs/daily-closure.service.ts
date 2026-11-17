@@ -1949,6 +1949,17 @@ export class DailyClosureService implements OnModuleInit {
         const stampSet = new Set(withStamps.map(r => r.employeeId));
         const leaveSet = new Set(withLeave.map(r => r.employeeId));
 
+        // العمل عن بُعد والمهمة يومان عمل بلا بصمة — تنبيه «لا بصمة ولا إجازة» عليهما كاذب،
+        // ويطالب الموظف بتبرير يوم موافَق عليه أصلاً. (ظهر على علا راشد في 3 أيام عمل عن بُعد.)
+        const [remoteRows, missionRows] = await Promise.all([
+          this.getApprovedRemoteWorkForDate(empIds, dateStr),
+          this.getApprovedMissionsForDate(empIds, dateStr),
+        ]);
+        const excusedSet = new Set([
+          ...remoteRows.map(r => r.employeeId),
+          ...missionRows.map(r => r.employeeId),
+        ]);
+
         // المدير التنفيذي (صلاحية requests:ceo-approve) ما بده يستلم إشعار تنبيه غياب البصمة
         // شخصياً — السجل بجدول attendance_alerts بيضل يُنشأ عادي (يبقى ظاهر لـHR بتقاريرهم)،
         // بس الإشعار المباشر لصندوقه بتم تخطّيه فقط
@@ -1968,7 +1979,7 @@ export class DailyClosureService implements OnModuleInit {
           : new Set<string>();
 
         for (const emp of empIds) {
-          if (!stampSet.has(emp) && !leaveSet.has(emp)) {
+          if (!stampSet.has(emp) && !leaveSet.has(emp) && !excusedSet.has(emp)) {
             if (this.isEmployeeDeviceOffline(emp, employeeDeviceMap, offlineDeviceIds)) continue;
             await this.prisma.$queryRawUnsafe(
               `INSERT INTO attendance.attendance_alerts
