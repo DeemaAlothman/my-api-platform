@@ -522,11 +522,15 @@ export class CasesService {
       // التفصيل يُمسح إذا كان الجواب "لا"
       chronicDiseasesDetail: dto.hasChronicDiseases === false ? null : dto.chronicDiseasesDetail,
       visitedSpecialist: dto.visitedSpecialist,
-      // يقبل previousDoctorSeen مباشرة أو specialistReason (alias قديم)
-      previousDoctorSeen: dto.visitedSpecialist === false ? null : (dto.previousDoctorSeen ?? dto.specialistReason),
+      // سؤالان مستقلان: «زار طبيباً سابقاً بسبب الشكوى» و«العلاج السابق للشكوى».
+      // كانا يُمسحان لمجرد وصول visitedSpecialist/hadPreviousPT = false، فتضيع قيمة
+      // أُرسلت في نفس الطلب (الحالة DE-2026-0079). لا يُمسحان بعد اليوم إطلاقاً.
+      previousDoctorSeen: dto.previousDoctorSeen,
+      // التفصيل التابع يُمسح عند الجواب «لا» — كما chronicDiseasesDetail و surgeryDetail
+      specialistReason: dto.visitedSpecialist === false ? null : dto.specialistReason,
       hadPreviousPT: dto.hadPreviousPT,
-      // يقبل previousTreatment مباشرة أو previousPTDetail (alias قديم)
-      previousTreatment: dto.hadPreviousPT === false ? null : (dto.previousTreatment ?? dto.previousPTDetail),
+      previousTreatment: dto.previousTreatment,
+      previousPTDetail: dto.hadPreviousPT === false ? null : dto.previousPTDetail,
       hadSurgery: dto.hadSurgery,
       surgeryDetail: dto.hadSurgery === false ? null : dto.surgeryDetail,
     };
@@ -1109,6 +1113,8 @@ export class CasesService {
           possibleCause: examCase.possibleCause ?? undefined,
           previousDoctorSeen: examCase.previousDoctorSeen ?? undefined,
           previousTreatment: examCase.previousTreatment ?? undefined,
+          specialistReason: examCase.specialistReason ?? undefined,
+          previousPTDetail: examCase.previousPTDetail ?? undefined,
           hadPreviousPT: examCase.hadPreviousPT,
           hadPreviousInjury: examCase.hadPreviousInjury ?? undefined,
           complaintType: examCase.complaintType ?? undefined,

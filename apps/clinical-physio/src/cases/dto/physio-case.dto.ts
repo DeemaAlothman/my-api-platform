@@ -283,7 +283,7 @@ export class ComplaintDto {
   @IsOptional() @IsString()
   previousDoctorSeen?: string;
   @IsOptional() @IsString()
-  specialistReason?: string; // alias للتوافق مع الإصدارات القديمة
+  specialistReason?: string; // سبب زيارة الأخصائي — يُمسح إذا كان الجواب «لا»
 
   // 7) هل خضعت لجلسات علاج فيزيائي سابقاً؟ + التفصيل عند نعم
   @IsOptional() @IsBoolean()
@@ -291,7 +291,7 @@ export class ComplaintDto {
   @IsOptional() @IsString()
   previousTreatment?: string;
   @IsOptional() @IsString()
-  previousPTDetail?: string; // alias للتوافق مع الإصدارات القديمة
+  previousPTDetail?: string; // تفاصيل العلاج الفيزيائي السابق — يُمسح إذا كان الجواب «لا»
 
   // 8) هل سبق وخضعت لعمل جراحي؟ + التفصيل عند نعم
   @IsOptional() @IsBoolean()

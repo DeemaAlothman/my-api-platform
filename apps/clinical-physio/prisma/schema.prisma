@@ -167,8 +167,13 @@ model PhysioCase {
   complaintStartDate  String?   // تاريخ البدء — نص حر
   possibleCause       String?
 
-  previousDoctorSeen  String?
-  previousTreatment   String?
+  // سؤالان مستقلان عن الشكوى، لا علاقة لهما بأجوبة نعم/لا أدناه
+  previousDoctorSeen  String?  // هل زار طبيباً سابقاً بسبب الشكوى
+  previousTreatment   String?  // العلاج السابق للشكوى
+  // تفصيلان تابعان لسؤالَي visitedSpecialist و hadPreviousPT — كانا يُكتبان في
+  // العمودين أعلاه فيمحو أحدهما الآخر (الحالة DE-2026-0079)
+  specialistReason    String?  // سبب زيارة الأخصائي
+  previousPTDetail    String?  // تفاصيل العلاج الفيزيائي السابق
   hadPreviousPT       Boolean  @default(false)
   hadPreviousInjury   String?  // هل سبق التعرض لهذه الإصابة؟ (نص حر)
 
