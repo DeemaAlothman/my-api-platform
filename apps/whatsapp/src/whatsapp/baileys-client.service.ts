@@ -11,6 +11,10 @@ const { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBailey
 // بتحتاج مسح QR من جديد. المسار جاي من ARG/env، صفر قيمة افتراضية جوا الحاوية فقط
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR || path.join(process.cwd(), 'wa-auth');
 
+// رمز الدولة الذي يحلّ محل الصفر في الأرقام المحلية. سوريا افتراضاً، ويُغيَّر
+// بمتغيّر بيئة دون لمس الكود لو تغيّر بلد التشغيل
+const DEFAULT_COUNTRY_CODE = process.env.WHATSAPP_COUNTRY_CODE || '963';
+
 @Injectable()
 export class BaileysClientService implements OnModuleInit {
   private readonly logger = new Logger(BaileysClientService.name);
@@ -75,17 +79,54 @@ export class BaileysClientService implements OnModuleInit {
     return this.currentQrDataUrl;
   }
 
-  // بيحوّل أي رقم مخزَّن (بأي صيغة) لصيغة JID المطلوبة من واتساب — بياخد الأرقام بس
+  /**
+   * يحوّل الرقم المخزَّن إلى الصيغة الدولية التي يطلبها واتساب.
+   *
+   * أرقام الموظفين مخزَّنة محلياً (0935813333)، وأخذ الأرقام كما هي كان ينتج
+   * 0935813333@s.whatsapp.net — معرّفاً غير موجود. وواتساب لا يرفضه بل يبتلعه
+   * بصمت، فيُسجَّل الإرسال ناجحاً ولا تصل الرسالة أبداً.
+   *
+   * القواعد: رقم يبدأ بـ + أو 00 دولي أصلاً، ورقم يبدأ بصفر محلي فيُستبدل صفره
+   * برمز الدولة، وما عدا ذلك يُترك كما هو.
+   */
+  private toInternational(phone: string): string {
+    const raw = phone.trim();
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) return '';
+    if (raw.startsWith('+')) return digits;
+    if (digits.startsWith('00')) return digits.slice(2);
+    if (digits.startsWith('0')) return `${DEFAULT_COUNTRY_CODE}${digits.slice(1)}`;
+    return digits;
+  }
+
   private toJid(phone: string): string {
-    const digits = phone.replace(/\D/g, '');
-    return `${digits}@s.whatsapp.net`;
+    return `${this.toInternational(phone)}@s.whatsapp.net`;
   }
 
   async sendText(phone: string, text: string): Promise<void> {
     if (!this.sock || !this.connected) {
       throw new Error('WhatsApp غير متصل حالياً');
     }
-    await this.sock.sendMessage(this.toJid(phone), { text });
+
+    const msisdn = this.toInternational(phone);
+    if (!msisdn || msisdn.length < 8) {
+      throw new Error(`رقم غير صالح للإرسال: ${phone}`);
+    }
+
+    // التحقق من تسجيل الرقم على واتساب قبل الإرسال. بدونه يُبتلع الإرسال إلى رقم
+    // غير مسجَّل بصمت ويُحتسب نجاحاً — وهو ما أخفى المشكلة أصلاً.
+    try {
+      const [found] = await this.sock.onWhatsApp(msisdn);
+      if (!found?.exists) {
+        throw new Error(`الرقم غير مسجَّل على واتساب: ${msisdn}`);
+      }
+      await this.sock.sendMessage(found.jid ?? this.toJid(phone), { text });
+      return;
+    } catch (err) {
+      // فشل التحقق نفسه (لا نتيجة التحقق) لا يمنع المحاولة — نرسل على الصيغة المحسوبة
+      if ((err as any)?.message?.includes('غير مسجَّل')) throw err;
+      await this.sock.sendMessage(this.toJid(phone), { text });
+    }
   }
 
   // فصل الرقم الحالي ومسح جلسته — بيحتاج مسح QR جديد بعدها. ما بيلمس أي بيانات

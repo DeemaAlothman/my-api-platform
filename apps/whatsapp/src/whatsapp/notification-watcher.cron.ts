@@ -59,6 +59,14 @@ export class NotificationWatcherCron {
     const phoneMap = new Map(employees.map((e) => [e.userId, e.phone]));
 
     for (const n of pending) {
+      // انقطع الاتصال أثناء الدفعة: نتوقف بلا تسجيل، فتُعاد المحاولة بالدورة التالية.
+      // تسجيل الفشل هنا كان يستهلك الإشعار نهائياً (شرط NOT EXISTS يمنع إعادة
+      // المحاولة)، فضاعت 109 إشعارات لمجرد انقطاع مؤقت.
+      if (!this.baileys.getStatus().connected) {
+        this.logger.warn('WhatsApp disconnected mid-batch — remaining notifications retry next cycle');
+        break;
+      }
+
       const phone = phoneMap.get(n.userId);
       try {
         if (!phone) {
@@ -73,6 +81,13 @@ export class NotificationWatcherCron {
           data: { notificationId: n.id, userId: n.userId, phone, status: 'SENT', sentAt: new Date() },
         });
       } catch (err) {
+        // نفس المبدأ: خطأ اتصال عابر لا يُستهلك به الإشعار — يُترك بلا سجل ليُعاد
+        // إرساله، بعكس الفشل الحقيقي (رقم غير صالح أو غير مسجَّل) الذي يُسجَّل.
+        const msg = (err as any)?.message ?? '';
+        if (!this.baileys.getStatus().connected || /Connection Closed|غير متصل/.test(msg)) {
+          this.logger.warn(`transient send failure, will retry: ${msg}`);
+          break;
+        }
         await this.prisma.whatsAppLog
           .create({
             data: {
