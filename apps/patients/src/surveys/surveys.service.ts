@@ -202,12 +202,38 @@ export class SurveysService {
     });
   }
 
-  async findAll(query: { patientId?: string; department?: string; page?: number; limit?: number }) {
+  async findAll(query: {
+    patientId?: string;
+    department?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 20));
     const where: any = {};
     if (query.patientId) where.patientId = query.patientId;
     if (query.department) where.department = query.department;
+
+    // بحث باسم المريض أو رقمه أو هاتفه. كل كلمة في عبارة البحث يجب أن تُطابق أحد
+    // الحقول (AND بين الكلمات، OR بين الحقول) — فـ«جوان مصطفى» تُطابق الاسم الأول
+    // واسم العائلة معاً، ولا تتعطّل بمسافة زائدة في الاسم المخزَّن على الاستبيان.
+    //
+    // customerName مجمَّد وقت الإنشاء بينما اسم المريض قد يُعدَّل لاحقاً، فنبحث في
+    // الاثنين حتى لا تختفي استبيانات مريض أُعيدت تسمية ملفه.
+    const words = (query.search ?? '').trim().split(/\s+/).filter(Boolean);
+    if (words.length) {
+      where.AND = words.map((w) => ({
+        OR: [
+          { customerName: { contains: w, mode: 'insensitive' } },
+          { patient: { firstName: { contains: w, mode: 'insensitive' } } },
+          { patient: { lastName: { contains: w, mode: 'insensitive' } } },
+          { patient: { patientNumber: { contains: w, mode: 'insensitive' } } },
+          { patient: { phone: { contains: w } } },
+          { patient: { whatsapp: { contains: w } } },
+        ],
+      }));
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.patientSurvey.findMany({

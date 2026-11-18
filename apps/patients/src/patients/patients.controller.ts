@@ -102,11 +102,12 @@ export class PatientsController {
   findAllSurveys(
     @Query('patientId') patientId?: string,
     @Query('department') department?: string,
+    @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.surveys.findAll({
-      patientId, department,
+      patientId, department, search,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
