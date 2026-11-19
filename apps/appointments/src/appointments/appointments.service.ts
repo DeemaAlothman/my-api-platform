@@ -1290,9 +1290,8 @@ export class AppointmentsService implements OnModuleInit {
     if (meeting.status === 'CANCELLED') {
       throw new BadRequestException({ code: 'MEETING_CANCELLED', message: 'لا يمكن تعديل اجتماع ملغى' });
     }
-    if (meeting.endTime <= new Date()) {
-      throw new BadRequestException({ code: 'MEETING_ENDED', message: 'لا يمكن تعديل اجتماع انتهى وقته' });
-    }
+    // الاجتماع المنتهي يبقى قابلاً للتعديل عمداً: تصحيح الحضور الفعلي والملاحظات
+    // والوقت الفعلي لا يحدث إلا بعد انتهائه. الملغى وحده يبقى محظوراً أعلاه.
 
     const startTime = dto.startTime ? new Date(dto.startTime) : meeting.startTime;
     const endTime = dto.endTime ? new Date(dto.endTime) : meeting.endTime;
