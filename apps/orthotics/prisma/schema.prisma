@@ -141,6 +141,12 @@ model OrthoticsReception {
   // بكل حفظ يتضمن النوع، محصور بهاد الاستقبال فقط
   deviceUsageCounts Json @default("{}")
 
+  // كاتب رأي أخصائي الأطراف الصناعية. القسمان الآخران يسجّلان كاتبهما ضمن
+  // doctorAssessmentUpdatedBy و physioAssessmentUpdatedBy لأن الرأي يُحفظ مع
+  // تقييمه في نفس الطلب؛ أما هذا القسم فلم يكن يسجّل كاتبه إطلاقاً.
+  prosthetistOpinionUpdatedAt DateTime?
+  prosthetistOpinionUpdatedBy String?
+
   // ── الرأي النهائي لكل اختصاصي ────────────────────────────────────────
   doctorOpinion      String? @db.Text
   physioOpinion      String? @db.Text

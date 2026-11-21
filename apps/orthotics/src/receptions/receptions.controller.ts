@@ -123,8 +123,8 @@ export class ReceptionsController {
   }
 
   @Patch(':id/prosthetist-opinion')
-  upsertProsthetistOpinion(@Param('id') id: string, @Body() dto: ProsthetistOpinionDto) {
-    return this.service.upsertProsthetistOpinion(id, dto);
+  upsertProsthetistOpinion(@Param('id') id: string, @Body() dto: ProsthetistOpinionDto, @User() user: any) {
+    return this.service.upsertProsthetistOpinion(id, dto, user.userId);
   }
 
   // ── Attachments ────────────────────────────────────────────────────

@@ -79,7 +79,13 @@ export class ReceptionsService {
       orderBy: { createdAt: 'desc' },
     });
     const patientMap = await this.resolvePatients(receptions.map((r) => r.patientId));
-    return receptions.map((r) => ({ ...r, patient: patientMap[r.patientId] ?? null }));
+    // استعلام أسماء واحد للصفحة كلها بدل استعلام لكل سطر
+    const names = await this.resolveActorNames(
+      receptions.flatMap((r) => ReceptionsService.ACTOR_FIELDS.map((f) => (r as any)[f])),
+    );
+    return receptions.map((r) =>
+      this.attachActorNames({ ...r, patient: patientMap[r.patientId] ?? null }, names),
+    );
   }
 
   // ── قرار المناسبة ─────────────────────────────────────────────────────────
@@ -129,10 +135,15 @@ export class ReceptionsService {
 
   async getFollowUps(receptionId: string) {
     await this.findReceptionOrThrow(receptionId);
-    return this.prisma.orthoticsFollowUp.findMany({
+    const followUps = await this.prisma.orthoticsFollowUp.findMany({
       where: { receptionId },
       orderBy: { visitDate: 'desc' },
     });
+    const names = await this.resolveActorNames(followUps.map((f) => f.practitionerId));
+    return followUps.map((f) => ({
+      ...f,
+      practitionerName: names[f.practitionerId] ?? null,
+    }));
   }
 
   // شرط receptionId في where يمنع تعديل جلسة تابعة لاستقبال آخر عبر تخمين معرّفها
@@ -165,11 +176,59 @@ export class ReceptionsService {
     return { deleted: true };
   }
 
+  // ── أسماء من عبّأ كل قسم ───────────────────────────────────────────────────
+
+  // بعض الحقول تحمل userId (كاتب القسم) وبعضها employeeId (المعالج)، فالاستعلام
+  // يطابق العمودين معاً ويفهرس النتيجة بالاثنين — فلا يهمّ أيّهما وصل.
+  //
+  // بلا شرط deletedAt عمداً: من غادر لاحقاً يجب أن يبقى اسمه على ما عبّأه.
+  private async resolveActorNames(ids: Array<string | null | undefined>): Promise<Record<string, string>> {
+    const unique = [...new Set(ids.filter(Boolean) as string[])];
+    if (unique.length === 0) return {};
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; userId: string | null; name: string }>>(
+      `SELECT e.id, e."userId", e."firstNameAr" || ' ' || e."lastNameAr" AS name
+       FROM users.employees e
+       WHERE e.id = ANY($1::text[]) OR e."userId" = ANY($1::text[])`,
+      unique,
+    ).catch(() => []);
+
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      map[row.id] = row.name;
+      if (row.userId) map[row.userId] = row.name;
+    }
+    return map;
+  }
+
+  // حقول «من عبّأ» على الاستقبال. كل واحد يرافقه `<name>Name` في الاستجابة.
+  private static readonly ACTOR_FIELDS = [
+    'createdBy',
+    'doctorAssessmentUpdatedBy',
+    'physioAssessmentUpdatedBy',
+    'prosthetistOpinionUpdatedBy',
+    'suitabilityUpdatedBy',
+  ] as const;
+
+  private attachActorNames<T extends Record<string, any>>(reception: T, names: Record<string, string>): T {
+    const extra: Record<string, string | null> = {};
+    for (const field of ReceptionsService.ACTOR_FIELDS) {
+      const id = reception[field];
+      extra[`${field}Name`] = id ? names[id] ?? null : null;
+    }
+    return { ...reception, ...extra };
+  }
+
   async findOne(id: string) {
     const reception = await this.prisma.orthoticsReception.findUnique({ where: { id } });
     if (!reception) throw new NotFoundException('Reception not found');
     const patientMap = await this.resolvePatients([reception.patientId]);
-    return { ...reception, patient: patientMap[reception.patientId] ?? null };
+    const names = await this.resolveActorNames(
+      ReceptionsService.ACTOR_FIELDS.map((f) => (reception as any)[f]),
+    );
+    return this.attachActorNames(
+      { ...reception, patient: patientMap[reception.patientId] ?? null },
+      names,
+    );
   }
 
   async update(id: string, dto: UpdateReceptionDto) {
@@ -241,9 +300,12 @@ export class ReceptionsService {
 
   private static readonly DEVICE_TYPES = ['AFO', 'KAFO', 'ORTHOSIS_WITH_FES', 'OTHER'];
 
-  async upsertProsthetistOpinion(id: string, dto: ProsthetistOpinionDto) {
+  async upsertProsthetistOpinion(id: string, dto: ProsthetistOpinionDto, userId?: string) {
     await this.findOne(id);
-    const data: any = {};
+    const data: any = {
+      prosthetistOpinionUpdatedAt: new Date(),
+      prosthetistOpinionUpdatedBy: userId ?? null,
+    };
     const fields: (keyof ProsthetistOpinionDto)[] = [
       'recommendedDeviceTypes', 'recommendedDeviceOther', 'additionalNotes',
       'prosthetistOpinion',

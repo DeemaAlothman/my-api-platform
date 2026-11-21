@@ -39,3 +39,10 @@ BEGIN
     ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- كاتب رأي أخصائي الأطراف الصناعية — القسم الوحيد الذي لم يكن يسجّل كاتبه.
+-- إضافة فقط: عمودان يقبلان NULL. السجلات السابقة تبقى بلا كاتب، وهو الصحيح
+-- لأن المعلومة لم تكن تُحفظ وقتها.
+ALTER TABLE "clinic_orthotics"."orthotics_receptions"
+  ADD COLUMN IF NOT EXISTS "prosthetistOpinionUpdatedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "prosthetistOpinionUpdatedBy" TEXT;
