@@ -46,3 +46,11 @@ END $$;
 ALTER TABLE "clinic_orthotics"."orthotics_receptions"
   ADD COLUMN IF NOT EXISTS "prosthetistOpinionUpdatedAt" TIMESTAMP(3),
   ADD COLUMN IF NOT EXISTS "prosthetistOpinionUpdatedBy" TEXT;
+
+-- سبب البتر (نفس قائمة الأطراف الصناعية) + تفصيل كل مقوّم على حدة.
+-- إضافة فقط: ثلاثة أعمدة تقبل NULL. appliancesCount و affectedLimbType و
+-- affectedSide تبقى كما هي ولا تُنقل قيمها.
+ALTER TABLE "clinic_orthotics"."orthotics_receptions"
+  ADD COLUMN IF NOT EXISTS "amputationCause" TEXT,
+  ADD COLUMN IF NOT EXISTS "amputationCauseOtherDetail" TEXT,
+  ADD COLUMN IF NOT EXISTS "appliancesDetails" JSONB;

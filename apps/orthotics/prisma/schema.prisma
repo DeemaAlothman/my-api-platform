@@ -32,8 +32,22 @@ model OrthoticsReception {
   familyHistory     String?  @db.Text
   chiefComplaint    String?  @db.Text
 
+  // سبب البتر — نفس قائمة الأطراف الصناعية:
+  // WAR_INJURY | TRAFFIC_ACCIDENT | DIABETES | VASCULAR_DISEASE | CONGENITAL |
+  // INFECTION | TUMOR | WORK_INJURY | OTHER
+  // نص لا enum: enum المقومات منفصل عن enum الأطراف، وتكرار النوع في مخططين
+  // يفرض migration على الاثنين كلما أُضيف سبب
+  amputationCause             String?
+  amputationCauseOtherDetail  String?
+
   // عدد المقومات (الأجهزة التقويمية) المطلوبة
   appliancesCount   Int?
+  // تفصيل كل مقوّم على حدة — طول المصفوفة = appliancesCount:
+  // [{ limbType: UPPER|LOWER, side: RIGHT|LEFT, deviceType?: string, notes?: string }]
+  //
+  // affectedLimbType و affectedSide أدناه محفوظان كما هما: يصفان الطرف المصاب
+  // إجمالاً، ولا يزالان معبَّأين في كل الحالات السابقة
+  appliancesDetails Json?
   // affectedLimbType: UPPER | LOWER
   affectedLimbType  String?
   // affectedSide: RIGHT | LEFT

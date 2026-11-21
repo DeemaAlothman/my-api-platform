@@ -1,7 +1,23 @@
 import {
-  IsString, IsOptional, IsArray, IsBoolean, ArrayMaxSize, IsInt, IsIn, ValidateNested,
+  IsString, IsOptional, IsArray, IsBoolean, ArrayMaxSize, IsInt, IsIn, ValidateNested, Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+/** مقوّم واحد من المقومات المطلوبة — جهته وطرفه */
+export class ApplianceDetailDto {
+  @IsIn(['UPPER', 'LOWER'])
+  limbType: string;
+
+  @IsIn(['RIGHT', 'LEFT'])
+  side: string;
+
+  /** AFO | KAFO | ORTHOSIS_WITH_FES | OTHER — اختياري، يُحدَّد لاحقاً عادةً */
+  @IsOptional() @IsString()
+  deviceType?: string;
+
+  @IsOptional() @IsString()
+  notes?: string;
+}
 
 // مناطق وجهات الجسم — مشتركة بين تفصيل المقوية وتفصيل الإحساس
 export const BODY_REGIONS = ['THIGH', 'LEG', 'FOOT', 'WRIST', 'UPPER_ARM', 'FOREARM'];
@@ -40,7 +56,19 @@ export class DoctorAssessmentDto {
   @IsOptional() @IsString() chiefComplaint?: string;
 
   // عدد المقومات (الأجهزة التقويمية) المطلوبة
-  @IsOptional() @Type(() => Number) @IsInt() appliancesCount?: number;
+  // سبب البتر — نفس قائمة الأطراف الصناعية
+  @IsOptional() @IsIn(['WAR_INJURY', 'TRAFFIC_ACCIDENT', 'DIABETES', 'VASCULAR_DISEASE',
+    'CONGENITAL', 'INFECTION', 'TUMOR', 'WORK_INJURY', 'OTHER'])
+  amputationCause?: string;
+
+  // يُعبّى فقط إذا amputationCause = OTHER
+  @IsOptional() @IsString() amputationCauseOtherDetail?: string;
+
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) appliancesCount?: number;
+
+  // سطر لكل مقوّم: الجهة والطرف. طوله يجب أن يساوي appliancesCount
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => ApplianceDetailDto)
+  appliancesDetails?: ApplianceDetailDto[];
   // affectedLimbType: UPPER | LOWER
   @IsOptional() @IsString() affectedLimbType?: string;
   // affectedSide: RIGHT | LEFT

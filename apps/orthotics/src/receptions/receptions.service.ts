@@ -253,12 +253,30 @@ export class ReceptionsService {
   // ── تقييم طبيب العظمية ──────────────────────────────────────────────
 
   async upsertDoctorAssessment(id: string, dto: DoctorAssessmentDto, userId: string) {
-    await this.findOne(id);
+    const current = await this.findOne(id);
+
+    // عدد المقومات وتفاصيلها وجهان لمعلومة واحدة: العدد يحدّد كم سطراً يفتح في
+    // الواجهة. فلو اختلفا صار في الملف عددٌ لا يطابق ما عُبِّئ فعلاً.
+    //
+    // تُقارَن القيمة المرسَلة بالمحفوظة إن لم تُرسَل، فتعديل أحدهما وحده يُفحص
+    // مقابل الآخر كما هو في الملف.
+    const nextCount = dto.appliancesCount ?? (current as any).appliancesCount ?? null;
+    const nextDetails = dto.appliancesDetails ?? ((current as any).appliancesDetails as any[] | null);
+    if (nextCount !== null && Array.isArray(nextDetails) && nextDetails.length !== nextCount) {
+      throw new BadRequestException({
+        code: 'APPLIANCES_COUNT_MISMATCH',
+        message: `عدد المقومات (${nextCount}) لا يطابق عدد الأسطر المعبّأة (${nextDetails.length})`,
+        details: [{ appliancesCount: nextCount, detailsLength: nextDetails.length }],
+      });
+    }
+
     const data: any = { doctorAssessmentUpdatedAt: new Date(), doctorAssessmentUpdatedBy: userId };
     const fields: (keyof DoctorAssessmentDto)[] = [
       'diagnosisTypes', 'cerebralPalsyType', 'footDropCause', 'diagnosisOther',
       'injuryStartDate', 'surgicalHistory', 'familyHistory', 'chiefComplaint',
-      'appliancesCount', 'affectedLimbType', 'affectedSide', 'soundLimbDescription',
+      'amputationCause', 'amputationCauseOtherDetail',
+      'appliancesCount', 'appliancesDetails',
+      'affectedLimbType', 'affectedSide', 'soundLimbDescription',
       'muscleTone', 'spasticityLevel', 'muscleToneDetails', 'sensation', 'sensationDetails',
       'thighMuscleStrength', 'legFootMuscleStrength',
       'upperArmMuscleStrength', 'forearmMuscleStrength',
