@@ -366,6 +366,10 @@ export class ProstheticDeliveryItemDto {
 }
 
 export class FinalDeliveryFormDto {
+  // عدد الأطراف المسلَّمة — صفر مسموح، والسالب مرفوض
+  @IsOptional() @IsInt() @Min(0)
+  deliveredLimbsCount?: number;
+
   @IsOptional() @IsDateString()
   inspectionDate?: string;
 

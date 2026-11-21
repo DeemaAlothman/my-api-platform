@@ -1052,6 +1052,10 @@ model FinalDeliveryForm {
 
   status            String          @default("FINAL")
 
+  // عدد الأطراف المسلَّمة فعلياً — قد يختلف عن عدد القطع في items
+  // (طرف واحد يتكوّن من عدة قطع)
+  deliveredLimbsCount Int?
+
   inspectionDate    DateTime?
   prosthetistId     String?
   physiotherapistId String?

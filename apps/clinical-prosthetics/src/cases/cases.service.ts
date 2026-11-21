@@ -1707,6 +1707,7 @@ export class CasesService {
       caseId,
       createdBy: userId,
       createdByName: userName,
+      deliveredLimbsCount: dto.deliveredLimbsCount ?? null,
       inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : trialForm?.inspectionDate,
       prosthetistId:     dto.prosthetistId     ?? trialForm?.prosthetistId,
       physiotherapistId: dto.physiotherapistId ?? trialForm?.physiotherapistId,
@@ -1761,6 +1762,7 @@ export class CasesService {
     return this.prisma.finalDeliveryForm.update({
       where: { caseId },
       data: {
+        deliveredLimbsCount: dto.deliveredLimbsCount,
         inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
         prosthetistId:     dto.prosthetistId,
         physiotherapistId: dto.physiotherapistId,
