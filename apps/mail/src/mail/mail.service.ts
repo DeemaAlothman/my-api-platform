@@ -11,9 +11,23 @@ import { ListMailQueryDto } from './dto/list-mail.query.dto';
 import { UpdateReadDto, UpdateStarDto } from './dto/update-read.dto';
 import { MoveMailDto, MailFolder } from './dto/move-mail.dto';
 import { EditMailDto } from './dto/edit-mail.dto';
+import { sanitizeMailHtml, assertBodyWithinLimit, makePreview } from './html.util';
 
 const USERS_URL          = process.env.USERS_SERVICE_URL || 'http://localhost:4002';
 const INTERNAL_TOKEN     = process.env.INTERNAL_SERVICE_TOKEN || '';
+
+// البحث يغطي الموضوع، والنص **بعد نزع الوسوم** (وإلا طابقت الكلمةُ اسمَ وسم أو
+// ترويسةَ صورة مضمّنة فظهرت نتائج لا معنى لها)، واسم المرسِل، وأسماء المرفقات.
+// يأخذ اسم البارامتر لأنه يُستعمل في استعلامين بترقيم مختلف.
+const searchSql = (param: string) => `(
+     m.subject ILIKE ${param}
+     OR regexp_replace(m.body, '<[^>]*>', ' ', 'g') ILIKE ${param}
+     OR EXISTS (SELECT 1 FROM mail.mail_attachments ma
+                WHERE ma."messageId" = m.id AND ma."fileName" ILIKE ${param})
+     OR EXISTS (SELECT 1 FROM users.employees e
+                WHERE e."userId" = m."senderId"
+                  AND (COALESCE(e."firstNameAr", '') || ' ' || COALESCE(e."lastNameAr", '')) ILIKE ${param})
+   )`;
 
 async function internalPost(url: string, body: any): Promise<any> {
   try {
@@ -109,13 +123,14 @@ export class MailService {
       parentMessageId: dto.parentMessageId,
       importance: dto.importance,
       attachmentIds: dto.attachmentIds,
+      replyType: dto.replyType,
     });
   }
 
   private async sendWithUserIds(
     senderId: string,
     allRecipients: Array<{ userId: string; type: RecipientType }>,
-    dto: { subject: string; body: string; parentMessageId?: string; importance?: string; attachmentIds?: string[] },
+    dto: { subject: string; body?: string; parentMessageId?: string; importance?: string; attachmentIds?: string[]; replyType?: string },
   ) {
     // Append sender signature
     const senderInfo = await internalPost(
@@ -126,7 +141,7 @@ export class MailService {
     const signature = (!dto.parentMessageId && senderInfo)
       ? `\n\n---\n${senderInfo.firstNameAr ?? ''} ${senderInfo.lastNameAr ?? ''}${senderInfo.jobTitle?.nameAr ? '\n' + senderInfo.jobTitle.nameAr : ''}`
       : '';
-    const bodyWithSignature = (dto.body ?? '') + signature;
+    const bodyWithSignature = this.prepareBody(dto.body) + signature;
 
     return this.prisma.$transaction(async (tx) => {
       const toRecipients = allRecipients.filter((r) => r.type === RecipientType.TO);
@@ -143,6 +158,7 @@ export class MailService {
           body: bodyWithSignature,
           isDraft: false,
           importance: (dto as any).importance ?? 'NORMAL',
+          replyType: (dto as any).replyType ?? null,
           parentMessageId: dto.parentMessageId ?? null,
           threadRootId: dto.parentMessageId
             ? await this.resolveThreadRoot(tx, dto.parentMessageId)
@@ -248,6 +264,66 @@ export class MailService {
     return message;
   }
 
+  // ── نص الرسالة: تنظيف وحدّ حجم في موضع واحد ───────────────────────────────
+
+  // يمر به كل مسار كتابة (إرسال، رد، تحويل، مسودة). التنظيف عند الحفظ لا عند
+  // العرض: الواجهة تنظّف أيضاً، لكن أي عميل آخر يتجاوز تنظيفها، فما يُخزَّن يجب
+  // أن يكون نظيفاً بذاته.
+  private prepareBody(body: string | null | undefined): string {
+    const clean = sanitizeMailHtml(body);
+    try {
+      assertBodyWithinLimit(clean);
+    } catch (err) {
+      throw new BadRequestException({
+        code: 'MAIL_BODY_TOO_LARGE',
+        message: (err as Error).message,
+        details: [],
+      });
+    }
+    return clean;
+  }
+
+  // ربط المرفقات اليتيمة بالرسالة. **يضيف ولا يحذف**: شرط messageId=null يمنع
+  // سحب مرفق مرتبط برسالة أخرى، وإزالة مرفق من المسودة تتم عبر حذف المرفق نفسه.
+  private async linkAttachments(db: any, senderId: string, messageId: string, attachmentIds?: string[]) {
+    if (!attachmentIds?.length) return;
+    await db.mailAttachment.updateMany({
+      where: { id: { in: attachmentIds }, uploadedBy: senderId, messageId: null },
+      data: { messageId },
+    });
+  }
+
+  // ── المسودات ──────────────────────────────────────────────────────────────
+
+  private async findOwnDraft(userId: string, draftId: string) {
+    const draft = await (this.prisma as any).mailMessage.findFirst({
+      where: { id: draftId, senderId: userId, isDraft: true, deletedAt: null },
+      include: {
+        recipients: true,
+        attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
+      },
+    });
+    if (!draft) {
+      throw new NotFoundException({ code: 'DRAFT_NOT_FOUND', message: 'المسودة غير موجودة', details: [] });
+    }
+    return draft;
+  }
+
+  // المستلمون مخزَّنون بـ userId بينما الواجهة تتعامل بـ employeeId، فيُعاد الاثنان
+  async getDraft(userId: string, draftId: string) {
+    const draft = await this.findOwnDraft(userId, draftId);
+    const nameMap = await resolveUserIdsToNames(draft.recipients.map((r: any) => r.recipientId));
+    return {
+      ...draft,
+      preview: makePreview(draft.body),
+      recipients: draft.recipients.map((r: any) => ({
+        ...r,
+        employeeId: nameMap[r.recipientId]?.employeeId ?? null,
+        employeeInfo: nameMap[r.recipientId] ?? null,
+      })),
+    };
+  }
+
   async saveDraft(senderId: string, dto: SaveDraftDto) {
     const resolved = dto.recipients ? await resolveEmployeeIdsToUserIds(dto.recipients) : [];
     const deduped = resolved.length ? this.dedupRecipients(resolved, senderId) : [];
@@ -256,8 +332,12 @@ export class MailService {
       data: {
         senderId,
         subject: dto.subject ?? '',
-        body: dto.body ?? '',
+        body: this.prepareBody(dto.body),
         isDraft: true,
+        importance: dto.importance ?? 'NORMAL',
+        departmentIds: dto.departmentIds ?? [],
+        parentMessageId: dto.parentMessageId ?? null,
+        replyType: dto.replyType ?? null,
         recipients: deduped.length > 0
           ? {
               createMany: {
@@ -270,10 +350,179 @@ export class MailService {
             }
           : undefined,
       },
-      include: { recipients: true },
     });
 
-    return message;
+    await this.linkAttachments(this.prisma, senderId, message.id, dto.attachmentIds);
+    return this.getDraft(senderId, message.id);
+  }
+
+  // PATCH: يحدّث المسودة نفسها دائماً ولا ينشئ صفاً جديداً مهما تكرّر — الواجهة
+  // تحفظ تلقائياً كل بضع ثوانٍ، فإنشاء نسخة لكل حفظ يُغرق صندوق المسودات.
+  //
+  // حقل لم يُرسَل يبقى كما هو؛ الإرسال الصريح وحده يغيّر. وهذا يعني أن إرسال
+  // recipients فارغة يمسح المستلمين عمداً (المستخدم أزالهم)، بينما عدم إرسالها
+  // يُبقيهم.
+  async updateDraft(userId: string, draftId: string, dto: SaveDraftDto) {
+    await this.findOwnDraft(userId, draftId);
+
+    // الاستدعاء الخارجي خارج المعاملة: معاملة تنتظر شبكةً تقفل صفوفاً بلا داعٍ
+    const deduped = dto.recipients !== undefined
+      ? this.dedupRecipients(await resolveEmployeeIdsToUserIds(dto.recipients), userId)
+      : null;
+
+    const data: any = {};
+    if (dto.subject !== undefined) data.subject = dto.subject;
+    if (dto.body !== undefined) data.body = this.prepareBody(dto.body);
+    if (dto.importance !== undefined) data.importance = dto.importance;
+    if (dto.departmentIds !== undefined) data.departmentIds = dto.departmentIds;
+    if (dto.parentMessageId !== undefined) data.parentMessageId = dto.parentMessageId;
+    if (dto.replyType !== undefined) data.replyType = dto.replyType;
+
+    await this.prisma.$transaction(async (tx) => {
+      if (deduped !== null) {
+        await (tx as any).mailRecipient.deleteMany({ where: { messageId: draftId } });
+        if (deduped.length) {
+          await (tx as any).mailRecipient.createMany({
+            data: deduped.map((r) => ({
+              messageId: draftId,
+              recipientId: r.userId,
+              type: r.type,
+              folder: MailFolder.DRAFTS,
+            })),
+          });
+        }
+      }
+      // يُنفَّذ دائماً ولو كانت data فارغة، كي يتجدّد updatedAt فتعرف الواجهة أن الحفظ تم
+      await (tx as any).mailMessage.update({ where: { id: draftId }, data });
+      await this.linkAttachments(tx, userId, draftId, dto.attachmentIds);
+    });
+
+    return this.getDraft(userId, draftId);
+  }
+
+  // تُحوَّل المسودة **نفسها** إلى رسالة مُرسَلة؛ لا يُنشأ صف جديد، وإلا ظهرت
+  // نسختان: واحدة في المسودات وأخرى في المُرسَل.
+  async sendDraft(userId: string, draftId: string) {
+    const draft = await this.findOwnDraft(userId, draftId);
+
+    if (!draft.subject?.trim()) {
+      throw new BadRequestException({ code: 'MAIL_SUBJECT_REQUIRED', message: 'لا يمكن إرسال مسودة بلا موضوع', details: [] });
+    }
+
+    const recipients: Array<{ userId: string; type: RecipientType }> = draft.recipients.map((r: any) => ({
+      userId: r.recipientId,
+      type: r.type as RecipientType,
+    }));
+
+    // الأقسام تُوسَّع لحظة الإرسال لا لحظة الحفظ: عضوية القسم قد تتغيّر بينهما
+    if (draft.departmentIds?.length) {
+      const resolved = await internalPost(
+        `${USERS_URL}/api/v1/employees/internal/resolve-recipients`,
+        { departmentIds: draft.departmentIds, userIds: [], excludeInactive: true },
+      );
+      for (const uid of resolved?.resolvedUserIds ?? []) {
+        if (!recipients.find((r) => r.userId === uid)) {
+          recipients.push({ userId: uid, type: RecipientType.TO });
+        }
+      }
+    }
+
+    const deduped = this.dedupRecipients(recipients, userId);
+    if (!deduped.some((r) => r.type === RecipientType.TO)) {
+      throw new BadRequestException({ code: 'MAIL_NO_TO_RECIPIENT', message: 'لا يمكن إرسال مسودة بلا مستلم في حقل «إلى»', details: [] });
+    }
+
+    const senderInfo = await internalPost(
+      `${USERS_URL}/api/v1/employees/internal/find-by-user-id`,
+      { userId },
+    );
+    const signature = (!draft.parentMessageId && senderInfo)
+      ? `\n\n---\n${senderInfo.firstNameAr ?? ''} ${senderInfo.lastNameAr ?? ''}${senderInfo.jobTitle?.nameAr ? '\n' + senderInfo.jobTitle.nameAr : ''}`
+      : '';
+
+    const threadRootId = draft.parentMessageId
+      ? await this.resolveThreadRoot(this.prisma, draft.parentMessageId)
+      : null;
+
+    const sent = await this.prisma.$transaction(async (tx) => {
+      // صفوف المسودة (folder=DRAFTS) تُستبدل بصفوف التسليم، فلا يبقى أثر للمسودة
+      await (tx as any).mailRecipient.deleteMany({ where: { messageId: draftId } });
+      await (tx as any).mailRecipient.createMany({
+        data: [
+          ...deduped.map((r) => ({
+            messageId: draftId,
+            recipientId: r.userId,
+            type: r.type,
+            folder: MailFolder.INBOX,
+          })),
+          {
+            messageId: draftId,
+            recipientId: userId,
+            type: RecipientType.TO,
+            folder: MailFolder.SENT,
+            isRead: true,
+            readAt: new Date(),
+          },
+        ],
+      });
+      return (tx as any).mailMessage.update({
+        where: { id: draftId },
+        data: {
+          isDraft: false,
+          body: draft.body + signature,
+          ...(threadRootId ? { threadRootId } : {}),
+        },
+        include: { recipients: true },
+      });
+    });
+
+    const notifyIds = deduped.map((r) => r.userId);
+    const subject = draft.subject;
+    setImmediate(() => {
+      for (const recipientId of notifyIds) {
+        internalPost(`${USERS_URL}/api/v1/notifications/internal`, {
+          userId: recipientId,
+          type: 'GENERAL',
+          titleAr: 'رسالة داخلية جديدة',
+          titleEn: 'New Internal Message',
+          messageAr: `لديك رسالة جديدة بعنوان: ${subject}`,
+          messageEn: `You received a new message: ${subject}`,
+          data: { messageId: draftId },
+        });
+      }
+    });
+
+    return sent;
+  }
+
+  // حذف ناعم كحذف المسودة من DELETE /mail/:id — الصف يبقى في قاعدة البيانات
+  async deleteDraft(userId: string, draftId: string) {
+    await this.findOwnDraft(userId, draftId);
+    await (this.prisma as any).mailMessage.update({
+      where: { id: draftId },
+      data: { deletedAt: new Date() },
+    });
+    return { deleted: true };
+  }
+
+  // ── مساعدات الفلترة ───────────────────────────────────────────────────────
+
+  // الواجهة ترسل employeeId بينما المخزَّن userId. موظف بلا حساب مستخدم يعيد
+  // معرّفاً مستحيلاً بدل تجاهل الفلتر، وإلا ظهرت كل الرسائل وكأن الفلتر لم يُطلب.
+  private async resolveSenderFilter(employeeId?: string): Promise<string | undefined> {
+    if (!employeeId) return undefined;
+    const [match] = await resolveEmployeeIdsToUserIds([{ employeeId, type: RecipientType.TO }]);
+    return match?.userId ?? '__no_such_user__';
+  }
+
+  // مجلدا الأرشيف والمهملات يُستعلمان عبر Prisma، وهو لا يعرف نزع الوسوم ولا
+  // الربط بجدول الموظفين — فتُجلب المعرّفات المطابقة بـSQL ثم تُستعمل شرطاً.
+  private async searchMessageIds(search: string): Promise<string[]> {
+    const rows = await (this.prisma as any).$queryRawUnsafe(
+      `SELECT m.id FROM mail.mail_messages m WHERE ${searchSql('$1')} LIMIT 5000`,
+      `%${search}%`,
+    );
+    return (rows as any[]).map((r) => r.id);
   }
 
   async reply(senderId: string, parentId: string, dto: SendMailDto) {
@@ -428,11 +677,14 @@ export class MailService {
   }
 
   async getFolder(userId: string, folder: MailFolder, query: ListMailQueryDto) {
-    const { page = 1, limit = 20, search, dateFrom, dateTo, archiveFolderId } = query;
+    const { page = 1, limit = 20, search, dateFrom, dateTo, archiveFolderId,
+            isRead, hasAttachments, isStarred } = query;
+    const senderUserId = await this.resolveSenderFilter(query.senderId);
 
     // INBOX: عرض محادثات (مبدأ Gmail) — صف واحد لكل محادثة = آخر رسالة، يطلع لفوق مع كل رد جديد
     if (folder === MailFolder.INBOX) {
-      const { ids, total } = await this.getConversationRecipientIds(userId, MailFolder.INBOX, { search, dateFrom, dateTo, page, limit });
+      const { ids, total } = await this.getConversationRecipientIds(userId, MailFolder.INBOX,
+        { search, dateFrom, dateTo, page, limit, isRead, hasAttachments, isStarred, senderUserId });
       const items = await this.fetchAndEnrichInbox(ids);
       return { items, total, page, limit };
     }
@@ -441,14 +693,15 @@ export class MailService {
     const skip = (page - 1) * limit;
     const where: any = { recipientId: userId, folder, deletedAt: null };
     if (folder === MailFolder.ARCHIVE && archiveFolderId) where.archiveFolderId = archiveFolderId;
+    // الحالتان على سجل المستلِم نفسه لا على الرسالة: نفس الرسالة قد تكون مقروءة
+    // عند أحدهم وغير مقروءة عند آخر
+    if (isRead !== undefined) where.isRead = isRead;
+    if (isStarred !== undefined) where.isStarred = isStarred;
 
     const messageFilter: any = {};
-    if (search) {
-      messageFilter.OR = [
-        { subject: { contains: search, mode: 'insensitive' } },
-        { body: { contains: search, mode: 'insensitive' } },
-      ];
-    }
+    if (search) messageFilter.id = { in: await this.searchMessageIds(search) };
+    if (senderUserId) messageFilter.senderId = senderUserId;
+    if (hasAttachments) messageFilter.attachments = { some: {} };
     if (dateFrom || dateTo) {
       messageFilter.createdAt = {
         ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
@@ -475,7 +728,9 @@ export class MailService {
     const nameMap = await resolveUserIdsToNames(senderIds as string[]);
     const enriched = items.map((i: any) => ({
       ...i,
-      message: i.message ? { ...i.message, senderInfo: nameMap[i.message.senderId] ?? null } : null,
+      message: i.message
+        ? { ...i.message, senderInfo: nameMap[i.message.senderId] ?? null, preview: makePreview(i.message.body) }
+        : null,
     }));
 
     return { items: enriched, total, page, limit };
@@ -485,13 +740,23 @@ export class MailService {
   private async getConversationRecipientIds(
     userId: string,
     folder: MailFolder,
-    opts: { search?: string; dateFrom?: string; dateTo?: string; page: number; limit: number },
+    opts: {
+      search?: string; dateFrom?: string; dateTo?: string; page: number; limit: number;
+      isRead?: boolean; hasAttachments?: boolean; isStarred?: boolean; senderUserId?: string;
+    },
   ): Promise<{ ids: string[]; total: number }> {
     const offset = (opts.page - 1) * opts.limit;
     const conds = [`mr."recipientId" = $1`, `mr.folder::text = $2`, `mr."deletedAt" IS NULL`, `m."deletedAt" IS NULL`];
     const params: any[] = [userId, folder];
     let p = 3;
-    if (opts.search) { conds.push(`(m.subject ILIKE $${p} OR m.body ILIKE $${p})`); params.push(`%${opts.search}%`); p++; }
+    if (opts.search) { conds.push(searchSql(`$${p}`)); params.push(`%${opts.search}%`); p++; }
+    // isRead و isStarred على سجل المستلِم؛ والباقي على الرسالة
+    if (opts.isRead !== undefined) { conds.push(`mr."isRead" = $${p}`); params.push(opts.isRead); p++; }
+    if (opts.isStarred !== undefined) { conds.push(`mr."isStarred" = $${p}`); params.push(opts.isStarred); p++; }
+    if (opts.senderUserId) { conds.push(`m."senderId" = $${p}`); params.push(opts.senderUserId); p++; }
+    if (opts.hasAttachments) {
+      conds.push(`EXISTS (SELECT 1 FROM mail.mail_attachments ma2 WHERE ma2."messageId" = m.id)`);
+    }
     if (opts.dateFrom) { conds.push(`m."createdAt" >= $${p}`); params.push(new Date(opts.dateFrom)); p++; }
     if (opts.dateTo) { conds.push(`m."createdAt" <= $${p}`); params.push(new Date(opts.dateTo)); p++; }
     const whereSql = conds.join(' AND ');
@@ -536,15 +801,19 @@ export class MailService {
     const nameMap = await resolveUserIdsToNames(senderIds as string[]);
     return ordered.map((i: any) => ({
       ...i,
-      message: i.message ? { ...i.message, senderInfo: nameMap[i.message.senderId] ?? null } : null,
+      message: i.message
+        ? { ...i.message, senderInfo: nameMap[i.message.senderId] ?? null, preview: makePreview(i.message.body) }
+        : null,
     }));
   }
 
   async getSent(userId: string, query: ListMailQueryDto) {
-    const { page = 1, limit = 20, search, dateFrom, dateTo } = query;
+    const { page = 1, limit = 20, search, dateFrom, dateTo, isRead, hasAttachments, isStarred } = query;
+    const senderUserId = await this.resolveSenderFilter(query.senderId);
 
     // SENT: عرض محادثات (مبدأ Gmail) — صف واحد لكل محادثة = آخر رسالة، مرتّبة بالأحدث
-    const { ids, total } = await this.getConversationRecipientIds(userId, MailFolder.SENT, { search, dateFrom, dateTo, page, limit });
+    const { ids, total } = await this.getConversationRecipientIds(userId, MailFolder.SENT,
+      { search, dateFrom, dateTo, page, limit, isRead, hasAttachments, isStarred, senderUserId });
     if (!ids.length) return { items: [], total, page, limit };
 
     const include = {
@@ -572,6 +841,7 @@ export class MailService {
       ...i,
       message: i.message ? {
         ...i.message,
+        preview: makePreview(i.message.body),
         recipients: (i.message.recipients ?? []).map((r: any) => ({
           ...r, employeeInfo: nameMap[r.recipientId] ?? null,
         })),
@@ -590,7 +860,10 @@ export class MailService {
     const [items, total] = await Promise.all([
       (this.prisma as any).mailMessage.findMany({
         where,
-        include: { recipients: true },
+        include: {
+          recipients: true,
+          attachments: { select: { id: true, fileName: true, fileSize: true, mimeType: true } },
+        },
         orderBy: { updatedAt: 'desc' },
         skip,
         take: limit,
@@ -598,7 +871,10 @@ export class MailService {
       (this.prisma as any).mailMessage.count({ where }),
     ]);
 
-    return { items, total, page, limit };
+    return {
+      items: items.map((m: any) => ({ ...m, preview: makePreview(m.body) })),
+      total, page, limit,
+    };
   }
 
   async getThread(userId: string, messageId: string) {

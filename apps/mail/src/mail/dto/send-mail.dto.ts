@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional, IsEnum, ArrayMinSize, ValidateNested, IsNotEmpty } from 'class-validator';
+import { IsString, IsArray, IsOptional, IsEnum, IsIn, ArrayMinSize, ValidateNested, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -46,10 +46,17 @@ export class SendMailDto {
   @IsString()
   parentMessageId?: string;
 
-  @ApiPropertyOptional({ enum: ['NORMAL', 'HIGH'], default: 'NORMAL' })
+  // LOW أُضيفت للأهمية المنخفضة. @IsIn يرفض قيمة غير معروفة بـ400 بدل تخزينها
+  // كما هي ثم ظهورها خاماً في الواجهة.
+  @ApiPropertyOptional({ enum: ['LOW', 'NORMAL', 'HIGH'], default: 'NORMAL' })
   @IsOptional()
-  @IsString()
+  @IsIn(['LOW', 'NORMAL', 'HIGH'])
   importance?: string;
+
+  @ApiPropertyOptional({ enum: ['REPLY', 'REPLY_ALL', 'FORWARD'] })
+  @IsOptional()
+  @IsIn(['REPLY', 'REPLY_ALL', 'FORWARD'])
+  replyType?: string;
 
   @ApiPropertyOptional({ type: [String], description: 'IDs of pre-uploaded orphan attachments to link to this message' })
   @IsOptional()

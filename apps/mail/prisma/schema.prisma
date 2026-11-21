@@ -16,7 +16,10 @@ model MailMessage {
   parentMessageId String?
 
   isDraft         Boolean          @default(false)
-  importance      String           @default("NORMAL")
+  importance      String           @default("NORMAL")  // LOW | NORMAL | HIGH
+  // تُستعمل للمسودة كي تُستأنف كما تُركت؛ تُوسَّع إلى مستلمين عند الإرسال
+  departmentIds   String[]         @default([])
+  replyType       String?          // REPLY | REPLY_ALL | FORWARD
   deletedAt       DateTime?
   editHistory     Json             @default("[]")
 

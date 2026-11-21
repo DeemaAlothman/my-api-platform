@@ -54,6 +54,31 @@ export class MailController {
     return this.mailService.saveDraft(user.userId, dto);
   }
 
+  // مسارات المسودة قبل مسارات :id حتى لا يُلتقط 'draft' على أنه معرّف رسالة
+  @Get('draft/:id')
+  @Permission('mail:draft')
+  getDraft(@User() user: any, @Param('id') id: string) {
+    return this.mailService.getDraft(user.userId, id);
+  }
+
+  @Patch('draft/:id')
+  @Permission('mail:draft')
+  updateDraft(@User() user: any, @Param('id') id: string, @Body() dto: SaveDraftDto) {
+    return this.mailService.updateDraft(user.userId, id, dto);
+  }
+
+  @Post('draft/:id/send')
+  @Permission('mail:send')
+  sendDraft(@User() user: any, @Param('id') id: string) {
+    return this.mailService.sendDraft(user.userId, id);
+  }
+
+  @Delete('draft/:id')
+  @Permission('mail:draft')
+  deleteDraft(@User() user: any, @Param('id') id: string) {
+    return this.mailService.deleteDraft(user.userId, id);
+  }
+
   @Post(':id/reply')
   @Permission('mail:send')
   reply(@User() user: any, @Param('id') id: string, @Body() dto: SendMailDto) {
