@@ -156,6 +156,8 @@ export class InterviewEvaluationsService {
     if (!apiKey) return;
 
     const headers = { 'x-api-key': apiKey, 'Content-Type': 'application/json' };
+    // بعد تعبئة التقييم تكون المقابلة قد تمّت فعلاً. لا نلمس طلباً تجاوز هذه
+    // المرحلة (بانتظار المدير التنفيذي، موظَّف، مرفوض) فلا نرجعه إلى الوراء.
     const TRANSITIONABLE = ['PENDING', 'INTERVIEW_READY'];
 
     void (async () => {
@@ -169,7 +171,7 @@ export class InterviewEvaluationsService {
         await firstValueFrom(
           this.http.put(
             `${baseUrl}/job-applications/${jobApplicationId}`,
-            { status: 'ACCEPTED' },
+            { status: 'INTERVIEWED' },
             { headers },
           ),
         );
@@ -255,7 +257,7 @@ export class InterviewEvaluationsService {
       scores = this.calculateScores(newPersonal as any, newTechnical as any, newComputer as any, technicalMaxScores, position?.requiresComputer ?? true, requiresTechnical);
     }
 
-    return this.prisma.interviewEvaluation.update({
+    const updated = await this.prisma.interviewEvaluation.update({
       where: { id },
       data: {
         ...(dto.candidateName && { candidateName: dto.candidateName }),
@@ -296,6 +298,12 @@ export class InterviewEvaluationsService {
         computerScores: { include: { criterion: true } },
       },
     });
+
+    // التقييم يُعبَّأ غالباً على دفعات (PUT متكرّر)، فنقل الحالة عند الإنشاء وحده
+    // كان يترك الطلب في «مؤهل للمقابلة» رغم أن المقابلة تمّت وقُيّمت.
+    this.markApplicationInterviewed(existing.jobApplicationId);
+
+    return updated;
   }
 
   async transferToEmployee(id: string) {
