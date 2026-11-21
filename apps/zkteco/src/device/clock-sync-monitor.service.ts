@@ -119,6 +119,9 @@ export class ClockSyncMonitorService implements OnModuleInit {
     }
   }
 
+  // أعطال الجهاز (انقطاع، تأخّر مزامنة، انحراف ساعة) شأن تقني لا يملك غير مدير
+  // النظام فعل شيء حياله. كانت تذهب أيضاً إلى HR و HR_Specialist و IT، وخدمة واتساب
+  // تعيد بثّ كل إشعار إلى هاتف صاحبه — فكان الجميع يتلقّى رسالة عن جهاز لا يصلحه.
   private async alertHR(titleAr: string, titleEn: string, messageAr: string, messageEn: string): Promise<void> {
     try {
       const hrUsers = (await this.prisma.$queryRawUnsafe(
@@ -126,7 +129,7 @@ export class ClockSyncMonitorService implements OnModuleInit {
          FROM users.users u
          INNER JOIN users.user_roles ur ON ur."userId" = u.id
          INNER JOIN users.roles r ON r.id = ur."roleId"
-         WHERE r.name IN ('HR', 'HR_Specialist', 'super_admin', 'IT')
+         WHERE r.name = 'super_admin'
            AND r."deletedAt" IS NULL AND u."deletedAt" IS NULL`,
       )) as Array<{ id: string }>;
 
