@@ -65,13 +65,104 @@ export class ReceptionsService {
     return { ...reception, patient: patientMap[reception.patientId] ?? null };
   }
 
-  async findAll(patientId?: string) {
+  // isSuitable: "true" أو "false"، وأي شيء آخر (أو غيابه) يعني الكل.
+  // "undecided" تُرجِع ما لم يُقرَّر بعدُ — وهي ليست "غير مناسب".
+  async findAll(patientId?: string, isSuitable?: string) {
+    const where: any = {};
+    if (patientId) where.patientId = patientId;
+    if (isSuitable === 'true') where.isSuitable = true;
+    else if (isSuitable === 'false') where.isSuitable = false;
+    else if (isSuitable === 'undecided') where.isSuitable = null;
+
     const receptions = await this.prisma.orthoticsReception.findMany({
-      where: patientId ? { patientId } : undefined,
+      where: Object.keys(where).length ? where : undefined,
       orderBy: { createdAt: 'desc' },
     });
     const patientMap = await this.resolvePatients(receptions.map((r) => r.patientId));
     return receptions.map((r) => ({ ...r, patient: patientMap[r.patientId] ?? null }));
+  }
+
+  // ── قرار المناسبة ─────────────────────────────────────────────────────────
+
+  async setSuitability(
+    id: string,
+    dto: { isSuitable: boolean; suitabilityNote?: string; targetAppliancesCount?: number },
+    userId: string,
+  ) {
+    await this.findReceptionOrThrow(id);
+    return this.prisma.orthoticsReception.update({
+      where: { id },
+      data: {
+        isSuitable: dto.isSuitable,
+        suitabilityNote: dto.suitabilityNote,
+        targetAppliancesCount: dto.targetAppliancesCount,
+        suitabilityUpdatedAt: new Date(),
+        suitabilityUpdatedBy: userId,
+      },
+    });
+  }
+
+  // ── جلسات المتابعة ────────────────────────────────────────────────────────
+
+  private async findReceptionOrThrow(id: string) {
+    const reception = await this.prisma.orthoticsReception.findUnique({ where: { id } });
+    if (!reception) throw new NotFoundException('Reception not found');
+    return reception;
+  }
+
+  async addFollowUp(
+    receptionId: string,
+    dto: { visitDate: string; findings: string; actions?: string; practitionerId?: string },
+    userId: string,
+  ) {
+    await this.findReceptionOrThrow(receptionId);
+    return this.prisma.orthoticsFollowUp.create({
+      data: {
+        receptionId,
+        visitDate: new Date(dto.visitDate),
+        findings: dto.findings,
+        actions: dto.actions,
+        practitionerId: dto.practitionerId || userId,
+      },
+    });
+  }
+
+  async getFollowUps(receptionId: string) {
+    await this.findReceptionOrThrow(receptionId);
+    return this.prisma.orthoticsFollowUp.findMany({
+      where: { receptionId },
+      orderBy: { visitDate: 'desc' },
+    });
+  }
+
+  // شرط receptionId في where يمنع تعديل جلسة تابعة لاستقبال آخر عبر تخمين معرّفها
+  async updateFollowUp(
+    receptionId: string,
+    followUpId: string,
+    dto: { visitDate?: string; findings?: string; actions?: string; practitionerId?: string },
+  ) {
+    const existing = await this.prisma.orthoticsFollowUp.findFirst({
+      where: { id: followUpId, receptionId },
+    });
+    if (!existing) throw new NotFoundException('Follow-up not found');
+    return this.prisma.orthoticsFollowUp.update({
+      where: { id: followUpId },
+      data: {
+        visitDate: dto.visitDate ? new Date(dto.visitDate) : undefined,
+        findings: dto.findings,
+        actions: dto.actions,
+        practitionerId: dto.practitionerId,
+      },
+    });
+  }
+
+  async deleteFollowUp(receptionId: string, followUpId: string) {
+    const existing = await this.prisma.orthoticsFollowUp.findFirst({
+      where: { id: followUpId, receptionId },
+    });
+    if (!existing) throw new NotFoundException('Follow-up not found');
+    await this.prisma.orthoticsFollowUp.delete({ where: { id: followUpId } });
+    return { deleted: true };
   }
 
   async findOne(id: string) {

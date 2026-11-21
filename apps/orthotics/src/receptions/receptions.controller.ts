@@ -12,6 +12,8 @@ import { DoctorAssessmentDto } from './dto/doctor-assessment.dto';
 import { PhysioAssessmentDto } from './dto/physio-assessment.dto';
 import { ProsthetistOpinionDto } from './dto/prosthetist-opinion.dto';
 import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
+import { SuitabilityDto } from './dto/suitability.dto';
+import { OrthoticsFollowUpDto } from './dto/follow-up.dto';
 import { CreateMeasurementSheetDto } from './dto/create-measurement-sheet.dto';
 import { orthoticsAttachmentMulterOptions } from './orthotics-files.config';
 import { JwtAuthGuard, User } from '@shared/auth';
@@ -42,8 +44,11 @@ export class ReceptionsController {
 
   @Permission(PERMISSIONS.CLINIC_ORTHOTICS.VIEW)
   @Get()
-  findAll(@Query('patientId') patientId?: string) {
-    return this.service.findAll(patientId);
+  findAll(
+    @Query('patientId') patientId?: string,
+    @Query('isSuitable') isSuitable?: string,
+  ) {
+    return this.service.findAll(patientId, isSuitable);
   }
 
   // قبل :id حتى ما تنبلع كمعرّف
@@ -80,6 +85,43 @@ export class ReceptionsController {
   }
 
   @Permission(PERMISSIONS.CLINIC_ORTHOTICS.PROSTHETIST_OPINION_EDIT)
+  // قرار المناسبة — مناسب / غير مناسب مع ملاحظة وعدد المقومات المستهدفة
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.EDIT)
+  @Patch(':id/suitability')
+  setSuitability(@Param('id') id: string, @Body() dto: SuitabilityDto, @User() user: any) {
+    return this.service.setSuitability(id, dto, user.userId);
+  }
+
+  // ── جلسات المتابعة ────────────────────────────────────────────────────────
+
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.EDIT)
+  @Post(':id/follow-ups')
+  addFollowUp(@Param('id') id: string, @Body() dto: OrthoticsFollowUpDto, @User() user: any) {
+    return this.service.addFollowUp(id, dto, user.userId);
+  }
+
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.VIEW)
+  @Get(':id/follow-ups')
+  getFollowUps(@Param('id') id: string) {
+    return this.service.getFollowUps(id);
+  }
+
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.EDIT)
+  @Patch(':id/follow-ups/:followUpId')
+  updateFollowUp(
+    @Param('id') id: string,
+    @Param('followUpId') followUpId: string,
+    @Body() dto: OrthoticsFollowUpDto,
+  ) {
+    return this.service.updateFollowUp(id, followUpId, dto);
+  }
+
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.EDIT)
+  @Delete(':id/follow-ups/:followUpId')
+  deleteFollowUp(@Param('id') id: string, @Param('followUpId') followUpId: string) {
+    return this.service.deleteFollowUp(id, followUpId);
+  }
+
   @Patch(':id/prosthetist-opinion')
   upsertProsthetistOpinion(@Param('id') id: string, @Body() dto: ProsthetistOpinionDto) {
     return this.service.upsertProsthetistOpinion(id, dto);

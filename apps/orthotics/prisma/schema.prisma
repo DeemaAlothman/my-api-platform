@@ -146,6 +146,16 @@ model OrthoticsReception {
   physioOpinion      String? @db.Text
   prosthetistOpinion String? @db.Text
 
+  // ── قرار المناسبة ────────────────────────────────────────────────────
+  // null = لم يُقرَّر بعد. يختلف عن false (قُرِّر أنه غير مناسب)، والفرق مقصود
+  // كي لا تُحسب الحالات التي لم تُقيَّم بعدُ ضمن «غير مناسب».
+  isSuitable       Boolean?
+  suitabilityNote  String?  @db.Text
+  // عدد المقومات المستهدفة — يختلف عن appliancesCount (المطلوبة في التقييم الأولي)
+  targetAppliancesCount Int?
+  suitabilityUpdatedAt  DateTime?
+  suitabilityUpdatedBy  String?
+
   // المعالجون المسؤولون عن الحالة (employeeId) — يُرسل إشعار لكل معالج يُضاف حديثاً
   practitionerIds String[] @default([])
 
@@ -155,9 +165,29 @@ model OrthoticsReception {
 
   attachments       OrthoticsAttachment[]
   measurementSheets OrthoticsMeasurementSheet[]
+  followUps         OrthoticsFollowUp[]
 
   @@index([patientId])
   @@map("orthotics_receptions")
+  @@schema("clinic_orthotics")
+}
+
+// جلسات متابعة المقومات — على نمط follow_ups في الأطراف الصناعية
+model OrthoticsFollowUp {
+  id          String @id @default(uuid())
+  receptionId String
+  reception   OrthoticsReception @relation(fields: [receptionId], references: [id], onDelete: Cascade)
+
+  visitDate      DateTime
+  findings       String  @db.Text
+  actions        String? @db.Text
+  practitionerId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([receptionId])
+  @@map("orthotics_follow_ups")
   @@schema("clinic_orthotics")
 }
 
