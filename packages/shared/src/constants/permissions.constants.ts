@@ -279,6 +279,9 @@ export const PERMISSIONS = {
     NOTIFY_INCOMPLETE_FORM: 'clinic.prosthetics.notify_incomplete_form',
     // إعادة فتح حالة مسلَّمة لاستكمال النواقص، وإعادة قفلها
     REOPEN: 'clinic.prosthetics.reopen',
+    // تعديل رقم الحالة يدوياً — مستقلة عن تعديل الحالة نفسها، لأن الرقم مرجع
+    // أرشيفي تتبعه المراسلات والملفات الورقية
+    CASE_NUMBER_UPDATE: 'clinic.prosthetics.case.number.update',
   },
   CLINIC_PHYSIO: {
     CASE_VIEW:         'clinic.physio.case.view',

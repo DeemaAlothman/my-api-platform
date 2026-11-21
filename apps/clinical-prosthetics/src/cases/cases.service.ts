@@ -159,17 +159,111 @@ export class CasesService {
   private async generateCaseNumber(): Promise<string> {
     const year = new Date().getFullYear();
     const prefix = `PR-${year}-`;
-    const last = await this.prisma.prostheticsCase.findFirst({
+    // تُقرأ أرقام السنة كلها ويؤخذ أكبرها **عددياً**: الترتيب النصي يخطئ متى
+    // اختلف عدد الخانات، والأرقام اليدوية تجعل ذلك وارداً.
+    const rows = await this.prisma.prostheticsCase.findMany({
       where: { caseNumber: { startsWith: prefix } },
-      orderBy: { caseNumber: 'desc' },
       select: { caseNumber: true },
     });
     let num = 1;
-    if (last) {
-      const lastNum = parseInt(last.caseNumber.replace(prefix, ''), 10);
-      if (!isNaN(lastNum)) num = lastNum + 1;
+    for (const r of rows) {
+      const n = parseInt(r.caseNumber.slice(prefix.length), 10);
+      if (!isNaN(n) && n >= num) num = n + 1;
     }
-    return `${prefix}${String(num).padStart(4, '0')}`;
+
+    // حالة محذوفة تحتفظ برقمها والقيد الفريد يشملها، فنتخطّى أي رقم مأخوذ
+    // بدل أن يفشل الإنشاء
+    for (let guard = 0; guard < 1000; guard++) {
+      const candidate = `${prefix}${String(num).padStart(4, '0')}`;
+      const exists = await this.prisma.prostheticsCase.findFirst({
+        where: { caseNumber: candidate },
+        select: { id: true },
+      });
+      if (!exists) return candidate;
+      num++;
+    }
+    throw new BadRequestException({
+      code: 'CASE_NUMBER_GENERATION_FAILED',
+      message: 'تعذّر توليد رقم حالة جديد — راجع الأرقام اليدوية',
+      details: [],
+    });
+  }
+
+  // صيغة رقم الحالة. الرقم اليدوي ملزَم بها لأن مولّد الأرقام يرتّب **نصياً**
+  // (orderBy caseNumber desc) ويقرأ آخر رقم من نفس السنة؛ فرقمٌ حرّ يكسر الترتيب
+  // وقد يجعل المولّد يعيد رقماً مستعملاً.
+  private static readonly CASE_NUMBER_RE = /^PR-\d{4}-\d{4}$/;
+
+  /**
+   * تعديل رقم الحالة يدوياً — للحالات القديمة التي لها رقم أرشيفي سابق.
+   *
+   * محروس بصلاحية مستقلة عن تعديل الحالة: الرقم مرجع تتبعه المراسلات والملفات
+   * الورقية، فتغييره قرار أثقل من تعديل حقل طبي.
+   */
+  async updateCaseNumber(id: string, newNumber: string, userId?: string, userName?: string) {
+    const current = await this.findCaseOrThrow(id);
+    const value = (newNumber ?? '').trim();
+
+    if (!CasesService.CASE_NUMBER_RE.test(value)) {
+      throw new BadRequestException({
+        code: 'CASE_NUMBER_INVALID_FORMAT',
+        message: 'صيغة الرقم يجب أن تكون PR-YYYY-NNNN مثل PR-2026-0088',
+        details: [{ received: value }],
+      });
+    }
+
+    if (value === current.caseNumber) {
+      return { id, caseNumber: value, changed: false };
+    }
+
+    // الفحص المسبق يعطي رسالة مفهومة؛ وقيد التفرّد في قاعدة البيانات يبقى الحارس
+    // الحقيقي ضد تعديلين متزامنين
+    const taken = await this.prisma.prostheticsCase.findFirst({
+      where: { caseNumber: value },
+      select: { id: true, deletedAt: true },
+    });
+    if (taken) {
+      throw new BadRequestException({
+        code: 'CASE_NUMBER_TAKEN',
+        message: taken.deletedAt
+          ? `الرقم ${value} مستعمَل في حالة محذوفة — اختر رقماً آخر`
+          : `الرقم ${value} مستعمَل في حالة أخرى`,
+        details: [{ caseNumber: value }],
+      });
+    }
+
+    const previous = current.caseNumber;
+
+    let updated;
+    try {
+      updated = await this.prisma.prostheticsCase.update({
+        where: { id },
+        data: { caseNumber: value },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new BadRequestException({
+          code: 'CASE_NUMBER_TAKEN',
+          message: `الرقم ${value} مستعمَل في حالة أخرى`,
+          details: [{ caseNumber: value }],
+        });
+      }
+      throw err;
+    }
+
+    // الرقم القديم يُحفظ هنا وحده: العمود نفسه لا يحتفظ بتاريخه
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO public.audit_logs
+         ("userId", username, action, resource, "resourceId", method, path, metadata, "createdAt")
+       VALUES ($1, $2, 'PROSTHETICS_CASE_NUMBER_CHANGED', 'prosthetics_case', $3, 'PATCH',
+               '/prosthetics/cases/:id/case-number', $4::jsonb, NOW())`,
+      userId ?? null,
+      userName ?? null,
+      id,
+      JSON.stringify({ previousCaseNumber: previous, newCaseNumber: value }),
+    ).catch((e: any) => this.logger.error(`audit log failed for case-number change: ${e?.message}`));
+
+    return { id, previousCaseNumber: previous, caseNumber: updated.caseNumber, changed: true };
   }
 
   private async findCaseOrThrow(id: string) {

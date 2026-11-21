@@ -1,6 +1,6 @@
 import {
   IsString, IsNotEmpty, IsOptional, IsBoolean, IsEnum, IsDateString,
-  IsInt, Min, Max, IsNumber, IsArray,
+  IsInt, Min, Max, IsNumber, IsArray, Matches,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
@@ -322,4 +322,15 @@ export class ListCasesQueryDto {
 
   @IsOptional() @IsInt() @Min(1) @Max(100) @Type(() => Number)
   limit?: number = 20;
+}
+
+/**
+ * تعديل رقم الحالة يدوياً. الصيغة إلزامية ولا تُترك حرّة: مولّد الأرقام يقرأ
+ * الأرقام الموجودة ليكمل منها، فرقمٌ بصيغة أخرى يُربك التسلسل.
+ */
+export class UpdateCaseNumberDto {
+  @IsString()
+  @IsNotEmpty({ message: 'رقم الحالة مطلوب' })
+  @Matches(/^PR-\d{4}-\d{4}$/, { message: 'صيغة الرقم يجب أن تكون PR-YYYY-NNNN مثل PR-2026-0088' })
+  caseNumber: string;
 }

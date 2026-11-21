@@ -11,7 +11,7 @@ import { CaseWritableGuard } from '../common/guards/case-writable.guard';
 import { MissingFieldsInterceptor } from '../common/interceptors/missing-fields.interceptor';
 import { caseAttachmentMulterOptions } from './case-files.config';
 import { PdfService } from './pdf.service';
-import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto, ReopenCaseDto, RelockCaseDto } from './dto/case.dto';
+import { CreateCaseDto, UpdateCaseDto, UpdateStatusDto, ListCasesQueryDto, TimelineQueryDto, ReopenCaseDto, RelockCaseDto, UpdateCaseNumberDto } from './dto/case.dto';
 import { UpperLimbAssessmentDto, LowerLimbAssessmentDto, AnkleDisarticulationAssessmentDto, KneeDisarticulationAssessmentDto, TransfemoralAssessmentDto, TranstibialAssessmentDto, HemipelvectomyAssessmentDto, TransradialAssessmentDto, ElbowDisarticulationAssessmentDto, TranshumeralAssessmentDto } from './dto/assessment.dto';
 import { CommitteeOpinionDto, CommitteeDecideDto, CommitteeSignDto } from './dto/committee.dto';
 import {
@@ -473,6 +473,17 @@ export class CasesController {
   }
 
   // ── التسليم النهائي (FINAL) — entity مستقلة ─────────────────────────────
+
+  // تعديل رقم الحالة — صلاحية مستقلة عن تعديل الحالة نفسها
+  @Patch(':id/case-number')
+  @Permission(PERMISSIONS.CLINIC_PROSTHETICS.CASE_NUMBER_UPDATE)
+  updateCaseNumber(
+    @Param('id') id: string,
+    @Body() dto: UpdateCaseNumberDto,
+    @User() user: any,
+  ) {
+    return this.service.updateCaseNumber(id, dto.caseNumber, user.userId, user.fullName);
+  }
 
   @Post(':id/final-delivery')
   @Permission(PERMISSIONS.CLINIC_PROSTHETICS.GAIT_CREATE)
