@@ -3,7 +3,7 @@ import {
   Body, Param, Query, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard, UserId } from '@shared/auth';
+import { JwtAuthGuard, UserId, User } from '@shared/auth';
 import { PermissionsGuard, Permission } from '@shared';
 import { SourcesService } from './sources.service';
 import {
@@ -11,6 +11,7 @@ import {
   CreateVisitDto, UpdateVisitDto,
   CreateSpecialtyDto,
   ListSourcesQueryDto,
+  LinkUnlinkedDto,
 } from './dto/source.dto';
 
 @ApiTags('referrals')
@@ -60,6 +61,23 @@ export class SourcesController {
   @Permission('clinic.referrals.view')
   getUnlinkedNames(@Query('type') type?: string) {
     return this.service.getUnlinkedNames(type);
+  }
+
+  // قبل @Get(':id') وإلا التُقط 'link-preview' جزءاً من المعرّف
+  @Get(':id/link-preview')
+  @Permission('clinic.referrals.manage')
+  linkPreview(@Param('id') id: string, @Query('name') name: string) {
+    return this.service.linkPreview(id, name);
+  }
+
+  @Post(':id/link-unlinked')
+  @Permission('clinic.referrals.manage')
+  linkUnlinked(
+    @Param('id') id: string,
+    @Body() dto: LinkUnlinkedDto,
+    @User() user: any,
+  ) {
+    return this.service.linkUnlinked(id, dto, user);
   }
 
   @Get(':id/patient-count')

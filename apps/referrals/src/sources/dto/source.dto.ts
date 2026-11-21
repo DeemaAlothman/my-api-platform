@@ -1,5 +1,6 @@
 import {
   IsString, IsEnum, IsOptional, IsInt, IsArray, IsDateString, IsNumber, Min, Max,
+  IsNotEmpty, ArrayMinSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -105,4 +106,20 @@ export class ListSourcesQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() limit?: number;
   @IsOptional() @IsEnum(SourceType) type?: SourceType;
   @IsOptional() @IsString() search?: string;
+}
+
+/**
+ * ربط المرضى ذوي الاسم الحر بجهة اتصال. يُرسَل الاسم **ومعرّفات المرضى معاً**:
+ * المستخدم قد يستثني بعض من ظهروا في المعاينة، والاسم يُعاد التحقق منه على كل
+ * مريض فلا يُربط من تغيّر ملفه بين المعاينة والتأكيد.
+ */
+export class LinkUnlinkedDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  patientIds: string[];
 }

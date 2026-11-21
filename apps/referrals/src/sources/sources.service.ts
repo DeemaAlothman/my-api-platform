@@ -1,5 +1,18 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+
+// توحيد الاسم للمقارنة: حذف اللقب من البداية، ثم توحيد المسافات، ثم حذف النقاط
+// والفواصل، ثم تصغير الأحرف. يُطبَّق على الطرفين حتى تتطابق صيغ الاسم المختلفة.
+//
+// 'د' وحدها لا تُحذف إلا متبوعةً بنقطة أو مسافة، وإلا أُكل الحرف الأول من «داوود».
+const normalizeNameSql = (col: string) => `
+      lower(
+        regexp_replace(
+          regexp_replace(
+            regexp_replace(btrim(${col}), '^((ال)?دكتور(ة)?\\s+|د\\.\\s*|د\\s+|dr\\.?\\s+)', '', 'i'),
+          '\\s+', ' ', 'g'),
+        '[.،,]', '', 'g')
+      )`;
 import {
   CreateSourceDto, UpdateSourceDto,
   CreateVisitDto, UpdateVisitDto,
@@ -215,20 +228,7 @@ export class SourcesService {
       });
     }
 
-    // توحيد الاسم للمقارنة: حذف ألقاب الطبيب من البداية، ثم توحيد المسافات
-    // وحذف النقاط والفواصل، ثم تصغير الأحرف. يُطبَّق على الطرفين (أسماء المرضى
-    // وأسماء جهات الاتصال) حتى تتطابق الصيغ المختلفة لنفس الاسم.
-    //
-    // 'د' وحدها لا تُحذف إلا متبوعةً بنقطة أو مسافة، وإلا لأكل الحرف الأول من اسم
-    // مثل «داوود».
-    const normalize = (col: string) => `
-      lower(
-        regexp_replace(
-          regexp_replace(
-            regexp_replace(btrim(${col}), '^((ال)?دكتور(ة)?\\s+|د\\.\\s*|د\\s+|dr\\.?\\s+)', '', 'i'),
-          '\\s+', ' ', 'g'),
-        '[.،,]', '', 'g')
-      )`;
+    const normalize = normalizeNameSql;
 
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{ name: string; patientCount: number; lastReferredAt: Date }>
@@ -262,6 +262,109 @@ export class SourcesService {
     );
 
     return rows;
+  }
+
+
+  // ── الربط اليدوي للأسماء الحرة ────────────────────────────────────────────
+  //
+  // خطوتان عمداً: المطابقة بالاسم تقريبية («جمال محمود العريان» و«ناصر محمود
+  // العريان» شخصان مختلفان يتشابه اسماهما)، والربط الخاطئ يحرّف إحصائيات
+  // الأطباء ولا تراجع عنه. فالمعاينة تعرض من سيُربط، والتأكيد يحدّد من بالضبط.
+
+  // المرضى الذين يطابق اسمُهم الحر الاسمَ المطلوب وما زالوا غير مربوطين.
+  // قراءة فقط.
+  async linkPreview(sourceId: string, name: string) {
+    const source = await this.findOne(sourceId);
+    const term = (name ?? '').trim();
+    if (!term) {
+      throw new BadRequestException({ code: 'NAME_REQUIRED', message: 'الاسم مطلوب', details: [] });
+    }
+
+    const patients = await this.prisma.$queryRawUnsafe<Array<{
+      id: string; patientName: string; patientNumber: string;
+      registeredAt: Date; referralDetails: string;
+    }>>(
+      `SELECT p.id,
+              p."firstName" || ' ' || p."lastName" AS "patientName",
+              p."patientNumber",
+              p."createdAt" AS "registeredAt",
+              btrim(p."referralDetails") AS "referralDetails"
+       FROM clinic_patients.patients p
+       WHERE p."deletedAt" IS NULL
+         AND p."referralSourceId" IS NULL
+         AND p."referralSource"::text = $1
+         AND p."referralDetails" IS NOT NULL
+         AND ${normalizeNameSql('p."referralDetails"')} = ${normalizeNameSql('$2')}
+       ORDER BY p."createdAt" DESC`,
+      source.type, term,
+    );
+
+    return {
+      sourceId,
+      sourceName: source.name,
+      sourceType: source.type,
+      name: term,
+      count: patients.length,
+      patients,
+    };
+  }
+
+  // يربط **المرضى المحدَّدين فقط**. الشروط تُعاد كلها في جملة التحديث نفسها، فلو
+  // تغيّر ملف مريض بين المعاينة والتأكيد (رُبط أو حُذف أو تبدّل اسمه الحر) لا يُلمس.
+  async linkUnlinked(
+    sourceId: string,
+    dto: { name: string; patientIds: string[] },
+    user: any,
+  ) {
+    const source = await this.findOne(sourceId);
+    const term = (dto.name ?? '').trim();
+    if (!term) {
+      throw new BadRequestException({ code: 'NAME_REQUIRED', message: 'الاسم مطلوب', details: [] });
+    }
+    if (!dto.patientIds?.length) {
+      throw new BadRequestException({ code: 'NO_PATIENTS_SELECTED', message: 'لم يُحدَّد أي مريض للربط', details: [] });
+    }
+
+    const linked = await this.prisma.$executeRawUnsafe(
+      `UPDATE clinic_patients.patients p
+       SET "referralSourceId" = $1, "updatedAt" = NOW()
+       WHERE p.id = ANY($2::text[])
+         AND p."deletedAt" IS NULL
+         AND p."referralSourceId" IS NULL
+         AND p."referralSource"::text = $3
+         AND p."referralDetails" IS NOT NULL
+         AND ${normalizeNameSql('p."referralDetails"')} = ${normalizeNameSql('$4')}`,
+      sourceId, dto.patientIds, source.type, term,
+    );
+
+    // سجل التدقيق: يبقى معروفاً أن الربط كان يدوياً، ومن نفّذه ومتى. فشل التسجيل
+    // لا يُفشل العملية — الربط تم فعلاً.
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO public.audit_logs
+         ("userId", username, action, resource, "resourceId", method, path, metadata, "createdAt")
+       VALUES ($1, $2, 'REFERRAL_LINK_UNLINKED', 'referral_source', $3, 'POST',
+               '/referrals/sources/:id/link-unlinked', $4::jsonb, NOW())`,
+      user?.userId ?? null,
+      user?.username ?? null,
+      sourceId,
+      JSON.stringify({
+        sourceName: source.name,
+        sourceType: source.type,
+        name: term,
+        requestedPatientIds: dto.patientIds,
+        requested: dto.patientIds.length,
+        linked,
+      }),
+    ).catch(() => { /* سجل التدقيق لا يوقف العملية */ });
+
+    return {
+      sourceId,
+      sourceName: source.name,
+      name: term,
+      requested: dto.patientIds.length,
+      linked,
+      skipped: dto.patientIds.length - linked,
+    };
   }
 
   async getPatientCount(sourceId: string) {
