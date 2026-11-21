@@ -54,3 +54,15 @@ ALTER TABLE "clinic_orthotics"."orthotics_receptions"
   ADD COLUMN IF NOT EXISTS "amputationCause" TEXT,
   ADD COLUMN IF NOT EXISTS "amputationCauseOtherDetail" TEXT,
   ADD COLUMN IF NOT EXISTS "appliancesDetails" JSONB;
+
+-- حذف ناعم للاستقبالات. كان الحذف نهائياً (DELETE) ويسحب المرفقات معه بـCascade،
+-- فلا يبقى أي أثر لما حُذف.
+--
+-- إضافة فقط: عمودان يقبلان NULL. كل استقبال قائم يبقى deletedAt = NULL أي غير
+-- محذوف — وهو الصحيح، فلا يختفي أي سجل.
+ALTER TABLE "clinic_orthotics"."orthotics_receptions"
+  ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "deletedBy" TEXT;
+
+CREATE INDEX IF NOT EXISTS "orthotics_receptions_deletedAt_idx"
+  ON "clinic_orthotics"."orthotics_receptions" ("deletedAt");

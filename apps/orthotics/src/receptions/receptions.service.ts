@@ -68,14 +68,14 @@ export class ReceptionsService {
   // isSuitable: "true" أو "false"، وأي شيء آخر (أو غيابه) يعني الكل.
   // "undecided" تُرجِع ما لم يُقرَّر بعدُ — وهي ليست "غير مناسب".
   async findAll(patientId?: string, isSuitable?: string) {
-    const where: any = {};
+    const where: any = { deletedAt: null };
     if (patientId) where.patientId = patientId;
     if (isSuitable === 'true') where.isSuitable = true;
     else if (isSuitable === 'false') where.isSuitable = false;
     else if (isSuitable === 'undecided') where.isSuitable = null;
 
     const receptions = await this.prisma.orthoticsReception.findMany({
-      where: Object.keys(where).length ? where : undefined,
+      where,
       orderBy: { createdAt: 'desc' },
     });
     const patientMap = await this.resolvePatients(receptions.map((r) => r.patientId));
@@ -111,7 +111,7 @@ export class ReceptionsService {
   // ── جلسات المتابعة ────────────────────────────────────────────────────────
 
   private async findReceptionOrThrow(id: string) {
-    const reception = await this.prisma.orthoticsReception.findUnique({ where: { id } });
+    const reception = await this.prisma.orthoticsReception.findFirst({ where: { id, deletedAt: null } });
     if (!reception) throw new NotFoundException('Reception not found');
     return reception;
   }
@@ -219,7 +219,7 @@ export class ReceptionsService {
   }
 
   async findOne(id: string) {
-    const reception = await this.prisma.orthoticsReception.findUnique({ where: { id } });
+    const reception = await this.prisma.orthoticsReception.findFirst({ where: { id, deletedAt: null } });
     if (!reception) throw new NotFoundException('Reception not found');
     const patientMap = await this.resolvePatients([reception.patientId]);
     const names = await this.resolveActorNames(
@@ -245,9 +245,14 @@ export class ReceptionsService {
     return { ...reception, patient: patientMap[reception.patientId] ?? null };
   }
 
-  async remove(id: string) {
+  // حذف ناعم لا نهائي: الصف يبقى في قاعدة البيانات مع وقت الحذف ومنفّذه،
+  // والمرفقات تبقى معه (الحذف النهائي كان يسحبها بـCascade بلا رجعة).
+  async remove(id: string, userId?: string) {
     await this.findOne(id);
-    return this.prisma.orthoticsReception.delete({ where: { id } });
+    return this.prisma.orthoticsReception.update({
+      where: { id },
+      data: { deletedAt: new Date(), deletedBy: userId ?? null },
+    });
   }
 
   // ── تقييم طبيب العظمية ──────────────────────────────────────────────
@@ -396,7 +401,7 @@ export class ReceptionsService {
 
   async findMyPatients(practitionerId: string) {
     const receptions = await this.prisma.orthoticsReception.findMany({
-      where: { practitionerIds: { has: practitionerId } },
+      where: { practitionerIds: { has: practitionerId }, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
     const patientMap = await this.resolvePatients(receptions.map((r) => r.patientId));
