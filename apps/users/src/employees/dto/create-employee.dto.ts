@@ -222,6 +222,16 @@ export class CreateEmployeeDto {
   @IsBoolean()
   hasDrivingLicense?: boolean;
 
+  // موظف من خارج الشركة (استشاري، محامٍ…). عند true يصير externalTypeId إلزامياً،
+  // وعند false يُفرَّغ النوع تلقائياً فلا يبقى نوعٌ على موظف داخلي.
+  @IsOptional()
+  @IsBoolean()
+  isExternal?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  externalTypeId?: string;
+
   @IsNotEmpty({ message: 'Department is required' })
   @IsUUID()
   departmentId: string;

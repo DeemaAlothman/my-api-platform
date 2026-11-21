@@ -36,6 +36,14 @@ export class EmployeesService {
       where.managerId = query.managerId;
     }
 
+    if (query.isExternal !== undefined) {
+      where.isExternal = query.isExternal;
+    }
+
+    if (query.externalTypeId) {
+      where.externalTypeId = query.externalTypeId;
+    }
+
     if (query.search) {
       const s = query.search.trim();
       if (s.length > 0) {
@@ -150,6 +158,7 @@ export class EmployeesService {
           },
         },
         jobTitle: true,
+        externalType: { select: { id: true, nameAr: true, nameEn: true } },
         manager: {
           select: {
             id: true,
@@ -342,6 +351,81 @@ export class EmployeesService {
     });
   }
 
+  // ── الموظفون الخارجيون ──────────────────────────────────────────────────
+
+  // يضمن اتساق الحقلين: خارجي بلا نوع خطأ، وداخلي بنوع تناقض. يُستدعى قبل
+  // الإنشاء والتحديث معاً.
+  //
+  // current هو الموظف قبل التعديل (أو null عند الإنشاء): لو أُرسل isExternal=true
+  // وحده دون نوع، يُقبل ما دام للموظف نوع محفوظ أصلاً.
+  private async normalizeExternalFields(
+    data: { isExternal?: boolean; externalTypeId?: string | null },
+    current: { isExternal: boolean; externalTypeId: string | null } | null,
+  ): Promise<void> {
+    const isExternal = data.isExternal ?? current?.isExternal ?? false;
+
+    if (!isExternal) {
+      // داخلي: النوع يُفرَّغ دائماً، فلا يبقى نوع معلّق لو أُلغيت الصفة
+      if (data.isExternal === false || current?.externalTypeId) {
+        data.externalTypeId = null;
+      }
+      return;
+    }
+
+    const typeId = data.externalTypeId !== undefined
+      ? data.externalTypeId
+      : current?.externalTypeId ?? null;
+
+    if (!typeId) {
+      throw new BadRequestException({
+        code: 'EXTERNAL_TYPE_REQUIRED',
+        message: 'يجب اختيار نوع الموظف الخارجي',
+        details: [],
+      });
+    }
+
+    const type = await this.prisma.externalEmployeeType.findFirst({
+      where: { id: typeId, deletedAt: null },
+    });
+    if (!type) {
+      throw new BadRequestException({
+        code: 'EXTERNAL_TYPE_NOT_FOUND',
+        message: 'نوع الموظف الخارجي غير موجود',
+        details: [],
+      });
+    }
+
+    data.externalTypeId = typeId;
+  }
+
+  // قائمة الأنواع للقائمة المنسدلة. المعطَّلة تبقى مرئية عند طلبها صراحةً حتى لا
+  // يظهر موظف قديم بنوع مفقود.
+  async listExternalTypes(includeInactive = false) {
+    return this.prisma.externalEmployeeType.findMany({
+      where: { deletedAt: null, ...(includeInactive ? {} : { isActive: true }) },
+      orderBy: { nameAr: 'asc' },
+      select: { id: true, nameAr: true, nameEn: true, isActive: true },
+    });
+  }
+
+  // إضافة نوع جديد من الواجهة — بلا migration. الاسم المكرّر يعيد الموجود بدل
+  // أن يفشل، فالضغط مرتين لا ينتج خطأً للمستخدم.
+  async createExternalType(dto: { nameAr: string; nameEn?: string }) {
+    const nameAr = dto.nameAr?.trim();
+    if (!nameAr) {
+      throw new BadRequestException({ code: 'NAME_REQUIRED', message: 'الاسم مطلوب', details: [] });
+    }
+
+    const existing = await this.prisma.externalEmployeeType.findFirst({
+      where: { nameAr, deletedAt: null },
+    });
+    if (existing) return existing;
+
+    return this.prisma.externalEmployeeType.create({
+      data: { nameAr, nameEn: dto.nameEn?.trim() || null },
+    });
+  }
+
   async findByCompany(company: string) {
     return this.prisma.employee.findMany({
       where: { deletedAt: null, company },
@@ -398,6 +482,7 @@ export class EmployeesService {
       include: {
         department: true,
         jobTitle: true,
+        externalType: { select: { id: true, nameAr: true, nameEn: true } },
         jobGrade: true,
         manager: {
           select: {
@@ -504,6 +589,7 @@ export class EmployeesService {
     }
 
     const { attachments, trainingCertificates, allowances, commissions, ...employeeData } = dto;
+    await this.normalizeExternalFields(employeeData as any, null);
 
     // B.2: Default contractEndDate = Dec 31 of the hire year
     let contractEndDate: Date | null = dto.contractEndDate ? new Date(dto.contractEndDate) : null;
@@ -527,6 +613,7 @@ export class EmployeesService {
       include: {
         department: true,
         jobTitle: true,
+        externalType: { select: { id: true, nameAr: true, nameEn: true } },
         manager: {
           select: {
             id: true,
@@ -871,6 +958,14 @@ export class EmployeesService {
 
     const { attachments, trainingCertificates, allowances, commissions, ...employeeData } = dto;
 
+    // الحالة الحالية لازمة هنا: تعديلٌ يرسل isExternal=true وحده يُقبل ما دام
+    // للموظف نوع محفوظ، ويُرفض إن لم يكن
+    const currentExternal = await this.prisma.employee.findFirst({
+      where: { id, deletedAt: null },
+      select: { isExternal: true, externalTypeId: true },
+    });
+    await this.normalizeExternalFields(employeeData as any, currentExternal);
+
     // B.2: If contractEndDate is explicitly null in the DTO, reset to end of current year
     let contractEndDateUpdate: Date | undefined | null = undefined;
     if ('contractEndDate' in dto) {
@@ -911,6 +1006,7 @@ export class EmployeesService {
       include: {
         department: true,
         jobTitle: true,
+        externalType: { select: { id: true, nameAr: true, nameEn: true } },
         manager: {
           select: {
             id: true,
@@ -1347,6 +1443,7 @@ export class EmployeesService {
         },
         department: true,
         jobTitle: true,
+        externalType: { select: { id: true, nameAr: true, nameEn: true } },
       },
     });
 

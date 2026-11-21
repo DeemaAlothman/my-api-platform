@@ -47,6 +47,22 @@ export class EmployeesController {
     return this.employees.list(query, user.permissions.includes('employees:manager-notes:read'));
   }
 
+  // أنواع الموظفين الخارجيين للقائمة المنسدلة. قبل أي مسار :id وإلا التُقط
+  // 'external-types' على أنه معرّف موظف.
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('employees:read')
+  @Get('external-types')
+  listExternalTypes(@Query('includeInactive') includeInactive?: string) {
+    return this.employees.listExternalTypes(includeInactive === 'true');
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('employees:create')
+  @Post('external-types')
+  createExternalType(@Body() dto: { nameAr: string; nameEn?: string }) {
+    return this.employees.createExternalType(dto);
+  }
+
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('employees:read')
   @Get('department/:departmentId')

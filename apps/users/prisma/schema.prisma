@@ -63,6 +63,12 @@ model Employee {
   dateOfBirth    DateTime?
   nationality    String?
   company            String?   // الشركة: VITAXIR أو VITASYR
+
+  // موظف من خارج الشركة (استشاري، محامٍ…). النوع في جدول مرجعي لا في enum،
+  // كي تُضاف أنواع جديدة بلا migration — على نمط job_titles.
+  isExternal         Boolean   @default(false)
+  externalTypeId     String?
+  externalType       ExternalEmployeeType? @relation(fields: [externalTypeId], references: [id])
   maritalStatus      MaritalStatus?
   hasDrivingLicense  Boolean?
 
@@ -403,6 +409,22 @@ model JobGrade {
   updatedAt   DateTime @updatedAt
 
   @@map("job_grades")
+}
+
+// أنواع الموظفين الخارجيين: استشاري طبي، استشاري تقني، محامٍ… قابلة للتوسيع
+model ExternalEmployeeType {
+  id        String   @id @default(uuid())
+  nameAr    String   @unique
+  nameEn    String?
+  isActive  Boolean  @default(true)
+
+  employees Employee[]
+
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("external_employee_types")
 }
 
 model JobTitle {

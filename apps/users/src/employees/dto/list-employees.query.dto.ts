@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { EmploymentStatus } from './update-employee.dto';
 
 export class ListEmployeesQueryDto {
@@ -31,4 +32,16 @@ export class ListEmployeesQueryDto {
   @IsOptional()
   @IsUUID()
   managerId?: string;
+
+  // true = الخارجيون فقط، false = الداخليون فقط، غير مُرسَل = الكل.
+  // لا بد من تعريفه هنا: الخدمة تعمل بـwhitelist فأي باراميتر غير معرَّف يُحذف
+  // بصمت ويعود الرد ناجحاً بلا فلترة.
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === '' ? undefined : value === 'true' || value === true))
+  @IsBoolean()
+  isExternal?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  externalTypeId?: string;
 }
