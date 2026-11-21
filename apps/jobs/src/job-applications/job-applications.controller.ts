@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '@shared/auth';
 import { PermissionsGuard } from '@shared';
 import { Permission } from '@shared';
 import { ListJobApplicationsQueryDto } from './dto/list-job-applications.query.dto';
-import { UpdateJobApplicationDto } from './dto/update-job-application.dto';
+import { UpdateJobApplicationDto, CeoRejectDto } from './dto/update-job-application.dto';
 import { SetTalentDto } from './dto/set-talent.dto';
 
 @Controller('job-applications')
@@ -35,12 +35,12 @@ export class JobApplicationsController {
     return this.jobApplications.findOne(id);
   }
 
-  // تحديث حالة طلب
+  // تحديث حالة طلب — خطوات الموارد البشرية
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('job-applications:update')
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateJobApplicationDto) {
-    return this.jobApplications.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateJobApplicationDto, @Req() req: any) {
+    return this.jobApplications.update(id, dto, req.user);
   }
 
   // إضافة/إزالة الطلب من قائمة المواهب
@@ -55,7 +55,15 @@ export class JobApplicationsController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permission('job-applications:ceo-approve')
   @Patch(':id/ceo-approve')
-  ceoApprove(@Param('id') id: string) {
-    return this.jobApplications.ceoApprove(id);
+  ceoApprove(@Param('id') id: string, @Req() req: any) {
+    return this.jobApplications.ceoApprove(id, req.user);
+  }
+
+  // رفض المدير التنفيذي — يعيد الطلب إلى الموارد البشرية مع سبب
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permission('job-applications:ceo-approve')
+  @Patch(':id/ceo-reject')
+  ceoReject(@Param('id') id: string, @Body() dto: CeoRejectDto, @Req() req: any) {
+    return this.jobApplications.ceoReject(id, dto, req.user);
   }
 }
