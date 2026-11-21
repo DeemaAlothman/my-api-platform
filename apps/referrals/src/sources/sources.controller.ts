@@ -54,6 +54,14 @@ export class SourcesController {
     return this.service.getStats();
   }
 
+  // الأسماء الحرة التي أُدخلت دون ربطها بجهة اتصال. يجب أن يبقى هذا المسار قبل
+  // مسارات :id وإلا التُقط 'unlinked-names' على أنه معرّف.
+  @Get('unlinked-names')
+  @Permission('clinic.referrals.view')
+  getUnlinkedNames(@Query('type') type?: string) {
+    return this.service.getUnlinkedNames(type);
+  }
+
   @Get(':id/patient-count')
   @Permission('clinic.referrals.stats.view')
   getPatientCount(@Param('id') id: string) {

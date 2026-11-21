@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateSourceDto, UpdateSourceDto,
@@ -194,6 +194,75 @@ export class SourcesService {
   }
 
   // ── Stats ─────────────────────────────────────────────────────────
+
+
+  // أسماء الأطباء/المشافي/الجمعيات التي كُتبت يدوياً على ملف المريض دون ربطها
+  // بجهة اتصال (referralSourceId = null)، مجمَّعة بعدد المرضى.
+  //
+  // قراءة فقط — لا يكتب ولا يربط شيئاً. ربط المرضى بجهة اتصال جديدة عملية منفصلة
+  // تُعدّل بيانات المرضى، ولم تُنفَّذ هنا عمداً.
+  //
+  // مصدر الأسماء هو جدول المرضى وحده: جداول قائمة الانتظار والعملاء المحتملين
+  // وعملاء المبيعات تخزّن 'طريقة الوصول' كقيمة ثابتة فقط، ولا تخزّن اسم المُحيل
+  // إطلاقاً — فلا يوجد فيها اسم ليُجمَع.
+  async getUnlinkedNames(type?: string) {
+    const allowed = ['DOCTOR', 'HOSPITAL', 'ASSOCIATION'];
+    const t = (type ?? 'DOCTOR').toUpperCase();
+    if (!allowed.includes(t)) {
+      throw new BadRequestException({
+        code: 'INVALID_TYPE',
+        message: `النوع غير مدعوم: ${type}. المدعوم: ${allowed.join(' | ')}`,
+      });
+    }
+
+    // توحيد الاسم للمقارنة: حذف ألقاب الطبيب من البداية، ثم توحيد المسافات
+    // وحذف النقاط والفواصل، ثم تصغير الأحرف. يُطبَّق على الطرفين (أسماء المرضى
+    // وأسماء جهات الاتصال) حتى تتطابق الصيغ المختلفة لنفس الاسم.
+    //
+    // 'د' وحدها لا تُحذف إلا متبوعةً بنقطة أو مسافة، وإلا لأكل الحرف الأول من اسم
+    // مثل «داوود».
+    const normalize = (col: string) => `
+      lower(
+        regexp_replace(
+          regexp_replace(
+            regexp_replace(btrim(${col}), '^((ال)?دكتور(ة)?\\s+|د\\.\\s*|د\\s+|dr\\.?\\s+)', '', 'i'),
+          '\\s+', ' ', 'g'),
+        '[.،,]', '', 'g')
+      )`;
+
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{ name: string; patientCount: number; lastReferredAt: Date }>
+    >(
+      `WITH norm AS (
+         SELECT btrim(p."referralDetails") AS raw,
+                ${normalize('p."referralDetails"')} AS key,
+                p."createdAt"
+         FROM clinic_patients.patients p
+         WHERE p."deletedAt" IS NULL
+           AND p."referralSourceId" IS NULL
+           AND p."referralSource"::text = $1
+           AND p."referralDetails" IS NOT NULL
+           AND btrim(p."referralDetails") <> ''
+       ),
+       linked AS (
+         SELECT ${normalize('s.name')} AS key
+         FROM referrals.referral_sources s
+         WHERE s."deletedAt" IS NULL
+           AND s.type::text = $1
+       )
+       SELECT (array_agg(n.raw ORDER BY n."createdAt" DESC))[1] AS name,
+              COUNT(*)::int AS "patientCount",
+              MAX(n."createdAt") AS "lastReferredAt"
+       FROM norm n
+       WHERE n.key <> ''
+         AND NOT EXISTS (SELECT 1 FROM linked l WHERE l.key = n.key)
+       GROUP BY n.key
+       ORDER BY COUNT(*) DESC, MAX(n."createdAt") DESC`,
+      t,
+    );
+
+    return rows;
+  }
 
   async getPatientCount(sourceId: string) {
     await this.findOne(sourceId);
