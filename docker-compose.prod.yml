@@ -159,6 +159,10 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-changeme_in_production}@postgres:5432/${DB_NAME:-platform}?schema=jobs
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_this_secret_in_production}
       VITASYR_API_URL: https://vitaxirpro.com/api/external
+      # لازمان لإشعارات تدفّق التوظيف: الخدمة تنادي users-service، وبلا التوكن
+      # يُرفض النداء بـ401 فلا يصل إشعار للمدير التنفيذي ولا للموارد البشرية
+      USERS_SERVICE_URL: http://users:4002
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-}
       VITASYR_API_KEY: ${VITASYR_API_KEY:-8d57edc1234696d504eb9d24187bc5d311aedf70a53ec963e8823eff7e05ae3a}
       NODE_ENV: production
     depends_on:
