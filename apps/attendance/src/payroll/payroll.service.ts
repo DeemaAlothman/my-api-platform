@@ -169,7 +169,36 @@ export class PayrollService {
       minimumWorkMinutes: scheduleMinimumWorkMinutes,
       scheduleEffectiveFrom,
       scheduleTimeHistory,
+      scheduleAssignments,
     } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
+
+    // الوردية السارية في يومٍ بعينه. قبل هذا كان الشهر كله يُقاس بالإسناد النشط
+    // وحده، فمن تبدّلت ورديته في منتصف الشهر قيست أيامه الأولى بوردية لاحقة لا
+    // تنتمي إليها. بإسنادٍ واحد يُرجَع هو نفسه لكل يوم يشمله، فنتيجة من لم تتبدّل
+    // ورديته لا تتغيّر بشيء.
+    //
+    // يوم لا يشمله أي إسناد (ما قبل التعيين، أو تاريخ أُزيل) يُرجِع null فلا
+    // يُحاسَب بوردية ليست له — وهو ما كان يفعله الشرط السابق على scheduleEffectiveFrom.
+    const assignmentForDate = (d: Date) => {
+      const t = new Date(d).getTime();
+      for (let i = scheduleAssignments.length - 1; i >= 0; i--) {
+        const a = scheduleAssignments[i];
+        const from = new Date(a.effectiveFrom).getTime();
+        const to = a.effectiveTo ? new Date(a.effectiveTo).getTime() : Infinity;
+        if (t >= from && t <= to) return a;
+      }
+      return null;
+    };
+
+    // كتلة إعادة حساب الوردية الثابتة تعمل متى كان في الشهر يومٌ على وردية ثابتة،
+    // لا متى كان الإسناد النشط ثابتاً — فالشهر المختلط فيه النوعان معاً.
+    const hasFixedAssignment = scheduleAssignments.some(
+      (a) => a.shiftType !== 'FLEXIBLE' && a.workStartTime && a.workEndTime,
+    );
+    const unifiedPoolActive = salaryLinked && (
+      (scheduleShiftType !== 'FLEXIBLE' && !!scheduleWorkStartTime && !!scheduleWorkEndTime)
+      || hasFixedAssignment
+    );
 
     // إجماليات مصحَّحة ومتّسقة (نفس معادلة صفحة سجل الحضور بالضبط) — تُستخدم لاستبدال حقلي
     // totalLateMinutesEffective/totalEarlyLeaveMinutes القديمين وقت الحفظ، عشان يطابق الإكسل
@@ -297,8 +326,7 @@ export class PayrollService {
         // (نفس شرط الكتلة الموحّدة تماماً)؛ غير ذلك (وردية مرنة أو موظف غير مرتبط براتب) تبقى
         // الإجازة على المسار القديم المستقل أدناه حتى لا تُفقد معالجتها.
         if (
-          leave.typeCode === 'HOURLY' && leave.isPaid &&
-          salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime
+          leave.typeCode === 'HOURLY' && leave.isPaid && unifiedPoolActive
         ) {
           manualHourlyPoolEvents.push({ date: new Date(leave.startDate), minutes });
           continue;
@@ -368,29 +396,48 @@ export class PayrollService {
     // يُستهلك من رصيد الساعتين الشهري المشترك (التأخير أولاً، ثم الانصراف المبكر بالباقي)، ويُحسم
     // فقط ما تجاوز الرصيد. صفر تعديل على أي بيانات مخزَّنة — حساب بالذاكرة وقت التوليد فقط، يؤثر
     // على كشوف DRAFT حصراً.
-    if (salaryLinked && scheduleShiftType !== 'FLEXIBLE' && scheduleWorkStartTime && scheduleWorkEndTime) {
+    if (unifiedPoolActive) {
       const GRACE_PERIOD_MINUTES = 15;
       const BUSINESS_UTC_OFFSET_HOURS = 3; // خادم الحاوية UTC صافٍ، بينما أوقات الجدول محلية (UTC+3) — مؤكَّد
       const excludedStatusesForAttendanceRecalc = new Set(['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK']);
-      const [schedStartH, schedStartM] = scheduleWorkStartTime.split(':').map(Number);
-      const [schedEndH, schedEndM] = scheduleWorkEndTime.split(':').map(Number);
+      // أوقات مرجعية عامة للشهر. قد يكون الإسناد النشط وردية مرنة بلا أوقات بينما
+      // أيام الشهر الأولى على وردية ثابتة، فتُؤخذ أوقات أول إسناد ثابت في الشهر.
+      const fixedRef = scheduleAssignments.find(
+        (a) => a.shiftType !== 'FLEXIBLE' && a.workStartTime && a.workEndTime,
+      );
+      const refStartTime = scheduleWorkStartTime ?? fixedRef?.workStartTime ?? '09:00';
+      const refEndTime = scheduleWorkEndTime ?? fixedRef?.workEndTime ?? '17:00';
+      const [schedStartH, schedStartM] = refStartTime.split(':').map(Number);
+      const [schedEndH, schedEndM] = refEndTime.split(':').map(Number);
 
-      // أوقات الوردية السارية في تاريخ معيّن. بلا تاريخ مطابق تُستعمل أوقات آخر
-      // الشهر — وهو ما كان يجري دائماً قبل هذا الإصلاح، فالسلوك لا يتغيّر لمن لم
-      // تتغيّر ورديته.
-      const timesForDate = (d: Date): { sh: number; sm: number; eh: number; em: number } => {
-        const t = d.getTime();
-        for (const h of scheduleTimeHistory) {
-          if (!h.workStartTime || !h.workEndTime) continue;
+      // أوقات وردية اليوم المطلوب: أولاً وردِيّته هو (لا وردية آخر الشهر)، ثم
+      // الفترة الزمنية السارية فيه من تاريخ أوقات تلك الوردية.
+      //
+      // تُرجِع null في ثلاث حالات لا تُحاسَب فيها: لا إسناد يشمل اليوم، أو إسنادُه
+      // وردية مرنة (لها كتلتها الخاصة أدناه)، أو لا أوقات مسجَّلة لها إطلاقاً.
+      const timesForDate = (d: Date): { sh: number; sm: number; eh: number; em: number } | null => {
+        const a = assignmentForDate(d);
+        if (!a || a.shiftType === 'FLEXIBLE') return null;
+        const t = new Date(d).getTime();
+        const usable = a.timeHistory.filter((h) => h.workStartTime && h.workEndTime);
+        let chosen = usable.find((h) => {
           const from = new Date(h.effectiveFrom).getTime();
           const to = h.effectiveTo ? new Date(h.effectiveTo).getTime() : Infinity;
-          if (t >= from && t < to) {
-            const [sh, sm] = h.workStartTime.split(':').map(Number);
-            const [eh, em] = h.workEndTime.split(':').map(Number);
-            return { sh, sm, eh, em };
-          }
+          return t >= from && t < to;
+        });
+        // بلا فترة تشمل اليوم: أحدث فترة تسبقه، وإلا أقدم فترة مسجَّلة
+        if (!chosen) {
+          chosen = [...usable].reverse().find((h) => new Date(h.effectiveFrom).getTime() <= t) ?? usable[0];
         }
-        return { sh: schedStartH, sm: schedStartM, eh: schedEndH, em: schedEndM };
+        // لا يُلجأ إلى القيمة الحيّة في work_schedules: تعديل وقت الوردية لاحقاً
+        // يسري حينها بأثر رجعي على رواتب مضت. وبلا تاريخ أوقات مسجَّل لا يُحاسَب
+        // اليوم إطلاقاً — وهو ما كان يجري قبل هذا الإصلاح حرفياً.
+        const startStr = chosen?.workStartTime ?? null;
+        const endStr = chosen?.workEndTime ?? null;
+        if (!startStr || !endStr) return null;
+        const [sh, sm] = startStr.split(':').map(Number);
+        const [eh, em] = endStr.split(':').map(Number);
+        return { sh, sm, eh, em };
       };
 
       const hourlyTypeRows = await this.prisma.$queryRawUnsafe(`
@@ -443,10 +490,10 @@ export class PayrollService {
           }
         }
         for (const block of blocks) {
-          if (block.start <= scheduleWorkStartTime) {
+          if (block.start <= refStartTime) {
             morningCoverageByDate.set(dk, (morningCoverageByDate.get(dk) ?? 0) + block.minutes);
           }
-          if (block.end >= scheduleWorkEndTime) {
+          if (block.end >= refEndTime) {
             eveningCoverageByDate.set(dk, (eveningCoverageByDate.get(dk) ?? 0) + block.minutes);
           }
         }
@@ -488,13 +535,11 @@ export class PayrollService {
       for (const r of sortedRecords) {
         if (!(r as any).clockInTime) continue;
         if (excludedStatusesForAttendanceRecalc.has(r.status)) continue;
-        // يوم سابق لسريان إسناد الوردية: وردِيّته الحقيقية غير معروفة (السطر
-        // القديم يُستبدل عند التغيير)، فلا يُحاسَب بالوردية الحالية
-        if (scheduleEffectiveFrom && new Date(r.date) < new Date(scheduleEffectiveFrom)) continue;
-
         const recDate = new Date(r.date);
-        // أوقات هذا اليوم تحديداً، لا أوقات آخر الشهر
+        // أوقات وردية هذا اليوم تحديداً. null تعني أن اليوم لا يُحاسَب هنا: لا
+        // إسناد يشمله، أو وردِيّته مرنة فتُعالَج بكتلتها.
         const dayTimes = timesForDate(recDate);
+        if (!dayTimes) continue;
         let schedStart = new Date(Date.UTC(
           recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
           dayTimes.sh - BUSINESS_UTC_OFFSET_HOURS, dayTimes.sm, 0, 0,
@@ -737,17 +782,17 @@ export class PayrollService {
       // يُشترط وجود بصمتَي دخول وخروج: اليوم ذو البصمة المفردة له معالجته أعلاه
       // (غياب أو مبرَّر)، فلا يُحتسب هنا مرة ثانية. و r.earlyLeaveMinutes تساوي صفراً
       // دائماً في الوردية المرنة فلا ازدواج مع السطر أعلاه.
+      // وردية هذا اليوم هي المرجع، لا وردية آخر الشهر: اليوم الذي لا يشمله إسناد
+      // لا يُحاسَب، والذي كانت ورديته ثابتة تعالجه الكتلة أعلاه.
+      const dayAssignment = assignmentForDate(new Date(r.date));
       if (
-        scheduleShiftType === 'FLEXIBLE' &&
-        scheduleMinimumWorkMinutes &&
-        (r as any).clockInTime && (r as any).clockOutTime &&
-        // اليوم السابق لسريان الوردية كانت له وردية أخرى لم يَبقَ لها أثر، فلا
-        // تُطبَّق عليه قواعد الوردية الحالية بأثر رجعي
-        !(scheduleEffectiveFrom && new Date(r.date) < new Date(scheduleEffectiveFrom))
+        dayAssignment?.shiftType === 'FLEXIBLE' &&
+        dayAssignment.minimumWorkMinutes &&
+        (r as any).clockInTime && (r as any).clockOutTime
       ) {
         const requiredMinutes = Math.max(
           0,
-          scheduleMinimumWorkMinutes - ((r as any).hourlyLeaveMinutes ?? 0),
+          dayAssignment.minimumWorkMinutes - ((r as any).hourlyLeaveMinutes ?? 0),
         );
         const workedForMinimum = r.netWorkedMinutes ?? r.workedMinutes ?? 0;
         const shortfallMinutes = Math.max(0, requiredMinutes - workedForMinimum);
@@ -1368,6 +1413,18 @@ export class PayrollService {
       workStartTime: string | null; workEndTime: string | null;
       effectiveFrom: Date; effectiveTo: Date | null;
     }>;
+    // إسنادات الوردية المتقاطعة مع الشهر — بما فيها المؤرشفة — لا الإسناد النشط
+    // وحده: الموظف الذي تبدّلت ورديته داخل الشهر لكل قسم من أيامه وردية أخرى.
+    scheduleAssignments: Array<{
+      effectiveFrom: Date; effectiveTo: Date | null;
+      scheduleId: string; shiftType: string;
+      minimumWorkMinutes: number | null;
+      workStartTime: string | null; workEndTime: string | null;
+      timeHistory: Array<{
+        workStartTime: string | null; workEndTime: string | null;
+        effectiveFrom: Date; effectiveTo: Date | null;
+      }>;
+    }>;
   }> {
     const schedule = await this.prisma.employeeSchedule.findFirst({
       where: {
@@ -1417,6 +1474,45 @@ export class PayrollService {
       resolvedWorkEndTime = atEnd?.workEndTime ?? null;
     }
 
+    // كل إسنادات الوردية المتقاطعة مع الشهر، والمؤرشفة منها داخلة: بها يُحسب كل
+    // يوم بالوردية التي كانت سارية فيه فعلاً. الاستعلام أعلاه يأخذ الإسناد النشط
+    // وحده ويبقى كما هو — فهو مرجع الشهر العام (أيام العمل، طول الدوام).
+    const assignmentRows = await this.prisma.employeeSchedule.findMany({
+      where: {
+        employeeId,
+        effectiveFrom: { lte: endDate },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: startDate } }],
+      },
+      include: { schedule: true },
+      orderBy: { effectiveFrom: 'asc' },
+    });
+
+    const assignmentScheduleIds = [...new Set(assignmentRows.map((a: any) => a.scheduleId as string))];
+    type TimeRow = {
+      scheduleId: string; workStartTime: string | null; workEndTime: string | null;
+      effectiveFrom: Date; effectiveTo: Date | null;
+    };
+    const assignmentTimeRows: TimeRow[] = assignmentScheduleIds.length
+      ? ((await this.prisma.$queryRawUnsafe(
+          `SELECT "scheduleId", "workStartTime", "workEndTime", "effectiveFrom", "effectiveTo"
+           FROM attendance.work_schedule_time_history
+           WHERE "scheduleId"::text = ANY($1::text[])
+           ORDER BY "effectiveFrom" ASC`,
+          assignmentScheduleIds,
+        )) as TimeRow[])
+      : [];
+
+    const scheduleAssignments = assignmentRows.map((a: any) => ({
+      effectiveFrom: a.effectiveFrom as Date,
+      effectiveTo: (a.effectiveTo ?? null) as Date | null,
+      scheduleId: a.scheduleId as string,
+      shiftType: ((a.schedule as any)?.shiftType ?? 'DAY') as string,
+      minimumWorkMinutes: ((a.schedule as any)?.minimumWorkMinutes ?? null) as number | null,
+      workStartTime: ((a.schedule as any)?.workStartTime ?? null) as string | null,
+      workEndTime: ((a.schedule as any)?.workEndTime ?? null) as string | null,
+      timeHistory: assignmentTimeRows.filter((h) => h.scheduleId === a.scheduleId),
+    }));
+
     let dailyWorkMinutes = 480;
     if (resolvedWorkStartTime && resolvedWorkEndTime) {
       const [sh, sm] = resolvedWorkStartTime.split(':').map(Number);
@@ -1440,6 +1536,7 @@ export class PayrollService {
       shiftType: (schedule?.schedule as any)?.shiftType ?? 'DAY',
       minimumWorkMinutes: (schedule?.schedule as any)?.minimumWorkMinutes ?? null,
       scheduleEffectiveFrom: schedule?.effectiveFrom ?? null,
+      scheduleAssignments,
     };
   }
 
