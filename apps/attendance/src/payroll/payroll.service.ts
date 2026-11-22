@@ -166,6 +166,7 @@ export class PayrollService {
       count: workingDays, workDaysArray, dailyWorkMinutes,
       workStartTime: scheduleWorkStartTime, workEndTime: scheduleWorkEndTime,
       lateToleranceMin: scheduleLateToleranceMin, shiftType: scheduleShiftType,
+      scheduleTimeHistory,
     } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
 
     // إجماليات مصحَّحة ومتّسقة (نفس معادلة صفحة سجل الحضور بالضبط) — تُستخدم لاستبدال حقلي
@@ -372,6 +373,24 @@ export class PayrollService {
       const [schedStartH, schedStartM] = scheduleWorkStartTime.split(':').map(Number);
       const [schedEndH, schedEndM] = scheduleWorkEndTime.split(':').map(Number);
 
+      // أوقات الوردية السارية في تاريخ معيّن. بلا تاريخ مطابق تُستعمل أوقات آخر
+      // الشهر — وهو ما كان يجري دائماً قبل هذا الإصلاح، فالسلوك لا يتغيّر لمن لم
+      // تتغيّر ورديته.
+      const timesForDate = (d: Date): { sh: number; sm: number; eh: number; em: number } => {
+        const t = d.getTime();
+        for (const h of scheduleTimeHistory) {
+          if (!h.workStartTime || !h.workEndTime) continue;
+          const from = new Date(h.effectiveFrom).getTime();
+          const to = h.effectiveTo ? new Date(h.effectiveTo).getTime() : Infinity;
+          if (t >= from && t < to) {
+            const [sh, sm] = h.workStartTime.split(':').map(Number);
+            const [eh, em] = h.workEndTime.split(':').map(Number);
+            return { sh, sm, eh, em };
+          }
+        }
+        return { sh: schedStartH, sm: schedStartM, eh: schedEndH, em: schedEndM };
+      };
+
       const hourlyTypeRows = await this.prisma.$queryRawUnsafe(`
         SELECT "maxHoursPerMonth" FROM leaves.leave_types
         WHERE code = 'HOURLY' AND "isActive" = true LIMIT 1
@@ -469,13 +488,15 @@ export class PayrollService {
         if (excludedStatusesForAttendanceRecalc.has(r.status)) continue;
 
         const recDate = new Date(r.date);
+        // أوقات هذا اليوم تحديداً، لا أوقات آخر الشهر
+        const dayTimes = timesForDate(recDate);
         let schedStart = new Date(Date.UTC(
           recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-          schedStartH - BUSINESS_UTC_OFFSET_HOURS, schedStartM, 0, 0,
+          dayTimes.sh - BUSINESS_UTC_OFFSET_HOURS, dayTimes.sm, 0, 0,
         ));
         let schedEnd = new Date(Date.UTC(
           recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-          schedEndH - BUSINESS_UTC_OFFSET_HOURS, schedEndM, 0, 0,
+          dayTimes.eh - BUSINESS_UTC_OFFSET_HOURS, dayTimes.em, 0, 0,
         ));
         if (schedEnd <= schedStart) schedEnd = new Date(schedEnd.getTime() + 24 * 60 * 60 * 1000);
 
@@ -487,18 +508,22 @@ export class PayrollService {
         // عليه 106 دقائق انصراف مبكر. نصف اليوم يبقى على معالجته (منتصف الدوام) أدناه.
         if (approvedLeaveDates.has(dateKey) && !halfDayLeaveByDate.has(dateKey)) continue;
 
+        const dayMidTotalMin = Math.floor(((dayTimes.sh * 60 + dayTimes.sm) + (dayTimes.eh * 60 + dayTimes.em)) / 2);
+        const dayMidH = Math.floor(dayMidTotalMin / 60);
+        const dayMidM = dayMidTotalMin % 60;
+
         const halfDayPeriod = halfDayLeaveByDate.get(dateKey);
         if (halfDayPeriod === 'AFTERNOON') {
           // إجازة بعد الظهر معتمدة: الدوام المطلوب ينتهي عند منتصف الدوام
           schedEnd = new Date(Date.UTC(
             recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-            midShiftH - BUSINESS_UTC_OFFSET_HOURS, midShiftM, 0, 0,
+            dayMidH - BUSINESS_UTC_OFFSET_HOURS, dayMidM, 0, 0,
           ));
         } else if (halfDayPeriod === 'MORNING') {
           // إجازة صبح معتمدة: الدوام المطلوب يبدأ من منتصف الدوام
           schedStart = new Date(Date.UTC(
             recDate.getUTCFullYear(), recDate.getUTCMonth(), recDate.getUTCDate(),
-            midShiftH - BUSINESS_UTC_OFFSET_HOURS, midShiftM, 0, 0,
+            dayMidH - BUSINESS_UTC_OFFSET_HOURS, dayMidM, 0, 0,
           ));
         }
 
@@ -1294,6 +1319,11 @@ export class PayrollService {
     count: number; workDaysArray: number[]; dailyWorkMinutes: number;
     workStartTime: string | null; workEndTime: string | null;
     lateToleranceMin: number; shiftType: string;
+    // فترات أوقات الوردية المتقاطعة مع الشهر — لازمة كي يُحسب كل يوم بوقته
+    scheduleTimeHistory: Array<{
+      workStartTime: string | null; workEndTime: string | null;
+      effectiveFrom: Date; effectiveTo: Date | null;
+    }>;
   }> {
     const schedule = await this.prisma.employeeSchedule.findFirst({
       where: {
@@ -1315,19 +1345,32 @@ export class PayrollService {
     // لاحق على وقت الوردية ما يأثر بأثر رجعي على رواتب فترات سابقة
     let resolvedWorkStartTime: string | null = null;
     let resolvedWorkEndTime: string | null = null;
+    // كل فترات أوقات الوردية المتقاطعة مع الشهر، لا فترة واحدة: الوردية قد تتغيّر
+    // في منتصف الشهر، وسؤالُها عن آخر يوم وحده يطبّق الوقت الجديد بأثر رجعي على
+    // أيام مضت — فيظهر الموظف متأخراً كل يوم قبل التغيير.
+    let scheduleTimeHistory: Array<{
+      workStartTime: string | null; workEndTime: string | null;
+      effectiveFrom: Date; effectiveTo: Date | null;
+    }> = [];
     if (schedule?.scheduleId) {
+      const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
-      const timeRows = (await this.prisma.$queryRawUnsafe(
-        `SELECT "workStartTime", "workEndTime"
+      scheduleTimeHistory = (await this.prisma.$queryRawUnsafe(
+        `SELECT "workStartTime", "workEndTime", "effectiveFrom", "effectiveTo"
          FROM attendance.work_schedule_time_history
          WHERE "scheduleId" = $1
-           AND $2::date >= "effectiveFrom"::date
-           AND ($2::date < "effectiveTo"::date OR "effectiveTo" IS NULL)
-         LIMIT 1`,
-        schedule.scheduleId, endDateStr,
-      )) as Array<{ workStartTime: string | null; workEndTime: string | null }>;
-      resolvedWorkStartTime = timeRows[0]?.workStartTime ?? null;
-      resolvedWorkEndTime = timeRows[0]?.workEndTime ?? null;
+           AND "effectiveFrom"::date <= $3::date
+           AND ("effectiveTo" IS NULL OR "effectiveTo"::date > $2::date)
+         ORDER BY "effectiveFrom" ASC`,
+        schedule.scheduleId, startDateStr, endDateStr,
+      )) as typeof scheduleTimeHistory;
+
+      // الفترة السارية آخر الشهر تبقى المرجع العام (طول الدوام اليومي، منتصف الوردية…)
+      const atEnd = [...scheduleTimeHistory].reverse().find(
+        (h) => new Date(h.effectiveFrom) <= endDate,
+      ) ?? scheduleTimeHistory[scheduleTimeHistory.length - 1];
+      resolvedWorkStartTime = atEnd?.workStartTime ?? null;
+      resolvedWorkEndTime = atEnd?.workEndTime ?? null;
     }
 
     let dailyWorkMinutes = 480;
@@ -1348,6 +1391,7 @@ export class PayrollService {
       count, workDaysArray, dailyWorkMinutes,
       workStartTime: resolvedWorkStartTime,
       workEndTime: resolvedWorkEndTime,
+      scheduleTimeHistory,
       lateToleranceMin: schedule?.schedule?.lateToleranceMin ?? 0,
       shiftType: (schedule?.schedule as any)?.shiftType ?? 'DAY',
     };
