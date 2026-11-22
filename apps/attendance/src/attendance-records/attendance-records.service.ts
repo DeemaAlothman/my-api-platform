@@ -351,28 +351,57 @@ export class AttendanceRecordsService {
     // عرض فقط — لا تعديل على أي بيانات مخزَّنة: نعيد حساب دقائق التأخير "الصحيحة" (سماحية تُمنح
     // فقط عند تعويضها فعلياً بالبقاء بعد الدوام، لا مجاناً) للعرض بهذه الصفحة تحديداً، بنفس منطق
     // تصحيح الراتب المطبَّق أصلاً — بدون أي UPDATE على attendance_records
-    const scheduleByEmployee = new Map<string, { scheduleId: string | null; shiftType: string }>();
+    // كل إسنادات الوردية، المؤرشفة منها كذلك، لا الإسناد النشط وحده: من تبدّلت
+    // ورديته داخل الفترة المعروضة كانت أيامه السابقة تُقاس بوردية لاحقة لا تخصّها،
+    // أو لا تُقاس أصلاً حين تكون اللاحقة مرنة — فيظهر يومه بلا دقائق.
+    type SchedRef = {
+      scheduleId: string | null; shiftType: string;
+      effectiveFrom: Date; effectiveTo: Date | null;
+    };
+    const schedulesByEmployee = new Map<string, SchedRef[]>();
     if (employeeIds.length > 0) {
       const employeeSchedules = await this.prisma.employeeSchedule.findMany({
-        where: { employeeId: { in: employeeIds }, isActive: true },
+        where: { employeeId: { in: employeeIds } },
         include: { schedule: true },
-        orderBy: { effectiveFrom: 'desc' },
+        orderBy: { effectiveFrom: 'asc' },
       });
       for (const es of employeeSchedules) {
-        if (!scheduleByEmployee.has(es.employeeId)) {
-          scheduleByEmployee.set(es.employeeId, {
-            scheduleId: es.scheduleId ?? null,
-            shiftType: (es.schedule as any)?.shiftType ?? 'DAY',
-          });
-        }
+        const list = schedulesByEmployee.get(es.employeeId) ?? [];
+        list.push({
+          scheduleId: es.scheduleId ?? null,
+          shiftType: (es.schedule as any)?.shiftType ?? 'DAY',
+          effectiveFrom: es.effectiveFrom,
+          effectiveTo: es.effectiveTo ?? null,
+        });
+        schedulesByEmployee.set(es.employeeId, list);
       }
     }
+
+    // الوردية السارية لموظف في يوم بعينه. بإسنادٍ واحد تُرجَع هي نفسها لكل يوم
+    // يشمله، فلا يتغيّر شيء لمن لم تتبدّل ورديته. ويومٌ لا يشمله إسناد يُرجِع
+    // undefined فيُعرض كما هو مخزَّن، بلا إعادة حساب بوردية ليست له.
+    const schedForDate = (
+      employeeId: string, dateStr: string,
+    ): { scheduleId: string | null; shiftType: string } | undefined => {
+      const list = schedulesByEmployee.get(employeeId);
+      if (!list?.length) return undefined;
+      for (let i = list.length - 1; i >= 0; i--) {
+        const sc = list[i];
+        const from = sc.effectiveFrom.toISOString().split('T')[0];
+        const to = sc.effectiveTo ? sc.effectiveTo.toISOString().split('T')[0] : null;
+        if (dateStr >= from && (!to || dateStr <= to)) {
+          return { scheduleId: sc.scheduleId, shiftType: sc.shiftType };
+        }
+      }
+      return undefined;
+    };
 
     // وقت البداية/النهاية يُؤخذ من النسخة التاريخية الفعّالة بتاريخ كل سجل/إجازة على حدة
     // (work_schedule_time_history)، لا من القيمة الحية الحالية — حتى تعديل لاحق على وقت
     // الوردية ما يأثر بأثر رجعي على سجلات ماضية بهاي الصفحة
     const scheduleIdsInUse = [...new Set(
-      [...scheduleByEmployee.values()].map(s => s.scheduleId).filter((id): id is string => !!id),
+      [...schedulesByEmployee.values()].flat()
+        .map(sc => sc.scheduleId).filter((id): id is string => !!id),
     )];
     const timeHistoryByScheduleId = new Map<string, Array<{ workStartTime: string | null; workEndTime: string | null; effectiveFrom: Date; effectiveTo: Date | null }>>();
     if (scheduleIdsInUse.length > 0) {
@@ -434,8 +463,8 @@ export class AttendanceRecordsService {
             AND lr."startTime" IS NOT NULL AND lr."endTime" IS NOT NULL
         `, employeeIds);
       for (const leave of manualHourlyLeaveRows) {
-        const sched = scheduleByEmployee.get(leave.employeeId);
         const dk = new Date(leave.date).toISOString().split('T')[0];
+        const sched = schedForDate(leave.employeeId, dk);
         const times = resolveTimeForDate(sched?.scheduleId ?? null, dk);
         if (!times.workStartTime || !times.workEndTime) continue;
         const key = `${leave.employeeId}|${dk}`;
@@ -506,8 +535,8 @@ export class AttendanceRecordsService {
       let displayEarlyLeaveMinutes = record.earlyLeaveMinutes;
       let displayStatus = record.status;
 
-      const sched = scheduleByEmployee.get(record.employeeId);
       const recordDateStr = new Date(record.date).toISOString().split('T')[0];
+      const sched = schedForDate(record.employeeId, recordDateStr);
       const schedTimes = resolveTimeForDate(sched?.scheduleId ?? null, recordDateStr);
       const fullDayLeaveTypeAr = fullDayLeaveByEmployeeDate.get(
         `${record.employeeId}|${recordDateStr}`,
