@@ -166,6 +166,7 @@ export class PayrollService {
       count: workingDays, workDaysArray, dailyWorkMinutes,
       workStartTime: scheduleWorkStartTime, workEndTime: scheduleWorkEndTime,
       lateToleranceMin: scheduleLateToleranceMin, shiftType: scheduleShiftType,
+      minimumWorkMinutes: scheduleMinimumWorkMinutes,
       scheduleTimeHistory,
     } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
 
@@ -721,6 +722,33 @@ export class PayrollService {
 
       if (r.lateMinutes > 0) { lateDays++; totalLateMinutes += r.lateMinutes; }
       if (r.earlyLeaveMinutes > 0) { earlyLeaveDays++; totalEarlyLeaveMinutes += r.earlyLeaveMinutes; }
+
+      // وردية مرنة: لا وقت بداية ولا نهاية، والالتزام الوحيد حدٌّ أدنى من دقائق
+      // العمل. النقص عنه كان يُرصَد بالحالة EARLY_LEAVE وحدها بلا دقائق، فلا يظهر
+      // في الكشف ولا يُخصَم. يُحتسب هنا بالدقائق ليُعامَل كبقية الانصراف المبكر.
+      //
+      // الإجازة الساعية المعتمدة تخفّض المطلوب — تماماً كما في محرّك حساب الحضور —
+      // فلا يُحاسَب الموظف على غيابٍ مأذون به.
+      //
+      // يُشترط وجود بصمتَي دخول وخروج: اليوم ذو البصمة المفردة له معالجته أعلاه
+      // (غياب أو مبرَّر)، فلا يُحتسب هنا مرة ثانية. و r.earlyLeaveMinutes تساوي صفراً
+      // دائماً في الوردية المرنة فلا ازدواج مع السطر أعلاه.
+      if (
+        scheduleShiftType === 'FLEXIBLE' &&
+        scheduleMinimumWorkMinutes &&
+        (r as any).clockInTime && (r as any).clockOutTime
+      ) {
+        const requiredMinutes = Math.max(
+          0,
+          scheduleMinimumWorkMinutes - ((r as any).hourlyLeaveMinutes ?? 0),
+        );
+        const workedForMinimum = r.netWorkedMinutes ?? r.workedMinutes ?? 0;
+        const shortfallMinutes = Math.max(0, requiredMinutes - workedForMinimum);
+        if (shortfallMinutes > 0) {
+          earlyLeaveDays++;
+          totalEarlyLeaveMinutes += shortfallMinutes;
+        }
+      }
 
       const totalBreak = r.totalBreakMinutes || 0;
       if (totalBreak > allowedBreakMinutes) breakOverLimitMinutes += totalBreak - allowedBreakMinutes;
@@ -1319,6 +1347,8 @@ export class PayrollService {
     count: number; workDaysArray: number[]; dailyWorkMinutes: number;
     workStartTime: string | null; workEndTime: string | null;
     lateToleranceMin: number; shiftType: string;
+    // الحد الأدنى لدقائق العمل — للوردية المرنة وحدها
+    minimumWorkMinutes: number | null;
     // فترات أوقات الوردية المتقاطعة مع الشهر — لازمة كي يُحسب كل يوم بوقته
     scheduleTimeHistory: Array<{
       workStartTime: string | null; workEndTime: string | null;
@@ -1394,6 +1424,7 @@ export class PayrollService {
       scheduleTimeHistory,
       lateToleranceMin: schedule?.schedule?.lateToleranceMin ?? 0,
       shiftType: (schedule?.schedule as any)?.shiftType ?? 'DAY',
+      minimumWorkMinutes: (schedule?.schedule as any)?.minimumWorkMinutes ?? null,
     };
   }
 
