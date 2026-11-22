@@ -581,6 +581,15 @@ export class PayrollService {
         const clockOutRaw = (r as any).clockOutTime;
         const clockOut = clockOutRaw ? new Date(clockOutRaw) : null;
 
+        // يوم ببصمة واحدة لا يُقاس منه تأخير ولا انصراف مبكر. البصمة الوحيدة تُخزَّن
+        // في خانة الدخول مهما كان وقتها، فبصمةُ خروجٍ نسي صاحبُها أن يبصم الدخول
+        // تُقرأ هنا وصولاً متأخراً بمئات الدقائق — وقد مرّ بها يومٌ كامل من العمل.
+        //
+        // واليومُ نفسه محسوبٌ أصلاً غياباً في الكتلة الرئيسية (أو حضوراً كاملاً إن
+        // بُرِّر)، فقياسُه هنا يُعاقب عليه مرتين. ومحرّك حساب الحضور يسجّل صفراً
+        // لهذه الأيام جميعاً، فهذا يوافقه بدل أن يخالفه.
+        if (!clockOut) continue;
+
         const rawLateBeforeLeave = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
         const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
         const earlyArrival = Math.max(0, Math.round((schedStart.getTime() - clockIn.getTime()) / 60000));
