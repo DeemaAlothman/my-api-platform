@@ -74,7 +74,16 @@ export class UnifiedComputationService {
       // إصلاح 0.5: طرح الإجازة الساعية من الحد الأدنى المطلوب
       const adjustedMinWorkMin = (minWorkMin ?? 0) - (req.hourlyLeaveMinutes ?? 0);
       const status = (adjustedMinWorkMin > 0 && checkMinutes < adjustedMinWorkMin) ? 'EARLY_LEAVE' : 'PRESENT';
-      return { ...zero, status };
+
+      // النقص عن الحد الأدنى يُسجَّل بالدقائق لا بالحالة وحدها: كانت الحالة تصير
+      // EARLY_LEAVE والدقائق صفراً، فتعرض الشاشة «خروج مبكر» بلا رقم ولا يظهر
+      // النقص في كشف الراتب. المحرّك الآخر (attendance-computation) يسجّلها
+      // أصلاً، فهذا توحيد لسلوكهما لا قاعدة جديدة.
+      const shortfallMinutes = adjustedMinWorkMin > 0
+        ? Math.max(0, adjustedMinWorkMin - checkMinutes)
+        : 0;
+
+      return { ...zero, status, earlyLeaveMinutes: shortfallMinutes };
     }
 
     // === وردية عادية (DAY / NIGHT): تحتاج workStartTime و workEndTime ===
