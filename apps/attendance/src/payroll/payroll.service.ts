@@ -812,12 +812,16 @@ export class PayrollService {
         if (additionalMinutes > 0) {
           if (alreadyCounted === 0) earlyLeaveDays++;
           totalEarlyLeaveMinutes += additionalMinutes;
-          // الشهر المختلط: كتلة الوردية الثابتة تكون قد ضبطت الإجمالي المصحَّح من
-          // أيامها وحدها، وهو الذي يُحفظ ويظهر في الكشف ويُطبَّق عليه الحسم. بلا
-          // إضافة نقص الوردية المرنة إليه يُمحى كل ما حُسب هنا.
-          if (payrollCorrections.correctedTotalEarlyLeaveMinutes !== undefined) {
-            payrollCorrections.correctedTotalEarlyLeaveMinutes += additionalMinutes;
-          }
+        }
+
+        // الإجمالي المصحَّح يُبنى في كتلة الوردية الثابتة من أيامها وحدها، ثم يحلّ
+        // محلّ الإجمالي الخام عند الحفظ والعرض والحسم. فيُضاف إليه نقصُ هذا اليوم
+        // كاملاً — سواء جاء محسوباً الآن أو مسجَّلاً في السجل من قبل — وإلا مُحي.
+        //
+        // يؤخذ الأكبر لا المجموع: الاثنان قياسان لنقصٍ واحد، لا نقصان مستقلان.
+        const dayShortfall = Math.max(shortfallMinutes, alreadyCounted);
+        if (dayShortfall > 0 && payrollCorrections.correctedTotalEarlyLeaveMinutes !== undefined) {
+          payrollCorrections.correctedTotalEarlyLeaveMinutes += dayShortfall;
         }
       }
 
