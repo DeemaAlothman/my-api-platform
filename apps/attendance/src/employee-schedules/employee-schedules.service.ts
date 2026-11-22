@@ -234,12 +234,40 @@ export class EmployeeSchedulesService {
     };
   }
 
+  /**
+   * إلغاء إسناد وردية لموظف — أرشفةً لا محواً.
+   *
+   * المحو كان يُفقد نهائياً أيَّ وردية كانت للموظف ومن أيّ تاريخ، فتُحاسَب أيامٌ
+   * مضت بوردية لاحقة لا تنتمي إليها (أوقات بداية أخرى، أو حدٌّ أدنى مرن لم يكن
+   * قائماً). السطر يبقى مغلقاً بتاريخ انتهاء، فيُعرف دائماً ماذا كان ساريًا ومتى.
+   *
+   * الإغلاق بآخر اليوم السابق — نفس اصطلاح تغيير الوردية — فيصير الموظف من اليوم
+   * بلا وردية سارية، وهو أثر الحذف المتوقَّع. وحسابات الرواتب والحضور تقرأ
+   * الإسناد النشط وحده، فالسطر المؤرشَف لا يدخل في أي حساب.
+   */
   async remove(id: string) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
 
-    return this.prisma.employeeSchedule.delete({
+    const endOfYesterday = new Date();
+    endOfYesterday.setUTCDate(endOfYesterday.getUTCDate() - 1);
+    endOfYesterday.setUTCHours(23, 59, 59, 999);
+
+    const archived = await this.prisma.employeeSchedule.update({
       where: { id },
+      data: {
+        isActive: false,
+        // إسنادٌ أُغلق سابقاً يُترك تاريخ انتهائه كما هو
+        effectiveTo: existing.effectiveTo ?? endOfYesterday,
+      },
+      include: { schedule: true },
     });
+
+    const employeeMap = await this.getEmployeeNames([archived.employeeId]);
+
+    return {
+      ...archived,
+      employee: employeeMap.get(archived.employeeId) || null,
+    };
   }
 
   /**
