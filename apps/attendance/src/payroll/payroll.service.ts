@@ -167,6 +167,7 @@ export class PayrollService {
       workStartTime: scheduleWorkStartTime, workEndTime: scheduleWorkEndTime,
       lateToleranceMin: scheduleLateToleranceMin, shiftType: scheduleShiftType,
       minimumWorkMinutes: scheduleMinimumWorkMinutes,
+      scheduleEffectiveFrom,
       scheduleTimeHistory,
     } = await this.getWorkingDaysInfo(employeeId, startDate, endDate);
 
@@ -487,6 +488,9 @@ export class PayrollService {
       for (const r of sortedRecords) {
         if (!(r as any).clockInTime) continue;
         if (excludedStatusesForAttendanceRecalc.has(r.status)) continue;
+        // يوم سابق لسريان إسناد الوردية: وردِيّته الحقيقية غير معروفة (السطر
+        // القديم يُستبدل عند التغيير)، فلا يُحاسَب بالوردية الحالية
+        if (scheduleEffectiveFrom && new Date(r.date) < new Date(scheduleEffectiveFrom)) continue;
 
         const recDate = new Date(r.date);
         // أوقات هذا اليوم تحديداً، لا أوقات آخر الشهر
@@ -736,7 +740,10 @@ export class PayrollService {
       if (
         scheduleShiftType === 'FLEXIBLE' &&
         scheduleMinimumWorkMinutes &&
-        (r as any).clockInTime && (r as any).clockOutTime
+        (r as any).clockInTime && (r as any).clockOutTime &&
+        // اليوم السابق لسريان الوردية كانت له وردية أخرى لم يَبقَ لها أثر، فلا
+        // تُطبَّق عليه قواعد الوردية الحالية بأثر رجعي
+        !(scheduleEffectiveFrom && new Date(r.date) < new Date(scheduleEffectiveFrom))
       ) {
         const requiredMinutes = Math.max(
           0,
@@ -744,9 +751,13 @@ export class PayrollService {
         );
         const workedForMinimum = r.netWorkedMinutes ?? r.workedMinutes ?? 0;
         const shortfallMinutes = Math.max(0, requiredMinutes - workedForMinimum);
-        if (shortfallMinutes > 0) {
-          earlyLeaveDays++;
-          totalEarlyLeaveMinutes += shortfallMinutes;
+        // ما سجّله محرّك الحضور يُحسب مرة واحدة: اليوم تساوي صفراً في الوردية
+        // المرنة، ولو صارت تُسجَّل لاحقاً فلن يتضاعف الرقم
+        const alreadyCounted = r.earlyLeaveMinutes || 0;
+        const additionalMinutes = Math.max(0, shortfallMinutes - alreadyCounted);
+        if (additionalMinutes > 0) {
+          if (alreadyCounted === 0) earlyLeaveDays++;
+          totalEarlyLeaveMinutes += additionalMinutes;
         }
       }
 
@@ -1349,6 +1360,9 @@ export class PayrollService {
     lateToleranceMin: number; shiftType: string;
     // الحد الأدنى لدقائق العمل — للوردية المرنة وحدها
     minimumWorkMinutes: number | null;
+    // تاريخ سريان إسناد الوردية للموظف. إسناد الوردية لا يحفظ تاريخاً: تغييرها
+    // يستبدل السطر بدل أن يُغلقه، فلا تُعرف وردية الأيام السابقة لهذا التاريخ.
+    scheduleEffectiveFrom: Date | null;
     // فترات أوقات الوردية المتقاطعة مع الشهر — لازمة كي يُحسب كل يوم بوقته
     scheduleTimeHistory: Array<{
       workStartTime: string | null; workEndTime: string | null;
@@ -1425,6 +1439,7 @@ export class PayrollService {
       lateToleranceMin: schedule?.schedule?.lateToleranceMin ?? 0,
       shiftType: (schedule?.schedule as any)?.shiftType ?? 'DAY',
       minimumWorkMinutes: (schedule?.schedule as any)?.minimumWorkMinutes ?? null,
+      scheduleEffectiveFrom: schedule?.effectiveFrom ?? null,
     };
   }
 
