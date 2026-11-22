@@ -803,6 +803,12 @@ export class PayrollService {
         if (additionalMinutes > 0) {
           if (alreadyCounted === 0) earlyLeaveDays++;
           totalEarlyLeaveMinutes += additionalMinutes;
+          // الشهر المختلط: كتلة الوردية الثابتة تكون قد ضبطت الإجمالي المصحَّح من
+          // أيامها وحدها، وهو الذي يُحفظ ويظهر في الكشف ويُطبَّق عليه الحسم. بلا
+          // إضافة نقص الوردية المرنة إليه يُمحى كل ما حُسب هنا.
+          if (payrollCorrections.correctedTotalEarlyLeaveMinutes !== undefined) {
+            payrollCorrections.correctedTotalEarlyLeaveMinutes += additionalMinutes;
+          }
         }
       }
 
