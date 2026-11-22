@@ -2,6 +2,19 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from
 import type { Response, Request } from 'express';
 import { Prisma } from '@prisma/client';
 
+// اسم الخطأ حين لا تحمله الاستثناءات بنفسها. ValidationPipe يرمي BadRequestException
+// بلا code، فكان الردّ يخرج بـINTERNAL_ERROR رغم أن حالته 400 — أي خطأ إدخالٍ يُقرأ
+// عطلاً في الخادم. الحالة هي ما يحدّد الاسم الآن.
+const CODE_BY_STATUS: Record<number, string> = {
+  [HttpStatus.BAD_REQUEST]: 'VALIDATION_ERROR',
+  [HttpStatus.UNAUTHORIZED]: 'UNAUTHORIZED',
+  [HttpStatus.FORBIDDEN]: 'FORBIDDEN',
+  [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
+  [HttpStatus.CONFLICT]: 'CONFLICT',
+  [HttpStatus.UNPROCESSABLE_ENTITY]: 'VALIDATION_ERROR',
+  [HttpStatus.TOO_MANY_REQUESTS]: 'TOO_MANY_REQUESTS',
+};
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
@@ -18,11 +31,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
+      // الاسم الذي يحمله الاستثناء أولاً، ثم اسم حالته، وأخيراً الافتراضي
+      const codeForStatus = CODE_BY_STATUS[status] ?? code;
+
       if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
-        code = (exceptionResponse as any).code || code;
+        code = (exceptionResponse as any).code || codeForStatus;
         message = (exceptionResponse as any).message || message;
         details = (exceptionResponse as any).details || [];
       } else if (typeof exceptionResponse === 'string') {
+        code = codeForStatus;
         message = exceptionResponse;
       }
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {

@@ -72,6 +72,17 @@ export class UpdateEmployeeDto {
   @IsBoolean()
   hasDrivingLicense?: boolean;
 
+  // موظف من خارج الشركة (استشاري، محامٍ…). القواعد نفسها المطبَّقة عند الإنشاء:
+  // true بلا نوع يُرفض بـEXTERNAL_TYPE_REQUIRED، و false يُفرّغ النوع تلقائياً.
+  // الخدمة تطبّقها أصلاً؛ غيابهما هنا وحده كان يجعل التحقّق يردّ الطلب قبلها.
+  @IsOptional()
+  @IsBoolean()
+  isExternal?: boolean;
+
+  @IsOptional()
+  @IsUUID()
+  externalTypeId?: string;
+
   @IsOptional()
   @IsUUID()
   departmentId?: string;
