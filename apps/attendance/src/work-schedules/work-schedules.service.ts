@@ -30,9 +30,27 @@ export class WorkSchedulesService {
       });
     }
 
-    return this.prisma.workSchedule.create({
+    const created = await this.prisma.workSchedule.create({
       data: { ...dto, code: dto.code! },
     });
+
+    // أوقات الوردية تُسجَّل بتاريخ نفاذ منذ إنشائها. بغير ذلك تولد الوردية بلا
+    // تاريخ، فأولُ تعديل على أوقاتها لا يجد فترةً سابقة يُغلقها، وتُحسب أيامُها
+    // كلها — بما فيها ما مضى — بالأوقات الجديدة. وقد ظهر ذلك على وردية أُنشئت في
+    // 1/11 وعُدِّلت في 14/11: صار الموظف متأخراً نصف ساعة كل يوم من أول الشهر وهو
+    // يأتي قبل دوامه.
+    //
+    // التاريخ بعيدٌ في الماضي كبقية الورديات، فلا يُستثنى يومٌ سبق إنشاءها.
+    if (created.workStartTime && created.workEndTime) {
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO attendance.work_schedule_time_history
+           (id, "scheduleId", "workStartTime", "workEndTime", "effectiveFrom", "effectiveTo")
+         VALUES (gen_random_uuid(), $1, $2, $3, '2000-01-01'::timestamp, NULL)`,
+        created.id, created.workStartTime, created.workEndTime,
+      );
+    }
+
+    return created;
   }
 
   async findAll(filters?: { isActive?: boolean }) {
@@ -113,6 +131,23 @@ export class WorkSchedulesService {
       const effectiveFrom = new Date(Date.UTC(
         nowBusiness.getUTCFullYear(), nowBusiness.getUTCMonth(), nowBusiness.getUTCDate() + 1,
       ));
+      // وردية أُنشئت قبل أن يُسجَّل تاريخ الأوقات عند الإنشاء لا فترةَ مفتوحة لها.
+      // تُستحدَث لها فترتُها الأولى بالأوقات السابقة قبل إغلاقها، وإلا ضاع ماضيها
+      // وحُسبت أيامه بالأوقات الجديدة.
+      const openRows = (await this.prisma.$queryRawUnsafe(
+        `SELECT 1 FROM attendance.work_schedule_time_history
+         WHERE "scheduleId" = $1 LIMIT 1`,
+        id,
+      )) as unknown[];
+      if (openRows.length === 0 && before.workStartTime && before.workEndTime) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO attendance.work_schedule_time_history
+             (id, "scheduleId", "workStartTime", "workEndTime", "effectiveFrom", "effectiveTo")
+           VALUES (gen_random_uuid(), $1, $2, $3, '2000-01-01'::timestamp, NULL)`,
+          id, before.workStartTime, before.workEndTime,
+        );
+      }
+
       await this.prisma.$executeRawUnsafe(
         `UPDATE attendance.work_schedule_time_history
          SET "effectiveTo" = $1
