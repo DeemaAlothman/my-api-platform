@@ -542,10 +542,23 @@ export class AttendanceRecordsService {
         `${record.employeeId}|${recordDateStr}`,
       );
       const onFullDayLeave = !!fullDayLeaveTypeAr;
+      // يوم ببصمة واحدة لا يُقاس منه تأخير ولا انصراف مبكر — كما في كشف الراتب
+      // تماماً. البصمة الوحيدة تُخزَّن في خانة الدخول مهما كان وقتها، واليوم نفسه
+      // يُعامَل غياباً أو حضوراً كاملاً إن بُرِّر؛ فقياسُه هنا كان يُظهر دقائق لا
+      // يحملها السجل ولا يحاسب عليها الكشف.
+      const singlePunchDay = !!record.clockInTime && !record.clockOutTime;
       const canRecompute =
-        record.clockInTime && schedTimes.workStartTime && schedTimes.workEndTime &&
+        record.clockInTime && !singlePunchDay &&
+        schedTimes.workStartTime && schedTimes.workEndTime &&
         sched?.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status) &&
         !onFullDayLeave;
+
+      // ويُعرض صفراً صراحةً لا القيمة الخام: اعتماد التبرير يصفّرها في السجل، لكن
+      // سجلاً لم يُبرَّر قد يحمل رقماً قديماً حُسب قبل أن يُعرف أن اليوم بلا خروج.
+      if (singlePunchDay) {
+        displayLateMinutes = 0;
+        displayEarlyLeaveMinutes = 0;
+      }
 
       // يوم بإجازة كاملة معتمدة: تُصفَّر الدقائق صراحةً لا تُترك على القيمة الخام المخزَّنة،
       // وتُعرض الحالة كـ"بإجازة" مع اسم نوعها — لأن البصمة تجعل الحالة المخزَّنة PARTIAL_LEAVE
