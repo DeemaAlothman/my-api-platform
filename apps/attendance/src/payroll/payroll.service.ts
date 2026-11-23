@@ -402,6 +402,24 @@ export class PayrollService {
     // يُستهلك من رصيد الساعتين الشهري المشترك (التأخير أولاً، ثم الانصراف المبكر بالباقي)، ويُحسم
     // فقط ما تجاوز الرصيد. صفر تعديل على أي بيانات مخزَّنة — حساب بالذاكرة وقت التوليد فقط، يؤثر
     // على كشوف DRAFT حصراً.
+    // تبريرات أيام البصمة الواحدة — تُقرأ قبل كتلة إعادة الحساب لأن التأخير فيها
+    // يتوقف على اعتماد التبرير
+    const singlePunchRecordIds = records
+      .filter(r => {
+        if (['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK'].includes(r.status)) return false;
+        if (!(r as any).clockInTime || (r as any).clockOutTime) return false;
+        return Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000) >= 2;
+      })
+      .map(r => r.id);
+    const singlePunchJustifiedIds = new Set<string>();
+    if (singlePunchRecordIds.length > 0) {
+      const spJustifications = await this.prisma.attendanceJustification.findMany({
+        where: { attendanceRecordId: { in: singlePunchRecordIds }, status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] } },
+        select: { attendanceRecordId: true },
+      });
+      spJustifications.forEach(j => singlePunchJustifiedIds.add(j.attendanceRecordId));
+    }
+
     if (unifiedPoolActive) {
       const GRACE_PERIOD_MINUTES = 15;
       const BUSINESS_UTC_OFFSET_HOURS = 3; // خادم الحاوية UTC صافٍ، بينما أوقات الجدول محلية (UTC+3) — مؤكَّد
@@ -587,14 +605,28 @@ export class PayrollService {
         const clockOutRaw = (r as any).clockOutTime;
         const clockOut = clockOutRaw ? new Date(clockOutRaw) : null;
 
-        // يوم ببصمة واحدة لا يُقاس منه تأخير ولا انصراف مبكر. البصمة الوحيدة تُخزَّن
-        // في خانة الدخول مهما كان وقتها، فبصمةُ خروجٍ نسي صاحبُها أن يبصم الدخول
-        // تُقرأ هنا وصولاً متأخراً بمئات الدقائق — وقد مرّ بها يومٌ كامل من العمل.
-        //
-        // واليومُ نفسه محسوبٌ أصلاً غياباً في الكتلة الرئيسية (أو حضوراً كاملاً إن
-        // بُرِّر)، فقياسُه هنا يُعاقب عليه مرتين. ومحرّك حساب الحضور يسجّل صفراً
-        // لهذه الأيام جميعاً، فهذا يوافقه بدل أن يخالفه.
-        if (!clockOut) continue;
+        // يوم ببصمة واحدة: البصمة الوحيدة تُخزَّن في خانة الدخول مهما كان وقتها،
+        // فبصمةُ خروجٍ نُسي الدخول معها تُقرأ وصولاً متأخراً بمئات الدقائق.
+        if (!clockOut) {
+          // غيرُ المبرَّر محسوبٌ غياباً في الكتلة الرئيسية، فقياسُه هنا يعاقب عليه مرتين.
+          //
+          // أما المبرَّر فيومُ حضورٍ كامل، وتأخيرُ وصوله يُحسب كأي يوم آخر: السماحية
+          // شهرية (الرصيد المشترك) لا يومية، فلا تُسقَط دقائقه هنا. ولا انصراف مبكر
+          // عليه لأن وقت خروجه غير معلوم أصلاً.
+          if (singlePunchJustifiedIds.has(r.id)) {
+            const spRawLate = Math.max(
+              0,
+              Math.round((clockIn.getTime() - schedStart.getTime()) / 60000)
+                - (morningCoverageByDate.get(dateKey) ?? 0),
+            );
+            const spChargeableLate = justifiedAutoLeaveDates.has(`${dateKey}|LATE`) ? 0 : spRawLate;
+            if (spChargeableLate > 0) {
+              correctedTotalLateMinutes += spChargeableLate;
+              poolEvents.push({ date: recDate, type: 'LATE', minutes: spChargeableLate });
+            }
+          }
+          continue;
+        }
 
         const rawLateBeforeLeave = Math.max(0, Math.round((clockIn.getTime() - schedStart.getTime()) / 60000));
         const excessAtEnd = clockOut ? Math.max(0, Math.round((clockOut.getTime() - schedEnd.getTime()) / 60000)) : 0;
@@ -745,21 +777,6 @@ export class PayrollService {
     }
 
     // التبريرات لسجلات البصمة الوحيدة (دخول بدون خروج بعد يومين)
-    const singlePunchRecordIds = records
-      .filter(r => {
-        if (['ABSENT', 'WEEKEND', 'HOLIDAY', 'ON_LEAVE', 'ON_MISSION', 'REMOTE_WORK'].includes(r.status)) return false;
-        if (!(r as any).clockInTime || (r as any).clockOutTime) return false;
-        return Math.floor((Date.now() - new Date(r.date).getTime()) / 86400000) >= 2;
-      })
-      .map(r => r.id);
-    const singlePunchJustifiedIds = new Set<string>();
-    if (singlePunchRecordIds.length > 0) {
-      const spJustifications = await this.prisma.attendanceJustification.findMany({
-        where: { attendanceRecordId: { in: singlePunchRecordIds }, status: { in: ['HR_APPROVED', 'MANAGER_APPROVED'] } },
-        select: { attendanceRecordId: true },
-      });
-      spJustifications.forEach(j => singlePunchJustifiedIds.add(j.attendanceRecordId));
-    }
 
     // التبريرات المقبولة للتأخير
     const lateRecordIds = records.filter(r => r.lateMinutes > 0).map(r => r.id);

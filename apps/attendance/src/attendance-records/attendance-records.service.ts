@@ -553,11 +553,29 @@ export class AttendanceRecordsService {
         sched?.shiftType !== 'FLEXIBLE' && !excludedStatusesForDisplay.has(record.status) &&
         !onFullDayLeave;
 
-      // ويُعرض صفراً صراحةً لا القيمة الخام: اعتماد التبرير يصفّرها في السجل، لكن
-      // سجلاً لم يُبرَّر قد يحمل رقماً قديماً حُسب قبل أن يُعرف أن اليوم بلا خروج.
+      // لا انصراف مبكر على يوم لا يُعرف وقت خروجه. أما التأخير فيُعرض متى بُرِّر
+      // اليوم واعتُمد، لأنه يصير حضوراً كاملاً فيُحاسَب وصولُه كأي يوم — والسماحية
+      // شهرية (الرصيد المشترك) لا يومية، فلا تُسقِط دقائقه هنا. ويومٌ لم يُبرَّر
+      // محسوبٌ غياباً، فلا يُقاس منه شيء.
       if (singlePunchDay) {
-        displayLateMinutes = 0;
         displayEarlyLeaveMinutes = 0;
+        displayLateMinutes = 0;
+        if (
+          justifiedMissingClockOutRecordIds.has(record.id) &&
+          schedTimes.workStartTime && sched?.shiftType !== 'FLEXIBLE'
+        ) {
+          const OFFSET_HOURS = 3;
+          const [spStartH, spStartM] = schedTimes.workStartTime.split(':').map(Number);
+          const spDate = new Date(record.date);
+          const spSchedStart = Date.UTC(
+            spDate.getUTCFullYear(), spDate.getUTCMonth(), spDate.getUTCDate(),
+            spStartH - OFFSET_HOURS, spStartM, 0, 0,
+          );
+          displayLateMinutes = Math.max(
+            0,
+            Math.round((new Date(record.clockInTime).getTime() - spSchedStart) / 60000),
+          );
+        }
       }
 
       // يوم بإجازة كاملة معتمدة: تُصفَّر الدقائق صراحةً لا تُترك على القيمة الخام المخزَّنة،
