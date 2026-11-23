@@ -636,6 +636,9 @@ export class PayrollService {
         const flexKey = flexDate.toISOString().split('T')[0];
         // يوم بإجازة كاملة معتمدة لا يُطالَب بحدٍّ أدنى أصلاً
         if (approvedLeaveDates.has(flexKey) && !halfDayLeaveByDate.has(flexKey)) continue;
+        // يومٌ بُرِّر انصرافُه المبكر واعتُمد التبرير: الوردية الثابتة تُعفيه منذ البداية،
+        // والمرنة كانت تتجاهل التبرير فتُحمّله نقصاً أعفته منه الموارد البشرية صراحةً.
+        if (justifiedAutoLeaveDates.has(`${flexKey}|EARLY_LEAVE`)) continue;
         const flexRequired = Math.max(
           0,
           flexAssign.minimumWorkMinutes - ((r as any).hourlyLeaveMinutes ?? 0),
@@ -823,12 +826,19 @@ export class PayrollService {
         dayAssignment.minimumWorkMinutes &&
         (r as any).clockInTime && (r as any).clockOutTime
       ) {
+        const flexDateKey = new Date(r.date).toISOString().split('T')[0];
+        // تبرير الانصراف المبكر المعتمد يُعفي اليوم كاملاً — كما في الوردية الثابتة.
+        // اعتماد التبرير يُصفّر دقائق السجل ويلغي الإجازة التعويضية، فإعادةُ حسابها
+        // هنا من أوقات البصم كانت تُعيد النقص الذي أسقطته الموارد البشرية.
+        const justifiedFlexDay = justifiedAutoLeaveDates.has(`${flexDateKey}|EARLY_LEAVE`);
         const requiredMinutes = Math.max(
           0,
           dayAssignment.minimumWorkMinutes - ((r as any).hourlyLeaveMinutes ?? 0),
         );
         const workedForMinimum = r.netWorkedMinutes ?? r.workedMinutes ?? 0;
-        const shortfallMinutes = Math.max(0, requiredMinutes - workedForMinimum);
+        const shortfallMinutes = justifiedFlexDay
+          ? 0
+          : Math.max(0, requiredMinutes - workedForMinimum);
         // ما سجّله محرّك الحضور يُحسب مرة واحدة: اليوم تساوي صفراً في الوردية
         // المرنة، ولو صارت تُسجَّل لاحقاً فلن يتضاعف الرقم
         const alreadyCounted = r.earlyLeaveMinutes || 0;
