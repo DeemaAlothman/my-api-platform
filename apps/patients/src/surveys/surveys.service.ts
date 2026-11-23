@@ -218,13 +218,19 @@ export class SurveysService {
     'mobilityImprovementRating',
   ] as const;
 
-  // مدى تاريخ الإنشاء. اليومان طرفان داخلان: dateTo يُؤخذ إلى آخر لحظة في يومه،
-  // وإلا سقطت استبيانات ذلك اليوم كلها لأن التاريخ وحده يعني منتصف ليله.
+  // مدى تاريخ الإنشاء، مقروءاً بتوقيت العمل لا بتوقيت الخادم. اليوم عند المستخدم
+  // يبدأ 00:00 بدمشق (UTC+3) وينتهي 23:59:59.999، أي 21:00 من اليوم السابق حتى
+  // 20:59:59.999 بتوقيت UTC. وقراءتُه بتوقيت الخادم كانت تُسقط آخر ثلاث ساعات من
+  // يومه وتضمّ ثلاثاً من اليوم الذي قبله.
+  //
+  // الطرفان داخلان: dateTo يمتد إلى آخر لحظة في يومه، وإلا سقط ذلك اليوم كله لأن
+  // التاريخ وحده يعني منتصف ليله.
   private buildCreatedAtRange(dateFrom?: string, dateTo?: string) {
     if (!dateFrom && !dateTo) return undefined;
+    const BUSINESS_UTC_OFFSET = '+03:00';
     const range: { gte?: Date; lte?: Date } = {};
-    if (dateFrom) range.gte = new Date(`${dateFrom}T00:00:00.000Z`);
-    if (dateTo) range.lte = new Date(`${dateTo}T23:59:59.999Z`);
+    if (dateFrom) range.gte = new Date(`${dateFrom}T00:00:00.000${BUSINESS_UTC_OFFSET}`);
+    if (dateTo) range.lte = new Date(`${dateTo}T23:59:59.999${BUSINESS_UTC_OFFSET}`);
     return range;
   }
 
