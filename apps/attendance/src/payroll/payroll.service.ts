@@ -1174,12 +1174,30 @@ export class PayrollService {
     const installmentsToCreate: Array<{ advanceId: string; amount: number }> = [];
 
     try {
+      // قسط هذا الشهر نفسه — إن كان الكشف قد وُلِّد من قبل — يُعاد إلى الرصيد قبل
+      // القراءة. فالعكس الفعلي يجري في آخر العملية، وقراءةُ الرصيد قبله ترى سلفةً
+      // مسدَّدة فلا تقتطع شيئاً، ثم يُعاد القسط إلى الرصيد وتعود السلفة نشطة —
+      // فيخسر الشهر حسمَه ويلتقطه الشهر التالي.
+      //
+      // حدث ذلك فعلاً: سلفة 500 اقتُطعت في تشرين الأول وظهرت في كشفه، ثم أُعيد
+      // توليد الشهر فاختفت منه واقتُطعت في تشرين الثاني — فلو صُرف الشهران لاقتُطع
+      // منه ضعف ما استلف.
       const activeAdvances = await this.prisma.$queryRawUnsafe(`
-        SELECT id, "installmentAmount", "remainingBalance", "totalInstallments", "paidInstallments"
-        FROM users.salary_advances
-        WHERE "employeeId" = $1 AND status = 'ACTIVE' AND "deletedAt" IS NULL
+        SELECT a.id,
+               a."installmentAmount",
+               (a."remainingBalance" + COALESCE(prev.amt, 0))::text AS "remainingBalance",
+               a."totalInstallments", a."paidInstallments"
+        FROM users.salary_advances a
+        LEFT JOIN (
+          SELECT "advanceId", SUM(amount) AS amt
+          FROM users.salary_advance_installments
+          WHERE year = $2 AND month = $3
+          GROUP BY "advanceId"
+        ) prev ON prev."advanceId" = a.id
+        WHERE a."employeeId" = $1 AND a."deletedAt" IS NULL
+          AND (a.status = 'ACTIVE' OR prev.amt IS NOT NULL)
           AND ("startYear" < $2 OR ("startYear" = $2 AND "startMonth" <= $3))
-          AND "remainingBalance" > 0
+          AND (a."remainingBalance" + COALESCE(prev.amt, 0)) > 0
       `, employeeId, year, month) as Array<{
         id: string; installmentAmount: string; remainingBalance: string;
         totalInstallments: number; paidInstallments: number;
