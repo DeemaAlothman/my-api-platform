@@ -103,11 +103,13 @@ export class PatientsController {
     @Query('patientId') patientId?: string,
     @Query('department') department?: string,
     @Query('search') search?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.surveys.findAll({
-      patientId, department, search,
+      patientId, department, search, dateFrom, dateTo,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
@@ -115,8 +117,12 @@ export class PatientsController {
 
   @Get('surveys/stats')
   @Permission(PERMISSIONS.CLINIC_PATIENTS.SURVEYS_VIEW)
-  getSurveysStats() {
-    return this.surveys.getStats();
+  getSurveysStats(
+    @Query('department') department?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    return this.surveys.getStats({ department, dateFrom, dateTo });
   }
 
   // مرضى بحاجة متابعة لطلب تقييم (أطراف تم تسليمها من أسبوع، وفيتافوت فُحص ولسا ما انركّب

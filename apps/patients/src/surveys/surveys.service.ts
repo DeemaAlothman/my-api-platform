@@ -202,10 +202,38 @@ export class SurveysService {
     });
   }
 
+  // أسماء حقول التقييم — مصدر واحد تُبنى منه إحصائية كل سؤال، فلا يُنسى حقلٌ
+  // جديد عند إضافته.
+  private static readonly RATING_FIELDS = [
+    'overallCompanyRating',
+    'staffExplanationRating',
+    'specialistCareRating',
+    'waitingAreaRating',
+    'waitingDurationRating',
+    'measurementAccuracyRating',
+    'movementEaseRating',
+    'medicalRecommendationRating',
+    'insoleComfortRating',
+    'exerciseQualityRating',
+    'mobilityImprovementRating',
+  ] as const;
+
+  // مدى تاريخ الإنشاء. اليومان طرفان داخلان: dateTo يُؤخذ إلى آخر لحظة في يومه،
+  // وإلا سقطت استبيانات ذلك اليوم كلها لأن التاريخ وحده يعني منتصف ليله.
+  private buildCreatedAtRange(dateFrom?: string, dateTo?: string) {
+    if (!dateFrom && !dateTo) return undefined;
+    const range: { gte?: Date; lte?: Date } = {};
+    if (dateFrom) range.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+    if (dateTo) range.lte = new Date(`${dateTo}T23:59:59.999Z`);
+    return range;
+  }
+
   async findAll(query: {
     patientId?: string;
     department?: string;
     search?: string;
+    dateFrom?: string;
+    dateTo?: string;
     page?: number;
     limit?: number;
   }) {
@@ -214,6 +242,8 @@ export class SurveysService {
     const where: any = {};
     if (query.patientId) where.patientId = query.patientId;
     if (query.department) where.department = query.department;
+    const createdAtRange = this.buildCreatedAtRange(query.dateFrom, query.dateTo);
+    if (createdAtRange) where.createdAt = createdAtRange;
 
     // بحث باسم المريض أو رقمه أو هاتفه. كل كلمة في عبارة البحث يجب أن تُطابق أحد
     // الحقول (AND بين الكلمات، OR بين الحقول) — فـ«جوان مصطفى» تُطابق الاسم الأول
@@ -324,14 +354,46 @@ export class SurveysService {
 
   // عدد الاستبيانات لكل قسم + نسبة رضى عامة محسوبة من تجميع overallCompanyRating لكل الاستبيانات
   // (مش من استبيان واحد لحاله) — overallCompanyRating من 1 إلى 5، النسبة = المعدل ÷ 5 × 100
-  async getStats() {
-    const [byDept, agg] = await Promise.all([
-      this.prisma.patientSurvey.groupBy({ by: ['department'], _count: { id: true } }),
+  async getStats(query?: { department?: string; dateFrom?: string; dateTo?: string }) {
+    // نفس فلاتر القائمة تماماً، فالأرقام تطابق ما يراه المستخدم أمامه
+    const where: any = {};
+    if (query?.department) where.department = query.department;
+    const createdAtRange = this.buildCreatedAtRange(query?.dateFrom, query?.dateTo);
+    if (createdAtRange) where.createdAt = createdAtRange;
+
+    // _count على حقلٍ بعينه يعدّ غير الفارغ منه وحده، فسؤالٌ لم يُجَب عليه لا
+    // يجرّ متوسطه إلى الأسفل ولا يُحسب ضمن عدد المجيبين.
+    const perQuestionSelect = Object.fromEntries(
+      SurveysService.RATING_FIELDS.map((f) => [f, true]),
+    ) as Record<string, true>;
+
+    const [byDept, agg, perQuestion] = await Promise.all([
+      this.prisma.patientSurvey.groupBy({ by: ['department'], where, _count: { id: true } }),
       this.prisma.patientSurvey.aggregate({
+        where,
         _avg: { overallCompanyRating: true },
         _count: { id: true },
       }),
+      this.prisma.patientSurvey.aggregate({
+        where,
+        _avg: perQuestionSelect as any,
+        _count: perQuestionSelect as any,
+      }),
     ]);
+
+    const byQuestion: Record<string, {
+      count: number; averageRating: number; satisfactionPercent: number;
+    }> = {};
+    for (const field of SurveysService.RATING_FIELDS) {
+      const count = (perQuestion._count as any)?.[field] ?? 0;
+      if (!count) continue; // سؤال لم يُجَب عليه أحد يُحذف بدل أن يظهر بأصفار
+      const average = (perQuestion._avg as any)?.[field] ?? 0;
+      byQuestion[field] = {
+        count,
+        averageRating: Math.round(average * 100) / 100,
+        satisfactionPercent: Math.round((average / 5) * 1000) / 10,
+      };
+    }
 
     const byDepartment = { prosthetics: 0, podiatry: 0, physio: 0 };
     for (const r of byDept) {
@@ -346,7 +408,7 @@ export class SurveysService {
     // نسبة رضى فيتافوت المُرجَّحة — متوسط podiatryWeightedScore لكل استبيانات الفيتافوت
     // يلي فيها insoleComfortRating (نفس حساب computePodiatryWeightedScore، إجمالاً فقط)
     const podiatrySurveys = await this.prisma.patientSurvey.findMany({
-      where: { department: 'PODIATRY', insoleComfortRating: { not: null } },
+      where: { ...where, department: 'PODIATRY', insoleComfortRating: { not: null } },
       select: {
         department: true, insoleComfortRating: true, staffExplanationRating: true,
         specialistCareRating: true, waitingAreaRating: true, waitingDurationRating: true,
@@ -366,6 +428,7 @@ export class SurveysService {
       averageRating: avgRating ? Math.round(avgRating * 10) / 10 : 0,
       satisfactionPercent,
       podiatryWeightedSatisfactionPercent,
+      byQuestion,
     };
   }
 }
