@@ -1032,11 +1032,15 @@ export class AppointmentsService implements OnModuleInit {
         await this.assertCanChangeStatus(appt as any, performedBy);
       }
     }
+    // الملاحظة تُحفظ مع الإلغاء والاعتذار معاً: الحالتان تُنهيان الموعد ويحتاج من
+    // يقرؤه لاحقاً أن يعرف السبب. وتُمحى عند الانتقال إلى حالة أخرى، وإلا بقي سبب
+    // اعتذارٍ معروضاً على موعدٍ صار مؤكَّداً.
+    const statusKeepsReason = dto.status === 'CANCELLED' || dto.status === 'APOLOGIZED';
     const updated = await this.prisma.appointment.update({
       where: { id },
       data: {
         status: dto.status as any,
-        cancelledReason: dto.cancelledReason,
+        cancelledReason: statusKeepsReason ? (dto.cancelledReason ?? null) : null,
       },
     });
     if (dto.status === 'CANCELLED') {
