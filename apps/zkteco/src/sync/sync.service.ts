@@ -433,9 +433,23 @@ export class SyncService {
         fin.clockInTime, fin.clockOutTime, breakPairs,
       );
 
-      // للوردية المرنة (FLEXIBLE): التأخير والخروج المبكر لا تُطبَّق
+      // الوردية المرنة لا بداية لها ولا نهاية، فلا تأخير عليها. والتزامها الوحيد حدٌّ
+      // أدنى من دقائق العمل، والنقص عنه يُسجَّل بالدقائق لا بالحالة وحدها: كان يُكتب
+      // صفراً فتعرض الشاشة «خروج مبكر» بلا رقم، ولا يدخل النقص رصيد الساعتين فلا
+      // يُخصَم منه شيء — بينما زميله ذو الوردية الثابتة يُخصَم. والإجازة الساعية
+      // المعتمدة تخفّض المطلوب فلا يُحاسَب على غيابٍ مأذون به.
+      const flexCheckMinutes = requiresContinuousWork
+        ? longestContinuousWorkMinutes
+        : netWorkedMinutes;
+      const flexAdjustedMinWork = (minimumWorkMinutes ?? 0) - hourlyLeaveMinutesDB;
+      const flexShortfallMinutes =
+        shiftType === 'FLEXIBLE' && flexAdjustedMinWork > 0
+          ? Math.max(0, flexAdjustedMinWork - flexCheckMinutes)
+          : 0;
+
       const effectiveLateMinutes = shiftType === 'FLEXIBLE' ? 0 : lateMinutes;
-      const effectiveEarlyLeaveMinutes = shiftType === 'FLEXIBLE' ? 0 : earlyLeaveMinutes;
+      const effectiveEarlyLeaveMinutes =
+        shiftType === 'FLEXIBLE' ? flexShortfallMinutes : earlyLeaveMinutes;
 
       // تحديد الحالة النهائية — لا نكتب فوق ON_LEAVE/HOLIDAY/WEEKEND/PARTIAL_LEAVE/HALF_DAY
       // ABSENT: يُسمح بالتحديث عند وصول بصمة فعلية (الموظف جاء متأخراً)
@@ -447,12 +461,8 @@ export class SyncService {
       let newStatus = currentStatus;
       if (!PROTECTED_STATUSES.includes(currentStatus)) {
         if (shiftType === 'FLEXIBLE') {
-          // للوردية المرنة: الحضور يُحسب بعدد الساعات مع طرح الإجازة الساعية من الحد الأدنى
-          const checkMinutes = requiresContinuousWork ? longestContinuousWorkMinutes : netWorkedMinutes;
-          const adjustedMinWorkMin = (minimumWorkMinutes ?? 0) - hourlyLeaveMinutesDB;
-          newStatus = (adjustedMinWorkMin > 0 && checkMinutes < adjustedMinWorkMin)
-            ? 'EARLY_LEAVE'
-            : 'PRESENT';
+          // نفس النقص المحسوب أعلاه، فالحالة والدقائق لا تفترقان أبداً
+          newStatus = flexShortfallMinutes > 0 ? 'EARLY_LEAVE' : 'PRESENT';
         } else {
           newStatus = effectiveLateMinutes > 0 ? 'LATE' : effectiveEarlyLeaveMinutes > 0 ? 'EARLY_LEAVE' : 'PRESENT';
         }
