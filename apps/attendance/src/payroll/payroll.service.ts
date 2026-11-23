@@ -195,9 +195,15 @@ export class PayrollService {
     const hasFixedAssignment = scheduleAssignments.some(
       (a) => a.shiftType !== 'FLEXIBLE' && a.workStartTime && a.workEndTime,
     );
+    // الوردية المرنة التزامٌ كبقية الورديات، حدُّه عددُ ساعات لا وقتُ حضور. فالنقص
+    // عنه يدخل الرصيد المشترك ويُخصَم ما تجاوزه — وإلا كان صاحبُها وحده بلا حسم
+    // مهما نقص، بينما يُخصَم من زميله على الدقيقة.
+    const hasFlexibleAssignment = scheduleAssignments.some(
+      (a) => a.shiftType === 'FLEXIBLE' && !!a.minimumWorkMinutes,
+    );
     const unifiedPoolActive = salaryLinked && (
       (scheduleShiftType !== 'FLEXIBLE' && !!scheduleWorkStartTime && !!scheduleWorkEndTime)
-      || hasFixedAssignment
+      || hasFixedAssignment || hasFlexibleAssignment
     );
 
     // إجماليات مصحَّحة ومتّسقة (نفس معادلة صفحة سجل الحضور بالضبط) — تُستخدم لاستبدال حقلي
