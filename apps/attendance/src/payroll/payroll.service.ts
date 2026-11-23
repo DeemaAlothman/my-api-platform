@@ -1196,7 +1196,11 @@ export class PayrollService {
         ) prev ON prev."advanceId" = a.id
         WHERE a."employeeId" = $1 AND a."deletedAt" IS NULL
           AND (a.status = 'ACTIVE' OR prev.amt IS NOT NULL)
-          AND ("startYear" < $2 OR ("startYear" = $2 AND "startMonth" <= $3))
+          -- السلفة تُقتطع في أشهرها هي: من شهر بدايتها وبعدد أقساطها، لا في كل
+          -- شهر تالٍ حتى يُسدَّد الرصيد. فشهرٌ لم يُولَّد كشفُه في حينه لا يُلقي
+          -- قسطَه على شهرٍ لاحق فيُفاجأ الموظف بقسطين في راتب واحد.
+          AND ((($2 - a."startYear") * 12 + ($3 - a."startMonth"))
+                 BETWEEN 0 AND a."totalInstallments" - 1)
           AND (a."remainingBalance" + COALESCE(prev.amt, 0)) > 0
       `, employeeId, year, month) as Array<{
         id: string; installmentAmount: string; remainingBalance: string;
