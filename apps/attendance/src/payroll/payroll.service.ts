@@ -621,6 +621,30 @@ export class PayrollService {
       // دمج أحداث التأخير/الانصراف المبكر مع أحداث الإجازة الساعية اليدوية، وترتيبها زمنياً
       // (بنفس اليوم: تأخير ثم انصراف مبكر ثم إجازة يدوية — نفس ترتيب الاستهلاك السابق)، ثم
       // استهلاك رصيد واحد مشترك (2 ساعة تقريباً) بمسار واحد بدل رصيد مستقل لكل نوع
+      // أيام الوردية المرنة في هذا الشهر: نقصُها عن الحدّ الأدنى يدخل الرصيد المشترك
+      // كبقية الانصراف المبكر. كان يُحتسب في حلقةٍ تالية لهذه الكتلة، فيظهر في الكشف
+      // ولا يمرّ بالرصيد قطّ — فلا يُخصَم منه شيء مهما بلغ، بينما زميلُه ذو الوردية
+      // الثابتة يُخصَم منه ما تجاوز الساعتين.
+      //
+      // الحساب هنا للرصيد وحده؛ إظهاره في الكشف يبقى في موضعه أدناه فلا ازدواج.
+      for (const r of sortedRecords) {
+        if (!(r as any).clockInTime || !(r as any).clockOutTime) continue;
+        if (excludedStatusesForAttendanceRecalc.has(r.status)) continue;
+        const flexAssign = assignmentForDate(new Date(r.date));
+        if (flexAssign?.shiftType !== 'FLEXIBLE' || !flexAssign.minimumWorkMinutes) continue;
+        const flexDate = new Date(r.date);
+        const flexKey = flexDate.toISOString().split('T')[0];
+        // يوم بإجازة كاملة معتمدة لا يُطالَب بحدٍّ أدنى أصلاً
+        if (approvedLeaveDates.has(flexKey) && !halfDayLeaveByDate.has(flexKey)) continue;
+        const flexRequired = Math.max(
+          0,
+          flexAssign.minimumWorkMinutes - ((r as any).hourlyLeaveMinutes ?? 0),
+        );
+        const flexWorked = r.netWorkedMinutes ?? r.workedMinutes ?? 0;
+        const flexShortfall = Math.max(0, flexRequired - flexWorked);
+        if (flexShortfall > 0) poolEvents.push({ date: flexDate, type: 'EARLY', minutes: flexShortfall });
+      }
+
       const typePriority: Record<'LATE' | 'EARLY' | 'MANUAL', number> = { LATE: 0, EARLY: 1, MANUAL: 2 };
       for (const ev of manualHourlyPoolEvents) {
         poolEvents.push({ date: ev.date, type: 'MANUAL', minutes: ev.minutes });
