@@ -47,8 +47,9 @@ export class ReceptionsController {
   findAll(
     @Query('patientId') patientId?: string,
     @Query('isSuitable') isSuitable?: string,
+    @Query('status') status?: string,
   ) {
-    return this.service.findAll(patientId, isSuitable);
+    return this.service.findAll(patientId, isSuitable, status);
   }
 
   // قبل :id حتى ما تنبلع كمعرّف
@@ -90,6 +91,13 @@ export class ReceptionsController {
   @Patch(':id/suitability')
   setSuitability(@Param('id') id: string, @Body() dto: SuitabilityDto, @User() user: any) {
     return this.service.setSuitability(id, dto, user.userId);
+  }
+
+  // تم التسليم — يدوي، من «أُخذ القياس» فقط، ونهائي
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.DELIVER)
+  @Patch(':id/deliver')
+  deliver(@Param('id') id: string, @User() user: any) {
+    return this.service.deliver(id, user.userId);
   }
 
   // ── جلسات المتابعة ────────────────────────────────────────────────────────

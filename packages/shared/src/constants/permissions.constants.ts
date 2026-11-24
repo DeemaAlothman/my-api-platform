@@ -317,6 +317,7 @@ export const PERMISSIONS = {
     VIEW_ATTACHMENTS:   'clinic.orthotics.view_attachments',
     UPLOAD_ATTACHMENTS: 'clinic.orthotics.upload_attachments',
     MEASUREMENT_CREATE: 'clinic.orthotics.measurement.create',
+    DELIVER: 'clinic.orthotics.deliver',
   },
   CLINIC_APPOINTMENTS: {
     VIEW:             'clinic.appointments.view',

@@ -11,9 +11,91 @@ import { CreateMeasurementSheetDto } from './dto/create-measurement-sheet.dto';
 const PATIENTS_URL   = process.env.PATIENTS_SERVICE_URL   || 'http://patients:4010';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
 
+// حالات الاستقبال بترتيبها — الحالة تتقدّم فقط ولا ترجع للخلف
+export const RECEPTION_STATUSES = ['IN_EXAMINATION', 'EXAMINED', 'MEASURED', 'DELIVERED'] as const;
+export type ReceptionStatus = (typeof RECEPTION_STATUSES)[number];
+const STATUS_RANK: Record<string, number> = Object.fromEntries(RECEPTION_STATUSES.map((s, i) => [s, i]));
+
+const hasText = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
+const hasItems = (v: unknown) => Array.isArray(v) && v.some((x) => hasText(x));
+
+/**
+ * اكتمال تاب «الأطراف الصناعية»: رأي أخصائي الأطراف معبّأ، والتاريخ السريري فيه
+ * واحد على الأقل من: قصة الولادة، التاريخ المرضي، الأهداف الوظيفية، الأجهزة الموصى بها.
+ */
+export function isProstheticsTabComplete(r: {
+  prosthetistOpinion?: string | null; birthHistory?: string | null; medicalHistory?: string | null;
+  functionalGoals?: string[] | null; recommendedDeviceTypes?: string[] | null;
+}): boolean {
+  const clinicalHistory =
+    hasText(r.birthHistory) || hasText(r.medicalHistory) ||
+    hasItems(r.functionalGoals) || hasItems(r.recommendedDeviceTypes);
+  return hasText(r.prosthetistOpinion) && clinicalHistory;
+}
+
 @Injectable()
 export class ReceptionsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ── حالة الاستقبال ───────────────────────────────────────────────────
+
+  /**
+   * يقدّم الحالة إلى target إن كانت الحالية أقل منها، وإلا لا يفعل شيئاً (لا رجوع للخلف).
+   * التحديث مشروط بالحالة المقروءة، فطلبان متزامنان لا يُرجعان الحالة للخلف.
+   * يُسجَّل كل تغيير فعلي بسجل التدقيق. يرجّع الحالة بعد العملية.
+   */
+  private async advanceStatus(
+    id: string, target: ReceptionStatus, trigger: string, userId?: string | null, attempt = 0,
+  ): Promise<string> {
+    const row = await this.prisma.orthoticsReception.findFirst({ where: { id }, select: { status: true } });
+    if (!row) return target;
+    const from = row.status;
+    if ((STATUS_RANK[from] ?? -1) >= STATUS_RANK[target]) return from;
+
+    const res = await this.prisma.orthoticsReception.updateMany({
+      where: { id, status: from },
+      data: { status: target },
+    });
+    if (res.count === 0) {
+      // تغيّرت الحالة بين القراءة والكتابة — نعيد المحاولة على القيمة الجديدة (حد أقصى 3)
+      return attempt < 3 ? this.advanceStatus(id, target, trigger, userId, attempt + 1) : from;
+    }
+    await this.logStatusChange(id, from, target, trigger, userId);
+    return target;
+  }
+
+  private async logStatusChange(id: string, from: string, to: string, trigger: string, userId?: string | null) {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO public.audit_logs ("userId", username, action, resource, "resourceId", method, path, ip, metadata, "createdAt")
+       VALUES ($1, NULL, 'ORTHOTICS_RECEPTION_STATUS_CHANGED', 'orthotics_receptions', $2, 'SYSTEM', $3, NULL, $4::jsonb, NOW())`,
+      userId ?? null, id, `/api/v1/orthotics/receptions/${id}`,
+      JSON.stringify({ from, to, trigger }),
+    ).catch(() => { /* فشل التدقيق ما بيوقف العملية */ });
+  }
+
+  /** يُستدعى بعد حفظ تقييم الطبيب أو رأي أخصائي الأطراف — الشرط يعتمد على القسمين معاً */
+  private async checkExamined(id: string, trigger: string, userId?: string | null): Promise<string | null> {
+    const r = await this.prisma.orthoticsReception.findFirst({ where: { id } });
+    if (!r) return null;
+    if (!isProstheticsTabComplete(r)) return r.status;
+    return this.advanceStatus(id, 'EXAMINED', trigger, userId);
+  }
+
+  async deliver(id: string, userId: string) {
+    const r = await this.findReceptionOrThrow(id);
+    if (r.status === 'DELIVERED') throw new BadRequestException('تم تسليم هذا الاستقبال مسبقاً');
+    if (r.status !== 'MEASURED') {
+      throw new BadRequestException('لا يمكن التسليم قبل أخذ القياس — يجب أن تكون الحالة «أُخذ القياس»');
+    }
+    // مشروط بـ MEASURED حتى لا يُسلَّم مرتين بطلبين متزامنين
+    const res = await this.prisma.orthoticsReception.updateMany({
+      where: { id, status: 'MEASURED', deletedAt: null },
+      data: { status: 'DELIVERED', deliveredAt: new Date(), deliveredBy: userId },
+    });
+    if (res.count === 0) throw new BadRequestException('تغيّرت حالة الاستقبال — أعد تحميل الصفحة');
+    await this.logStatusChange(id, 'MEASURED', 'DELIVERED', 'DELIVER_BUTTON', userId);
+    return this.findOne(id);
+  }
 
   private async resolvePatients(
     patientIds: string[],
@@ -67,9 +149,15 @@ export class ReceptionsService {
 
   // isSuitable: "true" أو "false"، وأي شيء آخر (أو غيابه) يعني الكل.
   // "undecided" تُرجِع ما لم يُقرَّر بعدُ — وهي ليست "غير مناسب".
-  async findAll(patientId?: string, isSuitable?: string) {
+  async findAll(patientId?: string, isSuitable?: string, status?: string) {
     const where: any = { deletedAt: null };
     if (patientId) where.patientId = patientId;
+    if (status) {
+      if (!(RECEPTION_STATUSES as readonly string[]).includes(status)) {
+        throw new BadRequestException(`حالة غير معروفة: ${status} — القيم المسموحة: ${RECEPTION_STATUSES.join('، ')}`);
+      }
+      where.status = status;
+    }
     if (isSuitable === 'true') where.isSuitable = true;
     else if (isSuitable === 'false') where.isSuitable = false;
     else if (isSuitable === 'undecided') where.isSuitable = null;
@@ -207,6 +295,7 @@ export class ReceptionsService {
     'physioAssessmentUpdatedBy',
     'prosthetistOpinionUpdatedBy',
     'suitabilityUpdatedBy',
+    'deliveredBy',
   ] as const;
 
   private attachActorNames<T extends Record<string, any>>(reception: T, names: Record<string, string>): T {
@@ -293,7 +382,9 @@ export class ReceptionsService {
     for (const field of fields) {
       if (dto[field] !== undefined) data[field] = dto[field];
     }
-    return this.prisma.orthoticsReception.update({ where: { id }, data });
+    const updated = await this.prisma.orthoticsReception.update({ where: { id }, data });
+    const status = await this.checkExamined(id, 'DOCTOR_ASSESSMENT_SAVED', userId);
+    return { ...updated, status: status ?? updated.status };
   }
 
   // ── تقييم أخصائي العلاج الفيزيائي ───────────────────────────────────
@@ -352,7 +443,9 @@ export class ReceptionsService {
       data.deviceUsageCounts = counts;
     }
 
-    return this.prisma.orthoticsReception.update({ where: { id }, data });
+    const updated = await this.prisma.orthoticsReception.update({ where: { id }, data });
+    const status = await this.checkExamined(id, 'PROSTHETIST_OPINION_SAVED', userId);
+    return { ...updated, status: status ?? updated.status };
   }
 
   // ── فريق المعالجين ────────────────────────────────────────────────────────
@@ -489,7 +582,7 @@ export class ReceptionsService {
       }
     }
 
-    return this.prisma.orthoticsMeasurementSheet.create({
+    const sheet = await this.prisma.orthoticsMeasurementSheet.create({
       data: {
         receptionId,
         sheet: dto.sheet,
@@ -499,6 +592,9 @@ export class ReceptionsService {
         createdBy: userId,
       },
     });
+    // أول ورقة قياس ← «أُخذ القياس» مباشرة، حتى لو التاب مش مكتمل (الحالة = أبعد خطوة)
+    const receptionStatus = await this.advanceStatus(receptionId, 'MEASURED', 'MEASUREMENT_SHEET_CREATED', userId);
+    return { ...sheet, receptionStatus };
   }
 
   async getMeasurementSheets(receptionId: string, sheet?: string) {

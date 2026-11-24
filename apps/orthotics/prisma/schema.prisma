@@ -179,6 +179,14 @@ model OrthoticsReception {
   // المعالجون المسؤولون عن الحالة (employeeId) — يُرسل إشعار لكل معالج يُضاف حديثاً
   practitionerIds String[] @default([])
 
+  // ── حالة الاستقبال ───────────────────────────────────────────────────
+  // IN_EXAMINATION → EXAMINED → MEASURED → DELIVERED
+  // تتقدّم تلقائياً ولا ترجع للخلف: تُحفظ دائماً أبعد خطوة وُصلت.
+  // DELIVERED يدوية فقط (PATCH /:id/deliver) ومن MEASURED فقط، ونهائية.
+  status      String    @default("IN_EXAMINATION")
+  deliveredAt DateTime?
+  deliveredBy String?
+
   // حذف ناعم: الاستقبال يختفي من الشاشات ويبقى في قاعدة البيانات.
   // كان الحذف نهائياً (DELETE) ويسحب معه المرفقات بـCascade، فلا يبقى أثر.
   deletedAt DateTime?
@@ -193,6 +201,7 @@ model OrthoticsReception {
   followUps         OrthoticsFollowUp[]
 
   @@index([patientId])
+  @@index([status])
   @@map("orthotics_receptions")
   @@schema("clinic_orthotics")
 }
