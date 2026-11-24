@@ -123,7 +123,12 @@ export class AppointmentsService implements OnModuleInit {
     if (appt.physiotherapistId) targets.add(appt.physiotherapistId);
     for (const tid of appt.therapistIds ?? []) targets.add(tid);
     if (excludeUserId) targets.delete(excludeUserId);
-    const payload = { appointmentId: appt.id, patientId: appt.patientId };
+    // الرابط يجعل الإشعار يفتح موعده عند الضغط، كبقية إشعارات النظام
+    const payload = {
+      appointmentId: appt.id,
+      patientId: appt.patientId,
+      link: `/appointments/${appt.id}`,
+    };
     for (const userId of targets) {
       await this.insertNotif(userId, payload, titleAr, messageAr);
     }
@@ -257,11 +262,30 @@ export class AppointmentsService implements OnModuleInit {
     });
   }
 
-  private async notifySupervisors(appt: { id: string; patientId: string }, msg: string) {
+  private async notifySupervisors(
+    appt: { id: string; patientId: string },
+    msg: string,
+    titleAr = 'إلغاء موعد',
+  ) {
     const supervisorIds = await this.getUserIdsByJobTitle('VTX-JTL-000011');
     for (const userId of supervisorIds) {
-      await this.insertNotif(userId, { appointmentId: appt.id }, 'إلغاء موعد', msg);
+      await this.insertNotif(
+        userId,
+        { appointmentId: appt.id, link: `/appointments/${appt.id}` },
+        titleAr,
+        msg,
+      );
     }
+  }
+
+  // وصفُ الموعد كما يُقرأ في إشعار: اسم المريض ويومه وساعته بتوقيت العمل
+  private describeAppointment(appt: { patientName?: string | null; startTime: Date }) {
+    const name = (appt.patientName ?? '').trim() || 'المريض';
+    const date = appt.startTime.toLocaleDateString('en-GB', { timeZone: 'Asia/Riyadh' });
+    const time = appt.startTime.toLocaleTimeString('en-GB', {
+      timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit',
+    });
+    return { name, date, time };
   }
 
   // الموعد أنشأه معالج مش مشرف مركز — تنبيه كل مشرفي المركز (بما فيهم أي بديل بتفويض نشط)
@@ -1050,6 +1074,19 @@ export class AppointmentsService implements OnModuleInit {
         this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg, performedBy),
         this.notifySupervisors(appt, supervisorMsg),
         this.unlinkWaitingListEntryOnCancel(id),
+      ]);
+    }
+
+    // الاعتذار ينهي الموعد كالإلغاء، فيُبلَّغ به أصحابُه أنفسهم. ويُذكر فيه اسم
+    // المريض ويومه وساعته لأن المعالج قد يكون له عدة مواعيد في اليوم نفسه،
+    // فالإشعار المجرّد لا يدلّه على أيّها.
+    if (dto.status === 'APOLOGIZED') {
+      const { name, date, time } = this.describeAppointment(appt as any);
+      const reasonSuffix = dto.cancelledReason ? ` السبب: ${dto.cancelledReason}` : '';
+      const msg = `اعتذر ${name} عن موعده يوم ${date} الساعة ${time}.${reasonSuffix}`;
+      await Promise.all([
+        this.notifyPractitioner(appt as any, 'اعتذار عن موعد', msg, performedBy),
+        this.notifySupervisors(appt, msg, 'اعتذار عن موعد'),
       ]);
     }
 
