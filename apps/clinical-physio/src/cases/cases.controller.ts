@@ -194,14 +194,14 @@ export class CasesController {
 
   @Post(':id/treatment-plan')
   @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
-  upsertPlan(@Param('id') id: string, @Body() dto: TreatmentPlanDto) {
-    return this.service.upsertTreatmentPlan(id, dto);
+  upsertPlan(@Param('id') id: string, @Body() dto: TreatmentPlanDto, @User() user: any) {
+    return this.service.upsertTreatmentPlan(id, dto, user?.userId);
   }
 
   @Put(':id/treatment-plan')
   @Permission(PERMISSIONS.CLINIC_PHYSIO.ASSESSMENT_CREATE)
-  updatePlan(@Param('id') id: string, @Body() dto: TreatmentPlanDto) {
-    return this.service.upsertTreatmentPlan(id, dto);
+  updatePlan(@Param('id') id: string, @Body() dto: TreatmentPlanDto, @User() user: any) {
+    return this.service.upsertTreatmentPlan(id, dto, user?.userId);
   }
 
   @Put(':id/treatment-plan/supervisor-review')

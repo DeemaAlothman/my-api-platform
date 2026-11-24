@@ -329,7 +329,35 @@ export class CasesService {
         doctorGazeAt: treatmentPlan.doctorReviewedAt,
       };
     }
-    return { ...c, evaluation, treatmentPlan, patient: nameMap[c.patientId] ?? null };
+    // أسماء المعالجين مع معرّفاتهم: القائمة وحدها معرّفات لا تُقرأ، فكانت الواجهة
+    // تضطرّ لجلب كل الموظفين لتسميتها. الأساسي أولاً، ثم البقية بترتيب إسنادهم.
+    const therapistIds: string[] = [...new Set([
+      ...(c.physiotherapistId ? [c.physiotherapistId] : []),
+      ...((c.physiotherapistIds ?? []) as string[]),
+    ])];
+    let physiotherapists: Array<{ id: string; name: string | null }> = [];
+    if (therapistIds.length > 0) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{
+        id: string; firstNameAr: string | null; lastNameAr: string | null;
+      }>>(
+        `SELECT id, "firstNameAr", "lastNameAr" FROM users.employees
+         WHERE id = ANY($1::text[]) AND "deletedAt" IS NULL`,
+        therapistIds,
+      ).catch(() => [] as Array<{ id: string; firstNameAr: string | null; lastNameAr: string | null }>);
+      physiotherapists = therapistIds.map((tid) => {
+        const r = rows.find((x) => x.id === tid);
+        return { id: tid, name: r ? `${r.firstNameAr ?? ''} ${r.lastNameAr ?? ''}`.trim() || null : null };
+      });
+    }
+
+    return {
+      ...c,
+      evaluation,
+      treatmentPlan,
+      patient: nameMap[c.patientId] ?? null,
+      physiotherapists,
+      physiotherapistNames: physiotherapists.map((t) => t.name).filter(Boolean) as string[],
+    };
   }
 
   async update(id: string, dto: UpdatePhysioCaseDto) {
@@ -737,10 +765,66 @@ export class CasesService {
     });
   }
 
+  // إشعارُ من أُضيف معالجاً من خطة العلاج وتسجيلُه، بنفس نصّ التعيين من الزرّ
+  // وبنفس جدول سجلّ التعيينات — فمن يقرأ تاريخ الحالة يرى البابين سواء.
+  private async logPlanAssignments(
+    caseId: string,
+    caseBefore: any,
+    therapistIds: string[],
+    userId?: string,
+  ) {
+    const names = await this.prisma.$queryRawUnsafe<Array<{
+      id: string; firstNameAr: string | null; lastNameAr: string | null;
+    }>>(
+      `SELECT id, "firstNameAr", "lastNameAr" FROM users.employees
+       WHERE id = ANY($1::text[]) AND "deletedAt" IS NULL`,
+      therapistIds,
+    ).catch(() => [] as Array<{ id: string; firstNameAr: string | null; lastNameAr: string | null }>);
+    const nameOf = (id: string) => {
+      const r = names.find((n) => n.id === id);
+      return r ? `${r.firstNameAr ?? ''} ${r.lastNameAr ?? ''}`.trim() || null : null;
+    };
+
+    let assignerName: string | null = null;
+    if (userId) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{
+        firstNameAr: string | null; lastNameAr: string | null;
+      }>>(
+        `SELECT "firstNameAr", "lastNameAr" FROM users.employees
+         WHERE "userId" = $1 AND "deletedAt" IS NULL LIMIT 1`,
+        userId,
+      ).catch(() => [] as Array<{ firstNameAr: string | null; lastNameAr: string | null }>);
+      assignerName = rows[0]
+        ? `${rows[0].firstNameAr ?? ''} ${rows[0].lastNameAr ?? ''}`.trim() || null
+        : null;
+    }
+
+    const caseNumber = (caseBefore as any)?.caseNumber ?? caseId;
+    for (const therapistId of therapistIds) {
+      const therapistName = nameOf(therapistId);
+      await this.prisma.assignmentLog.create({
+        data: {
+          caseId,
+          assignedByUserId: userId ?? null,
+          assignedByName: assignerName,
+          therapistId,
+          therapistName,
+          note: `عيّنها ${assignerName ?? 'مستخدم'} للمعالج ${therapistName ?? therapistId} من خطة العلاج`,
+        },
+      }).catch(() => {});
+      await this.sendNotifToEmployee(
+        therapistId,
+        'تم تعيينك على حالة',
+        `تم تعيينك على حالة علاج فيزيائي — رقم الحالة: ${caseNumber}`,
+        { type: 'PHYSIO_CASE_ASSIGNED', caseId, caseNumber, link: `/clinic/physio/${caseId}` },
+      ).catch(() => {});
+    }
+  }
+
   // ── Treatment Plan ────────────────────────────────────────────────────────
 
-  async upsertTreatmentPlan(caseId: string, dto: TreatmentPlanDto) {
-    await this.findCaseOrThrow(caseId);
+  async upsertTreatmentPlan(caseId: string, dto: TreatmentPlanDto, userId?: string) {
+    const caseBefore = await this.findCaseOrThrow(caseId);
 
     // حقول رأس الفورم مخزّنة على الحالة — نحدّث المُرسل فقط (لا نمسح القيم الحالية)
     const caseData: any = {
@@ -751,15 +835,30 @@ export class CasesService {
       caseManagerId: dto.caseManagerId,
     };
     // اختيار متعدد للأخصائيين — نخزّن القائمة ونضبط الأخصائي الأساسي = أول عنصر (للتوافق/الفلترة)
+    //
+    // واختيار معالجٍ هنا تعيينٌ للحالة كالتعيين من زرّها: كانت الحالة تبقى «بانتظار
+    // تعيين معالج» رغم أن لها معالجاً، لأن awaitingAssignment لم يكن يُفَكّ إلا من الزر.
+    const newlyAssignedIds: string[] = [];
     if (dto.physiotherapistIds !== undefined) {
       caseData.physiotherapistIds = dto.physiotherapistIds;
       if (dto.physiotherapistId === undefined && dto.physiotherapistIds.length > 0) {
         caseData.physiotherapistId = dto.physiotherapistIds[0];
       }
+      if (dto.physiotherapistIds.length > 0) {
+        caseData.awaitingAssignment = false;
+        const before: string[] = ((caseBefore as any).physiotherapistIds ?? []) as string[];
+        newlyAssignedIds.push(...dto.physiotherapistIds.filter((t) => !before.includes(t)));
+      }
     }
     Object.keys(caseData).forEach((k) => caseData[k] === undefined && delete caseData[k]);
     if (Object.keys(caseData).length > 0) {
       await this.prisma.physioCase.update({ where: { id: caseId }, data: caseData });
+    }
+
+    // المعالج المُضاف من الخطة يُشعَر ويُسجَّل كما لو عُيِّن من زرّ التعيين، فلا يفترق
+    // أثرُ البابين. وفشلُ الإشعار لا يُسقط حفظ الخطة.
+    if (newlyAssignedIds.length > 0) {
+      await this.logPlanAssignments(caseId, caseBefore, newlyAssignedIds, userId).catch(() => {});
     }
 
     // تحديث الخطة — المُرسل فقط (حتى لا يُمحى ما لم يُرسل، مثل modalities عند حفظ الرأس وحده)
@@ -1287,10 +1386,26 @@ export class CasesService {
     const assignerName = assignerRows[0] ? `${assignerRows[0].firstNameAr ?? ''} ${assignerRows[0].lastNameAr ?? ''}`.trim() || null : null;
     const therapistName = `${therapist.firstNameAr ?? ''} ${therapist.lastNameAr ?? ''}`.trim() || null;
 
+    // الحالة قد يعمل عليها أكثر من معالج معاً، فالتعيين يُضيف إلى القائمة ولا
+    // يستبدلها: كتابة [therapistId] وحده كانت تمحو من عُيِّنوا من خطة العلاج.
+    //
+    // والأساسي يبقى أوّل من عُيِّن — تعتمد عليه شاشات كثيرة في الفلترة — فلا
+    // يتبدّل لمجرّد إضافة زميل إليه.
+    const existingTherapistIds: string[] = ((physioCase as any).physiotherapistIds ?? []) as string[];
+    const alreadyAssigned = existingTherapistIds.includes(therapistId);
+    const nextTherapistIds = alreadyAssigned
+      ? existingTherapistIds
+      : [...existingTherapistIds, therapistId];
+    const nextPrimaryId = (physioCase as any).physiotherapistId ?? therapistId;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const c = await tx.physioCase.update({
         where: { id: caseId },
-        data: { physiotherapistId: therapistId, physiotherapistIds: [therapistId], awaitingAssignment: false },
+        data: {
+          physiotherapistId: nextPrimaryId,
+          physiotherapistIds: nextTherapistIds,
+          awaitingAssignment: false,
+        },
       });
       await tx.assignmentLog.create({
         data: {
@@ -1305,12 +1420,15 @@ export class CasesService {
       return c;
     });
 
-    await this.sendNotifToEmployee(
-      therapistId,
-      'تم تعيينك على حالة',
-      `تم تعيينك على حالة علاج فيزيائي — رقم الحالة: ${updated.caseNumber}`,
-      { type: 'PHYSIO_CASE_ASSIGNED', caseId, caseNumber: updated.caseNumber, link: `/clinic/physio/${caseId}` },
-    );
+    // المعيَّن سابقاً لا يُزعج بإشعارٍ عن تعيينٍ يعرفه
+    if (!alreadyAssigned) {
+      await this.sendNotifToEmployee(
+        therapistId,
+        'تم تعيينك على حالة',
+        `تم تعيينك على حالة علاج فيزيائي — رقم الحالة: ${updated.caseNumber}`,
+        { type: 'PHYSIO_CASE_ASSIGNED', caseId, caseNumber: updated.caseNumber, link: `/clinic/physio/${caseId}` },
+      );
+    }
 
     return updated;
   }
