@@ -821,6 +821,45 @@ export class CasesService {
     }
   }
 
+  // عدد الجلسات المطبَّقة وعدد المرضى والحالات التي جرت عليها، في مدى تاريخي
+  // اختياري. الطرفان داخلان، ويومُ النهاية يمتد إلى آخر لحظة فيه بتوقيت العمل
+  // (UTC+3): التاريخ وحده يعني منتصف ليله، فكان يومُه كلّه يسقط.
+  //
+  // جلسات الحالات المحذوفة لا تُحسب. أما الملغاة فجلساتها جرت فعلاً فتُحسب.
+  async getSessionsStats(query: { dateFrom?: string; dateTo?: string }) {
+    const BUSINESS_UTC_OFFSET = '+03:00';
+    const where: any = { case: { deletedAt: null } };
+    if (query.dateFrom || query.dateTo) {
+      where.sessionDate = {};
+      if (query.dateFrom) {
+        where.sessionDate.gte = new Date(`${query.dateFrom}T00:00:00.000${BUSINESS_UTC_OFFSET}`);
+      }
+      if (query.dateTo) {
+        where.sessionDate.lte = new Date(`${query.dateTo}T23:59:59.999${BUSINESS_UTC_OFFSET}`);
+      }
+    }
+
+    // المريض محفوظ على الحالة لا على الجلسة، فيُقرأ معها. والعدّ على المميَّز منه
+    // لا على السطور، فالمريض ذو الجلسات العشر يُعدّ واحداً.
+    const [totalSessions, rows] = await Promise.all([
+      this.prisma.physioSession.count({ where }),
+      this.prisma.physioSession.findMany({
+        where,
+        select: { caseId: true, case: { select: { patientId: true } } },
+      }),
+    ]);
+
+    const patients = new Set<string>();
+    const cases = new Set<string>();
+    for (const r of rows) {
+      cases.add(r.caseId);
+      const pid = (r as any).case?.patientId;
+      if (pid) patients.add(pid);
+    }
+
+    return { totalSessions, patients: patients.size, cases: cases.size };
+  }
+
   // ── Treatment Plan ────────────────────────────────────────────────────────
 
   async upsertTreatmentPlan(caseId: string, dto: TreatmentPlanDto, userId?: string) {
