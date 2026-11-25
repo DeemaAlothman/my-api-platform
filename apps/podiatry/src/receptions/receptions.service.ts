@@ -292,7 +292,8 @@ export class ReceptionsService {
     const [items, countsRow, costSummary] = await Promise.all([
       this.prisma.$queryRawUnsafe<Array<{
         sessionId: string; receptionId: string; patientId: string; patientNumber: string; patientName: string;
-        insoleType: string[]; shoeSize: number | null; installedAt: Date; installCount: bigint;
+        insoleType: string[]; shoeSize: number | null; insolesCount: number | null;
+        installedAt: Date; installCount: bigint;
         insoleCost: number | null; insoleCostCurrency: string | null; insoleCostNote: string | null;
         referralSource: string | null; referralDetails: string | null;
         referralStaffId: string | null; referralStaffFirstName: string | null; referralStaffLastName: string | null;
@@ -308,7 +309,7 @@ export class ReceptionsService {
          )
          SELECT r.id AS "sessionId", r."receptionId", r."patientId", p."patientNumber",
                 (p."firstName" || ' ' || p."lastName") AS "patientName",
-                r."insoleType", r."shoeSize", r."installedAt", r.install_count AS "installCount",
+                r."insoleType", r."shoeSize", r."insolesCount", r."installedAt", r.install_count AS "installCount",
                 r."insoleCost"::float8 AS "insoleCost", r."insoleCostCurrency", r."insoleCostNote",
                 p."referralSource"::text AS "referralSource", p."referralDetails",
                 p."referralStaffId", rs."firstNameAr" AS "referralStaffFirstName", rs."lastNameAr" AS "referralStaffLastName"
@@ -350,6 +351,7 @@ export class ReceptionsService {
         patientName: r.patientName,
         insoleType: r.insoleType,
         shoeSize: r.shoeSize,
+        insolesCount: r.insolesCount ?? null,
         installedAt: r.installedAt,
         installCount: Number(r.installCount),
         // التكلفة تُحجب (null) عن أي مستخدم ما عندو صلاحية عرض التكلفة
@@ -474,7 +476,10 @@ export class ReceptionsService {
     const rows = await this.prisma.$queryRawUnsafe<Array<{
       patientId: string; currency: string | null; total: number;
     }>>(
-      `SELECT "patientId", "insoleCostCurrency" AS currency, SUM("insoleCost")::float8 AS total
+      // التكلفة المسجَّلة سعرُ الضبانة الواحدة، فالمجموع يضربها بعددها. والنموذج
+      // القديم بلا عدد يُحسب بضبانة واحدة كما كان.
+      `SELECT "patientId", "insoleCostCurrency" AS currency,
+              SUM("insoleCost" * COALESCE("insolesCount", 1))::float8 AS total
        FROM clinic_podiatry.podiatry_sessions
        WHERE "patientId" = ANY($1::text[])
          AND "installedAt" IS NOT NULL AND "archivedAt" IS NULL
@@ -501,7 +506,9 @@ export class ReceptionsService {
   ): Promise<{ totals: Record<string, number>; patientsWithCostWithoutCurrency: number }> {
     const [rows, noCurrencyRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<Array<{ currency: string | null; total: number }>>(
-        `SELECT s."insoleCostCurrency" AS currency, SUM(s."insoleCost")::float8 AS total
+        // سعر الضبانة الواحدة مضروباً بعددها — والقديم بلا عدد يُحسب بواحدة
+        `SELECT s."insoleCostCurrency" AS currency,
+                SUM(s."insoleCost" * COALESCE(s."insolesCount", 1))::float8 AS total
          FROM clinic_podiatry.podiatry_sessions s
          JOIN clinic_patients.patients p ON p.id = s."patientId" AND p."deletedAt" IS NULL
          WHERE s."installedAt" IS NOT NULL AND s."archivedAt" IS NULL AND s."insoleCost" IS NOT NULL

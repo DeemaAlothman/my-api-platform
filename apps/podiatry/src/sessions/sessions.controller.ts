@@ -34,8 +34,9 @@ export class SessionsController {
     @Param('receptionId') receptionId: string,
     @Param('sessionId') sessionId: string,
     @Body() dto: UpdateSessionDto,
+    @User() user: any,
   ) {
-    return this.service.update(receptionId, sessionId, dto);
+    return this.service.update(receptionId, sessionId, dto, user?.userId);
   }
 
   @Permission(PERMISSIONS.CLINIC_PODIATRY.SESSION_CREATE)

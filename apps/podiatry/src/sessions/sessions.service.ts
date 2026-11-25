@@ -18,6 +18,7 @@ export class SessionsService {
       ...(dto.footMeasurements  !== undefined && { footMeasurements:  dto.footMeasurements }),
       ...(dto.insoleType        !== undefined && { insoleType:        dto.insoleType }),
       ...(dto.shoeSize          !== undefined && { shoeSize:          dto.shoeSize }),
+      ...(dto.insolesCount      !== undefined && { insolesCount:      dto.insolesCount }),
       ...(dto.notes             !== undefined && { notes:             dto.notes }),
       ...(dto.clinicianName     !== undefined && { clinicianName:     dto.clinicianName }),
       ...(dto.clinicianSignature !== undefined && { clinicianSignature: dto.clinicianSignature }),
@@ -29,17 +30,9 @@ export class SessionsService {
     const reception = await this.prisma.podiatryReception.findUnique({ where: { id: receptionId } });
     if (!reception) throw new NotFoundException('Reception not found');
 
-    // جلسة واحدة بس لكل استقبال – upsert
-    const existing = await this.prisma.podiatrySession.findFirst({
-      where: { receptionId, archivedAt: null },
-    });
-
-    if (existing) {
-      return this.prisma.podiatrySession.update({
-        where: { id: existing.id },
-        data: this.buildAssessmentData(dto),
-      });
-    }
+    // الاستقبال الواحد قد تتعدّد نماذج تقييمه: كان الإنشاء يَعدِل الموجود بدل أن
+    // يُنشئ، فلا يبقى للمريض إلا آخر تقييم ويُطمَس ما قبله. المراجعات وقرار
+    // الطبيب تبقى واحدة لكل استقبال، فلا يمسّها هذا.
 
     return this.prisma.podiatrySession.create({
       data: {
@@ -66,7 +59,7 @@ export class SessionsService {
     if (!reception) throw new NotFoundException('Reception not found');
     const sessions = await this.prisma.podiatrySession.findMany({
       where: { receptionId, ...(!includeArchived && { archivedAt: null }) },
-      orderBy: { sessionDate: 'asc' },
+      orderBy: [{ createdAt: 'desc' }, { sessionDate: 'desc' }],
     });
     const userIds = [...new Set(sessions.map(s => s.createdBy).filter(Boolean))];
     let userMap: Record<string, string> = {};
@@ -90,12 +83,54 @@ export class SessionsService {
     return { ...session, createdByName };
   }
 
-  async update(receptionId: string, sessionId: string, dto: UpdateSessionDto) {
-    await this.findOne(receptionId, sessionId);
-    return this.prisma.podiatrySession.update({
+  async update(receptionId: string, sessionId: string, dto: UpdateSessionDto, userId?: string) {
+    const before = await this.findOne(receptionId, sessionId);
+    const data: any = this.buildAssessmentData(dto);
+
+    // حالة التركيب تقود تاريخَه ومُنفِّذَه معاً، فلا يفترق المعلَن عن المسجَّل:
+    // «رُكِّب» يختم الوقت وصاحبَه، وما عداه يمحوهما فلا يبقى أثر تركيبٍ أُلغي.
+    if (dto.installStatus !== undefined) {
+      data.installStatus = dto.installStatus ?? null;
+      if (dto.installStatus === 'INSTALLED') {
+        data.installedAt = (before as any).installedAt ?? new Date();
+        data.installedBy = (before as any).installedBy ?? userId ?? null;
+      } else {
+        data.installedAt = null;
+        data.installedBy = null;
+      }
+    }
+
+    const updated = await this.prisma.podiatrySession.update({
       where: { id: sessionId },
-      data: this.buildAssessmentData(dto),
+      data,
     });
+
+    if (dto.installStatus !== undefined && dto.installStatus !== (before as any).installStatus) {
+      await this.logInstallStatusChange(
+        receptionId, sessionId, (before as any).installStatus ?? null, dto.installStatus ?? null, userId,
+      ).catch(() => {});
+    }
+
+    return updated;
+  }
+
+  // كل تغيير في حالة التركيب يُسجَّل: الحالة تُحوِّل النموذج إلى عملية بيع أو
+  // تُخرجه منها، فمن يراجع المبيعات لاحقاً يحتاج أن يعرف من غيّرها ومتى.
+  private async logInstallStatusChange(
+    receptionId: string,
+    sessionId: string,
+    from: string | null,
+    to: string | null,
+    userId?: string,
+  ) {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO public.audit_logs ("userId", username, action, resource, "resourceId", method, path, metadata, "createdAt")
+       VALUES ($1, NULL, 'PODIATRY_INSTALL_STATUS_CHANGED', 'podiatry', $2, 'PATCH', $3, $4::jsonb, NOW())`,
+      userId ?? null,
+      sessionId,
+      `/api/v1/podiatry/receptions/${receptionId}/sessions/${sessionId}`,
+      JSON.stringify({ receptionId, sessionId, from, to }),
+    );
   }
 
   async install(receptionId: string, sessionId: string, userId: string) {
@@ -128,8 +163,18 @@ export class SessionsService {
     });
   }
 
+  // الحذف لنموذجٍ أُنشئ بالغلط. والمركَّب ليس كذلك: هو عملية بيع مسجَّلة، فحذفه
+  // يُسقطها من المبيعات بلا أثر. يُنزَع تركيبه أولاً إن كان ذلك هو المقصود.
   async remove(receptionId: string, sessionId: string) {
-    await this.findOne(receptionId, sessionId);
+    const session = await this.findOne(receptionId, sessionId);
+    const isInstalled =
+      (session as any).installStatus === 'INSTALLED' || (session as any).installedAt != null;
+    if (isInstalled) {
+      throw new BadRequestException({
+        code: 'SESSION_INSTALLED',
+        message: 'لا يمكن حذف نموذج مركَّب — يُنزَع تركيبه أولاً',
+      });
+    }
     return this.prisma.podiatrySession.delete({ where: { id: sessionId } });
   }
 }

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsObject, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsObject, IsIn, IsInt, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 // نمرة الضبان المسموحة: 28 إلى 52 بزيادة 2
@@ -88,6 +88,13 @@ export class CreateSessionDto {
 
   // نمرة الضبان — 28 إلى 52 بزيادة 2
   @IsOptional() @Type(() => Number) @IsIn(SHOE_SIZES) shoeSize?: number;
+
+  // عدد الضبانات في هذا النموذج. غير installCount، فذاك عدد مرات التركيب
+  // للمريض عبر استقبالاته كلها.
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) insolesCount?: number;
+
+  // حالة التركيب: تُترك فارغة حتى يُبَتّ فيها
+  @IsOptional() @IsIn(['NOT_INSTALLED', 'INSTALLED']) installStatus?: string;
 
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsString() clinicianName?: string;
