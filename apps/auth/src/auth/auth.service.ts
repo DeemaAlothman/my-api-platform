@@ -284,7 +284,13 @@ export class AuthService {
     });
 
     this.logger.log(`Logout: userId=${payload.sub} — tokens revoked`);
-    return { loggedOut: true };
+    // صاحب التوكن يُعاد ليُنسَب إليه سطر سجل التدقيق. مسارات المصادقة بلا حارس
+    // JwtAuthGuard بالضرورة، فلا هوية على الطلب يقرأها المعترض من تلقائه.
+    // يُنزَع في المتحكِّم قبل الرد، فشكل الاستجابة للواجهة يبقى كما هو.
+    return {
+      loggedOut: true,
+      actor: { userId: payload.sub as string, username: (payload.username as string) ?? null },
+    };
   }
 
   async isTokenRevoked(jti: string): Promise<boolean> {

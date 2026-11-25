@@ -1,6 +1,6 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { finalize, tap } from 'rxjs/operators';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
@@ -12,7 +12,19 @@ export class AuditInterceptor implements NestInterceptor {
 
     if (req.method === 'GET') return next.handle();
 
+    // تجديد التوكن عملية تقنية تلقائية بالخلفية، لا فعلٌ لإنسان. سجل التدقيق يجيب
+    // «من عمل ماذا»، والتجديد لا يضيف إليه إلا ضجيجاً يغرِق العمليات الحقيقية.
+    if (/\/auth\/refresh\/?$/.test(req.path ?? '')) return next.handle();
+
+    // نجاح العملية أو فشلها يُسجَّل صريحاً، لا يُستنتَج من غياب الهوية: محاولة دخول
+    // فاشلة وتسجيلُ دخولٍ لم تُحَل هويته إلى اسم يتشابهان بلا هذه العلامة.
+    let outcome: 'SUCCESS' | 'FAILED' | null = null;
+
     return next.handle().pipe(
+      tap({
+        next: () => { outcome = 'SUCCESS'; },
+        error: () => { outcome = 'FAILED'; },
+      }),
       finalize(() => {
         const user = req.user;
         const parts = req.path.replace('/api/v1/', '').split('/');
@@ -23,17 +35,19 @@ export class AuditInterceptor implements NestInterceptor {
         // التقاط تفاصيل العملية (جسم الطلب) منقّاة من الحقول الحساسة والكبيرة
         let metadata: string | null = null;
         try {
+          const clean: Record<string, any> = {};
           const body = req.body;
           if (body && typeof body === 'object' && !Array.isArray(body)) {
-            const clean: Record<string, any> = {};
             for (const [k, v] of Object.entries(body)) {
               if (/password|token|secret|otp|signature|base64/i.test(k)) continue;
               if (v === null || typeof v === 'number' || typeof v === 'boolean') clean[k] = v;
               else if (typeof v === 'string') clean[k] = v.length > 300 ? v.slice(0, 300) + '…' : v;
               else { try { const s = JSON.stringify(v); if (s.length <= 500) clean[k] = v; } catch { /* skip */ } }
             }
-            if (Object.keys(clean).length) metadata = JSON.stringify(clean);
           }
+          // يبقى null إن انقطع الطلب قبل أن ينجح أو يفشل، فلا نَنسب نتيجةً لم تحدث
+          if (outcome) clean.outcome = outcome;
+          if (Object.keys(clean).length) metadata = JSON.stringify(clean);
         } catch { /* ignore */ }
 
         this.prisma.$executeRaw`

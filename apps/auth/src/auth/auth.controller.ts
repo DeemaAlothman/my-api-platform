@@ -18,8 +18,12 @@ export class AuthController {
 
   @Throttle({ short: { limit: 5, ttl: 60000 } })
   @Post('login')
-  async login(@Body() dto: LoginDto) {
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
     const data = await this.auth.login(dto.username, dto.password);
+    // الهوية تُثبَت على الطلب بعد التحقق منها، فينسب معترضُ التدقيق السطرَ لصاحبه.
+    // الدخول الفاشل يرمي قبل هذا السطر فيبقى بلا هوية — وهذا هو الصحيح: اسمٌ
+    // لم يثبت أنه صاحب الحساب لا يُسجَّل كأنه فعل الدخول.
+    (req as any).user = { userId: data.user.id, username: data.user.username };
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };
   }
 
@@ -33,7 +37,10 @@ export class AuthController {
   @Post('logout')
   async logout(@Req() req: Request) {
     const authHeader = req.headers['authorization'] || '';
-    const data = await this.auth.logout(String(authHeader));
+    const { actor, ...data } = await this.auth.logout(String(authHeader));
+    // تُنزَع الهوية من الاستجابة وتُثبَت على الطلب: شكل الرد للواجهة كما كان،
+    // ومعترضُ التدقيق يجد صاحبَ العملية
+    if (actor) (req as any).user = actor;
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };
   }
 
