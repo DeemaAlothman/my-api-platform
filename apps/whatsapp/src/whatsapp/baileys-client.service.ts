@@ -96,6 +96,10 @@ export class BaileysClientService implements OnModuleInit {
     if (raw.startsWith('+')) return digits;
     if (digits.startsWith('00')) return digits.slice(2);
     if (digits.startsWith('0')) return `${DEFAULT_COUNTRY_CODE}${digits.slice(1)}`;
+    // رقمٌ محلّي كُتب بلا صفرِه: تسعةُ أرقامٍ تبدأ بتسعة. لا يُترك كما هو، لأن ما
+    // يبدأ به يُقرأ رمزَ دولةٍ أخرى — «91» للهند مثلاً — فيذهب النصُّ إلى رقمٍ
+    // غريبٍ أو يَسقط. والطولُ هو ما يميّزه عن رقمٍ دوليٍّ كامل يبدأ بتسعة (963…).
+    if (digits.length === 9 && digits.startsWith('9')) return `${DEFAULT_COUNTRY_CODE}${digits}`;
     return digits;
   }
 
