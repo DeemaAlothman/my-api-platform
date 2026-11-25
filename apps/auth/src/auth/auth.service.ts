@@ -248,7 +248,10 @@ export class AuthService {
   async logout(accessToken: string) {
     const token = (accessToken || '').replace('Bearer ', '').trim();
 
+    // رفضُ الخروج كان صامتاً: استجابةٌ 401 لا يسجِّلها شيء، فيستوي عندنا طلبٌ جاء
+    // بلا ترويسةٍ وتوكنٌ لم يُقبَل، وهما سببان مختلفان وإصلاحُهما في موضعين مختلفين.
     if (!token) {
+      this.logger.warn('Logout rejected: the request carried no Authorization header');
       throw new UnauthorizedException({
         code: 'AUTH_TOKEN_INVALID',
         message: 'Missing or invalid token',
@@ -259,7 +262,8 @@ export class AuthService {
     let payload: any;
     try {
       payload = jwt.verify(token, this.accessSecret);
-    } catch {
+    } catch (err: any) {
+      this.logger.warn(`Logout rejected: access token not verified (${err?.name ?? 'unknown'}: ${err?.message ?? ''})`);
       throw new UnauthorizedException({
         code: 'AUTH_TOKEN_INVALID',
         message: 'Missing or invalid token',
