@@ -39,18 +39,10 @@ export class SessionsController {
     return this.service.update(receptionId, sessionId, dto, user?.userId);
   }
 
-  @Permission(PERMISSIONS.CLINIC_PODIATRY.SESSION_CREATE)
-  @Post(':sessionId/install')
-  install(@Param('receptionId') receptionId: string, @Param('sessionId') sessionId: string, @User() user: any) {
-    return this.service.install(receptionId, sessionId, user.userId);
-  }
-
-  // تراجع عن "تم التركيب" — نفس صلاحية التركيب نفسها
-  @Permission(PERMISSIONS.CLINIC_PODIATRY.SESSION_CREATE)
-  @Delete(':sessionId/install')
-  uninstall(@Param('receptionId') receptionId: string, @Param('sessionId') sessionId: string) {
-    return this.service.uninstall(receptionId, sessionId);
-  }
+  // كان هنا مسارا تركيبٍ ونزعِ تركيب يكتبان installedAt/installedBy وحدَهما.
+  // حالةُ التركيب صارت هي ما يُعلَن ويُقاد به التاريخُ ومُنفِّذُه، فكانا يُخلِّفان
+  // نموذجاً مركَّباً بتاريخه غيرَ محدَّدٍ بحالته — وعليها تقوم المبيعاتُ والعرض.
+  // الواجهة انتقلت إلى PATCH { installStatus }، فأُزيلا لئلا يُكتَب ذلك التناقض.
 
   @Permission(PERMISSIONS.CLINIC_PODIATRY.SESSION_ARCHIVE)
   @Post(':sessionId/archive')

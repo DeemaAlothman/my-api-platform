@@ -133,27 +133,8 @@ export class SessionsService {
     );
   }
 
-  async install(receptionId: string, sessionId: string, userId: string) {
-    await this.findOne(receptionId, sessionId);
-    return this.prisma.podiatrySession.update({
-      where: { id: sessionId },
-      data: { installedAt: new Date(), installedBy: userId },
-    });
-  }
-
-  // تراجع عن "تم التركيب" — صفر حذف، بس تفريغ installedAt/installedBy حتى يرجع المريض
-  // يطلع بمتابعة التقييمات وإحصائيات المبيعات متل أي مريض ما ركّب بعد
-  async uninstall(receptionId: string, sessionId: string) {
-    const session = await this.findOne(receptionId, sessionId);
-    if (!session.installedAt) {
-      throw new BadRequestException({ code: 'NOT_INSTALLED', message: 'الجلسة أصلاً غير مركّبة' });
-    }
-    const updated = await this.prisma.podiatrySession.update({
-      where: { id: sessionId },
-      data: { installedAt: null, installedBy: null },
-    });
-    return { ...updated, installedByName: null };
-  }
+  // التركيبُ ونزعُه صارا حالةً تُحدَّث بـ update، فتقود الحالةُ تاريخَها ومُنفِّذَها
+  // معاً ويُسجَّل كلُّ تغيُّرٍ لها. ولم تبقَ لهما دالَّتان تكتبان التاريخَ وحدَه.
 
   async archive(receptionId: string, sessionId: string, userId: string) {
     await this.findOne(receptionId, sessionId);
