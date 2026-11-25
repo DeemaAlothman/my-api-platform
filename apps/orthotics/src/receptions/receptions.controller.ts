@@ -12,6 +12,7 @@ import { DoctorAssessmentDto } from './dto/doctor-assessment.dto';
 import { PhysioAssessmentDto } from './dto/physio-assessment.dto';
 import { ProsthetistOpinionDto } from './dto/prosthetist-opinion.dto';
 import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
+import { AddComponentDto } from './dto/add-component.dto';
 import { SuitabilityDto } from './dto/suitability.dto';
 import { OrthoticsFollowUpDto } from './dto/follow-up.dto';
 import { CreateMeasurementSheetDto } from './dto/create-measurement-sheet.dto';
@@ -133,6 +134,26 @@ export class ReceptionsController {
   @Patch(':id/prosthetist-opinion')
   upsertProsthetistOpinion(@Param('id') id: string, @Body() dto: ProsthetistOpinionDto, @User() user: any) {
     return this.service.upsertProsthetistOpinion(id, dto, user.userId);
+  }
+
+  // ── قطع العرض الفني ──────────────────────────────────────────────
+
+  @Post(':id/components')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.EDIT)
+  addComponent(@Param('id') id: string, @Body() dto: AddComponentDto, @User() user: any) {
+    return this.service.addComponent(id, dto, user.userId);
+  }
+
+  @Get(':id/components')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.VIEW)
+  getComponents(@Param('id') id: string) {
+    return this.service.getComponents(id);
+  }
+
+  @Delete(':id/components/:componentId')
+  @Permission(PERMISSIONS.CLINIC_ORTHOTICS.EDIT)
+  removeComponent(@Param('id') id: string, @Param('componentId') componentId: string) {
+    return this.service.removeComponent(id, componentId);
   }
 
   // ── Attachments ────────────────────────────────────────────────────

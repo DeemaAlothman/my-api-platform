@@ -7,9 +7,11 @@ import { PhysioAssessmentDto } from './dto/physio-assessment.dto';
 import { ProsthetistOpinionDto } from './dto/prosthetist-opinion.dto';
 import { AssignPractitionersDto } from './dto/assign-practitioners.dto';
 import { CreateMeasurementSheetDto } from './dto/create-measurement-sheet.dto';
+import { AddComponentDto } from './dto/add-component.dto';
 
 const PATIENTS_URL   = process.env.PATIENTS_SERVICE_URL   || 'http://patients:4010';
 const INTERNAL_TOKEN = process.env.INTERNAL_SERVICE_TOKEN || '';
+const WAREHOUSE_URL  = process.env.WAREHOUSE_SERVICE_URL  || 'http://warehouse:4018';
 
 // حالات الاستقبال بترتيبها — الحالة تتقدّم فقط ولا ترجع للخلف
 export const RECEPTION_STATUSES = ['IN_EXAMINATION', 'EXAMINED', 'MEASURED', 'DELIVERED'] as const;
@@ -499,6 +501,168 @@ export class ReceptionsService {
     });
     const patientMap = await this.resolvePatients(receptions.map((r) => r.patientId));
     return receptions.map((r) => ({ ...r, patient: patientMap[r.patientId] ?? null }));
+  }
+
+  // ── قطع العرض الفني ──────────────────────────────────────────────────
+  //
+  // القطع للاستقبال كلّه لا لكل مقوّم: الاستقبال الواحد قد يحمل مقوّمين أو أكثر
+  // (يمين/يسار وأنواعاً مختلفة) وتُشترى قطعُها معاً — كما في حالات الأطراف.
+
+  private async resolveDefaultWarehouseId(): Promise<string | undefined> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM warehouse.warehouses WHERE code = 'WH-MAIN' AND "isActive" = true LIMIT 1`,
+    ).catch(() => [] as Array<{ id: string }>);
+    return rows[0]?.id;
+  }
+
+  async addComponent(receptionId: string, dto: AddComponentDto, userId: string) {
+    await this.findReceptionOrThrow(receptionId);
+
+    let partCode = dto.partCode ?? null;
+    let partName = dto.partName ?? null;
+    let warehouseItem: { name: string | null; nameAr: string | null; partCode: string | null } | null = null;
+
+    if (dto.warehouseItemId) {
+      // الكود والاسم يُقرآن من الكتالوج لا مما أُرسل: الصنف الواحد يجب أن يحمل
+      // الاسم نفسه أينما ذُكر، وإلا تفرّق الاسم على القطعة الواحدة بين الأقسام.
+      const rows = await this.prisma.$queryRawUnsafe<Array<{
+        partCode: string | null; sku: string; name: string | null; nameAr: string | null;
+      }>>(
+        `SELECT "partCode", sku, name, "nameAr" FROM warehouse.items
+         WHERE id = $1 AND "isActive" = true AND "deletedAt" IS NULL LIMIT 1`,
+        dto.warehouseItemId,
+      ).catch(() => [] as any[]);
+      const item = rows[0];
+      if (!item) {
+        throw new BadRequestException({
+          code: 'WAREHOUSE_ITEM_NOT_FOUND',
+          message: 'صنف المستودع غير موجود',
+        });
+      }
+      partCode = item.partCode || item.sku;
+      partName = item.name || item.nameAr || dto.partName || partCode;
+      warehouseItem = { name: item.name, nameAr: item.nameAr, partCode };
+    }
+
+    if (!partCode || !partName) {
+      throw new BadRequestException({
+        code: 'PART_CODE_NAME_REQUIRED',
+        message: 'أدخل كود القطعة واسمها، أو اختر صنفاً من المستودع',
+      });
+    }
+
+    const component = await this.prisma.orthoticsComponent.create({
+      data: {
+        receptionId,
+        partCode,
+        partName,
+        supplier: dto.supplier,
+        sourceLocation: dto.sourceLocation,
+        warehouseItemId: dto.warehouseItemId ?? null,
+        addedBy: userId,
+      },
+    });
+
+    // طلب المواد اختياري وغير حاجب: القطعة تُحفظ وإن تعذّر فتحه، فلا يضيع عمل
+    // الفنّي لأن خدمة المستودع لم تستجب.
+    let materialRequest: { materialRequestId: string; status: string } | null = null;
+    if (dto.warehouseItemId) {
+      try {
+        const warehouseId = dto.warehouseId ?? await this.resolveDefaultWarehouseId();
+        const res = await fetch(
+          `${WAREHOUSE_URL}/api/v1/warehouse/material-requests/internal/from-part-code`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-token': INTERNAL_TOKEN },
+            body: JSON.stringify({
+              partCode,
+              quantity: 1,
+              warehouseId,
+              referenceType: 'ORTHOTICS_RECEPTION',
+              referenceId: receptionId,
+              requestedByUserId: userId,
+            }),
+          },
+        );
+        const json: any = await res.json().catch(() => null);
+        if (json?.data?.matched) {
+          await this.prisma.orthoticsComponent.update({
+            where: { id: component.id },
+            data: { materialRequestId: json.data.materialRequestId },
+          });
+          (component as any).materialRequestId = json.data.materialRequestId;
+          materialRequest = {
+            materialRequestId: json.data.materialRequestId,
+            status: json.data.status,
+          };
+        }
+      } catch { /* طلب المواد اختياري — فشله لا يكسر حفظ القطعة */ }
+    }
+
+    const names = await this.resolveActorNames([userId]);
+    return {
+      ...component,
+      warehouseItem,
+      materialRequest,
+      addedByName: names[userId] ?? null,
+    };
+  }
+
+  async getComponents(receptionId: string) {
+    await this.findReceptionOrThrow(receptionId);
+    const components = await this.prisma.orthoticsComponent.findMany({
+      where: { receptionId },
+      orderBy: { addedAt: 'desc' },
+    });
+    if (components.length === 0) return [];
+
+    const warehouseItemIds = [...new Set(
+      components.map((c) => c.warehouseItemId).filter(Boolean) as string[],
+    )];
+    const warehouseMap = new Map<string, { name: string | null; nameAr: string | null; partCode: string | null }>();
+    if (warehouseItemIds.length) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{
+        id: string; name: string | null; nameAr: string | null; partCode: string | null;
+      }>>(
+        `SELECT id, name, "nameAr", "partCode" FROM warehouse.items WHERE id = ANY($1::text[])`,
+        warehouseItemIds,
+      ).catch(() => [] as any[]);
+      for (const r of rows) warehouseMap.set(r.id, r);
+    }
+
+    // حالة طلب المواد تُقرأ لحظة العرض: الطلب يتقدّم في خدمة المستودع بعد فتحه،
+    // فنسخُ حالته عند الإنشاء كان سيُجمّدها على أول قيمة.
+    const requestIds = [...new Set(
+      components.map((c) => c.materialRequestId).filter(Boolean) as string[],
+    )];
+    const requestMap = new Map<string, string>();
+    if (requestIds.length) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; status: string | null }>>(
+        `SELECT id, status::text AS status FROM warehouse.material_requests WHERE id = ANY($1::text[])`,
+        requestIds,
+      ).catch(() => [] as any[]);
+      for (const r of rows) if (r.status) requestMap.set(r.id, r.status);
+    }
+
+    const names = await this.resolveActorNames(components.map((c) => c.addedBy));
+
+    return components.map((c) => ({
+      ...c,
+      warehouseItem: c.warehouseItemId ? (warehouseMap.get(c.warehouseItemId) ?? null) : null,
+      materialRequest: c.materialRequestId
+        ? { materialRequestId: c.materialRequestId, status: requestMap.get(c.materialRequestId) ?? null }
+        : null,
+      addedByName: names[c.addedBy] ?? null,
+    }));
+  }
+
+  async removeComponent(receptionId: string, componentId: string) {
+    await this.findReceptionOrThrow(receptionId);
+    const component = await this.prisma.orthoticsComponent.findFirst({
+      where: { id: componentId, receptionId },
+    });
+    if (!component) throw new NotFoundException('القطعة غير موجودة');
+    return this.prisma.orthoticsComponent.delete({ where: { id: componentId } });
   }
 
   // ── Attachments ──────────────────────────────────────────────────────

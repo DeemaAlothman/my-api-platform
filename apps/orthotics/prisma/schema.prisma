@@ -199,6 +199,7 @@ model OrthoticsReception {
   attachments       OrthoticsAttachment[]
   measurementSheets OrthoticsMeasurementSheet[]
   followUps         OrthoticsFollowUp[]
+  components        OrthoticsComponent[]
 
   @@index([patientId])
   @@index([status])
@@ -263,5 +264,35 @@ model OrthoticsMeasurementSheet {
 
   @@index([receptionId])
   @@map("orthotics_measurement_sheets")
+  @@schema("clinic_orthotics")
+}
+
+/// قطع العرض الفني لاستقبال المقومات — عامة للاستقبال كلّه لا لكل مقوّم،
+/// إذ قد يحمل الاستقبال الواحد أكثر من مقوّم (يمين/يسار وأنواعاً مختلفة)
+/// وتُشترى قطعُها معاً.
+model OrthoticsComponent {
+  id          String @id @default(uuid())
+  receptionId String
+  reception   OrthoticsReception @relation(fields: [receptionId], references: [id], onDelete: Cascade)
+
+  partCode       String
+  partName       String
+  supplier       String
+  // WAREHOUSE | EXTERNAL
+  sourceLocation String
+
+  // القطعة المختارة من كتالوج المستودع — تُعبّأ منها partCode وpartName
+  warehouseItemId   String?
+  // طلب المواد المفتوح عليها، إن تهيّأ. فشلُ فتحه لا يمنع حفظ القطعة.
+  materialRequestId String?
+
+  addedAt DateTime @default(now())
+  addedBy String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([receptionId])
+  @@map("orthotics_components")
   @@schema("clinic_orthotics")
 }
