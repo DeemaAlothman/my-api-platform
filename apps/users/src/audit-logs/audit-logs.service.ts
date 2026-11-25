@@ -98,7 +98,7 @@ export class AuditLogsService {
     // استعلام السجل نفسه توجب ضمَّ جدولَي المستخدمين والموظفين إلى مئة ألف سطر.
     // ويُطابَق عمودُ username في السجل أيضاً، ليظهر أثرُ مستخدمٍ حُذف حسابُه لاحقاً.
     if (query.userSearch && query.userSearch.trim()) {
-      const term = `%${query.userSearch.trim()}%`;
+      const term = `%${this.normalizeTerm(query.userSearch)}%`;
       const ids = await this.resolveUserIdsByName(term).catch(() => [] as string[]);
       const idParam = paramIdx++;
       const nameParam = paramIdx++;
@@ -116,7 +116,7 @@ export class AuditLogsService {
     // البحثُ في اسم المستهدَف: العمودُ المخزَّن للأسطر الجديدة، وللأسطر السابقة
     // يُحَلُّ النصُّ إلى معرِّفاتٍ من جداول الأسماء فتبقى قابلةً للبحث بلا ترحيل
     if (query.targetSearch && query.targetSearch.trim()) {
-      const term = `%${query.targetSearch.trim()}%`;
+      const term = `%${this.normalizeTerm(query.targetSearch)}%`;
       const ids = await this.resolveTargetIdsByName(term).catch(() => [] as string[]);
       const nameParam = paramIdx++;
       const idParam = paramIdx++;
@@ -212,8 +212,10 @@ export class AuditLogsService {
   // موارد مسطّحة المسار (resourceId = المعرّف الحقيقي للسجل) وطريقة جلب اسمها المقروء
   private readonly RESOLVABLE_RESOURCES: Record<string, { table: string; idCol: string; nameSql: string }> = {
     users:        { table: 'users.users',              idCol: 'id', nameSql: `COALESCE(NULLIF(TRIM("fullName"), ''), username)` },
-    employees:    { table: 'users.employees',           idCol: 'id', nameSql: `TRIM("firstNameAr" || ' ' || "lastNameAr")` },
-    patients:     { table: 'clinic_patients.patients',  idCol: 'id', nameSql: `TRIM(COALESCE("firstName",'') || ' ' || COALESCE("lastName",''))` },
+    // تُوحَّد المسافاتُ الداخلية، وإلا لم يجد الباحثُ باسمٍ مكتوبٍ على وجهه اسماً
+    // حُفظ أحدُ حقليه بمسافةٍ زائدة. وCOALESCE لازمٌ هنا: الضمُّ بحقلٍ فارغٍ يُنتِج فراغاً.
+    employees:    { table: 'users.employees',           idCol: 'id', nameSql: `TRIM(REGEXP_REPLACE(COALESCE("firstNameAr",'') || ' ' || COALESCE("lastNameAr",''), '\\s+', ' ', 'g'))` },
+    patients:     { table: 'clinic_patients.patients',  idCol: 'id', nameSql: `TRIM(REGEXP_REPLACE(COALESCE("firstName",'') || ' ' || COALESCE("lastName",''), '\\s+', ' ', 'g'))` },
     appointments: { table: 'clinic_appointments.appointments', idCol: 'id', nameSql: `"patientName"` },
     departments:  { table: 'users.departments',         idCol: 'id', nameSql: `"nameAr"` },
     roles:        { table: 'users.roles',               idCol: 'id', nameSql: `COALESCE("displayNameAr", name)` },
@@ -262,6 +264,12 @@ export class AuditLogsService {
     return null;
   }
 
+  // المسافاتُ الداخلية تُوحَّد كما تُوحَّد في الأسماء المُطابَقة، وإلا بَحَث الباحثُ
+  // باسمٍ مكتوبٍ على وجهه فلم يجد اسماً حُفظ أحدُ حقليه بمسافةٍ زائدة
+  private normalizeTerm(raw: string): string {
+    return raw.trim().replace(/\s+/g, ' ');
+  }
+
   // معرِّفاتُ المستخدمين المطابقون نصَّ البحث: username أو الاسم الكامل أو الاسم العربي
   private async resolveUserIdsByName(term: string): Promise<string[]> {
     const rows = await this.prisma.$queryRawUnsafe(
@@ -270,7 +278,7 @@ export class AuditLogsService {
        LEFT JOIN users.employees e ON e."userId" = u.id AND e."deletedAt" IS NULL
        WHERE u.username ILIKE $1
           OR COALESCE(u."fullName", '') ILIKE $1
-          OR TRIM(COALESCE(e."firstNameAr",'') || ' ' || COALESCE(e."lastNameAr",'')) ILIKE $1
+          OR TRIM(REGEXP_REPLACE(COALESCE(e."firstNameAr",'') || ' ' || COALESCE(e."lastNameAr",''), '\\s+', ' ', 'g')) ILIKE $1
        LIMIT 500`,
       term,
     ) as Array<{ id: string }>;

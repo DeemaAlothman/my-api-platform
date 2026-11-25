@@ -11,7 +11,9 @@ export class AuditInterceptor implements NestInterceptor {
   // هو معرِّف السجل نفسه لا قطعةٌ ثابتة منه
   private readonly TARGETS: Record<string, { table: string; nameSql: string }> = {
     users:       { table: 'users.users',       nameSql: `COALESCE(NULLIF(TRIM("fullName"), ''), username)` },
-    employees:   { table: 'users.employees',   nameSql: `TRIM(COALESCE("firstNameAr",'') || ' ' || COALESCE("lastNameAr",''))` },
+    // تُوحَّد المسافاتُ الداخلية لا الأطرافُ وحدَها: حقلٌ حُفظ بمسافةٍ زائدة يُنتِج
+    // اسماً بمسافتين، فلا يجده من بحث باسمٍ مكتوبٍ على وجهه
+    employees:   { table: 'users.employees',   nameSql: `TRIM(REGEXP_REPLACE(COALESCE("firstNameAr",'') || ' ' || COALESCE("lastNameAr",''), '\\s+', ' ', 'g'))` },
     departments: { table: 'users.departments', nameSql: `"nameAr"` },
     roles:       { table: 'users.roles',       nameSql: `COALESCE("displayNameAr", name)` },
   };
