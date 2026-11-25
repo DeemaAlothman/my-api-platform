@@ -28,10 +28,10 @@ export class AuditInterceptor implements NestInterceptor {
     // قطعةٌ ثابتة من المسار («assign» مثلاً) ليست معرِّفاً، فلا تُستعلَم
     if (!/^[0-9a-fA-F-]{8,}$/.test(resourceId)) return null;
     try {
-      const rows = await this.prisma.$queryRawUnsafe<Array<{ name: string | null }>>(
+      const rows = (await this.prisma.$queryRawUnsafe(
         `SELECT ${cfg.nameSql} AS name FROM ${cfg.table} WHERE id::text = $1 LIMIT 1`,
         resourceId,
-      );
+      )) as Array<{ name: string | null }>;
       const name = rows[0]?.name?.trim();
       return name ? name : null;
     } catch {

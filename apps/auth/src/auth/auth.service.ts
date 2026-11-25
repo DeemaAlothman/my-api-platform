@@ -310,10 +310,12 @@ export class AuthService {
   async isTokenRevoked(jti: string): Promise<boolean> {
     if (!jti) return false;
     // الجدولُ نفسه الذي يُكتَب فيه وتقرؤه المكتبة المشتركة، لا جدولُ سكيما الرابط
-    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+    // النوعُ يُحوَّل بعد النداء لا يُمرَّر إليه: عميلُ Prisma لا يُولَّد في بناء هذه
+    // الخدمة، فنداؤه بلا أنواعٍ لا يقبل وسيطَ نوع
+    const rows = (await this.prisma.$queryRawUnsafe(
       `SELECT id FROM auth.revoked_tokens WHERE jti = $1 LIMIT 1`,
       jti,
-    );
+    )) as Array<{ id: string }>;
     return rows.length > 0;
   }
 
