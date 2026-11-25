@@ -117,17 +117,45 @@ export class AppointmentsService implements OnModuleInit {
     ).catch(() => {});
   }
 
+  // يومُ الموعد كما يُكتَب في الرابط: بتوقيت العمل (+3 ثابتة، وهي عينُ توقيت دمشق
+  // بعد أن أُلغي فيه التوقيت الصيفي). يُبنى من أجزاء التاريخ لا من صيغةٍ محلّية،
+  // فلا يقلبه اختلافُ ترتيبِ اليوم والشهر.
+  private businessDayKey(d: Date): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(d);
+    const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  }
+
+  // الإشعارُ يُفتَح على صفحةِ قارئِه: صاحبُ الموعد في «مواعيدي» والمشرفُ في مواعيد
+  // المركز. ورابطٌ واحدٌ للاثنين كان يقصد صفحةً لا وجودَ لها، فيقع القارئُ على 404.
+  private appointmentLink(appt: { id: string; startTime: Date }, forSupervisor: boolean): string {
+    const page = forSupervisor ? '/clinic/appointments' : '/clinic/my-appointments';
+    return `${page}?date=${this.businessDayKey(appt.startTime)}&appointmentId=${appt.id}`;
+  }
+
   // لا نبلّغ الشخص نفسه بإجراء هو من نفّذه (حجز/إلغاء/تعديل الحالة)
-  private async notifyPractitioner(appt: { id: string; practitionerId: string; physiotherapistId?: string | null; therapistIds?: string[]; patientId: string; startTime: Date }, titleAr: string, messageAr: string, excludeUserId?: string) {
+  private async notifyPractitioner(
+    appt: { id: string; practitionerId: string; physiotherapistId?: string | null; therapistIds?: string[]; patientId: string; startTime: Date },
+    titleAr: string,
+    messageAr: string,
+    excludeUserId?: string,
+    dataType?: string,
+    skipUserIds?: Set<string>,
+  ) {
     const targets = new Set<string>([appt.practitionerId]);
     if (appt.physiotherapistId) targets.add(appt.physiotherapistId);
     for (const tid of appt.therapistIds ?? []) targets.add(tid);
     if (excludeUserId) targets.delete(excludeUserId);
+    // من يُبلَّغ بصفةٍ أخرى لا يُبلَّغ هنا مرةً ثانية برابطٍ آخر
+    for (const skip of skipUserIds ?? []) targets.delete(skip);
     // الرابط يجعل الإشعار يفتح موعده عند الضغط، كبقية إشعارات النظام
     const payload = {
+      ...(dataType ? { type: dataType } : {}),
       appointmentId: appt.id,
       patientId: appt.patientId,
-      link: `/appointments/${appt.id}`,
+      link: this.appointmentLink(appt, false),
     };
     for (const userId of targets) {
       await this.insertNotif(userId, payload, titleAr, messageAr);
@@ -263,19 +291,43 @@ export class AppointmentsService implements OnModuleInit {
   }
 
   private async notifySupervisors(
-    appt: { id: string; patientId: string },
+    appt: { id: string; patientId: string; startTime: Date },
     msg: string,
     titleAr = 'إلغاء موعد',
+    dataType?: string,
+    excludeUserId?: string,
   ) {
     const supervisorIds = await this.getUserIdsByJobTitle('VTX-JTL-000011');
     for (const userId of supervisorIds) {
+      if (userId === excludeUserId) continue;
       await this.insertNotif(
         userId,
-        { appointmentId: appt.id, link: `/appointments/${appt.id}` },
+        {
+          ...(dataType ? { type: dataType } : {}),
+          appointmentId: appt.id,
+          patientId: appt.patientId,
+          link: this.appointmentLink(appt, true),
+        },
         titleAr,
         msg,
       );
     }
+  }
+
+  // الإلغاءُ والاعتذارُ يُبلَّغ بهما أصحابُ الموعد ومشرفو المركز، ولكلٍّ صفحتُه.
+  // ومن كان صاحبَ الموعد ومشرفاً في آنٍ يأخذ إشعارَ المشرف وحدَه: إشعاران
+  // برابطين عن حادثةٍ واحدة بلاغٌ مكرَّر لا بلاغان.
+  private async notifyAppointmentEnded(
+    appt: { id: string; practitionerId: string; physiotherapistId?: string | null; therapistIds?: string[]; patientId: string; startTime: Date },
+    titleAr: string,
+    practitionerMsg: string,
+    supervisorMsg: string,
+    dataType: string,
+    performedBy?: string,
+  ) {
+    const supervisorIds = new Set(await this.getUserIdsByJobTitle('VTX-JTL-000011'));
+    await this.notifyPractitioner(appt, titleAr, practitionerMsg, performedBy, dataType, supervisorIds);
+    await this.notifySupervisors(appt, supervisorMsg, titleAr, dataType, performedBy);
   }
 
   // وصفُ الموعد كما يُقرأ في إشعار: اسم المريض ويومه وساعته بتوقيت العمل
@@ -289,7 +341,7 @@ export class AppointmentsService implements OnModuleInit {
   }
 
   // الموعد أنشأه معالج مش مشرف مركز — تنبيه كل مشرفي المركز (بما فيهم أي بديل بتفويض نشط)
-  private async notifySupervisorsOfTherapistBooking(appointmentId: string, creatorUserId: string) {
+  private async notifySupervisorsOfTherapistBooking(appointmentId: string, creatorUserId: string, startTime: Date) {
     try {
       const supervisorIds = await this.getUserIdsByJobTitle('VTX-JTL-000011');
       if (supervisorIds.length === 0) return;
@@ -301,7 +353,11 @@ export class AppointmentsService implements OnModuleInit {
       for (const supervisorUserId of supervisorIds) {
         await this.insertNotif(
           supervisorUserId,
-          { type: 'APPOINTMENT_CREATED_BY_THERAPIST', appointmentId, link: `/appointments/${appointmentId}` },
+          {
+            type: 'APPOINTMENT_CREATED_BY_THERAPIST',
+            appointmentId,
+            link: this.appointmentLink({ id: appointmentId, startTime }, true),
+          },
           'موعد جديد من معالج',
           `قام ${therapistName} بإنشاء موعد جديد — يرجى المراجعة`,
         );
@@ -587,7 +643,7 @@ export class AppointmentsService implements OnModuleInit {
 
     // المنشئ مش مشرف مركز → تنبيه كل مشرفي المركز (بما فيهم أي بديل بتفويض نشط) للمراجعة
     if (!createdBySupervisor) {
-      await this.notifySupervisorsOfTherapistBooking(appt.id, userId);
+      await this.notifySupervisorsOfTherapistBooking(appt.id, userId, appt.startTime);
     }
 
     return appt;
@@ -1005,8 +1061,7 @@ export class AppointmentsService implements OnModuleInit {
     const msg = reason ? `تم إلغاء موعدك. السبب: ${reason}` : 'تم إلغاء موعدك';
     const supervisorMsg = reason ? `تم إلغاء موعد للمريض. السبب: ${reason}` : 'تم إلغاء موعد للمريض';
     await Promise.all([
-      this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg, performedBy),
-      this.notifySupervisors(appt, supervisorMsg),
+      this.notifyAppointmentEnded(appt as any, 'تم إلغاء الموعد', msg, supervisorMsg, 'APPOINTMENT_CANCELLED', performedBy),
       this.unlinkWaitingListEntryOnCancel(id),
     ]);
     return updated;
@@ -1071,8 +1126,7 @@ export class AppointmentsService implements OnModuleInit {
       const msg = dto.cancelledReason ? `تم إلغاء موعدك. السبب: ${dto.cancelledReason}` : 'تم إلغاء موعدك';
       const supervisorMsg = dto.cancelledReason ? `تم إلغاء موعد للمريض. السبب: ${dto.cancelledReason}` : 'تم إلغاء موعد للمريض';
       await Promise.all([
-        this.notifyPractitioner(appt as any, 'تم إلغاء الموعد', msg, performedBy),
-        this.notifySupervisors(appt, supervisorMsg),
+        this.notifyAppointmentEnded(appt as any, 'تم إلغاء الموعد', msg, supervisorMsg, 'APPOINTMENT_CANCELLED', performedBy),
         this.unlinkWaitingListEntryOnCancel(id),
       ]);
     }
@@ -1084,10 +1138,9 @@ export class AppointmentsService implements OnModuleInit {
       const { name, date, time } = this.describeAppointment(appt as any);
       const reasonSuffix = dto.cancelledReason ? ` السبب: ${dto.cancelledReason}` : '';
       const msg = `اعتذر ${name} عن موعده يوم ${date} الساعة ${time}.${reasonSuffix}`;
-      await Promise.all([
-        this.notifyPractitioner(appt as any, 'اعتذار عن موعد', msg, performedBy),
-        this.notifySupervisors(appt, msg, 'اعتذار عن موعد'),
-      ]);
+      await this.notifyAppointmentEnded(
+        appt as any, 'اعتذار عن موعد', msg, msg, 'APPOINTMENT_APOLOGIZED', performedBy,
+      );
     }
 
     if (dto.status === 'CONFIRMED' && (appt as any).caseType === 'PROSTHETICS' && (appt as any).caseId) {
