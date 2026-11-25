@@ -6,9 +6,25 @@ export interface AuditLogsQuery {
   to?: string;
   resource?: string;
   method?: string;
+  userId?: string;
+  userSearch?: string;
+  patientId?: string;
+  targetSearch?: string;
+  actionType?: string;
+  status?: string;
   page?: number;
   limit?: number;
 }
+
+// نوعُ العملية كما تقرؤه الواجهة، مستخلصاً من method والمسار. تسجيلُ الدخول POST
+// أيضاً، فلو تُرجِم POST إلى «إنشاء» حرفياً لأغرَق فلترُ الإنشاءِ بآلاف أسطر الدخول.
+const ACTION_TYPE_SQL: Record<string, string> = {
+  LOGIN:  `path ILIKE '%/auth/login%'`,
+  LOGOUT: `path ILIKE '%/auth/logout%'`,
+  CREATE: `UPPER(method) = 'POST' AND (path IS NULL OR (path NOT ILIKE '%/auth/login%' AND path NOT ILIKE '%/auth/logout%'))`,
+  UPDATE: `UPPER(method) IN ('PATCH', 'PUT')`,
+  DELETE: `UPPER(method) = 'DELETE'`,
+};
 
 @Injectable()
 export class AuditLogsService {
@@ -35,11 +51,17 @@ export class AuditLogsService {
     }
 
     const conditions: string[] = [];
-    const params: (string | number)[] = [];
+    // مصفوفاتُ المعرِّفات تُمرَّر كوسيطٍ واحد لـ ANY($n) بدل تفريغها في placeholders
+    const params: any[] = [];
     let paramIdx = 1;
 
     // إخفاء الاستدعاءات الداخلية بين الخدمات (مسارات /internal) — ضجيج تقني وليست عمليات بشر
     conditions.push(`(path IS NULL OR path NOT ILIKE '%/internal%')`);
+
+    // تجديدُ التوكن مثلُها: عمليةٌ تلقائية في الخلفية لا فعلٌ لإنسان، وهي وحدها
+    // أكثرُ من سبعين بالمئة من أسطر المصادقة. كُفَّ عن تسجيلها في خدمة المصادقة،
+    // والأسطرُ السابقة تبقى محفوظةً في الجدول ولا تُحذَف، لكنها لا تُعرَض.
+    conditions.push(`(path IS NULL OR path NOT ILIKE '%/auth/refresh%')`);
 
     if (allowedUserIds !== null) {
       if (allowedUserIds.length === 0) {
@@ -67,11 +89,58 @@ export class AuditLogsService {
       params.push(query.method.toUpperCase());
     }
 
+    if (query.userId) {
+      conditions.push(`"userId" = $${paramIdx++}`);
+      params.push(query.userId);
+    }
+
+    // البحث بالاسم يُحَلُّ أولاً إلى معرِّفات، ثم يُطابَق عليها: مطابقةُ الاسم داخل
+    // استعلام السجل نفسه توجب ضمَّ جدولَي المستخدمين والموظفين إلى مئة ألف سطر.
+    // ويُطابَق عمودُ username في السجل أيضاً، ليظهر أثرُ مستخدمٍ حُذف حسابُه لاحقاً.
+    if (query.userSearch && query.userSearch.trim()) {
+      const term = `%${query.userSearch.trim()}%`;
+      const ids = await this.resolveUserIdsByName(term).catch(() => [] as string[]);
+      const idParam = paramIdx++;
+      const nameParam = paramIdx++;
+      conditions.push(`("userId" = ANY($${idParam}::text[]) OR username ILIKE $${nameParam})`);
+      params.push(ids as any, term);
+    }
+
+    // المريضُ قد يكون معرِّفُه هو السجلَّ المستهدَف نفسه، أو مذكوراً في تفاصيل العملية
+    if (query.patientId) {
+      const p = paramIdx++;
+      conditions.push(`("resourceId" = $${p} OR (metadata->>'patientId') = $${p})`);
+      params.push(query.patientId);
+    }
+
+    // البحثُ في اسم المستهدَف: العمودُ المخزَّن للأسطر الجديدة، وللأسطر السابقة
+    // يُحَلُّ النصُّ إلى معرِّفاتٍ من جداول الأسماء فتبقى قابلةً للبحث بلا ترحيل
+    if (query.targetSearch && query.targetSearch.trim()) {
+      const term = `%${query.targetSearch.trim()}%`;
+      const ids = await this.resolveTargetIdsByName(term).catch(() => [] as string[]);
+      const nameParam = paramIdx++;
+      const idParam = paramIdx++;
+      conditions.push(`("targetName" ILIKE $${nameParam} OR "resourceId" = ANY($${idParam}::text[]))`);
+      params.push(term, ids as any);
+    }
+
+    if (query.actionType) {
+      const clause = ACTION_TYPE_SQL[query.actionType.toUpperCase()];
+      // نوعٌ غير معروف لا يُتجاهَل بصمت فيُرجِع كلَّ السجل كأن لا فلتر
+      if (!clause) return { data: [], total: 0, page, limit };
+      conditions.push(`(${clause})`);
+    }
+
+    if (query.status) {
+      conditions.push(`(metadata->>'status') = $${paramIdx++}`);
+      params.push(query.status);
+    }
+
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countSql = `SELECT COUNT(*)::text AS total FROM public.audit_logs ${where}`;
     const dataSql = `
-      SELECT id::text, "userId", username, action, resource, "resourceId", method, path, ip, metadata, "createdAt"
+      SELECT id::text, "userId", username, action, resource, "resourceId", method, path, ip, metadata, "targetName", "createdAt"
       FROM public.audit_logs ${where}
       ORDER BY "createdAt" DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -90,6 +159,7 @@ export class AuditLogsService {
         path: string;
         ip: string | null;
         metadata: any;
+        targetName: string | null;
         createdAt: Date;
       }>>,
     ]);
@@ -120,7 +190,13 @@ export class AuditLogsService {
         return {
           ...r,
           fullNameAr: nameMap[r.userId ?? ''] ?? r.username ?? null,
-          targetName: (r.resourceId && targetNameMap[`${r.resource}:${r.resourceId}`]) || null,
+          // المحفوظُ لحظةَ العملية أصدقُ من المحسوب لحظةَ العرض: يحمل الاسمَ كما كان
+          // وقتَها، ويبقى لسجلٍّ حُذف. والحسابُ يظلُّ احتياطاً للأسطر السابقة.
+          targetName:
+            r.targetName?.trim() ||
+            (r.resourceId && targetNameMap[`${r.resource}:${r.resourceId}`]) ||
+            null,
+          actionType: this.actionTypeOf(r),
           actingAsDelegateFor,
           description: this.buildDescription(r, nameMap[r.userId ?? ''], targetNameMap)
             + this.detailsSuffix(r.metadata, leaveTypeMap)
@@ -174,12 +250,88 @@ export class AuditLogsService {
     return map;
   }
 
+  // نوعُ العملية لكل سطر، بنفس منطق الفلتر حتى لا يُعرَض سطرٌ بنوعٍ لا يُرجِعه فلترُه
+  private actionTypeOf(row: { method: string | null; path: string | null }): string | null {
+    const path = row.path ?? '';
+    const method = (row.method ?? '').toUpperCase();
+    if (/\/auth\/login/i.test(path)) return 'LOGIN';
+    if (/\/auth\/logout/i.test(path)) return 'LOGOUT';
+    if (method === 'POST') return 'CREATE';
+    if (method === 'PATCH' || method === 'PUT') return 'UPDATE';
+    if (method === 'DELETE') return 'DELETE';
+    return null;
+  }
+
+  // معرِّفاتُ المستخدمين المطابقون نصَّ البحث: username أو الاسم الكامل أو الاسم العربي
+  private async resolveUserIdsByName(term: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRawUnsafe(
+      `SELECT DISTINCT u.id::text AS id
+       FROM users.users u
+       LEFT JOIN users.employees e ON e."userId" = u.id AND e."deletedAt" IS NULL
+       WHERE u.username ILIKE $1
+          OR COALESCE(u."fullName", '') ILIKE $1
+          OR TRIM(COALESCE(e."firstNameAr",'') || ' ' || COALESCE(e."lastNameAr",'')) ILIKE $1
+       LIMIT 500`,
+      term,
+    ) as Array<{ id: string }>;
+    return rows.map((r) => r.id);
+  }
+
+  // معرِّفاتُ السجلات المستهدَفة المطابقة نصَّ البحث، من كل جدولٍ اسمُه قابلٌ للحل.
+  // بهذا يعمل targetSearch على السجلات السابقة أيضاً، وهي التي يَخلو فيها العمود،
+  // بلا ترحيلٍ لمئة ألف سطر. السقفُ يمنع قائمةَ معرِّفاتٍ لا تنتهي على بحثٍ عام.
+  private async resolveTargetIdsByName(term: string): Promise<string[]> {
+    const results = await Promise.all(
+      Object.values(this.RESOLVABLE_RESOURCES).map(async (cfg) => {
+        try {
+          const rows = await this.prisma.$queryRawUnsafe(
+            `SELECT "${cfg.idCol}"::text AS id FROM ${cfg.table}
+             WHERE ${cfg.nameSql} ILIKE $1 LIMIT 500`,
+            term,
+          ) as Array<{ id: string }>;
+          return rows.map((r) => r.id);
+        } catch {
+          return [] as string[];
+        }
+      }),
+    );
+    return [...new Set(results.flat())];
+  }
+
+  // الحالاتُ الموجودة فعلاً في تفاصيل العمليات — لتعبئة فلتر «الحالة» بالواجهة،
+  // مثل /audit-logs/resources. مقيَّدةٌ بمورد حين يُمرَّر، فلا تُخلَط حالاتُ المواعيد بغيرها.
+  async getStatuses(resource?: string): Promise<Array<{ status: string; count: number }>> {
+    // الشرطُ هو عينُ شرط الفهرس الجزئي حرفاً بحرف، وإلا لم يُثبِت المحرِّكُ تكافؤَهما
+    // ولم يستعمل الفهرسَ أصلاً
+    const conditions = [
+      `(metadata->>'status') IS NOT NULL`,
+      `(path IS NULL OR path NOT ILIKE '%/internal%')`,
+      `(path IS NULL OR path NOT ILIKE '%/auth/refresh%')`,
+    ];
+    const params: string[] = [];
+    if (resource) {
+      conditions.push(`resource = $1`);
+      params.push(resource);
+    }
+    const rows = await this.prisma.$queryRawUnsafe(
+      `SELECT metadata->>'status' AS status, COUNT(*)::int AS count
+       FROM public.audit_logs
+       WHERE ${conditions.join(' AND ')}
+       GROUP BY 1
+       ORDER BY count DESC, status ASC`,
+      ...params,
+    ) as Array<{ status: string; count: number }>;
+    return rows;
+  }
+
   // قائمة كل أنواع الموارد الموجودة فعلياً بالسجل — لتعبئة فلتر "المورد" بالواجهة بدل قائمة ثابتة ناقصة
   async getDistinctResources(): Promise<Array<{ value: string; count: number }>> {
     const rows = await this.prisma.$queryRawUnsafe(
       `SELECT resource AS value, COUNT(*)::int AS count
        FROM public.audit_logs
-       WHERE resource IS NOT NULL AND (path IS NULL OR path NOT ILIKE '%/internal%')
+       WHERE resource IS NOT NULL
+         AND (path IS NULL OR path NOT ILIKE '%/internal%')
+         AND (path IS NULL OR path NOT ILIKE '%/auth/refresh%')
        GROUP BY resource
        ORDER BY resource ASC`,
     ) as Array<{ value: string; count: number }>;
@@ -308,8 +460,11 @@ export class AuditLogsService {
     if (path.includes('/auth/logout'))         return `${prefix} قام بتسجيل الخروج من النظام`;
     if (path.includes('/auth/refresh'))        return `${prefix} قام بتجديد جلسة الدخول`;
 
-    // اسم مقروء للسجل المستهدف (مين تم حذفه/تعديله بالضبط) إن كان متاحاً، وإلا نعرض جزء من المعرّف كاحتياط
-    const resolvedTargetName = row.resourceId && row.resource ? targetNameMap[`${row.resource}:${row.resourceId}`] : null;
+    // اسم مقروء للسجل المستهدف (مين تم حذفه/تعديله بالضبط) إن كان متاحاً، وإلا نعرض جزء من المعرّف كاحتياط.
+    // المحفوظ لحظة العملية أولاً، ثم المحسوب لحظة العرض للأسطر التي سبقت العمود.
+    const resolvedTargetName =
+      (row as any).targetName?.trim() ||
+      (row.resourceId && row.resource ? targetNameMap[`${row.resource}:${row.resourceId}`] : null);
     const rid = resolvedTargetName
       ? ` (${resolvedTargetName})`
       : row.resourceId ? ` (${row.resourceId.substring(0, 8)}...)` : '';
