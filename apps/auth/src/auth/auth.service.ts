@@ -268,13 +268,27 @@ export class AuthService {
     }
 
     // 1) أضف الـ access token للـ blacklist عبر الـ jti
+    //
+    // يُكتَب بجدول سكيما auth صراحةً، لأنه الجدول الذي يقرؤه حارسُ التوكن في
+    // المكتبة المشتركة عند كل طلب في كل الخدمات. ورابطُ هذه الخدمة يشير إلى سكيما
+    // users، فنموذجُ Prisma كان يكتب في جدولٍ آخرَ بالاسم نفسه لا يقرؤه أحد — ومن
+    // ثَمَّ لم يُلغَ توكنٌ واحد منذ أن تغيَّر الرابط. ولا يملك هذا الجدولُ العمودَ
+    // createdAt أصلاً، فكانت الكتابةُ ترمي قبل أن تصل.
     if (payload.jti) {
-      const expiresAt = new Date(payload.exp * 1000);
-      await this.prisma.revokedToken.upsert({
-        where: { jti: payload.jti },
-        update: {},
-        create: { jti: payload.jti, expiresAt },
-      });
+      // توكنٌ بلا exp يُنتِج تاريخاً غير صالح ترمي صياغتُه، فيسقط الخروجُ كلُّه.
+      // وعمرُ التوكن المعتاد هو الحدُّ الأعلى لصلاحيته، فهو البديلُ الأمين.
+      const expSeconds = Number(payload.exp);
+      const expiresAt = Number.isFinite(expSeconds)
+        ? new Date(expSeconds * 1000)
+        : new Date(Date.now() + this.accessTtlSeconds * 1000);
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO auth.revoked_tokens (id, jti, "expiresAt", "createdAt")
+         VALUES ($1, $2, $3::timestamp, NOW())
+         ON CONFLICT DO NOTHING`,
+        crypto.randomUUID(),
+        payload.jti,
+        expiresAt.toISOString(),
+      );
     }
 
     // 2) أبطل كل refresh tokens للمستخدم
@@ -295,8 +309,12 @@ export class AuthService {
 
   async isTokenRevoked(jti: string): Promise<boolean> {
     if (!jti) return false;
-    const revoked = await this.prisma.revokedToken.findUnique({ where: { jti } });
-    return !!revoked;
+    // الجدولُ نفسه الذي يُكتَب فيه وتقرؤه المكتبة المشتركة، لا جدولُ سكيما الرابط
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM auth.revoked_tokens WHERE jti = $1 LIMIT 1`,
+      jti,
+    );
+    return rows.length > 0;
   }
 
   // B.5.4: Send welcome message via internal mail endpoint
