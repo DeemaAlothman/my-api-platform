@@ -207,7 +207,16 @@ export class CasesService {
     if (status) where.status = status;
     // افتراضياً يُظهر حالات العلاج الفيزيائي فقط — المعاينات تحتاج caseType=DOCTOR_EXAM صريح
     where.caseType = caseType ?? 'PHYSIO';
-    if (physiotherapistId) where.physiotherapistId = physiotherapistId;
+    // المعالجُ قد يكون الأساسيَّ وقد يكون واحداً من المُضافين بعده، فيُطابَق الاثنان.
+    // طلبُ حالاتِ معالجٍ بعينه يُرجِع ما هو مسؤولٌ عنه، لا ما كان أوَّلَ من عُيِّن فيه
+    // وحدَه — وإلا بقي من أُضيف لاحقاً يأخذ إشعاراً بحالةٍ لا يجدها في قائمته.
+    // إضافةٌ محضة إلى نتيجة الفلتر: ما كان يظهر قبلُ يظهر كما هو.
+    if (physiotherapistId) {
+      where.OR = [
+        { physiotherapistId },
+        { physiotherapistIds: { has: physiotherapistId } },
+      ];
+    }
     if (awaitingAssignment !== undefined) where.awaitingAssignment = awaitingAssignment;
 
     const [items, total] = await Promise.all([
