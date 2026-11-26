@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsBoolean, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsBoolean, IsIn, Matches } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 export const CASH_TRANSACTION_STATUSES = [
@@ -64,6 +64,15 @@ export class ListTransactionsQueryDto {
   // حالةٌ غير معروفة تُرفَض ولا تُهمَل: فلترةٌ مُهمَلةٌ بصمتٍ تُرجِع كلَّ شيء
   // فيَحسَبها القارئُ نتيجةً صحيحة
   @IsOptional() @IsIn(CASH_TRANSACTION_STATUSES as unknown as string[]) status?: string;
+
+  // يومٌ بصيغة YYYY-MM-DD، والطرفان داخلان. والصيغةُ تُفحَص هنا لا تُمرَّر كما جاءت:
+  // نصٌّ ليس تاريخاً يصنع مدىً غيرَ صالحٍ يَرفضه المحرِّكُ برسالةٍ لا تَدلُّ على سببه.
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateFrom لازم تكون بصيغة YYYY-MM-DD' })
+  dateFrom?: string;
+
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateTo لازم تكون بصيغة YYYY-MM-DD' })
+  dateTo?: string;
+
   @IsOptional() @Type(() => Number) page?: number;
   @IsOptional() @Type(() => Number) limit?: number;
 }

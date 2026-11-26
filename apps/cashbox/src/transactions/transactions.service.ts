@@ -517,6 +517,46 @@ export class TransactionsService {
     }));
   }
 
+  // الحاويةُ تعمل بالتوقيت العالمي والعملُ على ساعةٍ تَسبقه بثلاث، فيومٌ يُطلَب
+  // بغير تثبيتٍ على توقيت العمل يُسقِط ثلاثاً من ساعاته الأولى ويَضُمُّ ثلاثاً من
+  // اليوم الذي قبله — فحركةٌ سُجِّلت 00:30 تُحسَب على اليوم السابق.
+  //
+  // والطرفان داخلان: dateTo يمتدُّ إلى آخر لحظةٍ في يومه، وإلا سقط ذلك اليومُ كلُّه
+  // لأن التاريخَ وحدَه يعني منتصفَ ليله. ويومٌ واحد يُطلَب بإرسال التاريخ نفسِه فيهما.
+  private assertRealDay(raw?: string, d?: Date) {
+    if (!raw || !d) return;
+    const parts = isNaN(d.getTime()) ? [] : new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(d);
+    const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+    if (`${part('year')}-${part('month')}-${part('day')}` !== raw) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: `تاريخ غير موجود: ${raw} — تأكّدي من اليوم والشهر`,
+      });
+    }
+  }
+
+  private buildCreatedAtRange(dateFrom?: string, dateTo?: string) {
+    if (!dateFrom && !dateTo) return undefined;
+    const BUSINESS_UTC_OFFSET = '+03:00';
+    const range: { gte?: Date; lte?: Date } = {};
+    if (dateFrom) range.gte = new Date(`${dateFrom}T00:00:00.000${BUSINESS_UTC_OFFSET}`);
+    if (dateTo) range.lte = new Date(`${dateTo}T23:59:59.999${BUSINESS_UTC_OFFSET}`);
+    // يومٌ لا وجودَ له (2026-02-31) لا يُنتِج تاريخاً غيرَ صالح: يُدوَّر إلى الثالث
+    // من آذار بلا إشارة، فيُرَدُّ للسائل مدىً لم يَطلبه ويَحسَبه جوابَ سؤاله.
+    // فيُصاغ التاريخُ رجوعاً إلى يومه بتوقيت العمل ويُقارَن بما أُرسِل.
+    this.assertRealDay(dateFrom, range.gte);
+    this.assertRealDay(dateTo, range.lte);
+    if (range.gte && range.lte && range.gte > range.lte) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'dateFrom بعد dateTo — ما في مدى بينهما',
+      });
+    }
+    return range;
+  }
+
   async list(query: ListTransactionsQueryDto) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 20));
@@ -524,6 +564,8 @@ export class TransactionsService {
     if (query.cashBoxId) where.OR = [{ cashBoxId: query.cashBoxId }, { relatedCashBoxId: query.cashBoxId }];
     if (query.transactionType) where.transactionType = query.transactionType;
     if (query.status) where.status = query.status;
+    const createdAtRange = this.buildCreatedAtRange(query.dateFrom, query.dateTo);
+    if (createdAtRange) where.createdAt = createdAtRange;
 
     const [items, total] = await Promise.all([
       this.prisma.cashTransaction.findMany({
