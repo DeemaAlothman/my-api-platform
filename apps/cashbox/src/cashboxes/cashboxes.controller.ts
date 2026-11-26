@@ -29,6 +29,14 @@ export class CashBoxesController {
     return this.service.getBalances(id);
   }
 
+  // المعلَّق يُعرَض إلى جانب الرصيد لا داخله: «بانتظار الاستلام» ما ينتظر إقرارَ
+  // هذا الصندوق فيَدخله، و«قيد التسليم» ما خرج منه ينتظر إقرارَ غيره
+  @Get(':id/pending')
+  @Permission(PERMISSIONS.CASHBOX.BOXES_READ)
+  getPending(@Param('id') id: string) {
+    return this.service.getPendingTotals(id);
+  }
+
   @Post()
   @Permission(PERMISSIONS.CASHBOX.BOXES_MANAGE)
   create(@Body() dto: CreateCashBoxDto) {

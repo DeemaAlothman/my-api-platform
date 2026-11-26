@@ -446,6 +446,7 @@ export const PERMISSIONS = {
     TRANSACTIONS_READ:   'cashbox.transactions.read',   // عرض حركات الصندوق
     TRANSACTIONS_CREATE: 'cashbox.transactions.create', // صرف/قبض/تسليم/تعبئة
     TRANSACTIONS_DEPOSIT: 'cashbox.transactions.deposit', // إيداع/رصيد افتتاحي — المدير المالي فقط
+    CEO_APPROVE:       'cashbox.ceo-approve',          // الموافقة على أمر صرف أو رفضه — المدير التنفيذي
     COUNTS_READ:   'cashbox.counts.read',   // عرض الجرد
     COUNTS_CREATE: 'cashbox.counts.create', // تسجيل جرد جديد
   },

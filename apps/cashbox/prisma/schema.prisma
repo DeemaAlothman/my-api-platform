@@ -63,7 +63,20 @@ enum CashTransactionType {
   @@schema("cashbox")
 }
 
-// حركة غير قابلة للتعديل — لا updatedAt عمداً، نفس مبدأ StockMovement بالمستودع
+// حالةُ الحركة. الرصيدُ لا يُحسَب إلا من المنفَّذ، وما سبق هذا الحقلَ منفَّذٌ كلُّه
+// فلذلك كانت COMPLETED قيمتَه الافتراضية: الأرصدةُ القائمة لا تتغيّر بإضافته.
+enum CashTransactionStatus {
+  COMPLETED             // منفَّذة — وحدها تدخل الرصيد
+  PENDING_CEO_APPROVAL  // صرفٌ ينتظر المدير التنفيذي، بلا خصم
+  PENDING_RECEIPT       // مبلغٌ داخلٌ ينتظر تأكيد صاحب الصندوق المستلِم
+  REJECTED              // رُفض — من المدير أو من صاحب الصندوق
+  CANCELLED             // ألغاه طالبُه قبل القرار
+
+  @@schema("cashbox")
+}
+
+// حركة غير قابلة للتعديل — لا updatedAt عمداً، نفس مبدأ StockMovement بالمستودع.
+// وحالتُها ليست تعديلاً للحركة بل انتقالٌ في مسار قرارها، يُسجَّل معه مَن قرَّر ومتى.
 model CashTransaction {
   id              String               @id @default(uuid())
   cashBoxId       String
@@ -88,9 +101,17 @@ model CashTransaction {
   createdByUserId String
   createdAt       DateTime @default(now())
 
+  // مسارُ القرار: الحالةُ، ومن حسمها، ومتى، وسببُ الرفض إن رُفضت.
+  // createdByUserId هو طالبُ الحركة، فلا يُكرَّر بحقلٍ آخر.
+  status          CashTransactionStatus @default(COMPLETED)
+  decidedByUserId String?
+  decidedAt       DateTime?
+  rejectReason    String?               @db.Text
+
   @@index([cashBoxId])
   @@index([relatedCashBoxId])
   @@index([transactionType])
+  @@index([status])
   @@map("cash_transactions")
   @@schema("cashbox")
 }

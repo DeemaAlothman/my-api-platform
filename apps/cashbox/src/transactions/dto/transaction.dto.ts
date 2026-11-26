@@ -1,11 +1,26 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, IsBoolean, IsIn } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+
+export const CASH_TRANSACTION_STATUSES = [
+  'COMPLETED', 'PENDING_CEO_APPROVAL', 'PENDING_RECEIPT', 'REJECTED', 'CANCELLED',
+] as const;
 
 export class DisbursementDto {
   @IsString() @IsNotEmpty() cashBoxId: string;
   @IsString() @IsNotEmpty() targetEmployeeId: string;
   @Type(() => Number) @IsNumber() @Min(0.01) amount: number;
   @IsString() @IsNotEmpty() currencyId: string;
+  @IsString() @IsNotEmpty() reason: string;
+
+  // غيابُه تنفيذٌ فوري كما كان قبل هذا الحقل، فلا يتبدَّل سلوكُ ما لا يُرسِله
+  @IsOptional()
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  requiresCeoApproval?: boolean;
+}
+
+// سببُ الرفض إلزامي: رفضٌ بلا سببٍ لا يُفيد من يُراجعه بعد شهر
+export class RejectDto {
   @IsString() @IsNotEmpty() reason: string;
 }
 
@@ -46,6 +61,9 @@ export class DepositDto {
 export class ListTransactionsQueryDto {
   @IsOptional() @IsString() cashBoxId?: string;
   @IsOptional() @IsString() transactionType?: string;
+  // حالةٌ غير معروفة تُرفَض ولا تُهمَل: فلترةٌ مُهمَلةٌ بصمتٍ تُرجِع كلَّ شيء
+  // فيَحسَبها القارئُ نتيجةً صحيحة
+  @IsOptional() @IsIn(CASH_TRANSACTION_STATUSES as unknown as string[]) status?: string;
   @IsOptional() @Type(() => Number) page?: number;
   @IsOptional() @Type(() => Number) limit?: number;
 }
