@@ -105,6 +105,34 @@ export class TransactionsService {
     ).catch(() => {});
   }
 
+  // ── لقطة الرصيد ───────────────────────────────────────────────────────────
+  //
+  // تُلتقَط لحظةَ وقوعِ الأثر لا لحظةَ القراءة، فتبقى شهادةً على ما كان الرصيدُ
+  // عليه وقتَها لا تتبدَّل بما يُسجَّل بعدها. ولكل طرفٍ لقطتُه في وقته: التسليمُ
+  // والتعبئةُ يَخرجان من المرسِل عند التسجيل ويَدخلان المستلِمَ عند تأكيده، فلو
+  // أُخِذت لقطةُ المرسِل عند التأكيد لظهر قبلَه وبعدَه سواءً — وذلك كذبٌ عليه،
+  // فمالُه كان قد خرج.
+
+  private primaryDelta(transactionType: string, amount: number): number {
+    return transactionType === 'DISBURSEMENT' || transactionType === 'HANDOVER' ? -amount : amount;
+  }
+
+  // عند اكتمال الحركة يُلتقَط الطرفُ الذي وقع أثرُه الآن: المستلِمُ في التسليم
+  // والتعبئة، والصندوقُ نفسُه في الصرف والقبض. ويُحسَب قبل تغيير الحالة، فالرصيدُ
+  // ما لم تكتمل الحركةُ لا يَشملها فهو عينُ «قبلها».
+  private async completionSnapshot(t: {
+    transactionType: string; cashBoxId: string; relatedCashBoxId: string | null;
+    currencyId: string; amount: unknown;
+  }) {
+    const amount = Number(t.amount);
+    if (t.transactionType === 'HANDOVER' && t.relatedCashBoxId) {
+      const before = await this.cashBoxes.getBalance(t.relatedCashBoxId, t.currencyId);
+      return { counterpartBalanceBefore: before, counterpartBalanceAfter: before + amount };
+    }
+    const before = await this.cashBoxes.getBalance(t.cashBoxId, t.currencyId);
+    return { balanceBefore: before, balanceAfter: before + this.primaryDelta(t.transactionType, amount) };
+  }
+
   private money(amount: unknown, code?: string) {
     return `${Number(amount).toLocaleString('en-US')}${code ? ` ${code}` : ''}`;
   }
@@ -116,6 +144,7 @@ export class TransactionsService {
   // ولا يَنتظر تأكيدَ استلام: لا مُرسِلَ له يُقِرُّ المستلِمُ أنه قبض منه.
   async deposit(dto: DepositDto, userId: string) {
     await this.assertBoxActive(dto.cashBoxId);
+    const before = await this.cashBoxes.getBalance(dto.cashBoxId, dto.currencyId);
     return this.prisma.cashTransaction.create({
       data: {
         cashBoxId: dto.cashBoxId,
@@ -125,6 +154,8 @@ export class TransactionsService {
         reason: dto.reason,
         createdByUserId: userId,
         status: 'COMPLETED',
+        balanceBefore: before,
+        balanceAfter: before + dto.amount,
       },
     });
   }
@@ -152,6 +183,10 @@ export class TransactionsService {
         targetEmployeeId: dto.targetEmployeeId,
         createdByUserId: userId,
         status,
+        // طلبٌ ينتظر البتَّ فيه لم يَمَسَّ رصيداً، فلا لقطةَ له حتى يُوافَق عليه
+        ...(status === 'COMPLETED'
+          ? { balanceBefore: balance, balanceAfter: balance - dto.amount }
+          : {}),
       },
       include: { currency: true },
     });
@@ -188,6 +223,10 @@ export class TransactionsService {
       throw new BadRequestException({ code: 'VALIDATION_ERROR', message: 'لازم تحدّدي مريض أو زبون لأمر القبض' });
     }
     const status = await this.incomingStatus(dto.cashBoxId, userId);
+    // المالُ الداخلُ لا يَمَسُّ الرصيدَ حتى يُقَرَّ قبضُه، فلا لقطةَ له قبل ذلك
+    const before = status === 'COMPLETED'
+      ? await this.cashBoxes.getBalance(dto.cashBoxId, dto.currencyId)
+      : null;
     const created = await this.prisma.cashTransaction.create({
       data: {
         cashBoxId: dto.cashBoxId,
@@ -199,6 +238,7 @@ export class TransactionsService {
         customerId: dto.customerId ?? null,
         createdByUserId: userId,
         status,
+        ...(before !== null ? { balanceBefore: before, balanceAfter: before + dto.amount } : {}),
       },
       include: { currency: true },
     });
@@ -225,6 +265,11 @@ export class TransactionsService {
       });
     }
     const status = await this.incomingStatus(main.id, userId);
+    // المرسِلُ هو الفرعيُّ وأثرُه واقعٌ الآن، فلقطتُه تُؤخَذ هنا دائماً.
+    // والرئيسيُّ المستلِمُ لا يُلتقَط إلا إن اكتملت الحركةُ فوراً.
+    const mainBefore = status === 'COMPLETED'
+      ? await this.cashBoxes.getBalance(main.id, dto.currencyId)
+      : null;
     const created = await this.prisma.cashTransaction.create({
       data: {
         cashBoxId: dto.cashBoxId,
@@ -235,6 +280,11 @@ export class TransactionsService {
         reason: dto.reason,
         createdByUserId: userId,
         status,
+        balanceBefore: balance,
+        balanceAfter: balance - dto.amount,
+        ...(mainBefore !== null
+          ? { counterpartBalanceBefore: mainBefore, counterpartBalanceAfter: mainBefore + dto.amount }
+          : {}),
       },
       include: { currency: true },
     });
@@ -258,6 +308,11 @@ export class TransactionsService {
       });
     }
     const status = await this.incomingStatus(box.id, userId);
+    // المرسِلُ في التعبئة هو الرئيسيُّ، وهو الطرفُ المقابلُ في هذا السطر، وأثرُه
+    // واقعٌ الآن. والفرعيُّ المستلِمُ لا يُلتقَط إلا إن اكتملت الحركةُ فوراً.
+    const subBefore = status === 'COMPLETED'
+      ? await this.cashBoxes.getBalance(box.id, dto.currencyId)
+      : null;
     const created = await this.prisma.cashTransaction.create({
       data: {
         cashBoxId: box.id,
@@ -268,6 +323,11 @@ export class TransactionsService {
         reason: dto.reason,
         createdByUserId: userId,
         status,
+        counterpartBalanceBefore: mainBalance,
+        counterpartBalanceAfter: mainBalance - dto.amount,
+        ...(subBefore !== null
+          ? { balanceBefore: subBefore, balanceAfter: subBefore + dto.amount }
+          : {}),
       },
       include: { currency: true },
     });
@@ -356,6 +416,8 @@ export class TransactionsService {
     }
     const ok = await this.transitionGuarded(id, 'PENDING_CEO_APPROVAL', {
       status: 'COMPLETED', decidedByUserId: userId, decidedAt: new Date(), rejectReason: null,
+      // الرصيدُ المقروءُ للتوِّ هو عينُ «قبلها»، فالحركةُ لم تكتمل بعد فلا تَشملها
+      balanceBefore: balance, balanceAfter: balance - Number(t.amount),
     });
     this.assertDecided(ok);
 
@@ -439,8 +501,11 @@ export class TransactionsService {
   async confirmReceipt(id: string, userId: string) {
     const t = await this.loadPending(id, 'PENDING_RECEIPT');
     await this.assertMayConfirm(t, userId);
+    // يُحسَب قبل تغيير الحالة: الطرفُ المستلِمُ لا يَشمل الحركةَ ما لم تكتمل
+    const snapshot = await this.completionSnapshot(t);
     const ok = await this.transitionGuarded(id, 'PENDING_RECEIPT', {
       status: 'COMPLETED', decidedByUserId: userId, decidedAt: new Date(), rejectReason: null,
+      ...snapshot,
     });
     this.assertDecided(ok);
 

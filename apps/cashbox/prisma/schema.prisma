@@ -108,6 +108,15 @@ model CashTransaction {
   decidedAt       DateTime?
   rejectReason    String?               @db.Text
 
+  // لقطةُ الرصيد لحظةَ وقوعِ أثرِ هذه الحركة، لا محسوبةً عند القراءة: المحسوبُ
+  // لاحقاً يتبدَّل بكل حركةٍ تُسجَّل بعده، فلا يَصلُح شاهداً على ما كان.
+  // الأولان لصندوق cashBoxId، والمقابلان لصندوق relatedCashBoxId في التسليم والتعبئة.
+  // وتبقى فارغةً ما لم يَقع الأثرُ بعد: طلبٌ لم يُبَتَّ فيه لا رصيدَ له.
+  balanceBefore             Decimal? @db.Decimal(18, 4)
+  balanceAfter              Decimal? @db.Decimal(18, 4)
+  counterpartBalanceBefore  Decimal? @db.Decimal(18, 4)
+  counterpartBalanceAfter   Decimal? @db.Decimal(18, 4)
+
   @@index([cashBoxId])
   @@index([relatedCashBoxId])
   @@index([transactionType])
