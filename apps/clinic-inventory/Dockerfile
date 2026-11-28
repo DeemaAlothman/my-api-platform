@@ -22,9 +22,17 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules              ./node_modules
+# تُنصَّب تبعياتُ هذه الخدمة من بيانها هي، ولا تُنسَخ شجرةُ الجذر من مرحلة البناء.
+# فالجذرُ يُعرِّف مساحةَ عملٍ أعضاؤها كلُّ التطبيقات، ولا يُنسَخ إلى البناء إلا
+# بيانُ هذه الخدمة — فتخرج الشجرةُ ناقصةً من حزمةٍ تُعلِنها الخدمةُ وتَلزمها،
+# فتقلع فلا تجدها. وكان الكاشُ يُخفي ذلك حتى أُفرِغ، فانهارت خدمةُ المستودع.
+# وعميلُ Prisma يُنسَخ مولَّداً من البناء ولا يُعاد توليدُه هنا، كما في zkteco:
+# التوليدُ في مرحلة الإنتاج يَجلب المُشغِّلَ من الشبكة فيُفاجئ بنسخةٍ أحدث.
+COPY --from=builder /app/apps/clinic-inventory/package*.json ./
+RUN npm install --omit=dev
 COPY --from=builder /app/apps/clinic-inventory/dist   ./dist
 COPY --from=builder /app/apps/clinic-inventory/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma         ./node_modules/.prisma
 
 EXPOSE 4014
 CMD ["node", "dist/apps/clinic-inventory/src/main.js"]
