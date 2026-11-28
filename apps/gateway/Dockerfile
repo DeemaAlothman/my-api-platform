@@ -31,7 +31,13 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules              ./node_modules
+# تُنصَّب تبعياتُ البوابة من بيانها هي، ولا تُنسَخ شجرةُ الجذر من مرحلة البناء.
+# فالجذرُ يُعرِّف مساحةَ عملٍ أعضاؤها كلُّ التطبيقات، ولا يُنسَخ إلى البناء إلا
+# بيانُ البوابة — فتخرج الشجرةُ ناقصةً من حزمةٍ تُعلِنها وتَلزمها، فتقلع فلا
+# تجدها. وكان الكاشُ يُخفي ذلك حتى أُفرِغ، فانهارت خدمةُ المستودع على هذا.
+# ولا عميلَ Prisma هنا: البوابةُ لا تُخاطب قاعدةَ البيانات، إنما تُمرِّر الطلبات.
+COPY --from=builder /app/apps/gateway/package*.json ./
+RUN npm install --omit=dev --legacy-peer-deps
 COPY --from=builder /app/apps/gateway/dist         ./dist
 
 EXPOSE 8000 5000
