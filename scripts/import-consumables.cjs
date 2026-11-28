@@ -112,25 +112,41 @@ async function api(method, pathname, body) {
 // الردُّ قد يكون مصفوفةً أو مغلَّفاً بـitems — يُقرأ الشكلان
 const asList = (d) => (Array.isArray(d) ? d : Array.isArray(d?.items) ? d.items : []);
 
-function ask(question, hidden = false) {
+function ask(question) {
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    if (!hidden) return rl.question(question, (a) => { rl.close(); resolve(a.trim()); });
-    // الإدخالُ المخفيُّ لا يُطبَع ولا يُحفَظ في سجل الأوامر
+    rl.question(question, (a) => { rl.close(); resolve(a.trim()); });
+  });
+}
+
+// لا تُنشَأ واجهةُ readline هنا: هي تُصدِّر ما يُكتَب إلى الشاشة من تلقائها،
+// فكانت كلمةُ المرور تَظهر وتَبقى في سجل الطرفية رغم وصفها بالمخفيّة.
+// يُقرأ المِفتاحُ خاماً من المُدخَل ولا يُكتَب له صدى.
+function askHidden(question) {
+  return new Promise((resolve, reject) => {
+    if (!process.stdin.isTTY) {
+      return reject(new Error('الإدخال المخفي يحتاج طرفيةً حقيقية — استعملي VITAXIR_TOKEN بدلاً منه'));
+    }
     process.stdout.write(question);
+    let buf = '';
     const onData = (ch) => {
-      const s = ch.toString();
-      if (s === '\r' || s === '\n') {
+      const s = ch.toString('utf8');
+      if (s === '\r' || s === '\n' || s === '\u0004') {
         process.stdin.setRawMode(false);
+        process.stdin.pause();
         process.stdin.removeListener('data', onData);
         process.stdout.write('\n');
-        rl.close();
         resolve(buf);
-      } else if (s === '\u0003') { process.exit(1); }
-      else if (s === '\u007f' || s === '\b') { buf = buf.slice(0, -1); }
-      else { buf += s; }
+      } else if (s === '\u0003') {
+        process.stdin.setRawMode(false);
+        process.stdout.write('\n');
+        process.exit(1);
+      } else if (s === '\u007f' || s === '\b') {
+        buf = buf.slice(0, -1);
+      } else {
+        buf += s;
+      }
     };
-    let buf = '';
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.on('data', onData);
@@ -140,7 +156,7 @@ function ask(question, hidden = false) {
 async function login() {
   if (process.env.VITAXIR_TOKEN) { TOKEN = process.env.VITAXIR_TOKEN; return '(توكن من البيئة)'; }
   const username = await ask('اسم المستخدم: ');
-  const password = await ask('كلمة المرور (مخفية): ', true);
+  const password = await askHidden('كلمة المرور (لن تظهر): ');
   const data = await api('POST', '/auth/login', { username, password });
   TOKEN = data.accessToken;
   if (!TOKEN) throw new Error('الدخول نجح لكن ما رجع توكن');
