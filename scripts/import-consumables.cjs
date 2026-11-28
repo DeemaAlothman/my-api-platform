@@ -165,13 +165,22 @@ async function buildPlan(rows) {
     for (const x of list) if (x?.[key]) m.set(norm(x[key]), x);
     return m;
   };
+
+  // الأصنافُ تُطابَق بالاسمين كليهما: الكتالوجُ القائم مُسمّى بالإنكليزية بلا اسمٍ
+  // عربي، فالمطابقةُ بالعربيِّ وحدَه تُرِي الجدولَ فارغاً. وعلى هذه المطابقةِ يقوم
+  // تخطّي ما أُنشئ عند إعادة التشغيل، فلا يُنشَأ صنفٌ مرتين — والجدولُ لا يَمنع
+  // تكرارَ الاسم من نفسه.
+  const itemsByAnyName = new Map();
+  for (const x of items) {
+    for (const k of [x?.nameAr, x?.name]) if (k) itemsByAnyName.set(norm(k), x);
+  }
   const existing = {
     units: byName(units),
     categories: byName(categories),
     suppliers: byName(suppliers),
     warehouses: byName(warehouses),
-    // الأصنافُ تُطابَق بالاسم العربي النهائي، فلا يُنشَأ صنفٌ موجود
-    items: byName(items, 'nameAr'),
+    items: itemsByAnyName,
+    itemsFetched: items.length,
   };
 
   const need = { units: new Set(), categories: new Set(), suppliers: new Set(), warehouses: new Set() };
@@ -203,7 +212,7 @@ function printPlan(plan) {
   console.log(`  التصنيفات  : ${[...existing.categories.keys()].join(' · ') || '(لا شيء)'}`);
   console.log(`  الموردون   : ${[...existing.suppliers.keys()].join(' · ') || '(لا شيء)'}`);
   console.log(`  المستودعات : ${[...existing.warehouses.keys()].join(' · ') || '(لا شيء)'}`);
-  console.log(`  الأصناف    : ${existing.items.size} صنفاً مسجَّلاً`);
+  console.log(`  الأصناف    : ${existing.itemsFetched} صنفاً مسجَّلاً (منها ${existing.items.size} باسمٍ يُطابَق)`);
 
   console.log('\n════════ ما سيُنشأ ════════');
   for (const [label, set] of [
