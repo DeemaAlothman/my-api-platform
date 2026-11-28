@@ -111,7 +111,7 @@ export class CatalogService {
     }
     return this.prisma.item.findMany({
       where,
-      include: { category: true, unit: true, manufacturer: true },
+      include: { category: true, unit: true, manufacturer: true, supplier: true },
       orderBy: { name: 'asc' },
     });
   }
@@ -119,7 +119,7 @@ export class CatalogService {
   async findItem(id: string) {
     const item = await this.prisma.item.findFirst({
       where: { id, deletedAt: null },
-      include: { category: true, unit: true, manufacturer: true },
+      include: { category: true, unit: true, manufacturer: true, supplier: true },
     });
     if (!item) throw new NotFoundException({ code: 'ITEM_NOT_FOUND', message: 'الصنف غير موجود' });
     return item;
@@ -136,7 +136,7 @@ export class CatalogService {
       const dupPart = await this.prisma.item.findUnique({ where: { partCode: dto.partCode } });
       if (dupPart) throw new BadRequestException({ code: 'DUPLICATE_PART_CODE', message: 'يوجد صنف بنفس رمز القطعة مسبقاً' });
     }
-    return this.prisma.item.create({ data: { ...dto, sku } as any, include: { category: true, unit: true, manufacturer: true } });
+    return this.prisma.item.create({ data: { ...dto, sku } as any, include: { category: true, unit: true, manufacturer: true, supplier: true } });
   }
 
   async updateItem(id: string, dto: UpdateItemDto) {
@@ -153,7 +153,7 @@ export class CatalogService {
       const dupPart = await this.prisma.item.findFirst({ where: { partCode: dto.partCode, id: { not: id } } });
       if (dupPart) throw new BadRequestException({ code: 'DUPLICATE_PART_CODE', message: 'يوجد صنف بنفس رمز القطعة مسبقاً' });
     }
-    return this.prisma.item.update({ where: { id }, data: dto as any, include: { category: true, unit: true, manufacturer: true } });
+    return this.prisma.item.update({ where: { id }, data: dto as any, include: { category: true, unit: true, manufacturer: true, supplier: true } });
   }
 
   async deleteItem(id: string) {

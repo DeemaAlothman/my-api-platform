@@ -48,6 +48,9 @@ export class CreateItemDto {
   @IsOptional() @IsString() categoryId?: string;
   @IsString() @IsNotEmpty() unitId: string;
   @IsOptional() @IsString() manufacturerId?: string;
+  // الماركة أو النوع الفرعي، والمورّد الذي تُشترى منه المادة عادةً
+  @IsOptional() @IsString() brand?: string;
+  @IsOptional() @IsString() supplierId?: string;
   @IsOptional() @IsBoolean() stockAlert?: boolean;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) minStock?: number;
 }
@@ -60,6 +63,8 @@ export class UpdateItemDto {
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() unitId?: string;
   @IsOptional() @IsString() manufacturerId?: string;
+  @IsOptional() @IsString() brand?: string;
+  @IsOptional() @IsString() supplierId?: string;
   @IsOptional() @IsBoolean() stockAlert?: boolean;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) minStock?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;

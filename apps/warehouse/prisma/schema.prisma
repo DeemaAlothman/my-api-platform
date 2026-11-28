@@ -97,6 +97,7 @@ model Supplier {
   isActive Boolean @default(true)
 
   purchaseInvoices PurchaseInvoice[]
+  items            Item[]
 
   @@map("suppliers")
   @@schema("warehouse")
@@ -156,6 +157,17 @@ model Item {
   unit         Unit          @relation(fields: [unitId], references: [id])
   manufacturerId String?
   manufacturer   Manufacturer? @relation(fields: [manufacturerId], references: [id])
+
+  // الماركة أو النوع الفرعي: «ماليزي»، «3 inch»، «1سم». لم يكن لها حقل، فكانت
+  // تُدمَج في الاسم وحدَه فلا تُفرَز ولا يُجمَع عليها. والاسمُ يحملها أيضاً ليُقرأ
+  // في القوائم، وهذا الحقلُ هو مصدرُها: تصحيحُه يُوجِب إعادةَ توليد الاسم.
+  brand        String?
+
+  // المورّد الذي تُشترى منه هذه المادة عادةً. الموردون مرتبطون بفواتير الشراء،
+  // ولم يكن للمادة نفسِها مورّد — فسؤال «نفدت المادة، من أين نشتريها؟» لم يكن
+  // للنظام جوابٌ عنه.
+  supplierId   String?
+  supplier     Supplier?     @relation(fields: [supplierId], references: [id])
   stockAlert   Boolean       @default(false)
   minStock     Decimal?      @db.Decimal(18, 3)
   costingMethod CostingMethod @default(AVERAGE_PRICE)
