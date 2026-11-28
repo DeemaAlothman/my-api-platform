@@ -22,7 +22,13 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules            ./node_modules
+# تُنصَّب تبعياتُ هذه الخدمة من بيانها هي، ولا تُنسَخ شجرةُ الجذر من مرحلة البناء.
+# فالجذرُ يُعرِّف مساحةَ عملٍ أعضاؤها كلُّ التطبيقات، ولا يُنسَخ إلى البناء إلا
+# بيانُ هذه الخدمة — فتخرج الشجرةُ ناقصةً من حزمةٍ تُعلِنها الخدمةُ وتَلزمها،
+# فتقلع فلا تجدها. وكان الكاشُ يُخفي ذلك حتى أُفرِغ. وهو عينُ ما تفعله خدماتُ
+# users وcashbox وغيرُها، وأخفُّ حجماً.
+COPY --from=builder /app/apps/warehouse/package*.json ./
+RUN npm install --omit=dev
 COPY --from=builder /app/apps/warehouse/dist      ./dist
 COPY --from=builder /app/apps/warehouse/prisma    ./prisma
 COPY apps/warehouse/entrypoint.sh ./entrypoint.sh
