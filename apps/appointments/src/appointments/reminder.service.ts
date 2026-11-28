@@ -33,12 +33,15 @@ export class ReminderService implements OnModuleInit {
 
     this.logger.log(`Sending reminders for ${appointments.length} appointments tomorrow`);
 
-    const mailUrl   = process.env.MAIL_SERVICE_URL   || 'http://mail:4005';
+    // خدمةُ البريد تستمع على 4009، وكان المكتوبُ هنا 4005. وهذه الخدمةُ لا تُعرَّف
+    // لها MAIL_SERVICE_URL في إعداد التشغيل فيُستعمل هذا الافتراضُ وحدَه — فكان
+    // النداءُ يُوجَّه إلى بابٍ لا أحدَ وراءه، ولم يَصل تذكيرُ موعدٍ واحدٍ قطُّ.
+    const mailUrl   = process.env.MAIL_SERVICE_URL   || 'http://mail:4009';
     const token     = process.env.INTERNAL_SERVICE_TOKEN || '';
 
     for (const appt of appointments) {
       try {
-        await fetch(`${mailUrl}/api/v1/mail/internal/send`, {
+        const res = await fetch(`${mailUrl}/api/v1/mail/internal/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-internal-token': token },
           body: JSON.stringify({
@@ -48,6 +51,13 @@ export class ReminderService implements OnModuleInit {
             type:    'APPOINTMENT_REMINDER',
           }),
         });
+
+        // fetch لا ترمي إلا إذا تعذَّر الوصولُ أصلاً: ردٌّ بخطأٍ من خدمة البريد
+        // كان يُحسَب نجاحاً فيُختَم الموعدُ بأن تذكيرَه أُرسِل، ولم يُرسَل.
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          throw new Error(`mail ${res.status}: ${body.slice(0, 200)}`);
+        }
 
         await this.prisma.appointment.update({
           where: { id: appt.id },
