@@ -60,8 +60,26 @@ export class TransactionsService {
 
   // عمودُ type في جدول الإشعارات نوعٌ محصور لا يُزاد إلا بترحيلٍ يمسُّ الجدولَ كلَّه،
   // فنوعُ الحدث يُحمَل في data كما في إشعارات المواعيد، وعليه تُبنى الأيقونةُ والتسمية
-  private notifData(t: { id: string; cashBoxId: string }, type: string) {
-    return { type, transactionId: t.id, link: `/cashbox/transactions?transactionId=${t.id}` };
+  private notifData(t: { id: string; cashBoxId: string; referenceNumber?: string | null }, type: string) {
+    return {
+      type,
+      transactionId: t.id,
+      referenceNumber: t.referenceNumber ?? null,
+      link: `/cashbox/transactions?search=${encodeURIComponent(t.referenceNumber ?? t.id)}`,
+    };
+  }
+
+  // المرجعُ يُذكَر في نصِّ الإشعار لا في بياناته وحدَها: من يقرؤه على هاتفه يحتاج
+  // أن يعرف عن أيِّ حركةٍ الكلام قبل أن يفتح شيئاً، وأن يَنطق به للمحاسب
+  private async notify(
+    userId: string,
+    t: { id: string; cashBoxId: string; referenceNumber?: string | null },
+    type: string,
+    titleAr: string,
+    messageAr: string,
+  ) {
+    const ref = t.referenceNumber ? ` (مرجع: ${t.referenceNumber})` : '';
+    await this.insertNotif(userId, this.notifData(t, type), titleAr, messageAr + ref);
   }
 
   private async usersWithPermission(permission: string): Promise<string[]> {
@@ -113,6 +131,49 @@ export class TransactionsService {
   // أُخِذت لقطةُ المرسِل عند التأكيد لظهر قبلَه وبعدَه سواءً — وذلك كذبٌ عليه،
   // فمالُه كان قد خرج.
 
+  // ── الرقم المرجعي ─────────────────────────────────────────────────────────
+
+  // السنةُ بتوقيت العمل لا بتوقيت الحاوية: حركةٌ تُسجَّل 00:30 من أول كانون الثاني
+  // تنتمي إلى سنتها الجديدة لا إلى التي قبلها.
+  private businessYear(d = new Date()): number {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Riyadh', year: 'numeric',
+    }).formatToParts(d);
+    return Number(parts.find((p) => p.type === 'year')?.value ?? d.getUTCFullYear());
+  }
+
+  // يُنشِئ الحركةَ ورقمَها في معاملةٍ واحدة. الحجزُ زيادةٌ ذرّيةٌ على سطر السنة،
+  // لا قراءةٌ لأكبر رقمٍ ثم زيادةٌ عليه: فطلبان متزامنان لا يأخذان رقماً واحداً
+  // فيُرفَض أحدُهما. وكونُهما في معاملةٍ واحدة يجعل الإنشاءَ الفاشلَ لا يَحرِق
+  // رقماً، فلا تَبقى في تسلسلٍ ماليٍّ ثغرةٌ لا يُعرَف سببُها.
+  // النوعُ مُرخًى لأن المُستدعين يُمرِّرون include مختلفةً، فشكلُ النتيجة يختلف
+  // بينهم؛ وما يَقرؤه كلٌّ منهم مضمونٌ بما طلبه في include نفسِه.
+  private async createTx(args: { data: any; include?: any }): Promise<any> {
+    return this.prisma.$transaction(async (tx) => {
+      const year = this.businessYear();
+      const rows = await tx.$queryRawUnsafe<Array<{ lastValue: number }>>(
+        `INSERT INTO cashbox.reference_counters ("year", "lastValue")
+         VALUES ($1, 1)
+         ON CONFLICT ("year") DO UPDATE
+           SET "lastValue" = cashbox.reference_counters."lastValue" + 1
+         RETURNING "lastValue"`,
+        year,
+      );
+      const seq = Number(rows[0]?.lastValue ?? 1);
+      // أربعُ خاناتٍ بأصفارٍ سابقة، كما طُلِب. والأصفارُ تُقيم الترتيبَ النصّيَّ على
+      // العدديِّ حتى 9999 فحسب: ما بعدها يَطول الرقمُ فيَنقلب الترتيبُ نصّاً
+      // (CB-2026-10000 قبل CB-2026-9999 لأن «1» قبل «9»). ولا يُفرَز بهذا الحقل
+      // في النظام — الحركاتُ تُرتَّب بتاريخ إنشائها — ولو احتيج الفرزُ به يوماً
+      // فليُفرَز بالتاريخ، أو تُوسَّع الخاناتُ وقتَها. والتوليدُ لا يَعتمد على
+      // الترتيب أصلاً: الرقمُ يأتي من عدّادٍ لا من أكبرِ قيمةٍ مقروءة.
+      const referenceNumber = `CB-${year}-${String(seq).padStart(4, '0')}`;
+      return tx.cashTransaction.create({
+        ...args,
+        data: { ...args.data, referenceNumber },
+      } as any);
+    });
+  }
+
   private primaryDelta(transactionType: string, amount: number): number {
     return transactionType === 'DISBURSEMENT' || transactionType === 'HANDOVER' ? -amount : amount;
   }
@@ -145,7 +206,7 @@ export class TransactionsService {
   async deposit(dto: DepositDto, userId: string) {
     await this.assertBoxActive(dto.cashBoxId);
     const before = await this.cashBoxes.getBalance(dto.cashBoxId, dto.currencyId);
-    return this.prisma.cashTransaction.create({
+    return this.createTx({
       data: {
         cashBoxId: dto.cashBoxId,
         transactionType: 'DEPOSIT',
@@ -173,7 +234,7 @@ export class TransactionsService {
       });
     }
     const status: TxStatus = dto.requiresCeoApproval ? 'PENDING_CEO_APPROVAL' : 'COMPLETED';
-    const created = await this.prisma.cashTransaction.create({
+    const created = await this.createTx({
       data: {
         cashBoxId: dto.cashBoxId,
         transactionType: 'DISBURSEMENT',
@@ -203,8 +264,8 @@ export class TransactionsService {
         + `. السبب: ${dto.reason}`;
       for (const approver of approvers) {
         if (approver === userId) continue;
-        await this.insertNotif(
-          approver, this.notifData(created, 'CASH_DISBURSEMENT_PENDING'),
+        await this.notify(
+          approver, created, 'CASH_DISBURSEMENT_PENDING',
           'صرف بانتظار موافقتك', msg,
         );
       }
@@ -227,7 +288,7 @@ export class TransactionsService {
     const before = status === 'COMPLETED'
       ? await this.cashBoxes.getBalance(dto.cashBoxId, dto.currencyId)
       : null;
-    const created = await this.prisma.cashTransaction.create({
+    const created = await this.createTx({
       data: {
         cashBoxId: dto.cashBoxId,
         transactionType: 'RECEIPT',
@@ -270,7 +331,7 @@ export class TransactionsService {
     const mainBefore = status === 'COMPLETED'
       ? await this.cashBoxes.getBalance(main.id, dto.currencyId)
       : null;
-    const created = await this.prisma.cashTransaction.create({
+    const created = await this.createTx({
       data: {
         cashBoxId: dto.cashBoxId,
         relatedCashBoxId: main.id,
@@ -313,7 +374,7 @@ export class TransactionsService {
     const subBefore = status === 'COMPLETED'
       ? await this.cashBoxes.getBalance(box.id, dto.currencyId)
       : null;
-    const created = await this.prisma.cashTransaction.create({
+    const created = await this.createTx({
       data: {
         cashBoxId: box.id,
         relatedCashBoxId: main.id,
@@ -348,8 +409,8 @@ export class TransactionsService {
       transactionType: created.transactionType, receivingCashBoxId: receiving, reason: created.reason,
     });
     if (!custodian || custodian === userId) return;
-    await this.insertNotif(
-      custodian, this.notifData(created, 'CASH_RECEIPT_PENDING'),
+    await this.notify(
+      custodian, created, 'CASH_RECEIPT_PENDING',
       'مبلغ بانتظار تأكيد استلامك',
       `${this.money(created.amount, created.currency.code)} من ${senderBoxName}`
         + (created.reason ? `. السبب: ${created.reason}` : ''),
@@ -425,8 +486,8 @@ export class TransactionsService {
       amount: String(t.amount), currency: t.currency.code, balanceAtApproval: balance,
     });
     if (t.createdByUserId !== userId) {
-      await this.insertNotif(
-        t.createdByUserId, this.notifData(t, 'CASH_DISBURSEMENT_APPROVED'),
+      await this.notify(
+        t.createdByUserId, t, 'CASH_DISBURSEMENT_APPROVED',
         'تمت الموافقة على الصرف',
         `وُوفق على صرف ${this.money(t.amount, t.currency.code)} من ${t.cashBox.name}`,
       );
@@ -445,8 +506,8 @@ export class TransactionsService {
       amount: String(t.amount), currency: t.currency.code, reason,
     });
     if (t.createdByUserId !== userId) {
-      await this.insertNotif(
-        t.createdByUserId, this.notifData(t, 'CASH_DISBURSEMENT_REJECTED'),
+      await this.notify(
+        t.createdByUserId, t, 'CASH_DISBURSEMENT_REJECTED',
         'رُفض طلب الصرف',
         `رُفض صرف ${this.money(t.amount, t.currency.code)} من ${t.cashBox.name}. السبب: ${reason}`,
       );
@@ -513,8 +574,8 @@ export class TransactionsService {
       amount: String(t.amount), currency: t.currency.code, transactionType: t.transactionType,
     });
     if (t.createdByUserId !== userId) {
-      await this.insertNotif(
-        t.createdByUserId, this.notifData(t, 'CASH_RECEIPT_CONFIRMED'),
+      await this.notify(
+        t.createdByUserId, t, 'CASH_RECEIPT_CONFIRMED',
         'تم تأكيد الاستلام',
         `أُكِّد استلام ${this.money(t.amount, t.currency.code)}`,
       );
@@ -540,8 +601,8 @@ export class TransactionsService {
       const returned = t.transactionType === 'RECEIPT'
         ? 'وأُلغيت الحركة'
         : 'ورجع المبلغ للصندوق المرسِل';
-      await this.insertNotif(
-        t.createdByUserId, this.notifData(t, 'CASH_RECEIPT_REJECTED'),
+      await this.notify(
+        t.createdByUserId, t, 'CASH_RECEIPT_REJECTED',
         'رُفض تأكيد الاستلام',
         `لم يُستلَم ${this.money(t.amount, t.currency.code)} — ${returned}. السبب: ${reason}`,
       );
@@ -629,6 +690,10 @@ export class TransactionsService {
     if (query.cashBoxId) where.OR = [{ cashBoxId: query.cashBoxId }, { relatedCashBoxId: query.cashBoxId }];
     if (query.transactionType) where.transactionType = query.transactionType;
     if (query.status) where.status = query.status;
+    // المرجعُ يُنقَل بالكلام فيُكتَب بحالةِ أحرفٍ مختلفة، ويُذكَر جزؤه الأخير وحدَه
+    if (query.search && query.search.trim()) {
+      where.referenceNumber = { contains: query.search.trim(), mode: 'insensitive' };
+    }
     const createdAtRange = this.buildCreatedAtRange(query.dateFrom, query.dateTo);
     if (createdAtRange) where.createdAt = createdAtRange;
 

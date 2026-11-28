@@ -75,10 +75,28 @@ enum CashTransactionStatus {
   @@schema("cashbox")
 }
 
+// عدّادُ الأرقام المرجعية، سطرٌ لكل سنة. يُحجَز الرقمُ بزيادةٍ ذرّيةٍ على هذا
+// السطر داخل معاملة الإنشاء نفسِها، لا بقراءة أكبرِ رقمٍ ثم الزيادةِ عليه:
+// فطلبان متزامنان لا يأخذان رقماً واحداً فيُرفَض أحدُهما، وإنشاءٌ فشل لا يَحرِق
+// رقماً فيَترك ثغرةً في تسلسلٍ ماليٍّ يُراجَع.
+model ReferenceCounter {
+  year      Int @id
+  lastValue Int @default(0)
+
+  @@map("reference_counters")
+  @@schema("cashbox")
+}
+
 // حركة غير قابلة للتعديل — لا updatedAt عمداً، نفس مبدأ StockMovement بالمستودع.
 // وحالتُها ليست تعديلاً للحركة بل انتقالٌ في مسار قرارها، يُسجَّل معه مَن قرَّر ومتى.
 model CashTransaction {
   id              String               @id @default(uuid())
+
+  // رقمٌ مقروءٌ يُذكَر في الكلام ويُكتَب على ورقة: CB-2026-0001. المعرِّفُ العشوائيُّ
+  // لا يُحفَظ ولا يُنطَق، وثمانيةُ أحرفٍ منه ليست مرجعاً يُراجِع به محاسبٌ أحداً.
+  // يُولَّد مرةً عند الإنشاء ولا يُعدَّل، ويبقى للحركة وإن رُفضت أو أُلغيت فيُرجَع إليه.
+  referenceNumber String?              @unique
+
   cashBoxId       String
   cashBox         CashBox              @relation("BoxTransactions", fields: [cashBoxId], references: [id])
   transactionType CashTransactionType

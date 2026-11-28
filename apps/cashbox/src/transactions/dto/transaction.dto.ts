@@ -73,6 +73,9 @@ export class ListTransactionsQueryDto {
   @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dateTo لازم تكون بصيغة YYYY-MM-DD' })
   dateTo?: string;
 
+  // بحثٌ بالرقم المرجعي، كاملاً أو جزءاً منه، بلا حساسيةٍ لحالة الأحرف
+  @IsOptional() @IsString() search?: string;
+
   @IsOptional() @Type(() => Number) page?: number;
   @IsOptional() @Type(() => Number) limit?: number;
 }
